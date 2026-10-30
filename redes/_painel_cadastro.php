@@ -18,7 +18,8 @@
                     <div class="form-field">
                         <div class="arc-network-brand-editor span2">
  <label class="arc-network-logo-pick" title="Clique para alterar a logo" aria-label="Alterar logo da rede">
-  <?php if(!empty($network['logo_file'])): ?><img id="arc-logo-preview" alt="Logo da rede" src="<?=arc_h(arc_workspace_base_url())?>api/network-logo.php?network=<?=(int)$networkId?>"><?php else: ?><span id="arc-logo-placeholder"><i class="fa fa-picture-o"></i><small>Adicionar logo</small></span><img id="arc-logo-preview" alt="Prévia da logo" hidden><?php endif; ?>
+  <?php
+/* Caminho: redes/_painel_cadastro.php */ if(!empty($network['logo_file'])): ?><img id="arc-logo-preview" alt="Logo da rede" src="<?=arc_h(arc_workspace_base_url())?>api/network-logo.php?network=<?=(int)$networkId?>"><?php else: ?><span id="arc-logo-placeholder"><i class="fa fa-picture-o"></i><small>Adicionar logo</small></span><img id="arc-logo-preview" alt="Prévia da logo" hidden><?php endif; ?>
   <input type="file" name="network_logo" accept="image/png,image/jpeg,image/webp" id="arc-network-logo-input" hidden>
  </label>
  <div class="arc-network-brand-fields"><label>Nome da rede<input name="network_name" value="<?=arc_h((string)$network['name'])?>" required></label><label>Cliente / empresa<input name="client_name" value="<?=arc_h((string)$network['client_name'])?>"></label></div>

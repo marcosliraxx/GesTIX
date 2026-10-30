@@ -1,4 +1,5 @@
 <?php
+/* Caminho: redes/servidor.php */
 declare(strict_types=1);
 $arcSectionFile='servidor';
 require __DIR__.'/_base.php';

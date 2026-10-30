@@ -1,3 +1,4 @@
+# Caminho: agent/Instalar_Arcoll.py
 # -*- coding: utf-8 -*-
 """Instalador Arcoll usando Python local, sem PowerShell e sem downloads remotos."""
 import argparse, datetime, json, os, pathlib, shutil, subprocess, sys, traceback

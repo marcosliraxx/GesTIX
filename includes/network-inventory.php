@@ -1,4 +1,5 @@
 <?php
+/* Caminho: includes/network-inventory.php */
 /** Inventário persistente por agente e MAC. Não altera as tabelas legadas. */
 declare(strict_types=1);
 

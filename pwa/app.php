@@ -1,4 +1,5 @@
 <?php
+/* Caminho: pwa/app.php */
 declare(strict_types=1);
 // Keep the installed PWA identity and old launch URLs on the shared application shell.
 require dirname(__DIR__).'/includes/bootstrap.php';

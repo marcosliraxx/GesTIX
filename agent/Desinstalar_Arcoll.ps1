@@ -1,4 +1,5 @@
-﻿# Arcoll Speed Connection - desinstalação local sob confirmação do usuário
+﻿# Caminho: agent/Desinstalar_Arcoll.ps1
+# Arcoll Speed Connection - desinstalação local sob confirmação do usuário
 # Nunca remove dados armazenados no servidor.
 param([switch]$Elevated)
 $ErrorActionPreference='Stop'

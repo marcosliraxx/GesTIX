@@ -1,4 +1,5 @@
-﻿param(
+﻿# Caminho: agent/Instalar_Arcoll.ps1
+param(
     [switch]$Run,
     [switch]$Background
 )
@@ -222,7 +223,7 @@ try {
         $ws = New-Object -ComObject WScript.Shell
         $link = $ws.CreateShortcut($shortcutPath)
         $link.TargetPath = 'powershell.exe'
-        $link.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $base 'Instalar_Arcoll.ps1') + '" -Run' 
+        $link.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $base 'Instalar_Arcoll.ps1') + '" -Run'
         $link.WorkingDirectory = $base
         $link.WindowStyle = 7
         $link.Description = 'Agente de rede Arcoll Speed Connection'

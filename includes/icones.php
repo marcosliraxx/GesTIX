@@ -1,4 +1,5 @@
 <?php
+/* Caminho: includes/icones.php */
 declare(strict_types=1);
 /** Catálogo de classes Font Awesome 4.7; nenhuma dependência de banco. */
 function arc_fa_icons(): array {

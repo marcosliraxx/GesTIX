@@ -1,4 +1,5 @@
 <?php
+/* Caminho: api/agent-api.php */
 declare(strict_types=1);
 require __DIR__ . '/../includes/bootstrap.php';
 try {

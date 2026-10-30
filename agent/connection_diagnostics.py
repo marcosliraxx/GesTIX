@@ -1,3 +1,4 @@
+# Caminho: agent/connection_diagnostics.py
 """Medições de conexão geradas no Windows; sem credenciais nem endereço físico."""
 import ipaddress, json, platform, re, socket, subprocess, time, urllib.request, pathlib, os
 

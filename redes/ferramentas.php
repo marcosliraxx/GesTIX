@@ -1,7 +1,7 @@
 <?php
 /* Caminho: redes/ferramentas.php */
 declare(strict_types=1);
-const ARC_TOOLS_VERSION = '3.3.1';
+const ARC_TOOLS_VERSION = '3.3.2';
 $arcSectionFile='ferramentas';require __DIR__.'/_base.php';require __DIR__.'/_topo.php';
 $tools=[['quick_health','Internet','wifi','Confere a comunicação com o roteador e a internet.'],['dns_test','Sites','globe','Verifica se o computador consegue encontrar os endereços dos sites.'],['system_snapshot','Recursos','tachometer','Mostra memória, espaço e tempo ligado do computador.'],['storage_health','Discos','hdd-o','Avisa se algum disco está ficando sem espaço. Não apaga arquivos.'],['service_health','Serviços','cogs','Confere serviços importantes do Windows. Não altera sua configuração.'],['restart_readiness','Reiniciar?','power-off','Verifica se o Windows pediu uma reinicialização. Não reinicia o computador.']];
 ?>

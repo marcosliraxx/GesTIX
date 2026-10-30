@@ -1,4 +1,5 @@
 <?php
+/* Caminho: redes/velocidade.php */
 declare(strict_types=1);
 $arcSectionFile='velocidade';
 require __DIR__.'/_base.php';

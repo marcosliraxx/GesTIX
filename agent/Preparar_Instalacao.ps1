@@ -1,4 +1,5 @@
-﻿param([Parameter(Mandatory=$true)][string]$Source)
+﻿# Caminho: agent/Preparar_Instalacao.ps1
+param([Parameter(Mandatory=$true)][string]$Source)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing

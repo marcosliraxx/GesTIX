@@ -1,4 +1,5 @@
 <?php
+/* Caminho: maintenance/telemetry-retention.php */
 /**
  * Manutenção de telemetria Arcoll. CLI apenas; --dry-run (padrão) ou --execute.
  * Não limpa inventário atual, alertas, auditoria ou histórico de comandos.

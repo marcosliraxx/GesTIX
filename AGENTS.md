@@ -21,3 +21,6 @@
 
 - O mapa abre ajustado pela largura; visão geral é ação explícita. Valide ambos os modos. A rolagem por toque sobre dispositivos deve funcionar; movimentação por toque fica em modo de edição explícito.
 - Transferências usam o armazenamento privado, fila/autenticação existentes e autorização local para selecionar arquivo ou destino. Não executar arquivos nem aceitar caminhos remotos arbitrários. Validar integridade, tamanho, permissões revalidadas, isolamento por solicitante, expiração e limpeza preservando metadados. Testes não devem coletar arquivos reais de usuários.
+
+- Nunca gerar ZIP de atualização com a data padrão de 1980. Arquivos substituídos precisam ter data real de empacotamento para que PHP OPcache e caches de recursos detectem a alteração. Validar metadados do ZIP e testar extração/cache quando mudar o empacotamento.
+- Ao organizar um backup, comparar somente caminhos públicos aprovados; não incorporar configuração, uploads, logs, SQL de produção ou metadados antigos de backup. Em recuperação de cache, renovar também a data dos arquivos de código já atuais e informar isso na entrega.

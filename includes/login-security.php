@@ -1,4 +1,5 @@
 <?php
+/* Caminho: includes/login-security.php */
 declare(strict_types=1);
 
 /** Shared 15-minute authentication budget for browser, desktop and admin login. */

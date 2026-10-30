@@ -1,4 +1,5 @@
 <?php
+/* Caminho: includes/config.example.php */
 // Modelo apenas. Copie para config.php e preencha no servidor de destino.
 // Nunca envie config.php ao Git.
 return [

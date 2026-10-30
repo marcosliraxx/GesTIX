@@ -1,3 +1,4 @@
+# Caminho: agent/rt_engine.py
 # ======================================================================
 # DETECÇÃO EM TEMPO REAL DE DISPOSITIVOS (online / offline / novo / troca de IP)
 # ----------------------------------------------------------------------
