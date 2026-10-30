@@ -3,8 +3,9 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/includes/bootstrap.php';$pdo=arc_db();arc_ensure_user_schema($pdo);
 if(!arc_is_user()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
-header('Cache-Control: no-store, private');$uid=(int)arc_user_id();$id=(int)($_GET['invoice']??$_POST['invoice_id']??0);$error='';$payload='';
+header('Cache-Control: no-store, private');$uid=(int)arc_user_id();$id=(int)($_GET['invoice']??$_POST['invoice_id']??0);$error='';$payload='';$invoice=null;
 try{
+ arc_require_billing_release();
  if($_SERVER['REQUEST_METHOD']==='POST'){
   arc_verify_csrf();$action=(string)($_POST['action']??'');
   if($action==='start'){$invoice=arc_billing_invoice($pdo,$uid,(int)($_POST['plan_id']??0),(string)($_POST['provider']??''));header('Location: '.arc_workspace_base_url().'pages/checkout.php?invoice='.(int)$invoice['id'],true,303);exit;}
@@ -27,13 +28,14 @@ try{
   header('Location: '.arc_workspace_base_url().'pages/checkout.php?invoice='.$id,true,303);exit;
  }
  if($invoice['provider']==='pix'&&in_array($invoice['status'],['pending','review'],true))$payload=arc_billing_pix_snapshot($pdo,$invoice);
-}catch(Throwable $e){error_log('Checkout: '.$e->getMessage());$error=$e instanceof RuntimeException&&!($e instanceof PDOException)?$e->getMessage():'Não foi possível preparar o pagamento. Tente novamente mais tarde.';}
+}catch(Throwable $e){if($e->getCode()===503||$e instanceof PDOException||!($e instanceof RuntimeException))http_response_code(503);error_log('Checkout: '.$e->getMessage());$error=$e instanceof RuntimeException&&!($e instanceof PDOException)?$e->getMessage():'Não foi possível preparar o pagamento. Tente novamente mais tarde.';}
+if($error!==''&&($_GET['status']??'')==='1')arc_json(['ok'=>false,'error'=>$error],503);
 $ARCPageTitle='Pagamento';$ARCActiveNav='billing';require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';
 ?>
 <main class="app-main"><div class="page-content arc-service arc-checkout">
 <header class="arc-service-heading"><h1>Pagamento</h1><a class="arc-icon-action" href="pages/cobrancas.php" aria-label="Voltar às cobranças" title="Cobranças"><i class="fa fa-history" aria-hidden="true"></i></a></header>
 <?php if($error):?><p class="arc-service-error" role="alert"><?=arc_h($error)?></p><?php endif;?>
-<?php if(!empty($invoice)):?>
+<?php if(!empty($invoice)&&$error===''):?>
 <section class="arc-service-card"><header class="arc-service-heading"><div><h2><?=arc_h($invoice['name'])?></h2><small>Cobrança #<?=(int)$id?> · 30 dias</small></div><strong class="arc-plan-price"><?=arc_money((int)$invoice['amount_cents'])?></strong></header><p id="payment-status" role="status"><?=arc_h(arc_billing_status_label($invoice['status']))?></p>
 <?php if($invoice['status']==='paid'):?><p>Pagamento confirmado. Seu plano foi liberado.</p><a class="button primary" href="pages/painel.php">Ir ao painel</a>
 <?php elseif($invoice['status']==='review'):?><p>Recebemos sua referência. O administrador vai conferir o Pix na conta bancária.</p>
@@ -43,10 +45,10 @@ $ARCPageTitle='Pagamento';$ARCActiveNav='billing';require dirname(__DIR__).'/inc
 <?php if($invoice['status']==='pending'&&($invoice['provider']==='pix'||(!$invoice['external_id']&&!$invoice['checkout_url']))):?><form method="post"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="invoice_id" value="<?=$id?>"><button name="action" value="cancel" class="button">Cancelar cobrança</button></form><?php endif;?>
 <?php else:?><a class="button" href="pages/assinatura.php">Ver planos</a><?php endif;?></section>
 <?php endif;?></div></main>
-<?php if(!empty($invoice)&&$invoice['status']==='pending'&&$payload!==''):?><script src="assets/vendor/qrcode-generator/qrcode.js?v=1.4.4"></script><script>
+<?php if($error===''&&!empty($invoice)&&$invoice['status']==='pending'&&$payload!==''):?><script src="assets/vendor/qrcode-generator/qrcode.js?v=1.4.4"></script><script>
 (()=>{'use strict';try{const qr=qrcode(0,'M');qr.addData(<?=json_encode($payload,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>);qr.make();document.getElementById('pix-qr').innerHTML=qr.createSvgTag({cellSize:5,margin:20,scalable:true});}catch(e){document.getElementById('pix-qr').textContent='Use o código copia e cola abaixo.';}document.getElementById('pix-copy-button')?.addEventListener('click',async()=>{const field=document.getElementById('pix-copy'),message=document.getElementById('copy-feedback');try{await navigator.clipboard.writeText(field.value);message.textContent='Pix copiado. Abra o aplicativo do banco.';}catch(e){field.focus();field.select();message.textContent='Selecione e copie o código Pix.';}});})();
 </script><?php endif;?>
-<?php if(!empty($invoice)&&in_array($invoice['status'],['pending','processing','review'],true)):?><script>
+<?php if($error===''&&!empty($invoice)&&in_array($invoice['status'],['pending','processing','review'],true)):?><script>
 (()=>{'use strict';const initial=<?=json_encode($invoice['status'])?>;let busy=false,tries=0;const timer=setInterval(async()=>{if(document.hidden||busy)return;if(++tries>180){clearInterval(timer);return;}busy=true;try{const r=await fetch(<?=json_encode(arc_workspace_base_url().'pages/checkout.php?invoice='.$id.'&status=1')?>,{credentials:'same-origin',cache:'no-store'});if(!r.ok)return;const j=await r.json();if(j.ok){document.getElementById('payment-status').textContent=j.label;if(j.status!==initial)location.reload();}}catch(e){}finally{busy=false;}},10000);})();
 </script><?php endif;?>
 <?php require dirname(__DIR__).'/includes/footer.php';?>

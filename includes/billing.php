@@ -2,6 +2,8 @@
 /* Caminho: includes/billing.php */
 declare(strict_types=1);
 
+const ARC_BILLING_VERSION = '3.2.1';
+
 function arc_billing_seed_plans(PDO $pdo): void {
     if ((int)$pdo->query('SELECT COUNT(*) FROM '.arc_table('billing_plans'))->fetchColumn()) return;
     foreach ([['Essencial',5990,3,15,2],['Profissional',14990,15,75,5],['Empresa',39990,50,250,15]] as $plan) {
@@ -160,8 +162,8 @@ function arc_pix_field(string $id,string $value): string {
     return $id.str_pad((string)strlen($value),2,'0',STR_PAD_LEFT).$value;
 }
 function arc_pix_name(string $value,int $limit): string {
-    $value=iconv('UTF-8','ASCII//TRANSLIT//IGNORE',$value);
-    return substr(trim(preg_replace('/[^A-Z0-9 ]/','',strtoupper((string)$value))),0,$limit);
+    $value=strtr(mb_strtoupper($value,'UTF-8'),['Á'=>'A','À'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','É'=>'E','È'=>'E','Ê'=>'E','Ë'=>'E','Í'=>'I','Ì'=>'I','Î'=>'I','Ï'=>'I','Ó'=>'O','Ò'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','Ú'=>'U','Ù'=>'U','Û'=>'U','Ü'=>'U','Ç'=>'C','Ñ'=>'N']);
+    return substr(trim(preg_replace('/[^A-Z0-9 ]/','',$value)),0,$limit);
 }
 /** EMV BR Code Pix estático com valor e txid. Nenhum serviço externo recebe a chave. */
 function arc_billing_pix_payload(string $key,string $name,string $city,int $cents,string $txid): string {

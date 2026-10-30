@@ -6,6 +6,7 @@ import re
 import sys
 ROOT=Path(__file__).resolve().parents[1]
 TARGETS={
+    'includes/billing.php':r"(const ARC_BILLING_VERSION = ')[^']+(')",
     'support/arcoll_support.py':r"(VERSION = ')[^']+(')",
     'includes/bootstrap.php':r"(const ARC_APP_VERSION = ')[^']+(')",
     'agent/arcoll_app.py':r"(AGENT_VERSION=')[^']+(')",

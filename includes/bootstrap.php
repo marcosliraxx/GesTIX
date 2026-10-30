@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '3.2.0';
+const ARC_APP_VERSION = '3.2.1';
 const ARC_SCHEMA_VERSION = '2026.10.30-4';
 
 require_once __DIR__.'/billing.php';
@@ -32,6 +32,16 @@ function arc_config(): array
 }
 
 require_once __DIR__ . '/login-security.php';
+
+/** Validate the loaded billing component before rendering or issuing a payment. */
+function arc_require_billing_release(): void
+{
+    $required=['arc_billing_status_label','arc_billing_pix_snapshot','arc_billing_pix_payload'];
+    if(!defined('ARC_BILLING_VERSION') || ARC_BILLING_VERSION!==ARC_APP_VERSION || array_filter($required,static fn($name)=>!function_exists($name))){
+        error_log('Arcoll: componente includes/billing.php ausente ou com versão diferente da plataforma.');
+        throw new RuntimeException('A atualização da área de pagamentos está incompleta. Avise o administrador para concluir a atualização do sistema.',503);
+    }
+}
 
 /** Refuse mixed platform/agent deployments instead of labeling old code as current. */
 function arc_require_aligned_agent_release(): void
