@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+# Caminho: scripts/bump_version.py
 """Keep all shipped components aligned. Run for every release: bump_version.py X.Y.Z."""
 from pathlib import Path
 import re
 import sys
 ROOT=Path(__file__).resolve().parents[1]
 TARGETS={
+    'support/arcoll_support.py':r"(VERSION = ')[^']+(')",
     'includes/bootstrap.php':r"(const ARC_APP_VERSION = ')[^']+(')",
     'agent/arcoll_app.py':r"(AGENT_VERSION=')[^']+(')",
     'agent/arcoll_updater.py':r"(VERSION = ')[^']+(')",

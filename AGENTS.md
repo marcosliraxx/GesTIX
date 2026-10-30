@@ -8,3 +8,7 @@
 - Mudanças no GitHub e pacotes ZIP não atualizam o cPanel nem os agentes instalados. Informe claramente os passos que o usuário precisa executar.
 
 - Alterações visuais devem ser feitas nas declarações e estruturas originais. Não criar arquivos de sobreposição, reinterpretar estilos em execução ou interceptar métodos de Canvas/Tkinter. Reutilizar os arquivos existentes e remover implementações substituídas.
+
+- Arquivos de código criados ou modificados devem identificar seu caminho relativo completo em comentário no topo. Os formatos sem comentários devem ter o caminho indicado na entrega.
+- Gere um único ZIP com as mudanças desde a base fornecida, migrações e marcadores de zero bytes nos caminhos obsoletos; esses marcadores indicam exclusão manual e não devem ser enviados para sobrescrever arquivos.
+- Preserve a cobrança desativada até configuração explícita do administrador. Não confirme pagamentos por retorno de checkout ou referência Pix enviada pelo cliente. Não inclua chaves de gateways, códigos de sessão ou arquivos de fixtures nos pacotes.

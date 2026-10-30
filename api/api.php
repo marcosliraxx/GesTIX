@@ -174,21 +174,10 @@ try {
     /* Regra única de expiração dos comandos em execução, compartilhada entre
      * a consulta do agente e o envio de comandos pela plataforma. */
     $expireRunningAgentCommands = static function (PDO $db, int $agentId): void {
-        $db->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Tempo limite do agente',completed_at=NOW() WHERE agent_id=? AND status='running' AND dispatched_at < DATE_SUB(NOW(), INTERVAL 4 MINUTE)")->execute([$agentId]);
+        $db->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Tempo limite do agente',completed_at=NOW() WHERE agent_id=? AND status='running' AND ((command_name<>'remote_assistance' AND dispatched_at < DATE_SUB(NOW(), INTERVAL 4 MINUTE)) OR (command_name='remote_assistance' AND created_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)))")->execute([$agentId]);
     };
 
     /* Terminal: fila existente + resultados parciais por tarefa. Sem acesso a shell irrestrito. */
-    $ensureTerminalSchema = static function (PDO $db): void {
-        $db->exec('CREATE TABLE IF NOT EXISTS '.arc_table('agent_terminal_jobs').' (
-            command_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
-            agent_id BIGINT UNSIGNED NOT NULL,
-            network_id BIGINT UNSIGNED NOT NULL,
-            request_text VARCHAR(180) NOT NULL,
-            output_text MEDIUMTEXT NULL,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            KEY idx_terminal_agent (agent_id,command_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    };
     $validTerminalRequest = static function (string $raw): bool {
         if ($raw==='' || strlen($raw)>180 || preg_match('/[\x00-\x1f\x7f]/', $raw)) return false;
         $host='(?:[A-Za-z0-9](?:[A-Za-z0-9.-]{0,90}[A-Za-z0-9])?|(?:[0-9]{1,3}\.){3}[0-9]{1,3})';
@@ -243,7 +232,6 @@ try {
             $rawCommand=trim((string)($body['request_text']??''));
             if (!$validTerminalRequest($rawCommand)) arc_json(['ok'=>false,'error'=>'Comando local não autorizado'],422);
             $expireRunningAgentCommands($pdo,$agentId);
-            $ensureTerminalSchema($pdo);
             $active=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands')." WHERE agent_id=? AND status IN ('pending','running')");
             $active->execute([$agentId]);
             if((int)$active->fetchColumn()>=3) arc_json(['ok'=>false,'error'=>'Aguarde os diagnósticos anteriores'],429);
@@ -264,7 +252,6 @@ try {
             $hasOffset=array_key_exists('offset',$body);
             $offset=$hasOffset ? filter_var($body['offset'],FILTER_VALIDATE_INT,['options'=>['min_range'=>0,'max_range'=>65536]]) : false;
             if($id<1 || $chunk==='' || strlen($chunk)>3500 || ($hasOffset && $offset===false)) arc_json(['ok'=>false,'error'=>'Trecho de saída inválido'],422);
-            $ensureTerminalSchema($pdo);
             // O deslocamento em bytes impede que uma retransmissão duplique linhas.
             // Agentes antigos (sem offset) continuam aceitos durante a atualização.
             $sql='UPDATE '.arc_table('agent_terminal_jobs').' t INNER JOIN '.arc_table('agent_commands')." c ON c.id=t.command_id SET t.output_text=CONCAT(COALESCE(t.output_text,''),?),t.updated_at=NOW() WHERE t.command_id=? AND t.agent_id=? AND c.agent_id=? AND c.status='running' AND OCTET_LENGTH(COALESCE(t.output_text,'')) + ? <= 60000";
@@ -292,11 +279,13 @@ try {
         $pdo->prepare('UPDATE '.arc_table('agent_commands').' SET status=\'expired\' WHERE agent_id=? AND status=\'pending\' AND created_at < DATE_SUB(NOW(), INTERVAL 3 MINUTE)')->execute([$agentId]);
         // DDL provoca commit implícito em MySQL 5.7/8.x.
         // Garanta a tabela antes de iniciar a transação de retirada da fila.
-        $ensureTerminalSchema($pdo);
         $pdo->beginTransaction();
         try {
-            $q=$pdo->prepare('SELECT c.id,c.command_name,COALESCE(t.request_text,\'\') AS request_text,COALESCE(a.headless_mode,0) AS headless_mode,c.account_id AS requester_user_id,CASE WHEN c.account_id=a.account_id THEN \'administrator\' ELSE \'unverified\' END AS requester_role,COALESCE(u.display_name,\'\') AS requester_name FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs').' t ON t.command_id=c.id LEFT JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id LEFT JOIN '.arc_table('user_accounts').' u ON u.id=c.account_id WHERE c.agent_id=? AND c.status=\'pending\' ORDER BY c.id ASC LIMIT 1 FOR UPDATE');
+            $q=$pdo->prepare('SELECT c.id,c.account_id,c.network_id,c.command_name,COALESCE(t.request_text,\'\') AS request_text,COALESCE(a.headless_mode,0) AS headless_mode,COALESCE(rs.technician_id,c.account_id) AS requester_user_id,CASE WHEN COALESCE(rs.technician_id,c.account_id)=a.account_id THEN \'administrator\' ELSE COALESCE(tm.role,\'unverified\') END AS requester_role,COALESCE(u.display_name,\'\') AS requester_name FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs').' t ON t.command_id=c.id LEFT JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id LEFT JOIN '.arc_table('support_remote_sessions').' rs ON rs.command_id=c.id LEFT JOIN '.arc_table('network_team_members').' tm ON tm.network_id=c.network_id AND tm.account_id=c.account_id AND tm.member_user_id=rs.technician_id AND tm.enabled=1 LEFT JOIN '.arc_table('user_accounts').' u ON u.id=COALESCE(rs.technician_id,c.account_id) WHERE c.agent_id=? AND c.status=\'pending\' ORDER BY c.id ASC LIMIT 1 FOR UPDATE');
             $q->execute([$agentId]);$cmd=$q->fetch();
+            if ($cmd && $cmd['command_name']==='remote_assistance' && !arc_support_remote_allowed($pdo,$cmd,(int)$cmd['requester_user_id'])) {
+                $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='failed',result_text='Autorização revogada',completed_at=NOW() WHERE id=?")->execute([$cmd['id']]);$cmd=false;
+            }
             if ($cmd) $pdo->prepare('UPDATE '.arc_table('agent_commands').' SET status=\'running\',dispatched_at=CURRENT_TIMESTAMP WHERE id=?')->execute([(int)$cmd['id']]);
             $pdo->commit();
         } catch (Throwable $e) { $pdo->rollBack();throw $e; }
@@ -329,6 +318,11 @@ try {
         $networkId=(int)($body['network_id']??0);$command=(string)($body['command']??'');
         $allowed=['monitor_start','monitor_pause','speed_test','scan_devices','scan_map','diagnostic','toolkit','toolkit_traceroute','toolkit_services','toolkit_health','toolkit_troubleshooter','quick_health','dns_test','public_ip','system_snapshot','flush_dns','wifi_info','terminal_diagnostic','agent_update','remote_assistance'];
         if (!in_array($command,$allowed,true)) arc_json(['ok'=>false,'error'=>'Comando não permitido'],422);
+        if ($command==='remote_assistance') {
+            try {$id=arc_support_request_remote($pdo,$networkId,(int)($body['agent_id']??0),(int)arc_user_id(),(int)($body['ticket_id']??0));}
+            catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e instanceof PDOException?'Serviço indisponível.':$e->getMessage()],403);}
+            arc_json(['ok'=>true,'command_id'=>$id,'status'=>'pending']);
+        }
         $terminalInput=trim((string)($body['terminal_input']??''));
         if ($command==='terminal_diagnostic' && !$validTerminalRequest($terminalInput)) arc_json(['ok'=>false,'error'=>'Comando de diagnóstico inválido. Digite ajuda para ver os comandos autorizados.'],422);
         $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1 AND monitoring_enabled=1');
@@ -343,15 +337,10 @@ try {
             $lastSeen=$check->fetchColumn();
             if (!$lastSeen || strtotime((string)$lastSeen)<time()-15) arc_json(['ok'=>false,'error'=>'Agente offline; atualização remota indisponível'],409);
         }
-        $agentIsHeadless = (int)($targetAgent['headless_mode'] ?? 0) === 1;
-        /* O proprietário já está autenticado na sessão e a ação exige token CSRF.
-         * O acesso não assistido permanece restrito ao agente explicitamente habilitado.
-         * Não aceitar perfil ou autorização enviados pelo cliente como prova de privilégio. */
         $expireRunningAgentCommands($pdo, $agentId);
         $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE agent_id=? AND status='pending' AND created_at < DATE_SUB(NOW(), INTERVAL 3 MINUTE)")->execute([$agentId]);
         $q=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands').' WHERE agent_id=? AND status IN (\'pending\',\'running\')');
         $q->execute([$agentId]);if ((int)$q->fetchColumn()>=3) arc_json(['ok'=>false,'error'=>'Aguarde os comandos anteriores'],429);
-        if ($command==='terminal_diagnostic') $ensureTerminalSchema($pdo);
         $pdo->beginTransaction();
         try {
             $pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([arc_user_id(),$networkId,$agentId,$command]);
@@ -361,13 +350,7 @@ try {
             }
             $pdo->commit();
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
-        if ($command==='remote_assistance') {
-            arc_user_audit($pdo, $agentIsHeadless ? 'remote_access_auto_requested' : 'remote_access_requested',
-                ($agentIsHeadless ? 'Acesso remoto automático (equipamento autorizado e sessão autenticada)' : 'Solicitação de acesso remoto com autorização local')
-                .' ao agente '.(string)$targetAgent['machine_name'].' (ID '.$agentId.', comando '.$insertedId.') na rede '.$networkId);
-        } else {
-            arc_user_audit($pdo,'agent_command_queued','Comando '.$command.' para agente '.$agentId.' na rede '.$networkId.($command==='terminal_diagnostic'?' · '.mb_substr($terminalInput,0,100):''));
-        }
+        arc_user_audit($pdo,'agent_command_queued','Comando '.$command.' para agente '.$agentId.' na rede '.$networkId);
         arc_json(['ok'=>true,'command_id'=>$insertedId,'status'=>'pending']);
     }
     if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-terminal-latest') {
@@ -375,7 +358,6 @@ try {
         $networkId=(int)($_GET['network_id']??0);
         $agentId=(int)($_GET['agent_id']??0);
         if($networkId<1 || $agentId<1) arc_json(['ok'=>false,'error'=>'Selecione um agente'],422);
-        $ensureTerminalSchema($pdo);
         $q=$pdo->prepare('SELECT c.id,c.status,c.result_text,t.request_text FROM '.arc_table('agent_commands').' c
             JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id AND a.network_id=c.network_id AND a.account_id=c.account_id
             JOIN '.arc_table('agent_terminal_jobs')." t ON t.command_id=c.id
@@ -391,7 +373,6 @@ try {
         $agentId=(int)($_GET['agent_id']??0);
         $commandId=(int)($_GET['command_id']??0);
         if($networkId<1 || $agentId<1 || $commandId<1) arc_json(['ok'=>false,'error'=>'Solicitação inválida'],422);
-        $ensureTerminalSchema($pdo);
         $q=$pdo->prepare('SELECT c.id,c.status,c.result_text,c.completed_at,COALESCE(t.output_text,\'\') AS output_text FROM '.arc_table('agent_commands').' c INNER JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id AND a.network_id=c.network_id AND a.account_id=c.account_id LEFT JOIN '.arc_table('agent_terminal_jobs').' t ON t.command_id=c.id WHERE c.id=? AND c.agent_id=? AND c.network_id=? AND c.account_id=? AND c.command_name=\'terminal_diagnostic\' LIMIT 1');
         $q->execute([$commandId,$agentId,$networkId,arc_user_id()]);
         $cmd=$q->fetch(PDO::FETCH_ASSOC);
@@ -411,16 +392,15 @@ try {
         arc_json(['ok'=>true,'command'=>$cmd]);
     }
     if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-command-status') {
-        if (!arc_is_user()) arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);
+        if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);
         $networkId=(int)($_GET['network_id']??0);
-        $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=?');
-        $q->execute([$networkId,arc_user_id()]);if (!$q->fetchColumn()) arc_json(['ok'=>false,'error'=>'Rede não encontrada'],403);
-        $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Tempo limite do agente',completed_at=NOW() WHERE network_id=? AND account_id=? AND status='running' AND dispatched_at < DATE_SUB(NOW(), INTERVAL 4 MINUTE)")->execute([$networkId,arc_user_id()]);
-        $q=$pdo->prepare('SELECT id,agent_id,command_name,status,result_text,created_at,completed_at FROM '.arc_table('agent_commands').' WHERE network_id=? AND account_id=? ORDER BY id DESC LIMIT 20');
-        $q->execute([$networkId,arc_user_id()]);
-        $commands=$q->fetchAll(PDO::FETCH_ASSOC);
-        $agents=$pdo->prepare('SELECT id,UNIX_TIMESTAMP(last_seen_at) AS last_seen_unix,status FROM '.arc_table('network_agents').' WHERE network_id=? AND account_id=?');
-        $agents->execute([$networkId,arc_user_id()]);
+        try{$access=arc_support_access($pdo,$networkId,(int)arc_user_id());}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Rede não autorizada'],403);}
+        $account=(int)$access['account_id'];
+        $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='failed',result_text='Tempo limite do agente',completed_at=NOW() WHERE network_id=? AND account_id=? AND status='running' AND ((command_name<>'remote_assistance' AND dispatched_at<DATE_SUB(NOW(),INTERVAL 4 MINUTE)) OR (command_name='remote_assistance' AND created_at<DATE_SUB(NOW(),INTERVAL 30 MINUTE)))")->execute([$networkId,$account]);
+        $sql='SELECT id,agent_id,command_name,status,result_text,created_at,completed_at FROM '.arc_table('agent_commands').' WHERE network_id=? AND account_id=?';$params=[$networkId,$account];
+        if($access['role']!=='owner'){$sql.=" AND command_name='remote_assistance' AND id IN (SELECT command_id FROM ".arc_table('support_remote_sessions').' WHERE technician_id=?)';$params[]=(int)arc_user_id();}
+        $q=$pdo->prepare($sql.' ORDER BY id DESC LIMIT 20');$q->execute($params);$commands=$q->fetchAll(PDO::FETCH_ASSOC);
+        $agents=$pdo->prepare('SELECT id,UNIX_TIMESTAMP(last_seen_at) AS last_seen_unix,status FROM '.arc_table('network_agents').' WHERE network_id=? AND account_id=?');$agents->execute([$networkId,$account]);
         arc_json(['ok'=>true,'commands'=>$commands,'agents'=>$agents->fetchAll(PDO::FETCH_ASSOC),'server_time'=>time()]);
     }
 

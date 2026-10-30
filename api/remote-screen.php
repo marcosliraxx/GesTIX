@@ -1,10 +1,11 @@
 <?php
+/* Caminho: api/remote-screen.php */
 /** Arcoll: acesso remoto temporário e consentido ao computador do agente (tela + controle opcional). */
 declare(strict_types=1);
 require __DIR__.'/../includes/bootstrap.php';
 /* A sessão só é lida; liberar o lock evita que imagem, status e entrada se bloqueiem entre si. */
 if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
-$pdo=arc_db();
+$pdo=arc_db();arc_ensure_user_schema($pdo);
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 $action=(string)($_GET['action']??'');
@@ -12,15 +13,19 @@ $storage=__DIR__.'/../includes/storage/remote-screen';
 if(!is_dir($storage) && !@mkdir($storage,0700,true) && !is_dir($storage)) arc_json(['ok'=>false,'error'=>'Armazenamento indisponível'],503);
 $cmd=(int)($_GET['command_id']??0);
 if($cmd<1)arc_json(['ok'=>false,'error'=>'Sessão inválida'],422);
-$q=$pdo->prepare('SELECT c.id,c.status,c.agent_id,c.account_id,c.network_id,c.command_name FROM '.arc_table('agent_commands').' c WHERE c.id=? AND c.command_name=\'remote_assistance\' LIMIT 1');
+$q=$pdo->prepare('SELECT c.id,c.status,c.agent_id,c.account_id,c.network_id,c.command_name,c.created_at FROM '.arc_table('agent_commands').' c WHERE c.id=? AND c.command_name=\'remote_assistance\' LIMIT 1');
 $q->execute([$cmd]);$command=$q->fetch(PDO::FETCH_ASSOC);
 if(!$command)arc_json(['ok'=>false,'error'=>'Sessão inexistente'],404);
+if(strtotime((string)$command['created_at'])<time()-1800){
+ $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$cmd]);$command['status']='expired';
+}
 $file=$storage.'/screen-'.$cmd.'.jpg';
 $stop=$storage.'/stop-'.$cmd;
 $inputQueue=$storage.'/input-'.$cmd.'.jsonl';
 $controlFlag=$storage.'/control-'.$cmd;
 $metaFile=$storage.'/meta-'.$cmd.'.json';
 $viewFile=$storage.'/view-'.$cmd.'.json';
+$viewerFile=$storage.'/viewer-'.$cmd;
 /* O controle só vale enquanto o agente renovar o sinal (a cada requisição de quadro/consulta). */
 $controlActive=static function() use($controlFlag):bool{clearstatcache(true,$controlFlag);return is_file($controlFlag)&&time()-(int)filemtime($controlFlag)<=8;};
 $readJsonState=static function(string $path,array $fallback=[]):array{
@@ -59,10 +64,10 @@ $resolveSelectedMonitor=static function(array $monitors,string $wanted=''):strin
  foreach($monitors as $monitor){if(!empty($monitor['primary']) && (string)($monitor['id']??'')!=='')return (string)$monitor['id'];}
  return (string)($monitors[0]['id']??'');
 };
-$cleanup=static function() use($file,$inputQueue,$controlFlag,$metaFile,$viewFile):void{foreach([$file,$inputQueue,$controlFlag,$metaFile,$viewFile] as $f){if(is_file($f))@unlink($f);}};
+$cleanup=static function() use($file,$inputQueue,$controlFlag,$metaFile,$viewFile,$viewerFile):void{foreach([$file,$inputQueue,$controlFlag,$metaFile,$viewFile,$viewerFile] as $f){if(is_file($f))@unlink($f);}};
 
 /** Autentica o agente (mesmas regras dos quadros) e devolve o corpo JSON. */
-$authAgent=static function(int $maxBytes) use($pdo,$command):array{
+$authAgent=static function(int $maxBytes) use($pdo,$command,$viewerFile,$stop):array{
  if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
  $raw=file_get_contents('php://input',false,null,0,$maxBytes+10);
  if(!is_string($raw)||strlen($raw)>$maxBytes)arc_json(['ok'=>false,'error'=>'Requisição muito grande'],413);
@@ -73,6 +78,14 @@ $authAgent=static function(int $maxBytes) use($pdo,$command):array{
  $q=$pdo->prepare('SELECT a.id FROM '.arc_table('network_agents').' a JOIN '.arc_table('managed_networks').' n ON n.id=a.network_id AND n.account_id=a.account_id JOIN '.arc_table('agent_download_keys').' k ON k.account_id=a.account_id AND k.network_id=a.network_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.fingerprint=? AND UPPER(a.site_code)=? AND a.status=\'approved\' AND n.is_active=1 AND n.monitoring_enabled=1 AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
  $q->execute([(int)$command['agent_id'],(int)$command['network_id'],(int)$command['account_id'],$fp,$code,hash('sha256',$key),$fp]);
  if(!$q->fetchColumn())arc_json(['ok'=>false,'error'=>'Agente não autorizado'],403);
+ $q=$pdo->prepare('SELECT technician_id FROM '.arc_table('support_remote_sessions').' WHERE command_id=?');$q->execute([$command['id']]);$technician=(int)$q->fetchColumn();
+ if($technician&&!arc_support_remote_allowed($pdo,$command,$technician))arc_json(['ok'=>false,'stop'=>true,'error'=>'Autorização do técnico revogada'],403);
+ clearstatcache(true,$viewerFile);
+ if((is_file($viewerFile)&&time()-(int)filemtime($viewerFile)>20)||(!is_file($viewerFile)&&strtotime((string)$command['created_at'])<time()-180)){
+  file_put_contents($stop,'1',LOCK_EX);$pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$command['id']]);
+  arc_json(['ok'=>false,'stop'=>true,'error'=>'Visualizador desconectado'],409);
+ }
+
  return $body;
 };
 /** Atualiza (ou remove) o sinal de que o usuário local liberou o controle de mouse/teclado. */
@@ -103,12 +116,12 @@ if($action==='frame'){
   }
   $knownMonitors=is_array($oldMeta['monitors']??null)?$oldMeta['monitors']:[];
   $selected=$resolveSelectedMonitor($knownMonitors,(string)($readJsonState($viewFile,[])['selected_monitor']??($body['selected_monitor']??'')));
-  if(!empty($body['keepalive'])&&is_file($file)){@touch($file);arc_json(['ok'=>true,'stop'=>false,'selected_monitor'=>$selected]);}
+  if(!empty($body['keepalive'])&&is_file($file)){@touch($file);arc_json(['ok'=>true,'stop'=>false,'selected_monitor'=>$selected,'quality'=>$readJsonState($viewFile)['quality']??'balanced']);}
  $image=base64_decode((string)($body['image']??''),true);
  if(!is_string($image)||strlen($image)<100||strlen($image)>390000||substr($image,0,3)!=="\xff\xd8\xff")arc_json(['ok'=>false,'error'=>'JPEG inválido'],422);
  $tmp=tempnam($storage,'frame');if($tmp===false)arc_json(['ok'=>false,'error'=>'Armazenamento indisponível'],503);
  @chmod($tmp,0600);file_put_contents($tmp,$image,LOCK_EX);rename($tmp,$file);
- arc_json(['ok'=>true,'stop'=>false,'selected_monitor'=>$selected]);
+ arc_json(['ok'=>true,'stop'=>false,'selected_monitor'=>$selected,'quality'=>$readJsonState($viewFile)['quality']??'balanced']);
 }
 if($action==='poll'){
  /* O agente busca os eventos de mouse/teclado enfileirados pelo gestor (long-poll curto). */
@@ -140,15 +153,29 @@ if($action==='poll'){
  $selectedMonitor=$resolveSelectedMonitor($monitors,(string)($readJsonState($viewFile,[])['selected_monitor']??($meta['selected_monitor']??'')));
  arc_json(['ok'=>true,'stop'=>false,'events'=>array_slice($events,0,400),'selected_monitor'=>$selectedMonitor,'monitors'=>$monitors]);
 }
-if(!arc_is_user() || (int)arc_user_id()!==(int)$command['account_id'])arc_json(['ok'=>false,'error'=>'Acesso negado'],403);
+$nativeUser=arc_support_native_user($pdo,$cmd);
+$viewerUser=$nativeUser ?: (int)(arc_user_id()??0);
+if(!$viewerUser||!arc_support_remote_allowed($pdo,$command,$viewerUser))arc_json(['ok'=>false,'error'=>'Acesso negado'],403);
+$q=$pdo->prepare("SELECT a.id FROM ".arc_table('network_agents')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1");
+$q->execute([$command['agent_id'],$command['network_id'],$command['account_id']]);if(!$q->fetchColumn())arc_json(['ok'=>false,'error'=>'Equipamento revogado'],403);
+if(in_array($action,['image','status','input','select-monitor','preferences'],true)){@touch($viewerFile);@chmod($viewerFile,0600);}
+$viewerCsrf=static function() use($nativeUser):void{if(!$nativeUser)arc_verify_csrf();};
+if($action==='preferences'){
+ if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
+ $viewerCsrf();$raw=file_get_contents('php://input',false,null,0,4096);$v=json_decode((string)$raw,true);
+ $quality=(string)($v['quality']??'balanced');if(!in_array($quality,['low','balanced','high'],true))arc_json(['ok'=>false,'error'=>'Qualidade inválida'],422);
+ $state=$readJsonState($viewFile);$state['quality']=$quality;$writeJsonState($viewFile,$state);arc_json(['ok'=>true]);
+}
 if($action==='stop'){
  if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
- arc_verify_csrf();file_put_contents($stop,'1',LOCK_EX);$cleanup();
+ $viewerCsrf();file_put_contents($stop,'1',LOCK_EX);$cleanup();
+ $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='completed',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$cmd]);
+ $pdo->prepare('DELETE FROM '.arc_table('support_remote_tokens').' WHERE command_id=?')->execute([$cmd]);
  arc_json(['ok'=>true]);
 }
 if($action==='input'){
  if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
- arc_verify_csrf();
+ $viewerCsrf();
  if($command['status']!=='running'||is_file($stop))arc_json(['ok'=>false,'error'=>'Sessão encerrada'],409);
  if(!$controlActive())arc_json(['ok'=>false,'error'=>'O controle não foi autorizado no computador remoto'],409);
  $raw=file_get_contents('php://input',false,null,0,60001);
@@ -180,7 +207,7 @@ if($action==='input'){
 }
 if($action==='select-monitor'){
  if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
- arc_verify_csrf();
+ $viewerCsrf();
  $raw=file_get_contents('php://input',false,null,0,8000);
  $body=json_decode(is_string($raw)?$raw:'',true);
  if(!is_array($body))arc_json(['ok'=>false,'error'=>'Dados inválidos'],400);
@@ -188,7 +215,7 @@ if($action==='select-monitor'){
  $monitors=is_array($meta['monitors']??null)?$meta['monitors']:[];
  $selectedMonitor=$resolveSelectedMonitor($monitors,(string)($body['monitor_id']??''));
  if($selectedMonitor==='')arc_json(['ok'=>false,'error'=>'Nenhuma tela disponível no agente remoto.'],422);
- $writeJsonState($viewFile,['selected_monitor'=>$selectedMonitor,'updated_at'=>time()]);
+ $state=$readJsonState($viewFile);$state['selected_monitor']=$selectedMonitor;$state['updated_at']=time();$writeJsonState($viewFile,$state);
  arc_json(['ok'=>true,'selected_monitor'=>$selectedMonitor,'monitor_count'=>count($monitors)]);
 }
 if($action==='status'){
@@ -202,6 +229,8 @@ if($action==='status'){
 }
 if($action==='image'){
  if($command['status']!=='running'||is_file($stop)||!is_file($file)||time()-(int)filemtime($file)>8){http_response_code(404);exit;}
+ $etag='"'.hash_file('sha256',$file).'"';header('ETag: '.$etag);
+ if(($_SERVER['HTTP_IF_NONE_MATCH']??'')===$etag){http_response_code(304);exit;}
  header('Content-Type: image/jpeg');readfile($file);exit;
 }
 arc_json(['ok'=>false,'error'=>'Ação inválida'],404);

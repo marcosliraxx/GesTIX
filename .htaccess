@@ -1,3 +1,4 @@
+# Caminho: .htaccess
 # 99BKP-DOMAIN-BLOCK
 # Domínio: app.digital.log.br
 # URL: https://app.digital.log.br
@@ -17,6 +18,7 @@ DirectoryIndex index.php
 
 <IfModule mod_rewrite.c>
  RewriteEngine On
+ RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
  RewriteRule ^manifest\.webmanifest$ api/manifest.php [L,QSA]
 </IfModule>
 

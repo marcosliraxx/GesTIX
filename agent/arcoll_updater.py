@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter import ttk
 from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
 
-VERSION = '2.8.2'
+VERSION = '3.0.0'
 
 # Caminho: agent/arcoll_updater.py
 import re

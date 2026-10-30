@@ -8,29 +8,7 @@ $admin=arc_is_admin();
 $uid=arc_user_id();
 if(!$admin && !$uid){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
 $role=$admin?'admin':arc_v15_user_role($pdo);
-// Efetivar convites ao usuário autenticado, utilizando a identidade registrada.
-if ($uid && arc_is_user()) {
-    $who=$pdo->prepare('SELECT email_hash FROM '.arc_table('user_accounts')." WHERE id=? AND account_status='active' LIMIT 1");
-    $who->execute([(int)$uid]);
-    $emailHash=(string)$who->fetchColumn();
-    if (preg_match('/^[a-f0-9]{64}$/D',$emailHash)) {
-        $pdo->beginTransaction();
-        try {
-            $invites=$pdo->prepare('SELECT i.id,i.account_id,i.network_id,i.role FROM '.arc_table('network_team_invitations').' i JOIN '.arc_table('managed_networks').' n ON n.id=i.network_id AND n.account_id=i.account_id AND n.is_active=1 WHERE i.email_hash=? FOR UPDATE');
-            $invites->execute([$emailHash]);
-            foreach ($invites->fetchAll(PDO::FETCH_ASSOC) as $invite) {
-                if ((int)$invite['account_id']===(int)$uid) continue;
-                if (!in_array((string)$invite['role'],['viewer','operator','administrator'],true)) continue;
-                $q=$pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role,enabled) VALUES (?,?,?,?,1) ON DUPLICATE KEY UPDATE role=VALUES(role),enabled=1');
-                $q->execute([(int)$invite['account_id'],(int)$invite['network_id'],(int)$uid,(string)$invite['role']]);
-                $pdo->prepare('DELETE FROM '.arc_table('network_team_invitations').' WHERE id=?')->execute([(int)$invite['id']]);
-            }
-            $pdo->commit();
-        } catch (Throwable $e) { if($pdo->inTransaction())$pdo->rollBack(); error_log('Falha na ativação do convite de rede: '.$e->getMessage()); }
-    }
-}
-
-
+// Convites pendentes são efetivados somente após a identidade do e-mail ser verificada no callback Google.
 $arcError='';
 $go=static function(string $target): never {
     header('Location: '.arc_workspace_base_url().ltrim($target,'/'),true,303);exit;
@@ -58,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 
                 $lock = $pdo->prepare('SELECT id FROM ' . arc_table('user_accounts') . ' WHERE id=? FOR UPDATE');
                 $lock->execute([arc_user_id()]);
+                arc_billing_enforce($pdo,(int)arc_user_id(),'networks');
 
                 $pdo->prepare(
                     'INSERT INTO ' . arc_table('managed_networks') .
@@ -100,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                     $pdo->rollBack();
                 }
                 error_log('Arcoll network create: ' . $e->getMessage());
-                $arcError = 'Não foi possível registrar a rede.';
+                $arcError = $e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível registrar a rede.';
             }
         }
 

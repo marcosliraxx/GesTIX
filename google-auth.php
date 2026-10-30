@@ -133,7 +133,7 @@ try {
    $ownerCheck=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1');
    $ownerCheck->execute([(int)$invitation['network_id'],(int)$invitation['account_id']]);
    if(!$ownerCheck->fetchColumn())continue;
-   $pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role,enabled) VALUES (?,?,?,?,1) ON DUPLICATE KEY UPDATE role=VALUES(role),enabled=1')->execute([(int)$invitation['account_id'],(int)$invitation['network_id'],(int)$account['id'],(string)$invitation['role']]);
+   try{arc_team_save($pdo,(int)$invitation['account_id'],(int)$invitation['network_id'],(int)$account['id'],(string)$invitation['role']);}catch(RuntimeException $inviteError){error_log('Convite pendente: limite ou vínculo indisponível.');continue;}
    $pdo->prepare('DELETE FROM '.arc_table('network_team_invitations').' WHERE network_id=? AND email_hash=?')->execute([(int)$invitation['network_id'],hash('sha256',$email)]);
   }
   session_regenerate_id(true);

@@ -8,7 +8,7 @@ if (!is_file(dirname(__DIR__) . '/includes/config.php')) {
     exit;
 }
 
-require dirname(__DIR__) . '/includes/bootstrap.php';
+require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
 $pdo = arc_db();
 arc_ensure_user_schema($pdo);
@@ -52,7 +52,7 @@ $csrf    = arc_csrf_token();
 $action = (string)($_POST['action'] ?? '');
 $token  = (string)($_POST['_csrf'] ?? '');
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action,['ticket_create','ticket_update'],true)) {
     if (!$isNetworkOwner) { http_response_code(403); exit('Operação restrita ao proprietário da rede.'); }
     if ($token === '' || !hash_equals($csrf, $token)) {
         $arcError = 'Sessão expirada. Atualize a página e tente novamente.';
@@ -71,8 +71,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $go('redes/servidor.php?network='.$networkId.'#agents');
         } else {
             $newStatus = match($action) {'agent_approve'=>'approved','agent_reject'=>'rejected','agent_block'=>'blocked'};
+            $pdo->beginTransaction();
+            try{
+                $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');$q->execute([$account]);
+                $q=$pdo->prepare('SELECT status FROM '.arc_table('network_agents').' WHERE id=? AND account_id=? FOR UPDATE');$q->execute([$agentId,$account]);
+                if($newStatus==='approved'&&$q->fetchColumn()!=='approved')arc_billing_enforce($pdo,$account,'agents');
             $pdo->prepare('UPDATE ' . arc_table('network_agents') . ' SET status=?,approved_at=CASE WHEN ?=\'approved\' THEN CURRENT_TIMESTAMP ELSE approved_at END WHERE id=? AND network_id=? AND account_id=?')
                 ->execute([$newStatus,$newStatus,$agentId,$networkId,$account]);
+                $pdo->commit();
+            }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();$_SESSION['arc_flash']=$e instanceof RuntimeException?$e->getMessage():'Não foi possível alterar o agente.';$go('redes/suporte.php?network='.$networkId);}
             arc_user_audit($pdo,'network_agent_'.$newStatus,'Agente '.$newStatus.': '.(string)$managedAgent['machine_name'].' (Rede ID '.$networkId.')');
             $_SESSION['arc_flash'] = match($newStatus){'approved'=>'Agente aprovado e autorizado.','rejected'=>'Cadastro do agente rejeitado.','blocked'=>'Agente bloqueado. O acesso será negado na próxima verificação.'};
             $go('redes/servidor.php?network='.$networkId.'#agents');
@@ -184,17 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /* Equipe vinculada a esta rede. Vínculos não concedem acesso remoto sem validação na API. */
-$pdo->exec('CREATE TABLE IF NOT EXISTS '.arc_table('network_team_members').' (
- id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
- account_id BIGINT UNSIGNED NOT NULL,
- network_id BIGINT UNSIGNED NOT NULL,
- member_user_id BIGINT UNSIGNED NOT NULL,
- role VARCHAR(32) NOT NULL DEFAULT \'viewer\',
- enabled TINYINT(1) NOT NULL DEFAULT 1,
- created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- UNIQUE KEY uq_team_member (network_id,member_user_id),
- KEY idx_team_network_owner (account_id,network_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
 if ($_SERVER['REQUEST_METHOD']==='POST' && in_array($action,['team_save','team_remove'],true) && !$arcError) {
     $userId=(int)($_POST['member_user_id']??0);
     if ($action==='team_save') {
@@ -223,8 +219,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && in_array($action,['team_save','team_r
             }
             if ($userId===$account) $arcError='O proprietário já possui acesso a esta rede.';
             else {
-                $q=$pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE role=VALUES(role),enabled=1');
-                $q->execute([$account,$networkId,$userId,$role]);
+                try{arc_team_save($pdo,$account,$networkId,$userId,$role);}catch(RuntimeException $e){$_SESSION['arc_flash']=$e->getMessage();$go('redes/suporte.php?network='.$networkId);}
                 arc_user_audit($pdo,'network_team_saved','Membro ID '.$userId.' configurado na rede ID '.$networkId.' como '.$role);
                 $mailStatus='O aviso por e-mail não foi enviado.';
                 try{

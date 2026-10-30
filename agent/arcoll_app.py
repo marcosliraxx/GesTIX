@@ -18,7 +18,7 @@ except Exception:
  QUICK_COMMANDS={}; run_quick_command=None
 
 APP_NAME='Arcoll Speed Connection'
-AGENT_VERSION='2.8.2'
+AGENT_VERSION='3.0.0'
 ROOT=Path(__file__).resolve().parent
 CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.json'
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'
@@ -2124,7 +2124,7 @@ class ArcollApp:
    try:
     from PIL import ImageGrab, ImageDraw
     RemoteInput.thread_dpi_aware()
-    last_sig=None;last_sent=0.0;last_ctl=None;errors=0;server_selected='';last_monitor_id='';last_meta_sig=''
+    last_sig=None;last_sent=0.0;last_ctl=None;errors=0;server_selected='';last_monitor_id='';last_meta_sig='';stream_quality='balanced'
     while not stop_event.is_set() and not self.stop_event.is_set():
      try:
       ctl=control_event.is_set()
@@ -2138,7 +2138,8 @@ class ArcollApp:
        remote_view['monitors']=monitors
       frame=ImageGrab.grab(bbox=bbox,all_screens=True).convert('RGB')
       sw,sh=frame.size
-      scale=min(1.0,1600.0/max(1,sw),1000.0/max(1,sh))
+      max_w,max_h,jpeg_quality={'low':(960,600,40),'balanced':(1280,800,55),'high':(1600,1000,75)}.get(stream_quality,(1280,800,55))
+      scale=min(1.0,float(max_w)/max(1,sw),float(max_h)/max(1,sh))
       if scale<1.0:frame=frame.resize((max(1,int(sw*scale)),max(1,int(sh*scale))))
       cur=RemoteInput.cursor_pos()
       if cur and bbox[0]<=cur[0]<bbox[2] and bbox[1]<=cur[1]<bbox[3]:
@@ -2157,8 +2158,8 @@ class ArcollApp:
        payload['keepalive']=True
       else:
        data=b''
-       for quality in (60,45,32,22):
-        buffer=io.BytesIO();frame.save(buffer,format='JPEG',quality=quality,optimize=True);data=buffer.getvalue()
+       for quality in (jpeg_quality,40,28,20):
+        buffer=io.BytesIO();frame.save(buffer,format='JPEG',quality=quality,optimize=False);data=buffer.getvalue()
         if len(data)<=360000:break
        payload['image']=base64.b64encode(data).decode('ascii')
       response=request_json(base_url+'frame',payload,timeout=10)
@@ -2166,6 +2167,7 @@ class ArcollApp:
       if 'monitors' in payload:last_meta_sig=meta_sig
       if not payload.get('keepalive'):last_sig=sig
       server_selected=str(response.get('selected_monitor') or last_monitor_id)
+      stream_quality=str(response.get('quality') or 'balanced')
       if not response.get('ok') or response.get('stop'):break
      except Exception as exc:
       errors+=1;self.last_error='Tela remota: '+str(exc)[:160]

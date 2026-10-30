@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '2.8.2';
-const ARC_SCHEMA_VERSION = '2026.10.30-1';
+const ARC_APP_VERSION = '3.0.0';
+const ARC_SCHEMA_VERSION = '2026.10.30-3';
+
+require_once __DIR__.'/billing.php';
+require_once __DIR__.'/support.php';
 
 /* Fuso horário fixo do Workspace: America/Belem (UTC-03:00). */
 const ARC_TIMEZONE = 'America/Belem';
@@ -66,7 +69,7 @@ function arc_table(string $name): string
         'admins', 'settings', 'pages', 'page_fields', 'sessions', 'preferences',
         'samples', 'devices', 'alerts', 'releases', 'login_attempts', 'audit_logs',
         'field_values', 'user_accounts', 'managed_networks', 'network_sessions', 'account_login_attempts', 'account_audit', 'pwa_installations',
-        'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations',
+        'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations', 'billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens',
     ];
     if (!in_array($name, $allowed, true)) {
         throw new InvalidArgumentException('Tabela não permitida.');
@@ -99,6 +102,8 @@ function arc_db(): PDO
         PDO::ATTR_EMULATE_PREPARES => false,
         PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci',
     ]);
+    // DATETIME values and NOW() must use the same zone as PHP (including cPanel hosts using UTC).
+    $pdo->exec("SET time_zone = '" . date('P') . "'");
     return $pdo;
 }
 
@@ -141,19 +146,17 @@ function arc_verify_csrf(): void
 
 function arc_ensure_user_schema(PDO $pdo): void
 {
-    /* Verifica/migra o schema apenas uma vez por sessão (evita dezenas de queries a cada página). */
-    if (isset($_SESSION['arc_schema_ok']) && $_SESSION['arc_schema_ok'] === ARC_SCHEMA_VERSION) {
-        // Session can outlive a fresh database or a restore: verify required tables.
-        $required = ['user_accounts','managed_networks','account_login_attempts','network_agents','network_team_members','network_team_invitations'];
-        $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
-        $valid = true;
-        foreach ($required as $tableName) {
-            $present->execute([arc_prefix().$tableName]);
-            if (!(int)$present->fetchColumn()) { $valid=false; break; }
+    // Native clients and webhooks have no browser cookie: a database marker avoids DDL per frame.
+    $required=['agent_terminal_jobs','user_accounts','managed_networks','account_login_attempts','network_agents','network_team_members','network_team_invitations','billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens'];
+    try{
+        $version=arc_platform_setting($pdo,'platform_schema_version');
+        if($version===ARC_SCHEMA_VERSION){
+            $placeholders=implode(',',array_fill(0,count($required),'?'));
+            $present=$pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('.$placeholders.')');
+            $present->execute(array_map(static fn($name)=>arc_prefix().$name,$required));
+            if((int)$present->fetchColumn()===count($required)){$_SESSION['arc_schema_ok']=ARC_SCHEMA_VERSION;return;}
         }
-        if ($valid) return;
-        unset($_SESSION['arc_schema_ok']);
-    }
+    }catch(PDOException $e){/* Fresh schema: settings may not exist yet. */}
     $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('user_accounts') . ' (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         email VARCHAR(254) NOT NULL,
@@ -397,6 +400,12 @@ function arc_ensure_user_schema(PDO $pdo): void
   UNIQUE KEY `uq_invitation` (`network_id`,`email_hash`),
   KEY `idx_invitation_email` (`email_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
+    $migration = file_get_contents(dirname(__DIR__).'/database/migrations/3.0.0.sql');
+    if ($migration === false) throw new RuntimeException('Migração 3.0.0 ausente.');
+    $migration = str_replace('`arc_', '`'.arc_prefix(), $migration);
+    $pdo->exec($migration);
+    arc_billing_seed_plans($pdo);
+    arc_platform_save_setting($pdo,'platform_schema_version',ARC_SCHEMA_VERSION);
     $_SESSION['arc_schema_ok'] = ARC_SCHEMA_VERSION;
 }
 
@@ -518,6 +527,21 @@ function arc_user_id(): ?int
 function arc_is_user(): bool { return arc_user_id() !== null; }
 
 /** Permissões de rede por usuário, verificadas no banco a cada requisição. */
+/** Única gravação de membros: vínculo validado, cota e concorrência no proprietário. */
+function arc_team_save(PDO $pdo,int $account,int $network,int $user,string $role): void {
+    if(!in_array($role,['viewer','operator','administrator'],true)||$account===$user)throw new RuntimeException('Membro ou perfil inválido.');
+    $own=!$pdo->inTransaction();if($own)$pdo->beginTransaction();
+    try{
+        $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');$q->execute([$account]);
+        $q=$pdo->prepare("SELECT id FROM ".arc_table('user_accounts')." WHERE id=? AND account_status='active'");$q->execute([$user]);if(!$q->fetchColumn())throw new RuntimeException('Conta de equipe indisponível.');
+        $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1');$q->execute([$network,$account]);if(!$q->fetchColumn())throw new RuntimeException('Rede indisponível.');
+        $q=$pdo->prepare('SELECT id FROM '.arc_table('network_team_members').' WHERE account_id=? AND member_user_id=? AND enabled=1 LIMIT 1');$q->execute([$account,$user]);
+        if(!$q->fetchColumn())arc_billing_enforce($pdo,$account,'seats');
+        $pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role,enabled) VALUES (?,?,?,?,1) ON DUPLICATE KEY UPDATE role=VALUES(role),enabled=1')->execute([$account,$network,$user,$role]);
+        if($own)$pdo->commit();
+    }catch(Throwable $e){if($own&&$pdo->inTransaction())$pdo->rollBack();throw $e;}
+}
+
 function arc_network_team_access(PDO $pdo, int $networkId, int $userId): ?array
 {
     if ($networkId <= 0 || $userId <= 0) return null;

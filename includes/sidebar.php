@@ -62,6 +62,10 @@ $arcMenuIds=array_column($arcMenu,'id');
       <div class="arc-nav-group" aria-label="Central de relatórios">
         <div class="arc-nav-entry"><a href="redes/relatorios.php" class="<?=($ARCActiveNav??'')==='reports_center'?'active':''?>" title="Central de relatórios"><i class="fa fa-bar-chart" aria-hidden="true"></i><span class="side-label">Relatórios</span></a></div>
       </div>
+      <div class="arc-nav-group" aria-label="Suporte e assinaturas">
+        <div class="arc-nav-entry"><a href="pages/atendimentos.php" class="<?=($ARCActiveNav??'')==='support_center'?'active':''?>"><i class="fa fa-life-ring" aria-hidden="true"></i><span class="side-label">Atendimentos e equipe</span></a></div>
+        <?php if($arcIsAdmin):?><div class="arc-nav-entry"><a href="pages/comercial.php" class="<?=($ARCActiveNav??'')==='commercial'?'active':''?>"><i class="fa fa-credit-card" aria-hidden="true"></i><span class="side-label">Gestão comercial</span></a></div><?php else:?><div class="arc-nav-entry"><a href="pages/assinatura.php" class="<?=($ARCActiveNav??'')==='billing'?'active':''?>"><i class="fa fa-credit-card" aria-hidden="true"></i><span class="side-label">Planos e cobrança</span></a></div><?php endif;?>
+      </div>
       <div class="arc-nav-group" aria-label="Área pessoal">
         <div class="arc-nav-entry"><a href="pages/perfil.php" class="<?=($ARCActiveNav??'')==='profile'?'active':''?>"><i class="fa fa-user-circle-o" aria-hidden="true"></i><span class="side-label">Meu perfil</span></a></div>
         <div class="arc-nav-entry"><a href="pages/preferencias.php" class="<?=($ARCActiveNav??'')==='settings'?'active':''?>"><i class="fa fa-sliders" aria-hidden="true"></i><span class="side-label">Preferências</span></a></div>
