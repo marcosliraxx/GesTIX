@@ -275,3 +275,175 @@ def run_quick_command(name):
     result['title'] = QUICK_COMMANDS[name][0]
     result['captured_at'] = int(time.time())
     return result
+
+# Shared appearance stays in an existing updater-approved module so older agents
+# can receive this release without relaxing their file allowlist.
+class AppearanceManager:
+    PALETTES = {
+        'light': {'bg':'#edf2f7','surface':'#ffffff','alt':'#f4f7fb','text':'#203249','muted':'#5d7189','border':'#d8e2ed','accent':'#087eac','onaccent':'#ffffff'},
+        'dark': {'bg':'#0b1420','surface':'#111f30','alt':'#182a40','text':'#e5edf8','muted':'#9db0c8','border':'#2b4059','accent':'#47b9e5','onaccent':'#071521'},
+    }
+    LABELS = {'auto':'Automático','light':'Claro','dark':'Escuro'}
+
+    @staticmethod
+    def preference_path():
+        from pathlib import Path
+        return Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'appearance.json'
+
+    @classmethod
+    def read_choice(cls):
+        try:
+            data=json.loads(cls.preference_path().read_text(encoding='utf-8'))
+            value=data.get('theme','auto') if isinstance(data,dict) else 'auto'
+            return value if value in cls.LABELS else 'auto'
+        except (OSError,ValueError,TypeError):return 'auto'
+
+    @staticmethod
+    def system_theme():
+        if platform.system()=='Windows':
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER,r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize') as key:
+                    return 'light' if winreg.QueryValueEx(key,'AppsUseLightTheme')[0] else 'dark'
+            except OSError:return 'light'
+        if platform.system()=='Darwin':
+            try:
+                value=subprocess.run(['defaults','read','-g','AppleInterfaceStyle'],capture_output=True,text=True,timeout=1)
+                return 'dark' if 'dark' in value.stdout.lower() else 'light'
+            except (OSError,subprocess.TimeoutExpired):return 'light'
+        return 'dark' if 'dark' in os.environ.get('GTK_THEME','').lower() else 'light'
+
+    def __init__(self, root, version='', controls=True):
+        import tkinter as tk
+        from tkinter import ttk
+        self.root=root;self.choice=self.read_choice();self.resolved=None;self.originals={};self.canvas_originals={};self.tick=0
+        root._arc_appearance=self;self._scheduled=None
+        self._install_canvas_bridge(tk)
+        if controls:
+            bar=tk.Frame(root,height=36)
+            packed=next((child for child in root.winfo_children() if child is not bar and child.winfo_manager()=='pack'),None)
+            if packed:bar.pack(side='bottom',fill='x',before=packed)
+            else:bar.pack(side='bottom',fill='x')
+            tk.Label(bar,text='Aparência',font=('Segoe UI',9)).pack(side='left',padx=(12,5))
+            self.selected=tk.StringVar(value=self.LABELS[self.choice])
+            select=ttk.Combobox(bar,textvariable=self.selected,values=list(self.LABELS.values()),state='readonly',width=12)
+            select.pack(side='left',pady=4)
+            select.bind('<<ComboboxSelected>>',lambda _event:self.set_choice(next(key for key,value in self.LABELS.items() if value==self.selected.get())))
+            if version:tk.Label(bar,text='Arcoll · v'+version,font=('Segoe UI',8)).pack(side='right',padx=12)
+        else:self.selected=None
+        root.bind('<Map>',self.schedule,add='+')
+        self.apply();root.after(1800,self.poll)
+
+    def schedule(self,_event=None):
+        if self._scheduled is None:self._scheduled=self.root.after(30,self._flush)
+
+    def _flush(self):
+        self._scheduled=None;self.apply()
+
+    def set_choice(self,choice):
+        if choice not in self.LABELS:raise ValueError('Tema inválido')
+        import tempfile
+        path=self.preference_path();path.parent.mkdir(parents=True,exist_ok=True)
+        temporary=None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=str(path.parent),delete=False) as stream:
+                temporary=stream.name;json.dump({'theme':choice},stream)
+            os.replace(temporary,path)
+        finally:
+            if temporary and os.path.exists(temporary):os.unlink(temporary)
+        self.choice=choice;self.apply()
+
+    def palette(self):
+        return self.PALETTES[self.system_theme() if self.choice=='auto' else self.choice]
+
+    def map_color(self,value,role='background'):
+        import colorsys
+        if not isinstance(value,str) or not value:return value
+        try:
+            rgb=self.root.winfo_rgb(value);r,g,b=(part/65535 for part in rgb)
+        except Exception:return value
+        h,light,sat=colorsys.rgb_to_hls(r,g,b);palette=self.palette_cache
+        if sat>.42 and .28<light<.78:return palette['accent'] if .48<h<.72 else value
+        if role=='border':return palette['border']
+        if role=='text':return palette['muted'] if .28<light<.78 else palette['text']
+        return palette['surface'] if light>.9 or light<.1 else palette['alt']
+
+    def _install_canvas_bridge(self,tk):
+        if getattr(tk.Canvas,'_arc_appearance_bridge',False):return
+        create=tk.Canvas._create;configure=tk.Canvas.itemconfigure
+        def map_options(canvas,kind,options):
+            controller=getattr(canvas._root(),'_arc_appearance',None)
+            if not controller:return options
+            result=dict(options)
+            for key in ('fill','outline'):
+                if key in result:result[key]=controller.map_color(result[key],'text' if kind=='text' else 'border' if kind=='line' or key=='outline' else 'background')
+            return result
+        def themed_create(canvas,kind,args,options):return create(canvas,kind,args,map_options(canvas,kind,options))
+        def themed_configure(canvas,tag,cnf=None,**options):
+            if cnf is None and not options:return configure(canvas,tag)
+            if isinstance(cnf,str):return configure(canvas,tag,cnf)
+            mapped=map_options(canvas,canvas.type(tag),dict(cnf or {},**options))
+            return configure(canvas,tag,**mapped)
+        tk.Canvas._create=themed_create;tk.Canvas.itemconfigure=themed_configure;tk.Canvas.itemconfig=themed_configure
+        tk.Canvas._arc_appearance_bridge=True
+
+    def apply(self):
+        import tkinter as tk
+        from tkinter import ttk
+        try:
+            self.palette_cache=self.palette();self.resolved='dark' if self.palette_cache is self.PALETTES['dark'] else 'light'
+            alive=set();canvases=set()
+            def walk(widget):
+                alive.add(str(widget))
+                for option in ('background','foreground','activebackground','activeforeground','insertbackground','highlightbackground','highlightcolor','selectbackground','selectforeground'):
+                    try:current=widget.cget(option)
+                    except tk.TclError:continue
+                    key=(str(widget),option)
+                    original,last=self.originals.get(key,(current,None))
+                    if current!=last:original=current
+                    role='text' if option.endswith('foreground') or option=='insertbackground' else 'border' if option.startswith('highlight') else 'background'
+                    mapped=self.map_color(original,role)
+                    if role=='text' and widget.winfo_class()=='Button':
+                        background=self.originals.get((str(widget),'background'),('',None))[0]
+                        if background:
+                            background_color=self.map_color(background,'background')
+                            if background_color==self.palette_cache['accent']:mapped=self.palette_cache['onaccent']
+                            elif background_color==background:mapped=original
+                    if current!=mapped:
+                        try:widget.configure(**{option:mapped})
+                        except tk.TclError:continue
+                    self.originals[key]=(original,mapped)
+                if isinstance(widget,tk.Canvas):
+                    for item in widget.find_all():
+                        kind=widget.type(item)
+                        for option in ('fill','outline'):
+                            try:current=widget.itemcget(item,option)
+                            except tk.TclError:continue
+                            if not current:continue
+                            key=(str(widget),item,option);canvases.add(key)
+                            original,last=self.canvas_originals.get(key,(current,None))
+                            if current!=last:original=current
+                            role='text' if kind=='text' else 'border' if kind=='line' or option=='outline' else 'background'
+                            mapped=self.map_color(original,role)
+                            if current!=mapped:widget.tk.call(widget._w,'itemconfigure',item,'-'+option,mapped)
+                            self.canvas_originals[key]=(original,mapped)
+                for child in widget.winfo_children():walk(child)
+            walk(self.root)
+            self.originals={key:value for key,value in self.originals.items() if key[0] in alive}
+            self.canvas_originals={key:value for key,value in self.canvas_originals.items() if key in canvases}
+            p=self.palette_cache;style=ttk.Style(self.root);style.theme_use('clam')
+            for name in ('TFrame','TLabel','TNotebook','TNotebook.Tab','TCombobox','Arcoll.TCombobox','Treeview','Treeview.Heading','TProgressbar','Vertical.TScrollbar'):
+                style.configure(name,background=p['surface'],foreground=p['text'],fieldbackground=p['alt'],troughcolor=p['bg'],bordercolor=p['border'])
+            style.configure('Treeview',rowheight=28);style.configure('TNotebook.Tab',padding=(10,7),font=('Segoe UI',9,'bold'))
+            style.map('Treeview',background=[('selected',p['accent'])],foreground=[('selected','#ffffff')])
+            style.map('TNotebook.Tab',background=[('selected',p['alt']),('active',p['alt'])],foreground=[('selected',p['accent']),('active',p['text'])])
+            if self.selected:self.selected.set(self.LABELS[self.choice])
+        except tk.TclError:return
+
+    def poll(self):
+        import tkinter as tk
+        try:
+            saved=self.read_choice()
+            if saved!=self.choice:self.choice=saved
+            self.apply();self.root.after(1800,self.poll)
+        except tk.TclError:return

@@ -251,7 +251,7 @@ document.getElementById('gp-profile-search').addEventListener('input',function()
       if (event.target.id === 'gp-filter') filterRows();
     });
     one('#gp-search').addEventListener('input', filterRows);
-    one('#gp-member-search').addEventListener('input', function (event) {
+    one('#gp-member-search')?.addEventListener('input', function (event) {
       var search = event.target.value.toLocaleLowerCase('pt-BR');
       many('.gp-member').forEach(function (member) { member.hidden = member.dataset.search.indexOf(search) === -1; });
     });

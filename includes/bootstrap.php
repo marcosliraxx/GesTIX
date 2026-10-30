@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '2.2.1';
+const ARC_APP_VERSION = '2.8.0';
 const ARC_SCHEMA_VERSION = '2026.10.26-8';
 
 /* Fuso horário fixo do Workspace: America/Belem (UTC-03:00). */
@@ -28,6 +28,18 @@ function arc_config(): array
 }
 
 require_once __DIR__ . '/login-security.php';
+
+/** Refuse mixed platform/agent deployments instead of labeling old code as current. */
+function arc_require_aligned_agent_release(): void
+{
+    $patterns = ['arcoll_app.py'=>"/AGENT_VERSION\s*=\s*'([^']+)'/", 'arcoll_desktop.py'=>"/VERSION\s*=\s*'([^']+)'/", 'arcoll_agent.py'=>'/VERSION\s*=\s*"([^"]+)"/'];
+    foreach ($patterns as $file=>$pattern) {
+        $source=@file_get_contents(dirname(__DIR__).'/agent/'.$file, false, null, 0, 8192);
+        if (!is_string($source) || !preg_match($pattern,$source,$version) || $version[1]!==ARC_APP_VERSION) {
+            throw new RuntimeException('Versões da plataforma e do agente não estão alinhadas. Envie a atualização completa.');
+        }
+    }
+}
 
 function arc_workspace_base_url(): string
 {

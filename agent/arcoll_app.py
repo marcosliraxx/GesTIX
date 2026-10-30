@@ -5,22 +5,30 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import sqlite3, statistics, math, urllib.parse, queue, codecs, tempfile, base64
+from contextlib import contextmanager
 try:
  from rt_engine import RealtimeNetworkWatcher
 except ImportError:
  RealtimeNetworkWatcher=None
 try:
- from arcoll_toolkit import QUICK_COMMANDS, run_quick_command
+ from arcoll_toolkit import QUICK_COMMANDS, run_quick_command, AppearanceManager
 except Exception:
  QUICK_COMMANDS={}; run_quick_command=None
 
 APP_NAME='Arcoll Speed Connection'
-AGENT_VERSION='2.7.0'
+AGENT_VERSION='2.8.0'
 ROOT=Path(__file__).resolve().parent
 CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.json'
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 HISTORY_DB=DATA_DIR/'desktop-history.sqlite3'
+@contextmanager
+def history_db(timeout=15):
+ connection=sqlite3.connect(HISTORY_DB,timeout=timeout)
+ try:
+  with connection:yield connection
+ finally:connection.close()
+
 try: CFG=json.loads(CFG_PATH.read_text(encoding='utf-8-sig'))
 except Exception: CFG={}
 try:
@@ -118,8 +126,9 @@ def request_json(url, data=None, timeout=8, headers=None):
 
 def local_api(path, timeout=10): return request_json(LOCAL_AGENT+path,timeout=timeout,headers={'Authorization':'Bearer '+str(CFG.get('local_agent_token',''))})
 def local_ip():
- s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
- try: s.connect(('10.255.255.255',1)); return s.getsockname()[0]
+ try:
+  with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as s:
+   s.connect(('10.255.255.255',1)); return s.getsockname()[0]
  except Exception: return '127.0.0.1'
 
 def gateway_ip():
@@ -741,10 +750,10 @@ class RemoteInput:
 
 class ArcollApp:
  def __init__(self):
-  self.root=tk.Tk(); self.root.title(APP_NAME); self.root.minsize(980,610); self.root.configure(bg=BG)
+  self.root=tk.Tk(); self.root.title(APP_NAME); self.root.minsize(720,520); self.root.configure(bg=BG)
   width,height=1360,790
   sx,sy=self.root.winfo_screenwidth(),self.root.winfo_screenheight()
-  width=min(width,max(980,sx-80));height=min(height,max(610,sy-80))
+  width=min(width,max(720,sx-48));height=min(height,max(520,sy-96))
   self.root.geometry(f'{width}x{height}+{max(0,(sx-width)//2)}+{max(0,(sy-height)//2)}')
   self.stop_event=threading.Event(); self.samples=[]; self.devices=[]; self.alerts=[]; self.running=True; self.monitor_on=True; self.agent_proc=None; self.last_status='Verificando autorização'; self._auth_status='checking'; self._auth_error=''; self._command_poll_busy=False; self._last_command_error=''; self.last_sync='Ainda não sincronizado'; self.latency='--'; self.loss='0%'; self.last_error=''; self.scan_running=False; self.speed_busy=False; self.session_started=time.time();self.last_alert_sent=0; self.monitor_interval=5; self.alert_threshold=150; self._init_history_db(); self._load_history()
   self._style(); self._modern_header(); self._enable_custom_chrome(); self._tabs(); self._footer(); self._animate_ui(); self._fade_in(); self._animate_header(); self._tick_cards()
@@ -768,6 +777,7 @@ class ArcollApp:
   self._start_realtime()
   self.root.after(1500,self._server_tick)
   self.root.after(1200,self._refresh_platform_config)
+  self.appearance=AppearanceManager(self.root,AGENT_VERSION)
   self.root.mainloop()
  def _presence_loop(self):
   # Canal de presença separado da telemetria e da interface, sem acumular registros.
@@ -787,7 +797,7 @@ class ArcollApp:
 
  def _init_history_db(self):
   """Inicializa o histórico local sem remover dados de versões anteriores."""
-  with sqlite3.connect(HISTORY_DB, timeout=15) as db:
+  with history_db() as db:
    db.execute('PRAGMA busy_timeout=15000')
    db.execute('CREATE TABLE IF NOT EXISTS samples (id INTEGER PRIMARY KEY AUTOINCREMENT, captured REAL NOT NULL, latency REAL, host TEXT)')
    db.execute('CREATE TABLE IF NOT EXISTS speedtests (id INTEGER PRIMARY KEY AUTOINCREMENT, captured REAL NOT NULL, download REAL, upload REAL, latency REAL, server TEXT)')
@@ -802,7 +812,7 @@ class ArcollApp:
  def _load_history(self):
   """Reconstitui as amostras no gráfico sem exigir uma aba legada de histórico."""
   try:
-   with sqlite3.connect(HISTORY_DB,timeout=15) as db:
+   with history_db() as db:
     rows=db.execute('SELECT captured,latency,host,download_mbps,upload_mbps FROM samples ORDER BY id DESC LIMIT 2000').fetchall()
    self.samples=[{'time':float(t),'latency':(float(v) if v is not None else None),'host':str(host or ''),'download_mbps':(float(d) if d is not None else None),'upload_mbps':(float(u) if u is not None else None)} for t,v,host,d,u in reversed(rows)]
   except (sqlite3.Error,ValueError,TypeError):
@@ -811,7 +821,7 @@ class ArcollApp:
  def _save_sample(self,sample):
   """Armazena uma única medição, respeitando a ausência de resposta ao ping."""
   try:
-   with sqlite3.connect(HISTORY_DB,timeout=15) as db:
+   with history_db() as db:
     db.execute('INSERT INTO samples(captured,latency,host,download_mbps,upload_mbps) VALUES(?,?,?,?,?)',(float(sample.get('time',time.time())),sample.get('latency'),str(sample.get('host') or ''),sample.get('download_mbps'),sample.get('upload_mbps')))
   except sqlite3.Error as exc:
    self.last_error='Histórico local: '+str(exc)
@@ -1204,7 +1214,7 @@ class ArcollApp:
      with urllib.request.urlopen(req,timeout=35) as resp: resp.read(2048)
      elapsed=max(.001,time.perf_counter()-start); result['upload']=round(len(payload)*8/elapsed/1_000_000,2); logs.append(f'Upload: {result["upload"]} Mbps ({len(payload)/1048576:.2f} MiB em {elapsed:.2f}s)')
     logs.append('Teste concluído em '+time.strftime('%H:%M:%S')); result['event']='speed_test'
-    with sqlite3.connect(HISTORY_DB) as db: db.execute('INSERT INTO speedtests(captured,download,upload,latency,server) VALUES(?,?,?,?,?)',(time.time(),result['download'],result['upload'],result['ping'],result['server']))
+    with history_db() as db: db.execute('INSERT INTO speedtests(captured,download,upload,latency,server) VALUES(?,?,?,?,?)',(time.time(),result['download'],result['upload'],result['ping'],result['server']))
     self.sync_data({'event':'speed_test','command_id':getattr(self,'_remote_speed_command',None),'download_mbps':result['download'],'upload_mbps':result['upload'],'latency_ms':result['ping'],'server':result['server']},ack_id=getattr(self,'_remote_speed_command',None))
     self.root.after(0,lambda:self._speed_done(result,logs))
    except Exception as e:
@@ -1216,7 +1226,7 @@ class ArcollApp:
   for n in range(1,4):
    y=12+(h-25)*n/4;c.create_line(8,y,w-8,y,fill='#263750',dash=(3,5))
   try:
-   with sqlite3.connect(HISTORY_DB) as db: rows=list(reversed(db.execute('SELECT captured,download,upload FROM speedtests ORDER BY id DESC LIMIT 20').fetchall()))
+   with history_db() as db: rows=list(reversed(db.execute('SELECT captured,download,upload FROM speedtests ORDER BY id DESC LIMIT 20').fetchall()))
   except Exception: rows=[]
   if not rows:c.create_text(w/2,h/2,text='O GRÁFICO SERÁ PREENCHIDO APÓS O PRIMEIRO TESTE',fill=MUTED,font=('Segoe UI',9));return
   limit=max(1,max(float(v or 0) for _,dl,ul in rows for v in (dl,ul)))*1.12
@@ -1279,7 +1289,7 @@ class ArcollApp:
   self.root.after(250,lambda:self._map_center('all'))
  def get_groups(self):
   try:
-   with sqlite3.connect(HISTORY_DB) as db: rows=db.execute('SELECT id,name,parent_id FROM topology_groups ORDER BY name').fetchall()
+   with history_db() as db: rows=db.execute('SELECT id,name,parent_id FROM topology_groups ORDER BY name').fetchall()
    lookup={i:(name,parent) for i,name,parent in rows}
    def label(i):
     name,parent=lookup[i];return ((lookup[parent][0]+' / ') if parent in lookup else '')+name
@@ -1294,7 +1304,7 @@ class ArcollApp:
   parent=simpledialog.askinteger('Subgrupo','ID do grupo pai (0 para grupo principal):\n'+choices,parent=self.root,minvalue=0)
   if parent is None:return
   if parent!=0 and parent not in dict(groups):messagebox.showerror(APP_NAME,'Grupo pai não encontrado.');return
-  with sqlite3.connect(HISTORY_DB) as db:db.execute('INSERT INTO topology_groups(name,parent_id) VALUES(?,?)',(name.strip()[:90],parent or None))
+  with history_db() as db:db.execute('INSERT INTO topology_groups(name,parent_id) VALUES(?,?)',(name.strip()[:90],parent or None))
   self.draw_map();self.send_inventory_snapshot()
  def refresh_map(self):
   # Atualizar visualização não é permissão para sondar a rede.
@@ -1352,14 +1362,14 @@ class ArcollApp:
 
  def _map_load_positions(self):
   try:
-   with sqlite3.connect(HISTORY_DB) as db:rows=db.execute('SELECT node_id,x,y FROM map_positions WHERE mode=?',(self._map_mode_key(),)).fetchall()
+   with history_db() as db:rows=db.execute('SELECT node_id,x,y FROM map_positions WHERE mode=?',(self._map_mode_key(),)).fetchall()
    self.map_positions={name:(float(x),float(y)) for name,x,y in rows}
   except (sqlite3.Error,ValueError):self.map_positions={}
 
  def _map_save_positions(self,items):
   if not items:return
   try:
-   with sqlite3.connect(HISTORY_DB) as db:
+   with history_db() as db:
     db.executemany('INSERT OR REPLACE INTO map_positions(mode,node_id,x,y) VALUES(?,?,?,?)',[(self._map_mode_key(),key,float(pos[0]),float(pos[1])) for key,pos in items.items()])
   except sqlite3.Error as exc:self.log('Mapa: não foi possível salvar posição: '+str(exc),'WARN')
 
@@ -1479,7 +1489,7 @@ class ArcollApp:
      item=next((d for d in self.devices if tag=='device:'+str(d.get('_device_id'))),None)
      if item and self.group_name(item.get('group_id'))!=group:
       gid=next((gid for gid,name in [(None,'Sem grupo')]+self.get_groups() if name==group),None)
-      with sqlite3.connect(HISTORY_DB) as db:db.execute('UPDATE inventory SET group_id=? WHERE device_id=?',(gid,item['_device_id']))
+      with history_db() as db:db.execute('UPDATE inventory SET group_id=? WHERE device_id=?',(gid,item['_device_id']))
       self.load_inventory();self.render_devices();self.send_inventory_snapshot()
      break
   self.draw_map()
@@ -1729,14 +1739,14 @@ class ArcollApp:
   if isinstance(release,dict) and re.fullmatch(r'[a-f0-9]{24}',str(release.get('id',''))):
    self.latest_release=release
    ver=str(release.get('version',''))
-   if ver and ver!=str(CFG.get('agent_version') or AGENT_VERSION):
+   if ver and ver!=AGENT_VERSION:
     self.log('Nova versão disponível no painel de gestão: '+ver[:16])
     self.log('Nova versão publicada: '+ver+'. Atualização disponível na plataforma.')
    else:pass
  def _apply_device_overrides(self,items):
   """Sincroniza identificações do portal pelo MAC, sem depender de IP."""
   try:
-   with sqlite3.connect(HISTORY_DB) as db:
+   with history_db() as db:
     groups={str(name):gid for gid,name in db.execute('SELECT id,name FROM topology_groups')}
     for entry in items[:500]:
      if not isinstance(entry,dict):continue
@@ -2472,7 +2482,7 @@ class ArcollApp:
   if self.stop_event.is_set() or not self.monitor_on:return
   now=time.time();changed=[]
   try:
-   with sqlite3.connect(HISTORY_DB,timeout=15) as db:
+   with history_db() as db:
     db.execute('PRAGMA busy_timeout=15000')
     for ev in events[:40]:
      mac=str(ev.get('mac') or '');key=self.device_id({'mac':mac})
@@ -2516,7 +2526,7 @@ class ArcollApp:
    if not isinstance(observed,dict):return
    states=response.get("states",{}) if isinstance(response.get("states"),dict) else {}
    now=time.time();updates=[]
-   with sqlite3.connect(HISTORY_DB,timeout=15) as db:
+   with history_db() as db:
     db.execute('PRAGMA busy_timeout=15000')
     rows=db.execute('SELECT device_id,payload,online,last_change FROM inventory').fetchall()
     known={key:(json.loads(payload),bool(online),changed) for key,payload,online,changed in rows}
@@ -2584,7 +2594,7 @@ class ArcollApp:
   return ''
  def load_inventory(self):
   try:
-   with sqlite3.connect(HISTORY_DB) as db:
+   with history_db() as db:
     rows=db.execute('SELECT device_id,payload,first_seen,last_seen,last_change,online,custom_name,custom_type,group_id,pinned FROM inventory WHERE hidden=0 ORDER BY pinned DESC,last_seen DESC').fetchall()
    self.devices=[]
    for key,payload,first,last,changed,online,name,kind,group_id,pinned in rows:
@@ -2593,7 +2603,7 @@ class ArcollApp:
  def merge_inventory(self,found):
   now=time.time(); found={self.device_id(d):d for d in found if d.get('ip') and self.device_id(d).startswith('mac:')}
   try:
-   with sqlite3.connect(HISTORY_DB) as db:
+   with history_db() as db:
     for key,d in found.items():
      if key.startswith('mac:') and d.get('ip'):
       provisional='ip:'+str(d['ip'])
@@ -2626,7 +2636,7 @@ class ArcollApp:
   current=next((i for i,gid in enumerate(group_ids) if gid==d.get('group_id')),0);group_var=tk.StringVar(value=group_labels[current]);ttk.Combobox(win,textvariable=group_var,values=group_labels,state='readonly',width=37).pack(pady=5)
   def save():
    gid=group_ids[group_labels.index(group_var.get())] if group_var.get() in group_labels else None
-   with sqlite3.connect(HISTORY_DB) as db:db.execute('UPDATE inventory SET custom_name=?,custom_type=?,group_id=? WHERE device_id=?',(name.get().strip()[:120],kind.get().strip()[:50],gid,d['_device_id']))
+   with history_db() as db:db.execute('UPDATE inventory SET custom_name=?,custom_type=?,group_id=? WHERE device_id=?',(name.get().strip()[:120],kind.get().strip()[:50],gid,d['_device_id']))
    self.load_inventory();self.render_devices();self.draw_map();self.send_inventory_snapshot();win.destroy()
   self.btn(win,'Salvar identificação',save,True).pack(pady=8)
  def render_devices(self):
@@ -3321,11 +3331,12 @@ class ArcollApp:
   threading.Thread(target=worker,daemon=True).start()
 
  def _enable_custom_chrome(self):
-  """Oculta a moldura padrão e mantém comandos de janela acessíveis."""
+  """Mantém a moldura nativa para redimensionar e fechar a janela."""
   self._custom_maximized=False
   self._restore_geometry=self.root.geometry()
-  self._borderless=True
-  self.root.overrideredirect(True)
+  self._borderless=False
+  self.root.resizable(True,True)
+  self.root.overrideredirect(False)
   self.root.bind('<Map>',self._restore_borderless,add='+')
   self.root.bind('<Escape>',lambda _e:self._restore_window(),add='+')
   # A interface pode ser encerrada pelo atalho Ctrl+Q ou pelo ícone da bandeja.
@@ -3345,11 +3356,13 @@ class ArcollApp:
   try:
    if self._custom_maximized:
     self._custom_maximized=False
+    if platform.system()=='Windows':self.root.state('normal')
     self.root.geometry(self._restore_geometry)
    else:
     self._restore_geometry=self.root.geometry()
     self._custom_maximized=True
-    self.root.geometry(f'{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}+0+0')
+    if platform.system()=='Windows':self.root.state('zoomed')
+    else:self.root.geometry(f'{max(720,self.root.winfo_screenwidth()-24)}x{max(520,self.root.winfo_screenheight()-80)}+12+20')
    self._hdr_layout()
   except tk.TclError:pass
 

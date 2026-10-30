@@ -1,0 +1,52 @@
+/* Final shared layout layer, loaded after page-specific styles. */
+html[data-theme] .arc-workspace .app-main{min-width:0;min-height:0}
+html[data-theme] :is(.arc-redes-page,.page-content,.container-wide,.container-narrow,.cl-page,.au-page,.gp-main){min-width:0;max-width:100%;box-sizing:border-box}
+html[data-theme] :is(h1,h2,h3){overflow-wrap:anywhere}
+@media(max-width:860px){
+ html[data-theme] .arc-workspace .app-main{padding:10px;overflow-x:hidden}
+ html[data-theme] .arc-workspace :is(.cl-page,.au-page,.gp-main,.arc-platform-settings,.arc-account){height:100%;max-height:100%;min-height:0;box-sizing:border-box}
+ html[data-theme] .arc-workspace :is(.page-header,.management-toolbar,.menu-toolbar,.cl-bar,.au-toolbar,.gp-toolbar){gap:7px;min-width:0;padding:8px;margin-block:0 8px;flex-wrap:wrap}
+ html[data-theme] .arc-workspace :is(h1,.page-title){font-size:19px;line-height:1.2;margin-block:4px 8px}
+ html[data-theme] .arc-workspace h2{font-size:15px;line-height:1.3}
+ html[data-theme] .arc-workspace h3{font-size:13px}
+ html[data-theme] .arc-workspace :is(.card,.asc-ops-panel,.asc-chart-panel,.cc-surface,.arc-tool-card){padding:10px;border-radius:14px;min-width:0}
+ html[data-theme] .arc-workspace :is(label,.form-field,.arc-field){font-size:11px;min-width:0;gap:4px}
+ html[data-theme] .arc-workspace :is(input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea){font-size:16px;min-width:0;max-width:100%;min-height:36px;padding:6px 8px;box-sizing:border-box}
+ html[data-theme] .arc-workspace :is(.button,.btn,.asc-btn){min-height:36px;padding:7px 10px;font-size:11px;border-radius:10px;white-space:normal}
+ html[data-theme] .arc-workspace :is(.tabs,.tab-buttons,.arc-account-tabs,.cl-tabs,.au-tabs,.gp-tabs,.arc-config-tabs){display:flex;flex-wrap:nowrap;gap:4px;overflow-x:auto;min-width:0;flex:none;scrollbar-width:none}
+ html[data-theme] .arc-workspace :is(.tabs,.tab-buttons,.arc-account-tabs,.cl-tabs,.au-tabs,.gp-tabs,.arc-config-tabs)>:is(a,button){flex:none;font-size:11px;padding:9px 10px;white-space:nowrap}
+ html[data-theme] .arc-workspace :is(table,.data-table){font-size:11px}
+ html[data-theme] .arc-workspace :is(td,th){padding:7px 8px}
+ html[data-theme] .arc-workspace :is(.form-grid,.cl-fields,.au-fields,.gp-grid,.arc-config-grid,.pref-grid){grid-template-columns:minmax(0,1fr)!important;gap:8px}
+ html[data-theme] .arc-workspace :is(.cl-dialog,.au-dialog,.gp-dialog,.gp-modal,.form-dialog,dialog){width:min(96vw,760px);max-width:96vw;max-height:calc(100dvh - 24px);border-radius:18px;box-sizing:border-box}
+ html[data-theme] .arc-workspace :is(.modal-content,.dialog-body,.cl-pane,.au-content,.gp-content,.gp-pane){min-height:0;overflow:auto;overscroll-behavior:contain;padding:12px}
+ html[data-theme] .arc-redes-page{padding:0!important}
+ html[data-theme] .arc-redes-conteudo{padding:8px;min-height:0;overflow:auto}
+ html[data-theme] .arc-redes-menu{overflow-x:auto;flex-wrap:nowrap;min-height:42px;padding:4px 6px;gap:4px;scrollbar-width:none}
+ html[data-theme] .arc-redes-menu-link{font-size:10px;min-height:34px;padding:6px 9px;white-space:nowrap;flex:none}
+ html[data-theme] .arc-redes-identity-bar{min-height:40px;padding:5px 8px}
+ html[data-theme] .arc-server{height:100%!important;min-height:0!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:90px minmax(0,1fr);padding:8px;gap:8px}
+ html[data-theme] .arc-server-sidebar{height:auto!important;min-height:0!important;overflow:hidden}
+ html[data-theme] .arc-server-list{display:flex!important;overflow-x:auto!important;scrollbar-width:thin}
+ html[data-theme] .arc-server-item{flex:0 0 138px;min-width:138px;max-height:70px}
+ html[data-theme] .arc-server-main{min-height:0!important;display:flex;flex-direction:column;overflow:auto}
+ html[data-theme] .arc-server-stats{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px;margin:5px 0}
+ html[data-theme] .arc-server-stat{padding:6px}.arc-server-stat strong{font-size:15px!important}.arc-server-stat span{font-size:9px!important}
+ html[data-theme] .arc-server-chartwrap{min-height:120px!important;flex:1}
+ html[data-theme] :is(.arc-device-facts,.cc-kpis,.asc-metrics,.stats-grid){grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px}
+ html[data-theme] .arc-auth-showcase{display:none}.arc-auth-page{grid-template-columns:minmax(0,1fr)!important}.arc-auth-panel{padding:58px 16px 18px!important;min-height:100dvh!important}.arc-auth-card{padding:18px!important;width:100%;max-width:420px!important;margin:auto}
+ html[data-theme] .install-shell{padding:56px 12px 12px;max-width:100%;box-sizing:border-box}
+}
+
+@media(max-width:640px){
+ html[data-theme] .arc-workspace .arc-responsive-table{display:block;width:100%!important;min-width:0!important;max-width:100%;table-layout:auto}
+ html[data-theme] .arc-responsive-table thead{display:block;max-width:100%;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px}
+ html[data-theme] .arc-responsive-table thead tr{display:flex;gap:5px;align-items:center;border:0;background:transparent}
+ html[data-theme] .arc-responsive-table thead th{display:block;flex:none;white-space:nowrap;border-radius:8px;padding:7px 8px;font-size:10px}
+ html[data-theme] .arc-responsive-table tbody{display:flex;flex-direction:column;gap:8px;width:100%}
+ html[data-theme] .arc-responsive-table tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px;border:1px solid var(--border);border-radius:13px;background:var(--surface)}
+ html[data-theme] .arc-responsive-table tbody td{display:flex;flex-direction:column;gap:3px;min-width:0;width:auto!important;max-width:100%;padding:2px!important;border:0!important;white-space:normal;overflow-wrap:anywhere;font-size:12px;box-sizing:border-box}
+ html[data-theme] .arc-responsive-table tbody td[data-label]::before{content:attr(data-label);font-size:10px;line-height:1.3;color:var(--muted);font-weight:600}
+ html[data-theme] .arc-responsive-table tbody td[colspan],html[data-theme] .arc-responsive-table tbody td:last-child{grid-column:1/-1}
+ html[data-theme] .arc-responsive-table [hidden]{display:none!important}
+}

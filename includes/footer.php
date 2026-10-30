@@ -13,7 +13,7 @@ declare(strict_types=1);
 ?><?php if (($ARCMode ?? 'app') === 'app'): ?></div><!-- /.app-body --><?php endif; ?>
 
 <footer class="app-footer arc-compact-footer" aria-label="Rodapé do sistema">
-    <span class="arc-footer-system-name" title="<?=arc_h((string)$arcSiteName)?>">&copy; <?=date('Y')?> · <?=arc_h((string)$arcSiteName)?></span>
+    <span class="arc-footer-system-name" title="<?=arc_h((string)$arcSiteName)?>">&copy; <?=date('Y')?> · <?=arc_h((string)$arcSiteName)?> · v<?=arc_h(ARC_APP_VERSION)?></span>
 <?php if (($ARCMode ?? 'app') === 'app'): ?>
 <nav class="arc-mobile-dock" aria-label="Navegação do aplicativo">
 <a href="pages/painel.php" <?=($ARCPageBodyClass??'')==='arc-panel-page'?'aria-current="page"':''?>><i class="fa fa-th-large" aria-hidden="true"></i><span>Painel</span></a>
@@ -139,5 +139,6 @@ declare(strict_types=1);
 <?php if (!empty($ARCPageJs)) { echo $ARCPageJs; } ?>
 <link rel="stylesheet" href="assets/css/network-agent-states.css?v=20261028">
 <script src="assets/js/network-agent-states.js?v=20261028" defer></script>
+<link rel="stylesheet" href="assets/css/platform-mobile.css?v=2.8.0">
 </body>
 </html>

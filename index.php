@@ -33,7 +33,7 @@ if($maintenanceOn && !arc_is_admin() && (string)($_GET['admin_login']??'')!=='1'
     ?>
     <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?= $escape($mTitle) ?></title>
     <style>body{margin:0;min-height:100dvh;display:grid;place-items:center;background:linear-gradient(135deg,<?= $escape($mColor) ?>,#07192d);font-family:Inter,system-ui,sans-serif;color:#fff;padding:20px;box-sizing:border-box}.panel{width:min(100%,550px);padding:clamp(22px,5vw,50px);text-align:center;border-radius:22px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(18px);box-shadow:0 25px 75px #0003}.panel img{max-width:150px;max-height:120px;object-fit:contain;margin-bottom:15px}.panel h1{font-size:clamp(24px,4vw,37px)}.panel p{line-height:1.8;color:#d3e5ef}.countdown{display:flex;justify-content:center;gap:12px;margin:24px 0}.countdown span{background:#ffffff16;border-radius:12px;padding:13px;min-width:60px;font-size:22px;font-weight:800}.countdown small{display:block;font-size:10px;font-weight:500;margin-top:6px}.note{font-size:11px;color:#bcd5e4}.arc-login-left .arc-auth-panel{order:-1}.arc-login-center .arc-auth-showcase{display:none}.arc-login-center .arc-auth-page{grid-template-columns:1fr}.arc-login-center .arc-auth-panel{min-height:100dvh}.arc-login-center .arc-auth-card{max-width:450px}
-</style></head><body><main class="panel">
+</style><link rel="stylesheet" href="assets/css/appearance.css?v=2.8.0"><script src="assets/js/appearance.js?v=2.8.0"></script><link rel="stylesheet" href="assets/css/platform-mobile.css?v=2.8.0"></head><body><main class="panel">
     <?php if($mImage!==''):?><img src="<?= $escape($mImage) ?>" alt="Imagem de manutenção"><?php else:?><img src="api/brand-logo.php" alt="Logo da plataforma"><?php endif;?>
     <h1><?= $escape($mTitle) ?></h1><p><?= nl2br($escape($mText)) ?></p><div class="countdown" id="countdown" aria-live="off"></div><div class="note" id="maintenance-note">Acompanhe a previsão de retorno.</div><a href="index.php?admin_login=1" style="display:inline-block;margin-top:25px;color:#d4ebf8;font-size:11px">Acesso administrativo</a></main>
     <script>const until=<?= json_encode($mUntil,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;const target=until?new Date(until.replace(' ','T')).getTime():0;const node=document.getElementById('countdown');function tick(){if(!target||!Number.isFinite(target)){node.hidden=true;return}const delta=Math.max(0,target-Date.now());const units=[Math.floor(delta/86400000),Math.floor(delta/3600000)%24,Math.floor(delta/60000)%60,Math.floor(delta/1000)%60];node.innerHTML=units.map((v,i)=>'<span>'+String(v).padStart(2,'0')+'<small>'+['Dias','Horas','Min','Seg'][i]+'</small></span>').join('');if(delta===0)document.getElementById('maintenance-note').textContent='A previsão foi alcançada. Aguarde a liberação do serviço.';}tick();setInterval(tick,1000);</script></body></html>
@@ -145,7 +145,7 @@ $csrfToken = arc_csrf_token();
 <link rel="shortcut icon" href="api/brand-logo.php?icon=192">
 <link rel="apple-touch-icon" sizes="192x192" href="api/brand-logo.php?icon=192">
 <title><?= $escape($siteName) ?> | Acesso</title><link rel="stylesheet" href="assets/css/arcoll.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="assets/vendor/font-awesome/css/font-awesome.min.css">
 <style>
 /* Estilos locais exclusivos da tela de autenticação; não alteram as classes do painel. */
 .arc-auth-page{min-height:100dvh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(420px,.95fr);background:#f3f6fa;color:#13243a;font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif}
@@ -175,7 +175,7 @@ $csrfToken = arc_csrf_token();
 @media(max-width:820px){.arc-auth-page{display:flex;flex-direction:column;min-height:100dvh}.arc-auth-showcase{min-height:auto;padding:18px 20px;gap:0}.arc-auth-showcase .arc-auth-message,.arc-auth-showcase-footer{display:none}.arc-auth-brand{font-size:15px}.arc-auth-brand img{width:37px;height:37px}.arc-auth-panel{flex:1;min-height:0;align-items:flex-start;padding:24px 18px}.arc-auth-card{width:min(100%,430px);margin:auto}.arc-auth-card h2{font-size:26px}}
 @media(max-width:420px){.arc-auth-panel{padding:18px 14px}.arc-auth-card h2{font-size:24px}}
 .arc-login-left .arc-auth-panel{order:-1}.arc-login-center .arc-auth-showcase{display:none}.arc-login-center .arc-auth-page{grid-template-columns:1fr}.arc-login-center .arc-auth-panel{min-height:100dvh}.arc-login-center .arc-auth-card{max-width:450px}
-</style></head>
+</style><link rel="stylesheet" href="assets/css/appearance.css?v=2.8.0"><script src="assets/js/appearance.js?v=2.8.0"></script><link rel="stylesheet" href="assets/css/platform-mobile.css?v=2.8.0"></head>
 <?php $loginLayout=arc_platform_setting($pdo,'platform_login_layout','right');if(!in_array($loginLayout,['left','center','right'],true))$loginLayout='right'; ?>
 <body class="arc-login-<?= $escape($loginLayout) ?>"><main class="arc-auth-page">
 <section class="arc-auth-showcase" aria-label="Apresentação da plataforma"><div class="arc-auth-brand"><img src="api/brand-logo.php" alt="" onerror="this.style.display='none'"><span><?= $escape($siteName) ?></span></div>

@@ -8,10 +8,7 @@ if (!is_file(__DIR__ . '/../includes/config.php')) {
 require __DIR__ . '/../includes/bootstrap.php';
 
 function arc_agent_published_version(): string {
-    $path = dirname(__DIR__) . '/includes/storage/releases/agent_manifest.json';
-    $json = is_file($path) ? json_decode((string)@file_get_contents($path), true) : null;
-    $v = is_array($json) ? (string)($json['version'] ?? '') : '';
-    return preg_match('/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/', $v) ? $v : ARC_APP_VERSION;
+    return ARC_APP_VERSION;
 }
 
 try {
@@ -40,37 +37,16 @@ try {
     }
     $siteCode = strtoupper(trim((string)$networkRow['site_code']));
     if (!preg_match('/^[A-Z0-9]{5}$/', $siteCode)) throw new RuntimeException('O código local da rede não está no formato correto. Atualize o cadastro da rede.');
+    arc_require_aligned_agent_release();
     $downloadKey = bin2hex(random_bytes(32));
     $pdo->prepare('INSERT INTO ' . arc_table('agent_download_keys') . ' (token_hash,account_id,network_id,site_code) VALUES (?,?,?,?)')
         ->execute([hash('sha256', $downloadKey), arc_user_id(), $networkId, $siteCode]);
 
-    $releaseArchive = null;
-    $releaseManifest = null;
-    $releaseManifestPath = dirname(__DIR__) . '/includes/storage/releases/agent_manifest.json';
-    $releaseDirectory = dirname(__DIR__) . '/includes/storage/releases';
-    if (is_file($releaseManifestPath)) {
-        $releaseManifest = json_decode((string)file_get_contents($releaseManifestPath), true);
-        if (is_array($releaseManifest) && !empty($releaseManifest['file'])) {
-            $publishedName = (string)$releaseManifest['file'];
-            if (basename($publishedName) !== $publishedName || !preg_match('/^Arcoll-Agent-[A-Za-z0-9.+_-]+\.zip$/', $publishedName)) {
-                throw new RuntimeException('Nome do pacote publicado inválido.');
-            }
-            $publishedPath = $releaseDirectory . '/' . $publishedName;
-            if (!is_file($publishedPath) || !hash_equals((string)($releaseManifest['sha256'] ?? ''), (string)hash_file('sha256', $publishedPath))) {
-                throw new RuntimeException('Falha de integridade na versão publicada.');
-            }
-            $releaseArchive = new ZipArchive();
-            if ($releaseArchive->open($publishedPath) !== true) throw new RuntimeException('Pacote publicado ilegível.');
-        }
-    }
+    // Download and authenticated updates use the same current release sources.
     $source = __DIR__ . '/../agent';
-    $required = ['arcoll_agent.py', 'arcoll_desktop.py', 'arcoll_app.py', 'arcoll_toolkit.py', 'rt_engine.py', 'arcoll_updater.py', 'Instalar_Arcoll.ps1', 'Preparar_Instalacao.ps1', 'Desinstalar_Arcoll.ps1'];
+    $required = ['arcoll_agent.py','arcoll_desktop.py','arcoll_app.py','arcoll_toolkit.py','rt_engine.py','arcoll_updater.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
     foreach ($required as $file) {
-        if ($releaseArchive !== null) {
-            if ($file === 'Desinstalar_Arcoll.ps1' || $file === 'rt_engine.py' || $file === 'arcoll_updater.py') { if (!is_readable(__DIR__ . '/../agent/' . $file)) throw new RuntimeException('Desinstalador indisponível.'); } elseif ($releaseArchive->locateName('agent/' . $file) === false) throw new RuntimeException('Arquivo ausente na versão publicada: ' . $file);
-        } elseif (!is_file($source . '/' . $file) || !is_readable(__DIR__ . '/../agent/' . $file)) {
-            throw new RuntimeException('Arquivo do agente ausente: ' . $file);
-        }
+        if (!is_readable($source.'/'.$file)) throw new RuntimeException('Arquivo do agente ausente: '.$file);
     }
 
     $origin = arc_base_url();
@@ -111,10 +87,7 @@ BAT;
     }
     $zip->addEmptyDir('Arcoll_Agente/.dados');
     foreach ($required as $file) {
-        $localOverrides = ['Instalar_Arcoll.ps1', 'Preparar_Instalacao.ps1', 'Desinstalar_Arcoll.ps1', 'arcoll_app.py', 'arcoll_desktop.py', 'rt_engine.py', 'arcoll_updater.py'];
-        $contents = in_array($file, $localOverrides, true)
-            ? file_get_contents($source . '/' . $file)
-            : ($releaseArchive !== null ? $releaseArchive->getFromName('agent/' . $file) : file_get_contents($source . '/' . $file));
+        $contents = file_get_contents($source . '/' . $file);
         if (!is_string($contents) || $contents === '') throw new RuntimeException('Conteúdo ausente no agente: ' . $file);
         // O Windows PowerShell 5.1 interpreta scripts sem BOM como ANSI.
         // Normalize tambem arquivos provenientes de releases publicados para UTF-8 com BOM.
@@ -131,7 +104,6 @@ BAT;
     if (is_file($extraModule) && is_readable($extraModule)) {
         $zip->addFile($extraModule, 'Arcoll_Agente/.dados/connection_diagnostics.py');
     }
-    if ($releaseArchive !== null) $releaseArchive->close();
     $zip->addFromString('Arcoll_Agente/.dados/.arcoll-installer-marker', 'ARCOLL-INSTALL-V14');
 
     // Gera o mesmo ícone configurado em pages/identidade.php para o Windows.

@@ -3,8 +3,9 @@
 import argparse, hashlib, json, os, platform, socket, subprocess, sys, threading, time, urllib.error, urllib.request, shutil
 import tkinter as tk
 from tkinter import messagebox
+from arcoll_toolkit import AppearanceManager
 
-VERSION = '2.6.6'
+VERSION = '2.8.0'
 parser = argparse.ArgumentParser()
 parser.add_argument('--origin', default=os.environ.get('ARCOLL_ORIGIN', '').strip())
 parser.add_argument('--site-code', default=os.environ.get('ARCOLL_SITE_CODE', '').strip().upper())
@@ -47,8 +48,8 @@ def uuid_node():
 
 def local_ip():
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.connect(('10.255.255.255', 1)); ip = sock.getsockname()[0]; sock.close(); return ip
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(('10.255.255.255', 1)); return sock.getsockname()[0]
     except Exception:
         return ''
 
@@ -105,7 +106,7 @@ class DesktopAgent:
         self.root = tk.Tk()
         self.root.withdraw()  # Nunca mostrar cadastro antes de a plataforma confirmar a autorização.
         self.root.title('Arcoll Speed Connection | Agente de Rede')
-        self.root.geometry('560x390'); self.root.resizable(False, False)
+        self.root.geometry('560x430'); self.root.resizable(True, True); self.root.minsize(360,400)
         self._center_window()
         self.root.configure(bg='#0b1220')
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favicon.ico')
@@ -132,11 +133,23 @@ class DesktopAgent:
         self.root.protocol('WM_DELETE_WINDOW',self.close)
         if BUNDLED_SITE_CODE: self.code_var.set(BUNDLED_SITE_CODE)
         self.root.after(100,self.restore_saved_code)
+        self.appearance=AppearanceManager(self.root,VERSION)
+        self.root.bind('<Configure>',self._fit_registration,add='+')
         self.root.mainloop()
+
+    def _fit_registration(self,event=None):
+        if event is not None and event.widget is not self.root:return
+        width=max(300,self.root.winfo_width()-60)
+        for widget in self.root.winfo_children():
+            if widget.winfo_manager()!='place':continue
+            data=widget.place_info()
+            if int(float(data.get('width',0) or 0))>=400 or widget.winfo_reqwidth()>width:
+                widget.place_configure(width=width)
+                if isinstance(widget,tk.Label):widget.configure(wraplength=width)
 
     def _center_window(self):
         self.root.update_idletasks()
-        w,h=560,390
+        w,h=min(560,self.root.winfo_screenwidth()-32),min(430,self.root.winfo_screenheight()-48)
         x=max(0,(self.root.winfo_screenwidth()-w)//2)
         y=max(0,(self.root.winfo_screenheight()-h)//2)
         self.root.geometry(f'{w}x{h}+{x}+{y}')

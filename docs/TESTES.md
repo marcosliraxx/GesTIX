@@ -31,3 +31,15 @@ Validação realizada em PHP 8.3 e MariaDB 11.4. O ambiente do cPanel ainda prec
 Instale Playwright em um ambiente de testes e disponibilize Chromium. Prepare uma conta fictícia com pelo menos 17 redes, incluindo uma com `nome muito longo` no nome. Defina `GESTI_UI_BASE_URL`, `GESTI_UI_EMAIL` e `GESTI_UI_PASSWORD` no ambiente; opcionalmente defina `GESTI_CHROMIUM_PATH` e `GESTI_UI_OUTPUT_DIR` para o navegador e as capturas. Execute `node tests/panel_mobile.cjs`.
 
 O teste verifica 35 combinações: 0, 1, 2, 5 e 17 redes em 320×568, 360×640, 390×844, 430×932, 768×1024, 844×390 e 1440×900. A quantidade de cartões é alterada somente no HTML interceptado pelo navegador, sem criar ou excluir redes no banco. Confere ausência de rolagem vertical no painel, cartões sem conteúdo cortado, paginação, busca com nome longo, recuperação de busca vazia, modais, menu mobile, destino inicial do PWA e ícones disponíveis. As telas longas de formulário mantêm rolagem interna acessível.
+
+## Aparência completa da plataforma (2.8.0)
+
+`node tests/platform_appearance.cjs` usa as mesmas variáveis do teste de painel, mais `GESTI_UI_ADMIN_EMAIL`, `GESTI_UI_ADMIN_PASSWORD` (opcional quando igual à senha do usuário de testes) e `GESTI_UI_NETWORK_ID`. Use contas e redes fictícias em uma cópia isolada. São 96 combinações de páginas de usuário/administração, dois temas e três telas; também verifica mudança automática do sistema e contraste dos gráficos Canvas. Não cria imagens. A tela de permissões vazia também deve iniciar sem erros JavaScript.
+
+## Aparência do agente e coerência de versões
+
+`python3 -m unittest discover -s tests -v` inclui segurança do serviço local, duas verificações de versão e seis testes de Tkinter. Os testes gráficos precisam de Tkinter e display; ficam marcados como ignorados quando não houver display. Em Linux, forneça Xvfb e `DISPLAY` ao processo. Na validação desta entrega os 15 testes executaram e passaram com display virtual e rede externa desativada. Os testes gráficos verificam persistência, modo automático, botões, texto de Canvas e construção das interfaces principal e de cadastro em janelas menores.
+
+O instalador foi baixado da aplicação local e inspecionado como ZIP: componentes versionados em 2.8.0 e suporte de aparência presente. O canal autenticado de atualização foi verificado com seis arquivos e seus SHA-256. Não foi executado instalador nem comando remoto em computador de cliente. Sem alterações de schema nesta entrega.
+
+A camada mobile também converte tabelas largas em registros rotulados, mantendo os cabeçalhos de ordenação e a seleção acessíveis. Estilos de impressão mantêm papel claro, mesmo quando o aplicativo está escuro. Na migração completa para 2.8.0, use o novo instalador para substituir também o atualizador auxiliar; o canal legado conserva sua lista de seis arquivos por compatibilidade.

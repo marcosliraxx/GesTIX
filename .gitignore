@@ -23,3 +23,9 @@
 error_log
 __pycache__/
 *.pyc
+
+# Configurações vinculadas a máquinas/agentes instalados
+/agent/agent-config.json
+/agent/agent.json
+/agent/appearance.json
+/agent/.dados/

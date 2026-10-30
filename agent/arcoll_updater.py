@@ -11,6 +11,9 @@ import time
 import threading
 import tkinter as tk
 from tkinter import ttk
+from arcoll_toolkit import AppearanceManager
+
+VERSION = '2.8.0'
 
 FILES = {'arcoll_app.py', 'arcoll_desktop.py', 'arcoll_agent.py', 'arcoll_toolkit.py', 'rt_engine.py', 'connection_diagnostics.py'}
 
@@ -76,7 +79,7 @@ def run(report=lambda _message,_percent:None):
 def updater_window():
     # Window lives in the helper process while the GUI process exits.
     root = tk.Tk()
-    root.title('Atualizando agente Arcoll')
+    root.title('Atualizando agente Arcoll · v'+VERSION)
     root.configure(bg='#0c1828')
     root.resizable(False, False)
     root.withdraw()
@@ -115,6 +118,7 @@ def updater_window():
             pass
         root.after(100, poll)
     poll()
+    appearance=AppearanceManager(root,controls=False)
     root.mainloop()
 
 

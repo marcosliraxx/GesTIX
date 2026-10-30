@@ -77,6 +77,7 @@ try {
         $q=$pdo->prepare('SELECT a.id FROM '.arc_table('network_agents').' a INNER JOIN '.arc_table('managed_networks').' n ON n.id=a.network_id AND n.account_id=a.account_id INNER JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id WHERE a.fingerprint=? AND UPPER(a.site_code)=? AND a.status=\'approved\' AND n.is_active=1 AND n.monitoring_enabled=1 AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
         $q->execute([$fp,$code,hash('sha256',$key),$fp]);
         if (!$q->fetchColumn()) arc_json(['ok'=>false,'error'=>'Agente não autorizado'],403);
+        arc_require_aligned_agent_release();
         $files=['arcoll_app.py','arcoll_desktop.py','arcoll_agent.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py'];
         $package=[];
         foreach ($files as $name) {
@@ -86,8 +87,8 @@ try {
             if (!is_string($contents) || strlen($contents)>1500000) arc_json(['ok'=>false,'error'=>'Pacote indisponível'],503);
             $package[]=['name'=>$name,'sha256'=>hash('sha256',$contents),'content'=>base64_encode($contents)];
         }
-        if (count($package)<5) arc_json(['ok'=>false,'error'=>'Arquivos do agente incompletos'],503);
-        $publishedVersion = '2.6.2';
+        if (count($package)!==count($files)) arc_json(['ok'=>false,'error'=>'Arquivos do agente incompletos'],503);
+        $publishedVersion = ARC_APP_VERSION;
         $agentSource = @file_get_contents(__DIR__.'/../agent/arcoll_app.py', false, null, 0, 4096);
         if (is_string($agentSource) && preg_match('/AGENT_VERSION\s*=\s*[\"\'](\d+\.\d+\.\d+)[\"\']/', $agentSource, $vm)) {
             $publishedVersion = $vm[1];

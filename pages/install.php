@@ -5,7 +5,7 @@ $privateDir = __DIR__ . '/../includes';
 $configPath = $privateDir . '/config.php';
 if (is_file($configPath)) {
     http_response_code(409);
-    ?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalação concluída</title><link rel="stylesheet" href="assets/css/arcoll.css"><body class="arc-page-install"><main class="admin-shell auth-shell"><section class="auth-card"><span class="eyebrow">INSTALAÇÃO PROTEGIDA</span><h1>O sistema já está instalado</h1><p class="text-muted">Por segurança, este instalador não pode ser executado novamente. Acesse o sistema ou a administração.</p><a class="button primary" href="pages/painel.php">Abrir administração</a> <a class="button secondary" href="index.php">Abrir portal</a></section></main></body></html><?php
+    ?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalação concluída</title><link rel="stylesheet" href="assets/css/arcoll.css"><link rel="stylesheet" href="assets/css/appearance.css?v=2.8.0"><script src="assets/js/appearance.js?v=2.8.0"></script><link rel="stylesheet" href="assets/css/platform-mobile.css?v=2.8.0"><body class="arc-page-install"><main class="admin-shell auth-shell"><section class="auth-card"><span class="eyebrow">INSTALAÇÃO PROTEGIDA</span><h1>O sistema já está instalado</h1><p class="text-muted">Por segurança, este instalador não pode ser executado novamente. Acesse o sistema ou a administração.</p><a class="button primary" href="pages/painel.php">Abrir administração</a> <a class="button secondary" href="index.php">Abrir portal</a></section></main></body></html><?php
     exit;
 }
 
@@ -258,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg?v=20261025"><link rel="shortcut icon" href="assets/img/favicon.svg?v=20261025"><link rel="apple-touch-icon" href="assets/img/favicon.svg?v=20261025">
   <meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark"><title>Instalação · Arcoll Speed Connection</title>
-  <link rel="stylesheet" href="assets/css/arcoll.css">
+  <link rel="stylesheet" href="assets/css/arcoll.css"><link rel="stylesheet" href="assets/css/appearance.css?v=2.8.0"><script src="assets/js/appearance.js?v=2.8.0"></script><link rel="stylesheet" href="assets/css/platform-mobile.css?v=2.8.0">
   
 </head>
 <body>
