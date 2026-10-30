@@ -1,0 +1,858 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__).'/includes/bootstrap.php';
+$pdo=arc_db();
+arc_ensure_user_schema($pdo);
+$admin=arc_is_admin();
+$uid=arc_user_id();
+if(!$admin && !$uid){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
+$role=$admin?'admin':arc_v15_user_role($pdo);
+
+$arcError='';
+$go=static function(string $target): never {
+    header('Location: '.arc_workspace_base_url().ltrim($target,'/'),true,303);exit;
+};
+if ($_SERVER['REQUEST_METHOD']==='POST') {
+    $action=(string)($_POST['action']??'');
+    $csrf=(string)($_POST['_csrf']??'');
+    if ($csrf==='' || !hash_equals(arc_csrf_token(),$csrf)) {
+        $arcError='Sessão expirada. Atualize a página e tente novamente.';
+    } elseif ($action==='logout') {
+        if(arc_is_user()) arc_user_audit($pdo,'account_logout','Logout');
+        unset($_SESSION['arc_user_id'],$_SESSION['arc_user_email'],$_SESSION['arc_admin_id'],$_SESSION['arc_admin_email'],$_SESSION['arc_current_network_id'],$_SESSION['arc_network_monitor_sessions'],$_SESSION['arc_monitor_session'],$_SESSION['arc_csrf']);
+        session_regenerate_id(true);
+        $go('index.php');
+    } elseif (!arc_is_user()) {
+        $arcError='É necessário entrar com uma conta de usuário para gerenciar redes.';
+    } elseif ($action === 'network_create') {
+        $name = trim((string)($_POST['network_name'] ?? ''));
+
+        if ($name === '' || mb_strlen($name) > 100) {
+            $arcError = 'Informe um nome para a rede (até 100 caracteres).';
+        } else {
+            try {
+                $pdo->beginTransaction();
+
+                $lock = $pdo->prepare('SELECT id FROM ' . arc_table('user_accounts') . ' WHERE id=? FOR UPDATE');
+                $lock->execute([arc_user_id()]);
+
+                $pdo->prepare(
+                    'INSERT INTO ' . arc_table('managed_networks') .
+                    ' (account_id,name,client_name,site_code,contact_name,contact_phone,address,vlan,public_ip,notes,monitoring_enabled)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+                )->execute([
+                    arc_user_id(),
+                    $name,
+                    mb_substr(trim((string)($_POST['client_name'] ?? '')), 0, 160),
+                    '',
+                    mb_substr(trim((string)($_POST['contact_name'] ?? '')), 0, 160),
+                    mb_substr(trim((string)($_POST['contact_phone'] ?? '')), 0, 40),
+                    mb_substr(trim((string)($_POST['address'] ?? '')), 0, 255),
+                    mb_substr(trim((string)($_POST['vlan'] ?? '')), 0, 32),
+                    mb_substr(trim((string)($_POST['public_ip'] ?? '')), 0, 45),
+                    mb_substr(trim((string)($_POST['notes'] ?? '')), 0, 5000),
+                    1,
+                ]);
+
+                $networkId = (int)$pdo->lastInsertId();
+                $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                do {
+                    $siteCode = '';
+                    for ($i = 0; $i < 5; $i++) $siteCode .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+                    $checkCode = $pdo->prepare('SELECT COUNT(*) FROM ' . arc_table('managed_networks') . ' WHERE UPPER(site_code)=? AND id<>?');
+                    $checkCode->execute([$siteCode, $networkId]);
+                } while ((int)$checkCode->fetchColumn() > 0);
+                $pdo->prepare('UPDATE ' . arc_table('managed_networks') . ' SET site_code=? WHERE id=?')
+                    ->execute([$siteCode, $networkId]);
+
+                arc_save_network_logo($pdo, $networkId, arc_user_id());
+                $pdo->commit();
+
+                arc_select_network($pdo, $networkId);
+                arc_user_audit($pdo, 'network_created', 'Rede: ' . mb_substr($name, 0, 200) . ' (' . $siteCode . ')');
+                $_SESSION['arc_flash'] = 'Rede registrada com o código ' . $siteCode . '.';
+                $go('redes/servidor.php?network=' . $networkId);
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                error_log('Arcoll network create: ' . $e->getMessage());
+                $arcError = 'Não foi possível registrar a rede.';
+            }
+        }
+
+    } elseif ($action === 'network_select') {
+        $id = (int)($_POST['network_id'] ?? 0);
+
+        if (!arc_select_network($pdo, $id)) {
+            $arcError = 'Não foi possível selecionar essa rede.';
+        } else {
+            arc_user_audit($pdo, 'network_selected', 'Rede ID ' . $id);
+            $_SESSION['arc_flash'] = 'Rede selecionada. Abrindo a gestão solicitada.';
+            $go('../index.php');
+        }
+
+    } elseif ($action === 'network_delete') {
+        $id = (int)($_POST['network_id'] ?? 0);
+
+        if (arc_delete_network($pdo, $id, (int)arc_user_id())) {
+            if (arc_current_network_id() === $id) {
+                unset($_SESSION['arc_current_network_id']);
+            }
+            arc_user_audit($pdo, 'network_deleted', 'Rede ID ' . $id);
+            $_SESSION['arc_flash'] = 'Rede excluída definitivamente.';
+            $go('pages/painel.php');
+        }
+        $arcError = 'Não foi possível excluir essa rede.';
+
+    } elseif ($action === 'network_archive') {
+        $id  = (int)($_POST['network_id'] ?? 0);
+        $upd = $pdo->prepare(
+            'UPDATE ' . arc_table('managed_networks') . ' SET is_active=0 WHERE id=? AND account_id=? AND is_active=1'
+        );
+        $upd->execute([$id, arc_user_id()]);
+
+        if ($upd->rowCount()) {
+            if (arc_current_network_id() === $id) {
+                unset($_SESSION['arc_current_network_id']);
+            }
+            arc_user_audit($pdo, 'network_archived', 'Rede ID ' . $id);
+            $_SESSION['arc_flash'] = 'Rede arquivada.';
+            $go('pages/painel.php');
+        }
+        $arcError = 'Não foi possível arquivar essa rede.';
+    }
+}
+
+/* Redes e estado calculados pelos agentes aprovados vistos nos últimos 12s. */
+$loadPanelNetworks = static function(PDO $pdo, bool $admin, ?int $uid): array {
+    $sql='SELECT n.id,n.name,n.is_active,COUNT(a.id) AS agent_total, '
+        .'COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL 90 SECOND) THEN 1 ELSE 0 END),0) AS agent_online, UNIX_TIMESTAMP(MAX(a.last_seen_at)) AS last_seen_ts '
+        .'FROM '.arc_table('managed_networks').' n LEFT JOIN '.arc_table('network_agents').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\'';
+    $args=[];
+    if (!$admin) { $sql.=' WHERE n.account_id=?';$args[]=(int)$uid; }
+    $sql.=' GROUP BY n.id,n.name,n.is_active ORDER BY n.is_active DESC,n.name,n.id';
+    $q=$pdo->prepare($sql);$q->execute($args);
+    $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+    foreach($rows as &$r){
+        $count=(int)$r['agent_total'];$online=(int)$r['agent_online'];
+        $r['agent_state']=$count===0?'none':($online===0?'offline':($online===$count?'online':'partial'));
+        $r['has_online_agent']=$online>0?1:0;
+    }
+    unset($r);
+    return $rows;
+};
+/* Dispositivos inventariados de uma rede (modal compacto). Restrito à titularidade da rede. */
+if (($_GET['ajax'] ?? '') === 'network_devices') {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    try {
+        require_once dirname(__DIR__).'/includes/network-inventory.php';
+        $netId=(int)($_GET['network'] ?? 0);
+        $sql='SELECT id,account_id,name,is_active,monitoring_enabled FROM '.arc_table('managed_networks').' WHERE id=?';
+        $args=[$netId];
+        if(!$admin){$sql.=' AND account_id=?';$args[]=(int)$uid;}
+        $q=$pdo->prepare($sql);$q->execute($args);
+        $net=$q->fetch(PDO::FETCH_ASSOC);
+        if(!$net) arc_json(['ok'=>false,'error'=>'Rede não encontrada.'],404);
+        $acc=(int)$net['account_id'];
+        $now=time();
+        $q=$pdo->prepare('SELECT id,UNIX_TIMESTAMP(last_seen_at) AS seen FROM '.arc_table('network_agents').' WHERE network_id=? AND account_id=? AND status=\'approved\' ORDER BY id');
+        $q->execute([$netId,$acc]);
+        $items=[];$agents=[];
+        foreach($q->fetchAll(PDO::FETCH_ASSOC) as $agent){
+            $seen=(int)$agent['seen'];
+            $agentOnline=$seen>0 && $seen>=$now-12;
+            $agents[]=['id'=>(int)$agent['id'],'online'=>$agentOnline?1:0];
+            foreach(arc_inventory_list($pdo,$acc,$netId,(int)$agent['id']) as $d){
+                $key=(string)$d['identity_key'];
+                $raw=(string)$d['status']==='online';
+                $on=$agentOnline && $raw;
+                $stale=$raw && !$agentOnline; // agente sem comunicação: o estado salvo pode estar desatualizado
+                $ls=(int)$d['last_seen'];$lc=(int)$d['last_change'];$fs=(int)$d['first_seen'];
+                // Desde quando o dispositivo está no estado exibido.
+                if($on) $since=$lc>0?$lc:($fs>0?$fs:$ls);
+                elseif(!$raw) $since=$lc>0?$lc:$ls;
+                else $since=$ls>0?$ls:$seen;
+                if($since>$now) $since=$now;
+                $name=trim((string)($d['custom_name']!==''?$d['custom_name']:$d['detected_name']));
+                if($name==='')$name=trim((string)$d['ip']);
+                if($name==='')$name='Dispositivo';
+                $row=['n'=>$name,'t'=>(string)($d['custom_type']!==''?$d['custom_type']:$d['detected_type']),'o'=>$on?1:0,'x'=>$stale?1:0,
+                      'ip'=>(string)$d['ip'],'m'=>(string)$d['mac'],'g'=>trim((string)$d['group_name']),'s'=>max(0,$since),'l'=>max(0,$ls),'f'=>max(0,$fs),'c'=>max(0,$lc)];
+                // O mesmo equipamento visto por mais de um agente: prevalece o estado online (ou o contato mais recente).
+                if(!isset($items[$key]) || ($on && !$items[$key]['o']) || (!$on && !$items[$key]['o'] && $ls>$items[$key]['l'])) $items[$key]=$row;
+            }
+        }
+        $q=$pdo->prepare('SELECT UNIX_TIMESTAMP(MAX(updated_at)) FROM '.arc_inventory_table().' WHERE account_id=? AND network_id=?');
+        $q->execute([$acc,$netId]);
+        $updated=(int)$q->fetchColumn();
+        // A varredura segue a mesma regra da API de comandos: apenas o titular, rede ativa e com monitoramento.
+        $canScan=$uid!==null && (int)$net['account_id']===(int)$uid && (int)$net['is_active']===1 && (int)$net['monitoring_enabled']===1;
+        $reason='';
+        if(!$canScan) $reason=(int)$net['is_active']!==1?'Rede arquivada.':((int)$net['monitoring_enabled']!==1?'Monitoramento desativado para esta rede.':'Somente o titular da rede pode solicitar a varredura.');
+        arc_json(['ok'=>true,'name'=>(string)$net['name'],'now'=>$now,'updated'=>$updated,'can_scan'=>$canScan,'scan_reason'=>$reason,'agents'=>$agents,'devices'=>array_values($items)]);
+    } catch(Throwable $e) {
+        error_log('Painel dispositivos da rede: '.$e->getMessage());
+        arc_json(['ok'=>false,'error'=>'Não foi possível carregar os dispositivos.'],503);
+    }
+}
+if (($_GET['ajax'] ?? '') === 'cnpj_lookup') {
+    $cnpj=preg_replace('/\D+/', '', (string)($_GET['cnpj']??''));
+    if (strlen($cnpj)!==14) arc_json(['ok'=>false,'error'=>'Informe um CNPJ com 14 dígitos.'],422);
+    if (!function_exists('curl_init')) arc_json(['ok'=>false,'error'=>'Consulta indisponível no servidor (extensão cURL ausente).'],503);
+    $ch=curl_init('https://brasilapi.com.br/api/cnpj/v1/'.$cnpj);
+    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>8,CURLOPT_CONNECTTIMEOUT=>4,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_HTTPHEADER=>['Accept: application/json'],CURLOPT_USERAGENT=>'Arcoll-Networks/1.0']);
+    $body=curl_exec($ch);$http=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);curl_close($ch);
+    if (!is_string($body)||$http!==200||strlen($body)>150000) arc_json(['ok'=>false,'error'=>'Não foi possível consultar o CNPJ no momento.'],503);
+    $data=json_decode($body,true);
+    if (!is_array($data)||empty($data['razao_social'])) arc_json(['ok'=>false,'error'=>'CNPJ não encontrado na consulta pública.'],404);
+    $fields=['razao_social','nome_fantasia','ddd_telefone_1','ddd_telefone_2','email','cep','uf','logradouro','numero','complemento','bairro','municipio','descricao_situacao_cadastral','cnae_fiscal_descricao','cnae_fiscal','natureza_juridica','data_inicio_atividade'];
+    $filtered=[];foreach($fields as $field){$v=$data[$field]??'';$filtered[$field]=is_scalar($v)?mb_substr((string)$v,0,300):'';}
+    arc_json(['ok'=>true,'data'=>$filtered]);
+}
+if (($_GET['ajax'] ?? '') === 'offline_overview') {
+    try {
+        $rows=[];$onlineCount=0;
+        foreach ($loadPanelNetworks($pdo,$admin,$uid) as $net) {
+            $isOnline=(int)$net['is_active']===1 && (int)$net['has_online_agent']===1;
+            if ($isOnline) { $onlineCount++; continue; }
+            $rows[]=['name'=>(string)$net['name'],'last_seen'=>(int)($net['last_seen_ts']??0),'inactive'=>(int)$net['is_active']!==1,'no_agent'=>(int)$net['agent_total']===0];
+        }
+        arc_json(['ok'=>true,'online'=>$onlineCount,'total'=>$onlineCount+count($rows),'offline'=>$rows,'now'=>time()]);
+    } catch(Throwable $e) { error_log('Resumo de redes offline: '.$e->getMessage()); arc_json(['ok'=>false,'error'=>'Não foi possível consultar as redes.'],503); }
+}
+if (($_GET['ajax'] ?? '') === 'network_status') {
+    try {
+        $states=[];
+        foreach($loadPanelNetworks($pdo,$admin,$uid) as $network) {
+            $states[(string)$network['id']]=['online'=>(int)$network['has_online_agent']===1,'state'=>$network['agent_state'],'total'=>(int)$network['agent_total'],'online_count'=>(int)$network['agent_online']];
+        }
+        arc_json(['ok'=>true,'networks'=>$states]);
+    } catch(Throwable $e) {
+        error_log('Painel estado das redes: '.$e->getMessage());
+        arc_json(['ok'=>false,'error'=>'Não foi possível atualizar as redes.'],503);
+    }
+}
+$panelNetworks=[];$panelNetworksFailed=false;
+try { $panelNetworks=$loadPanelNetworks($pdo,$admin,$uid); }
+catch(Throwable $e) { $panelNetworksFailed=true;error_log('Painel redes: '.$e->getMessage()); }
+$panelOnline=count(array_filter($panelNetworks,static fn(array $n):bool=>(int)$n['is_active']===1 && (int)$n['has_online_agent']===1));
+$panelOffline=count($panelNetworks)-$panelOnline;
+$ARCMode='app';$ARCPageTitle='Painel';$ARCActiveNav='overview';$ARCHeaderActions='';
+require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';
+?>
+<style>
+.arc-panel-commandbar{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0;margin:16px 0 0;padding:12px 16px;border:1px solid var(--border,#dbe5ee);border-radius:12px;background:var(--surface,#fff)}
+.arc-panel-search{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:130px;padding:0 12px;border:1px solid var(--border,#dbe5ee);border-radius:9px;height:39px;color:var(--muted,#718096)}
+.arc-panel-search:focus-within{border-color:var(--primary,#2877dd)}
+.arc-panel-search input{width:100%;min-width:0;background:transparent;border:0;outline:0;color:inherit;font:inherit}
+.arc-panel-stats{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.arc-panel-stat{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;border:1px solid var(--border,#dbe5ee);padding:9px 11px;border-radius:9px;font-size:12px}
+.arc-panel-stat strong{font-size:15px;color:inherit}.arc-panel-stat.on i{color:#16a34a}.arc-panel-stat.off i{color:#ef8524}
+.arc-panel-new{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:0 0 auto;min-height:39px;padding:0 16px;text-decoration:none;border-radius:9px;background:var(--primary,#246bd3);color:#fff;font-size:13px;font-weight:700}
+.arc-panel-error{padding:12px;border:1px solid #d47466;border-radius:8px;color:#b03e35;margin:12px 0}.arc-panel-new{border:0;cursor:pointer}.arc-panel-new:hover{filter:brightness(1.08);color:#fff}
+.arc-panel-search-empty{margin:10px 0 0;color:var(--muted,#718096)}
+.arc-panel-network-link[hidden]{display:none!important}
+@media(max-width:720px){.arc-panel-commandbar{flex-wrap:wrap;gap:9px}.arc-panel-search{flex-basis:100%}.arc-panel-stats{flex:1}.arc-panel-stat{flex:1;justify-content:center}.arc-panel-new{flex:0 0 auto}}
+@media(max-width:380px){.arc-panel-new{flex-basis:100%}}
+.arc-panel-network-block{min-width:0;margin:16px 0;padding:18px}
+.arc-panel-network-block h2{margin:0 0 12px;font-size:16px}
+.arc-panel-network-rail{display:flex;flex-wrap:nowrap;gap:14px;overflow-x:auto;max-width:100%;min-width:0;padding:8px 2px 14px;scroll-snap-type:x proximity;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.arc-panel-network-link{flex:0 0 128px;box-sizing:border-box;width:128px;min-width:0;max-width:128px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 8px;border:1px solid var(--border,#dbe5ee);border-radius:12px;color:inherit;text-decoration:none;scroll-snap-align:start;background:var(--surface,#fff)}
+.arc-panel-network-link:hover{border-color:#16a34a}
+.arc-panel-network-link:focus-visible{outline:3px solid #1687d9;outline-offset:2px}
+.arc-panel-network-link .fa-desktop{font-size:44px;color:#818894}
+.arc-panel-network-link[data-online="1"] .fa-desktop{color:#16a34a}
+.arc-panel-network-name{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;font-size:12px;font-weight:600}
+.arc-panel-network-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.arc-pn-dialog{box-sizing:border-box;width:min(94vw,460px);max-width:94vw;max-height:94dvh;margin:auto;padding:0;border:1px solid var(--border,#dbe5ee);border-radius:12px;background:var(--surface,#fff);color:var(--text,#263648);box-shadow:0 20px 60px #0b243d55;overflow:hidden}
+.arc-pn-dialog[open]{display:flex;flex-direction:column}
+.arc-pn-dialog::backdrop{background:rgba(10,28,45,.6)}
+.arc-pn-head{display:flex;align-items:center;gap:4px;padding:7px 6px 7px 11px;border-bottom:1px solid var(--border,#dbe5ee);background:var(--surface-alt,#edf5fa)}
+.arc-pn-title{flex:1;min-width:0}
+.arc-pn-title strong{display:block;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arc-pn-counts{display:flex;gap:9px;margin-top:1px;font-size:11px;line-height:1.2;opacity:.9;white-space:nowrap}
+.arc-pn-counts button{display:inline-flex;align-items:center;gap:4px;padding:1px 5px;border:1px solid transparent;border-radius:10px;background:transparent;color:inherit;font:inherit;cursor:pointer}.arc-pn-counts button[aria-pressed="true"]{border-color:#1687d9;background:rgba(22,135,217,.13);font-weight:800}.arc-pn-counts button:focus-visible{outline:2px solid #1687d9}
+.arc-pn-counts i{display:inline-block;width:8px;height:8px;border-radius:50%}
+.arc-pn-counts .on i{background:#16a34a}.arc-pn-counts .off i{background:#818894}.arc-pn-counts .all i{background:#1687d9}.arc-pn-tile{position:relative}.arc-pn-rank{position:absolute;top:2px;right:2px;padding:1px 3px;border-radius:4px;font-size:8px;line-height:1.2;background:#1687d9;color:white;font-weight:800}.arc-pn-sort{display:flex;gap:2px;align-items:center}.arc-pn-sort .arc-pn-btn{width:25px;height:23px;font-size:13px}.arc-pn-sort .arc-pn-btn[aria-pressed="true"]{color:#fff;background:#1687d9}.arc-pn-foot #arc-pn-run{max-width:28%}
+.arc-pn-btn{flex:0 0 auto;display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:inherit;font-size:17px;line-height:1;text-decoration:none;cursor:pointer}
+.arc-pn-btn:hover{background:rgba(100,135,190,.16)}
+.arc-pn-btn:focus-visible{outline:2px solid #1687d9;outline-offset:1px}
+.arc-pn-btn:disabled{opacity:.4;cursor:not-allowed;background:transparent}
+.arc-pn-btn.busy i{animation:arcpnspin .9s linear infinite}
+.arc-pn-views{flex:0 0 auto;display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(100,135,190,.14)}
+.arc-pn-views .arc-pn-btn{width:26px;height:26px;font-size:13px;border-radius:7px}
+.arc-pn-views .arc-pn-btn[aria-pressed="true"]{background:#1687d9;color:#fff}
+.arc-pn-body{box-sizing:border-box;min-height:0;padding:8px;overflow:auto;overscroll-behavior:contain}
+.arc-pn-sec{margin-bottom:6px}.arc-pn-sec:last-child{margin-bottom:0}
+.arc-pn-sechead{display:flex;align-items:center;gap:6px;height:16px;margin-bottom:3px;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6b7b8d;white-space:nowrap}
+.arc-pn-sechead::after{content:"";flex:1;min-width:8px;height:1px;background:var(--border,#cfdbe6)}
+.arc-pn-sechead small{font-size:9.5px;font-weight:700;letter-spacing:0;color:#15803d}
+.arc-pn-grid{display:grid;gap:4px;justify-content:center;align-content:start}
+.arc-pn-tile{box-sizing:border-box;min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;margin:0;border:1px solid var(--border,#dbe5ee);border-radius:8px;background:transparent;font:inherit;color:#818894;text-align:center;overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.arc-pn-tile:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(11,36,61,.18)}
+.arc-pn-tile:focus-visible{outline:2px solid #1687d9;outline-offset:1px}
+.arc-pn-tile[data-online="1"]{color:#15803d;border-color:#86d9a5;background:rgba(22,163,74,.09)}
+.arc-pn-tile i{font-size:calc(var(--s,48px)*.4);line-height:1;color:inherit}
+.arc-pn-tile span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;width:100%;overflow:hidden;font-size:var(--fs,8px);font-weight:600;line-height:1.1;word-break:break-word;color:inherit}
+.arc-pn-msg{margin:0;padding:18px 6px;text-align:center;font-size:12px;opacity:.75}
+.arc-pn-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 11px;border-top:1px solid var(--border,#dbe5ee);background:var(--surface-alt,#edf5fa);font-size:10.5px;line-height:1.3}
+.arc-pn-foot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arc-pn-foot #arc-pn-run{text-align:right;font-weight:600}
+.arc-pn-foot #arc-pn-run[data-k="err"]{color:#c0392b}.arc-pn-foot #arc-pn-run[data-k="ok"]{color:#15803d}.arc-pn-foot #arc-pn-run[data-k="busy"]{color:#1687d9}
+
+/* Destaques temporários das mudanças, sem confundir estado com confirmação de presença. */
+.arc-pn-tile[data-transition="online"]{color:#15803d;border-color:#16a34a;background:rgba(22,163,74,.20);animation:arcDeviceOnline .8s ease-in-out infinite}
+.arc-pn-tile[data-transition="offline"]{color:#b77908;border-color:#f59e0b;background:rgba(245,158,11,.20);animation:arcDeviceOffline .8s ease-in-out infinite}
+.arc-pn-tile[data-transition]::after{content:"";position:absolute;left:3px;top:3px;width:6px;height:6px;border-radius:50%;background:currentColor}
+.arc-pn-info[data-transition="online"] .arc-pni-ico{background:#16a34a;animation:arcDeviceOnline .8s ease-in-out infinite}
+.arc-pn-info[data-transition="offline"] .arc-pni-ico{background:#f59e0b;animation:arcDeviceOffline .8s ease-in-out infinite}
+@keyframes arcDeviceOnline{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.12)}50%{box-shadow:0 0 0 3px rgba(22,163,74,.6);filter:brightness(1.18)}}
+@keyframes arcDeviceOffline{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.12)}50%{box-shadow:0 0 0 3px rgba(245,158,11,.65);filter:brightness(1.15)}}
+@media(prefers-reduced-motion:reduce){.arc-pn-tile[data-transition],.arc-pn-info[data-transition] .arc-pni-ico{animation:none!important;outline:2px solid currentColor}}
+/* mini modal do dispositivo */
+.arc-pn-info{box-sizing:border-box;width:min(88vw,300px);max-width:88vw;max-height:90dvh;margin:auto;padding:0;border:1px solid var(--border,#dbe5ee);border-radius:12px;background:var(--surface,#fff);color:var(--text,#263648);box-shadow:0 20px 60px #0b243d77;overflow:hidden}
+.arc-pn-info[open]{display:flex;flex-direction:column}
+.arc-pn-info::backdrop{background:rgba(10,28,45,.45)}
+.arc-pni-head{display:flex;align-items:center;gap:9px;padding:9px 6px 9px 11px;border-bottom:1px solid var(--border,#dbe5ee);background:var(--surface-alt,#edf5fa)}
+.arc-pni-ico{flex:0 0 32px;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:16px;color:#fff;background:#818894}
+.arc-pn-info[data-online="1"] .arc-pni-ico{background:#16a34a}
+.arc-pni-t{flex:1;min-width:0}.arc-pni-t strong{display:block;font-size:13px;line-height:1.25;overflow-wrap:anywhere}.arc-pni-t span{display:block;font-size:10.5px;opacity:.7}
+.arc-pni-status{padding:10px 12px 8px;text-align:center;border-bottom:1px dashed var(--border,#dbe5ee)}
+.arc-pni-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#4b5563;background:rgba(129,136,148,.18)}
+.arc-pni-pill i{width:8px;height:8px;border-radius:50%;background:#818894}
+.arc-pn-info[data-online="1"] .arc-pni-pill{color:#15803d;background:rgba(22,163,74,.14)}.arc-pn-info[data-online="1"] .arc-pni-pill i{background:#16a34a;animation:arcpnpulse 1.8s ease-in-out infinite}
+.arc-pni-dur{margin-top:6px;font-size:17px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+.arc-pni-since{margin-top:2px;font-size:11px;opacity:.8}
+.arc-pni-warn{margin:8px 0 0;padding:5px 8px;border-radius:7px;font-size:10px;line-height:1.35;color:#8a5a00;background:rgba(240,169,62,.16)}
+.arc-pni-rows{margin:0;padding:6px 12px 10px;overflow:auto}
+.arc-pni-rows div{display:grid;grid-template-columns:84px minmax(0,1fr);gap:8px;padding:4px 0;font-size:11px;border-bottom:1px solid rgba(128,145,165,.14)}.arc-pni-rows div:last-child{border-bottom:0}
+.arc-pni-rows dt{margin:0;opacity:.65}.arc-pni-rows dd{margin:0;font-weight:600;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+@keyframes arcpnspin{to{transform:rotate(360deg)}}
+@keyframes arcpnpulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.5)}50%{box-shadow:0 0 0 4px rgba(22,163,74,0)}}
+@media(max-width:480px){.arc-pn-dialog{width:96vw;max-width:96vw}.arc-pn-body{padding:6px}.arc-pn-head{padding-left:9px;gap:2px}.arc-pn-btn{width:28px;height:28px}.arc-pn-views .arc-pn-btn{width:24px;height:24px}.arc-pn-counts{gap:7px;font-size:10.5px}}
+@media(prefers-reduced-motion:reduce){.arc-pn-btn.busy i,.arc-pn-info[data-online="1"] .arc-pni-pill i,.arc-pn-tile{animation:none;transition:none}}
+/* Ajuste responsivo: barra única, cabeçalho discreto, card de cadastro */
+.arc-panel-commandbar{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;min-width:0;padding:8px 10px}
+.arc-panel-search{flex:1 1 0;min-width:0;width:0;height:36px}
+.arc-panel-stats{flex:0 0 auto;gap:5px}
+.arc-panel-stat{flex:none;gap:5px;padding:7px 8px;min-height:36px;box-sizing:border-box}
+.arc-panel-stat strong{font-size:13px}
+.arc-panel-new{flex:0 0 36px;width:36px;height:36px;min-height:36px;padding:0;font-size:16px}
+.arc-panel-network-block.card{background:transparent!important;box-shadow:none!important;border:0!important;padding:4px 0!important}
+.arc-panel-network-block h2{font-size:12px;font-weight:600;color:var(--muted,#8190a2);margin:6px 2px 5px;opacity:.85}
+.arc-panel-network-block h2 i{font-size:11px;margin-right:4px}
+.arc-panel-network-rail{padding:7px 2px 12px}
+.arc-panel-add-card{font:inherit;cursor:pointer;justify-content:center;border-style:dashed;background:transparent;min-height:116px}
+.arc-panel-add-card .fa-plus{font-size:33px;color:var(--muted,#8295ab)}
+.arc-panel-add-card:hover{border-color:var(--primary,#2877dd);background:rgba(35,105,210,.06)}
+.arc-panel-add-card:hover .fa-plus{color:var(--primary,#2877dd)}
+@media(max-width:720px){
+.arc-panel-commandbar{flex-wrap:nowrap;gap:5px;padding:6px}
+.arc-panel-search{flex:1 1 0;flex-basis:0;min-width:0;padding:0 7px;height:34px;gap:5px}
+.arc-panel-search input{font-size:12px}
+.arc-panel-stats{flex:0 0 auto;gap:4px}
+.arc-panel-stat{flex:0 0 auto;padding:5px 6px;min-height:34px;gap:4px;font-size:0}
+.arc-panel-stat i{font-size:12px}.arc-panel-stat strong{font-size:12px}
+.arc-panel-new{flex:0 0 34px;width:34px;height:34px;min-height:34px;font-size:15px}
+}
+@media(max-width:380px){.arc-panel-new{flex:0 0 32px;width:32px;height:32px}.arc-panel-stat{padding:4px 5px;gap:3px}.arc-panel-search input::placeholder{font-size:11px}}
+
+/* Cards de redes — acabamento visual e microinterações */
+.arc-panel-network-rail{gap:12px;padding:12px 6px 18px;scroll-padding-inline:6px}
+.arc-panel-network-link{position:relative;isolation:isolate;overflow:hidden;min-height:128px;justify-content:center;gap:11px;padding:15px 9px 12px;border:1px solid rgba(119,144,177,.24);border-radius:16px;background:linear-gradient(155deg,var(--surface,#fff) 0%,rgba(111,153,209,.07) 100%);box-shadow:0 3px 12px rgba(20,48,87,.05);transition:transform .24s cubic-bezier(.2,.8,.2,1),box-shadow .24s ease,border-color .24s ease,background-color .24s ease;text-decoration:none;color:inherit;transform:translateZ(0)}
+.arc-panel-network-link:not(.arc-panel-add-card)::before{content:"";position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.12);transition:background .2s ease,box-shadow .2s ease}
+.arc-panel-network-link[data-online="1"]::before{background:#1ebc6b;box-shadow:0 0 0 3px rgba(30,188,107,.14)}
+.arc-panel-network-link[data-online="0"]::before{background:#eaa333;box-shadow:0 0 0 3px rgba(234,163,51,.16)}
+.arc-panel-network-link .fa-desktop{font-size:39px;color:#8898ad;filter:drop-shadow(0 4px 7px rgba(29,66,113,.13));transition:transform .28s ease,color .22s ease,filter .22s ease}
+.arc-panel-network-link[data-online="1"] .fa-desktop{color:#18a76a}
+.arc-panel-network-link[data-online="0"] .fa-desktop{color:#9eabbc}
+.arc-panel-network-link .arc-panel-network-name{font-size:12px;line-height:1.3;letter-spacing:.01em;font-weight:700;padding:0 2px}
+.arc-panel-network-link:hover{transform:translateY(-5px);border-color:rgba(42,115,213,.5);box-shadow:0 12px 27px rgba(19,60,112,.16)}
+.arc-panel-network-link[data-online="1"]:hover{border-color:rgba(30,188,107,.55)}
+.arc-panel-network-link:hover .fa-desktop{transform:translateY(-3px) scale(1.08);filter:drop-shadow(0 8px 8px rgba(29,66,113,.14))}
+.arc-panel-network-link:active{transform:translateY(-1px) scale(.98);box-shadow:0 3px 10px rgba(19,60,112,.10)}
+.arc-panel-network-link:focus-visible{outline:3px solid #2877dd;outline-offset:3px}
+.arc-panel-add-card{min-height:128px;border:1.5px dashed rgba(51,125,220,.5);background:linear-gradient(150deg,rgba(31,108,209,.035),rgba(31,108,209,.11));color:var(--primary,#2877dd)}
+.arc-panel-add-card::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 22%,rgba(255,255,255,.55) 49%,transparent 74%);transform:translateX(-150%);transition:transform .65s ease}
+.arc-panel-add-card .fa-plus{display:grid;place-items:center;flex:0 0 54px;width:54px;height:54px;border-radius:17px;font-size:25px;color:var(--primary,#2877dd);background:rgba(35,105,210,.10);box-shadow:inset 0 0 0 1px rgba(35,105,210,.15);transition:transform .3s cubic-bezier(.2,.8,.2,1),background .25s ease,box-shadow .25s ease}
+.arc-panel-add-card:hover{background:linear-gradient(150deg,rgba(35,105,210,.09),rgba(35,105,210,.17));border-color:var(--primary,#2877dd)}
+.arc-panel-add-card:hover::after{transform:translateX(150%)}
+.arc-panel-add-card:hover .fa-plus{transform:rotate(90deg) scale(1.08);color:var(--primary,#2877dd);background:rgba(35,105,210,.17);box-shadow:0 6px 18px rgba(35,105,210,.16)}
+.arc-panel-add-card .arc-panel-network-name{color:var(--primary,#2877dd)}
+@media(max-width:480px){.arc-panel-network-rail{gap:9px;padding:9px 4px 14px}.arc-panel-network-link{flex-basis:110px;width:110px;max-width:110px;min-height:112px;border-radius:13px;gap:9px;padding:10px 7px}.arc-panel-network-link .fa-desktop{font-size:34px}.arc-panel-add-card{min-height:112px}.arc-panel-add-card .fa-plus{width:46px;height:46px;flex-basis:46px;border-radius:14px;font-size:23px}}
+@media(hover:none){.arc-panel-network-link:hover{transform:none;box-shadow:0 3px 12px rgba(20,48,87,.05)}.arc-panel-network-link:hover .fa-desktop,.arc-panel-add-card:hover .fa-plus{transform:none}.arc-panel-add-card:hover::after{transform:translateX(-150%)}}
+@media(prefers-reduced-motion:reduce){.arc-panel-network-link,.arc-panel-network-link::before,.arc-panel-network-link .fa-desktop,.arc-panel-add-card::after,.arc-panel-add-card .fa-plus{transition:none!important;animation:none!important}.arc-panel-network-link:hover,.arc-panel-network-link:active{transform:none}}
+</style><main class="app-main"><div class="page-content arc-panel-unified" data-role="<?=arc_h($role)?>">
+<div class="arc-panel-commandbar" role="search" aria-label="Buscar e acompanhar redes">
+<label class="arc-panel-search" for="arc-panel-search"><i class="fa fa-search" aria-hidden="true"></i><input id="arc-panel-search" type="search" placeholder="Buscar rede" autocomplete="off" aria-label="Buscar redes"></label>
+<div class="arc-panel-stats" aria-label="Estado das redes" aria-live="polite"><span class="arc-panel-stat on" title="Redes online"><i class="fa fa-signal" aria-hidden="true"></i><strong id="arc-panel-online"><?=$panelOnline?></strong></span><span class="arc-panel-stat off" title="Redes offline, arquivadas ou sem agente conectado"><i class="fa fa-circle-o" aria-hidden="true"></i><strong id="arc-panel-offline"><?=$panelOffline?></strong></span></div>
+<button class="arc-panel-new" type="button" data-open-register title="Cadastrar nova rede" aria-label="Cadastrar nova rede"><i class="fa fa-plus" aria-hidden="true"></i></button>
+</div>
+<?php if($arcError!==''):?><p class="arc-panel-error" role="alert"><?=arc_h($arcError)?></p><?php endif;?>
+<section class="card arc-panel-network-block" aria-labelledby="panel-networks-title">
+<h2 id="panel-networks-title"><i class="fa fa-desktop" aria-hidden="true"></i> Minhas redes</h2>
+<?php if($panelNetworksFailed):?><p class="arc-panel-empty">Não foi possível carregar as redes. Atualize a página.</p>
+<?php else: ?>
+<div class="arc-panel-network-rail" role="region" aria-label="Minhas redes, role para os lados" tabindex="0">
+<?php foreach($panelNetworks as $network):$on=(int)$network['is_active']===1 && (int)$network['has_online_agent']===1;$state=['online'=>'Todos online','partial'=>'Atenção: parte offline','offline'=>'Todos offline','none'=>'Sem agentes'][$network['agent_state']]; ?>
+<a class="arc-panel-network-link" aria-haspopup="dialog" data-panel-network="<?=(int)$network['id']?>" data-agent-state="<?=arc_h($network['agent_state'])?>" data-online="<?=$on?'1':'0'?>" data-active="<?=(int)$network['is_active']===1?'1':'0'?>" href="<?=arc_h(arc_workspace_base_url())?>redes/servidor.php?network=<?=(int)$network['id']?>" title="<?=arc_h((string)$network['name'].' — '.$state)?>" aria-label="<?=arc_h((string)$network['name'].' — '.$state)?>" data-name="<?=arc_h((string)$network['name'])?>">
+<i class="fa fa-desktop" aria-hidden="true"></i><span class="arc-panel-network-name"><?=arc_h((string)$network['name'])?></span><span class="arc-panel-network-state"><?=arc_h($state)?></span>
+</a>
+<?php endforeach; ?>
+<button type="button" class="arc-panel-network-link arc-panel-add-card" data-open-register title="Cadastrar nova rede" aria-label="Cadastrar nova rede"><i class="fa fa-plus" aria-hidden="true"></i><span class="arc-panel-network-name">Nova rede</span></button>
+</div><p class="arc-panel-search-empty" id="arc-panel-search-empty" hidden>Nenhuma rede encontrada.</p><?php endif; ?>
+</section>
+</div></main>
+<div class="modal-overlay" id="modal-register" role="dialog" aria-modal="true" aria-labelledby="register-modal-title" aria-hidden="true">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="register-modal-title">Registrar nova rede</h2>
+            <button class="modal-dismiss" type="button" data-close-modal><i class="fa fa-times" aria-hidden="true"></i></button>
+        </div>
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data" id="form-register" action="<?=arc_h(arc_workspace_base_url())?>pages/painel.php">
+                <input type="hidden" name="_csrf" value="<?= arc_h(arc_csrf_token()) ?>">
+                <input type="hidden" name="action" value="network_create">
+
+                <div class="arc-register-grid">
+                    <div class="arc-register-primary">
+                        <label class="arc-logo-picker" title="Selecionar a logo da rede">
+                            <span id="arc-logo-preview"><i class="fa fa-image" aria-hidden="true"></i></span>
+                            <span class="arc-logo-caption">Logo da rede</span>
+                            <input id="reg-logo" type="file" name="network_logo" accept="image/png,image/jpeg,image/webp" aria-label="Selecionar logo (até 2 MB)">
+                        </label>
+                        <div class="arc-register-identify">
+                            <label class="arc-field">CPF ou CNPJ <span class="arc-doc-wrap"><input name="doc_number" id="doc-number" inputmode="numeric" maxlength="18" autocomplete="off" placeholder="CPF ou CNPJ"><span class="doc-badge" id="doc-badge">Documento</span></span></label>
+                            <label class="arc-field">Nome da rede<input name="network_name" id="reg-name" maxlength="100" required placeholder="Matriz, filial, escritório..."></label>
+                        </div>
+                    </div>
+                    <p class="doc-status span2" id="doc-status" role="status" aria-live="polite">CNPJ: consulta automática ao completar os 14 dígitos.</p>
+                    <label class="arc-field">Razão social / cliente<input name="client_name" id="reg-client" maxlength="160" required></label>
+                    <label class="arc-field">Nome fantasia<input id="reg-fantasy" maxlength="160"></label>
+                    <label class="arc-field">Responsável<input name="contact_name" id="reg-contact" maxlength="160"></label>
+                    <label class="arc-field">Telefone<input name="contact_phone" id="reg-phone" maxlength="40" inputmode="tel"></label>
+                    <label class="arc-field">E-mail da empresa<input id="reg-email" type="email" maxlength="160"></label>
+                    <label class="arc-field">CEP<input id="reg-cep" inputmode="numeric" maxlength="9"></label>
+                    <label class="arc-field">UF<input id="reg-uf" maxlength="2"></label>
+                    <label class="arc-field">Município<input id="reg-city" maxlength="100"></label>
+                    <label class="arc-field span2">Endereço completo<input name="address" id="reg-address" maxlength="255"></label>
+                    <details class="arc-register-more span2"><summary><i class="fa fa-sliders" aria-hidden="true"></i> Mais detalhes do cadastro (opcional)</summary>
+                        <div class="arc-register-more-grid">
+                            <label class="arc-field">Logradouro<input id="reg-street" maxlength="160"></label>
+                            <label class="arc-field">Número<input id="reg-number" maxlength="20"></label>
+                            <label class="arc-field">Complemento<input id="reg-complement" maxlength="100"></label>
+                            <label class="arc-field">Bairro<input id="reg-district" maxlength="100"></label>
+                            <label class="arc-field">Situação cadastral<input id="reg-status" readonly></label>
+                            <label class="arc-field">CNAE principal<input id="reg-cnae" readonly></label>
+                            <label class="arc-field">Natureza jurídica<input id="reg-legal" readonly></label>
+                            <label class="arc-field">Data de abertura<input id="reg-opening" readonly></label>
+                            <label class="arc-field span2">Observações<textarea name="notes" id="reg-notes" maxlength="5000" rows="2"></textarea></label>
+                        </div>
+                    </details>
+                </div>
+                <div class="arc-register-footer"><span>O código da rede será gerado automaticamente.</span><button class="button primary" type="submit"><i class="fa fa-check" aria-hidden="true"></i> Registrar rede</button></div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<dialog class="arc-pn-dialog" id="arc-pn-dialog" aria-labelledby="arc-pn-title" data-csrf="<?= arc_h(arc_csrf_token()) ?>">
+<div class="arc-pn-head">
+<div class="arc-pn-title"><strong id="arc-pn-title">Rede</strong><div class="arc-pn-counts" aria-live="polite"><button type="button" class="all" data-status="all" aria-pressed="true" title="Exibir todos os dispositivos"><i></i><b id="arc-pn-all">0</b></button><button type="button" class="on" data-status="online" aria-pressed="false" title="Exibir somente dispositivos online"><i></i><b id="arc-pn-on">0</b></button><button type="button" class="off" data-status="offline" aria-pressed="false" title="Exibir somente dispositivos offline"><i></i><b id="arc-pn-off">0</b></button></div></div>
+<div class="arc-pn-views" role="group" aria-label="Tipo de visualização">
+<button type="button" class="arc-pn-btn" data-view="all" aria-pressed="true" title="Visão geral" aria-label="Visão geral"><i class="fa fa-th" aria-hidden="true"></i></button>
+<button type="button" class="arc-pn-btn" data-view="type" aria-pressed="false" title="Separar por tipo de dispositivo" aria-label="Separar por tipo de dispositivo"><i class="fa fa-th-list" aria-hidden="true"></i></button>
+<button type="button" class="arc-pn-btn" data-view="group" aria-pressed="false" title="Separar por grupo" aria-label="Separar por grupo"><i class="fa fa-folder-open-o" aria-hidden="true"></i></button>
+</div>
+<button type="button" class="arc-pn-btn" id="arc-pn-refresh" title="Atualizar: varrer os dispositivos da rede" aria-label="Atualizar: varrer os dispositivos da rede"><i class="fa fa-refresh" aria-hidden="true"></i></button>
+<a class="arc-pn-btn" id="arc-pn-open" href="#" title="Abrir monitoramento" aria-label="Abrir monitoramento da rede"><i class="fa fa-external-link" aria-hidden="true"></i></a>
+<button type="button" class="arc-pn-btn" id="arc-pn-close" title="Fechar" aria-label="Fechar" autofocus>&times;</button>
+</div>
+<div class="arc-pn-body" id="arc-pn-body"><div id="arc-pn-secs"></div><p class="arc-pn-msg" id="arc-pn-msg" role="status"></p></div>
+<div class="arc-pn-foot"><span id="arc-pn-upd"><i class="fa fa-clock-o" aria-hidden="true"></i> </span><div class="arc-pn-sort" role="group" aria-label="Ordem dos dispositivos"><button type="button" class="arc-pn-btn" data-sort="recent" aria-pressed="true" title="Mudanças mais recentes primeiro" aria-label="Mais recentes"><i class="fa fa-sort-amount-desc"></i></button><button type="button" class="arc-pn-btn" data-sort="oldest" aria-pressed="false" title="Mudanças mais antigas primeiro" aria-label="Mais antigos"><i class="fa fa-sort-amount-asc"></i></button><button type="button" class="arc-pn-btn" data-sort="first" aria-pressed="false" title="Ordem de primeira detecção" aria-label="Primeiros detectados"><i class="fa fa-calendar-o"></i></button></div><span id="arc-pn-run" role="status" aria-live="polite"></span></div>
+</dialog>
+<dialog class="arc-pn-info" id="arc-pn-info" aria-labelledby="arc-pni-name">
+<div class="arc-pni-head"><span class="arc-pni-ico"><i class="fa fa-laptop" id="arc-pni-icon" aria-hidden="true"></i></span><div class="arc-pni-t"><strong id="arc-pni-name">Dispositivo</strong><span id="arc-pni-sub"></span></div><button type="button" class="arc-pn-btn" id="arc-pni-close" title="Fechar" aria-label="Fechar detalhes" autofocus>&times;</button></div>
+<div class="arc-pni-status"><span class="arc-pni-pill"><i></i><b id="arc-pni-state">Offline</b></span><div class="arc-pni-dur" id="arc-pni-dur" aria-live="off">—</div><div class="arc-pni-since" id="arc-pni-since"></div><p class="arc-pni-warn" id="arc-pni-warn" hidden></p></div>
+<dl class="arc-pni-rows" id="arc-pni-rows"></dl>
+</dialog>
+<script>
+(function(){
+    var search=document.getElementById('arc-panel-search');
+    var links=Array.from(document.querySelectorAll('.arc-panel-network-link[data-panel-network]'));
+    var empty=document.getElementById('arc-panel-search-empty');
+    function filterNetworks(){
+        var term=(search.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(),visible=0;
+        links.forEach(function(link){var name=(link.dataset.name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();var match=!term||name.includes(term);link.hidden=!match;if(match)visible++;});
+        if(empty)empty.hidden=visible!==0;
+    }
+    if(search)search.addEventListener('input',filterNetworks);
+    function refreshNetworkStatus(){
+        if(document.hidden||!links.length)return;
+        fetch(window.location.pathname+'?ajax=network_status',{credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}})
+        .then(function(r){if(!r.ok)throw Error('status');return r.json();})
+        .then(function(data){if(!data.ok||!data.networks)return;var on=0;
+            links.forEach(function(link){var state=data.networks[link.dataset.panelNetwork];if(!state)return;
+                var connected=link.dataset.active==='1'&&Number(state.online)===1;
+                link.dataset.online=connected?'1':'0';link.dataset.agentState=state.state||'none';
+                var label={online:'Todos online',partial:'Atenção: parte offline',offline:'Todos offline',none:'Sem agentes'}[state.state]||'Sem agentes';
+                var name=link.dataset.name||'Rede';link.title=name+' — '+label;link.setAttribute('aria-label',link.title);
+                var status=link.querySelector('.arc-panel-network-state');if(status)status.textContent=label;
+                if(connected)on++;
+            });
+            var onEl=document.getElementById('arc-panel-online'),offEl=document.getElementById('arc-panel-offline');
+            if(onEl)onEl.textContent=String(on);if(offEl)offEl.textContent=String(links.length-on);
+        }).catch(function(){});
+    }
+    setInterval(refreshNetworkStatus,12000);
+})();
+</script>
+<script>
+(function(){
+    var dlg=document.getElementById('arc-pn-dialog'),info=document.getElementById('arc-pn-info');
+    if(!dlg||typeof dlg.showModal!=='function')return; /* sem suporte: o card continua abrindo o monitoramento */
+    var $=function(id){return document.getElementById(id)};
+    var secs=$('arc-pn-secs'),msg=$('arc-pn-msg'),body=$('arc-pn-body'),head=dlg.querySelector('.arc-pn-head'),foot=dlg.querySelector('.arc-pn-foot'),
+        ttl=$('arc-pn-title'),cAll=$('arc-pn-all'),cOn=$('arc-pn-on'),cOff=$('arc-pn-off'),openLink=$('arc-pn-open'),refreshBtn=$('arc-pn-refresh'),updEl=$('arc-pn-upd'),runEl=$('arc-pn-run'),
+        csrf=dlg.dataset.csrf||'';
+    var types={computer:'desktop',phone:'mobile',tablet:'tablet',tv:'television',router:'wifi',printer:'print',server:'server',camera:'video-camera',iot:'microchip',console:'gamepad',speaker:'volume-up','switch':'sitemap',ap:'wifi',nas:'hdd-o',device:'laptop'};
+    var aliases={computador:'computer',desktop:'computer',pc:'computer',celular:'phone',mobile:'phone',smartphone:'phone',telefone:'phone',roteador:'router',impressora:'printer','smart tv':'tv',televisor:'tv',televisao:'tv',servidor:'server','câmera':'camera','access point':'ap',dispositivo:'device'};
+    var order=['computer','phone','tablet','tv','console','speaker','printer','camera','router','ap','switch','nas','server','iot','device'];
+    var plural={computer:'Computadores',phone:'Celulares',tablet:'Tablets',tv:'TVs',console:'Consoles',speaker:'Caixas de som',printer:'Impressoras',camera:'Câmeras',router:'Roteadores',ap:'Access points','switch':'Switches',nas:'NAS',server:'Servidores',iot:'IoT',device:'Outros'};
+    var single={computer:'Computador',phone:'Celular',tablet:'Tablet',tv:'TV',console:'Console',speaker:'Caixa de som',printer:'Impressora',camera:'Câmera',router:'Roteador',ap:'Access point','switch':'Switch',nas:'NAS',server:'Servidor',iot:'IoT',device:'Outro'};
+    function canon(raw){var v=String(raw||'device').toLowerCase().trim();if(types[v])return v;var a=aliases[v];return a&&types[a]?a:'device';}
+    function icon(raw){return types[canon(raw)];}
+    var GAP=4,MAXS=76,MINS=40,HDR=25;
+    var devices=[],reqId=0,ctrl=null,timer=0,tick=0,current='',clock=0,updated=0,view='all',canScan=false,scanReason='',agents=[],scanning=false,scanTimer=0,runTimer=0,infoDev=null,loaded=false,statusFilter='all',sortMode='recent';
+    // Estado somente na memória do navegador: não aumenta a telemetria no MySQL.
+    var transitions=new Map(),previousStates=new Map(),TRANSITION_MS=12000;
+    function deviceKey(d){return String(d.m||'').trim().toLowerCase() || ('ip:'+String(d.ip||'')+'|'+String(d.n||''));}
+    function transitionFor(d){var v=transitions.get(deviceKey(d));return v&&Date.now()<v.until?v.state:'';}
+    function trackDeviceTransitions(next){
+        var upcoming=new Map(),now=Date.now();
+        next.forEach(function(d){
+            var key=deviceKey(d),state=d.x?'unknown':(d.o?'online':'offline');
+            var last=previousStates.get(key);
+            // Dispositivo novo no modal não é mudança de status; sem agente não inferimos offline.
+            if(last && last!==state && state!=='unknown' && last!=='unknown')transitions.set(key,{state:state,until:now+TRANSITION_MS});
+            // Mudanças ocorridas enquanto o modal estava fechado podem ser reconhecidas pelo carimbo do agente.
+            if(!last && !d.x && Number(d.c)>0 && Math.abs(nowS()-Number(d.c))<=TRANSITION_MS){
+                transitions.set(key,{state:state,until:now+Math.max(0,TRANSITION_MS-(nowS()-Number(d.c))*1000)});
+            }
+            upcoming.set(key,state);
+        });
+        previousStates=upcoming;
+        transitions.forEach(function(v,k){if(v.until<=now||!upcoming.has(k))transitions.delete(k)});
+    }
+
+    try{var sv=localStorage.getItem('arc-pn-view');if(sv==='type'||sv==='group'||sv==='all')view=sv;}catch(e){}
+    function apiUrl(action){var u=new URL('api/api.php',document.baseURI);u.searchParams.set('action',action);return u;}
+    function endpoint(id){var u=new URL('pages/painel.php',document.baseURI);u.searchParams.set('ajax','network_devices');u.searchParams.set('network',id);u.searchParams.set('_fresh',Date.now());return u.href;}
+    function nowS(){return Date.now()/1000+clock;}
+    function fmtDate(t){return t>0?new Date(t*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',',''):'—';}
+    function fmtShort(t){return new Date(t*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',','');}
+    function fmtDur(s){s=Math.max(0,Math.floor(s));var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),x=s%60;
+        if(d>0)return d+' d '+h+' h '+m+' min';if(h>0)return h+' h '+m+' min '+x+' s';if(m>0)return m+' min '+x+' s';return x+' s';}
+    function ago(s){s=Math.max(0,Math.floor(s));if(s<60)return 'há '+s+' s';if(s<3600)return 'há '+Math.floor(s/60)+' min';if(s<86400)return 'há '+Math.floor(s/3600)+' h';return 'há '+Math.floor(s/86400)+' d';}
+    function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
+
+    /* ---------- agrupamento por visualização ---------- */
+    function buildGroups(){
+        var visible=devices.filter(function(d){return statusFilter==='all'||(statusFilter==='online'?!!d.o:!d.o)});
+        var field=sortMode==='first'?'f':'s';
+        visible.sort(function(a,b){return (sortMode==='oldest'?1:-1)*(Number(a[field]||0)-Number(b[field]||0)) || String(a.n).localeCompare(String(b.n),'pt-BR')});
+        if(view==='type'){
+            var by={};visible.forEach(function(d){var k=canon(d.t);(by[k]=by[k]||[]).push(d)});
+            return order.filter(function(k){return by[k]}).map(function(k){return{label:plural[k],items:by[k]}});
+        }
+        if(view==='group'){
+            var g={},none=[];visible.forEach(function(d){if(d.g){(g[d.g]=g[d.g]||[]).push(d)}else none.push(d)});
+            var out=Object.keys(g).sort(function(a,b){return a.localeCompare(b,'pt-BR',{sensitivity:'base'})}).map(function(k){return{label:k,items:g[k]}});
+            if(none.length)out.push({label:'Sem grupo',items:none});
+            return out;
+        }
+        return[{label:'',items:visible}];
+    }
+    var layout=[];
+    function render(){
+        var on=0;secs.replaceChildren();layout=[];
+        devices.forEach(function(d){if(d.o)on++});
+        cAll.textContent=devices.length;cOn.textContent=on;cOff.textContent=devices.length-on;
+        dlg.querySelectorAll('[data-status]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.status===statusFilter?'true':'false')});
+        dlg.querySelectorAll('[data-sort]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.sort===sortMode?'true':'false')});
+        var rank=Object.fromEntries(devices.slice().sort(function(a,b){return Number(a.s||0)-Number(b.s||0)||String(a.n).localeCompare(String(b.n),'pt-BR')}).map(function(d,i){return [String(d.m||d.ip||d.n),i+1]}));
+        var displayed=0;buildGroups().forEach(function(grp){
+            if(!grp.items.length)return;
+            var sec=el('div','arc-pn-sec');
+            if(grp.label){var h=el('div','arc-pn-sechead'),n=0;grp.items.forEach(function(d){if(d.o)n++});h.append(el('span',null,grp.label),el('small',null,n+'/'+grp.items.length));sec.append(h);}
+            var grid=el('div','arc-pn-grid');
+            grp.items.forEach(function(d){
+                var t=el('button','arc-pn-tile');t.type='button';t.dataset.online=d.o?'1':'0';var flash=transitionFor(d);if(flash)t.dataset.transition=flash;t._d=d;
+                var state=d.o?'Online':'Offline';t.title=d.n+(d.ip?' · '+d.ip:'')+' — '+state;t.setAttribute('aria-label',d.n+' — '+state+'. Ver detalhes');
+                var i=el('i','fa fa-'+icon(d.t));i.setAttribute('aria-hidden','true');var rankId=rank[String(d.m||d.ip||d.n)];if(rankId){var badge=el('small','arc-pn-rank','#'+rankId);badge.title='Ordem cronológica da última mudança de estado';t.append(badge);}t.append(i,el('span',null,d.n));grid.append(t);displayed++;
+            });
+            sec.append(grid);secs.append(sec);layout.push({grid:grid,n:grp.items.length,head:!!grp.label});
+        });
+        msg.textContent=!devices.length?'Nenhum dispositivo inventariado nesta rede.':!displayed?'Nenhum dispositivo neste filtro.':'';msg.hidden=displayed>0;
+        document.querySelectorAll('.arc-pn-views [data-view]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.view===view?'true':'false')});
+        fit();
+    }
+    /* Escolhe colunas/tamanho para que todos os dispositivos (e as linhas de divisão) caibam sem rolar. */
+    function fit(){
+        if(!layout.length)return;
+        var cs=getComputedStyle(body),padX=parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight),padY=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
+        var vh=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+        var heads=layout.filter(function(l){return l.head}).length;
+        var W=body.clientWidth-padX,H=vh*0.94-head.offsetHeight-foot.offsetHeight-padY-4-heads*HDR;
+        if(W<=0)return;
+        var maxN=0;layout.forEach(function(l){if(l.n>maxN)maxN=l.n});
+        var bestC=1,bestS=0;
+        for(var c=1;c<=maxN;c++){
+            var rows=0;layout.forEach(function(l){rows+=Math.ceil(l.n/c)});
+            var s=Math.min((W-(c-1)*GAP)/c,(H+GAP)/rows-GAP,MAXS);
+            if(s>=bestS){bestS=s;bestC=c;}
+        }
+        var s2=Math.floor(bestS),c2=bestC;
+        if(s2<MINS){s2=MINS;c2=Math.max(1,Math.floor((W+GAP)/(MINS+GAP)));} /* excesso: rola dentro do modal */
+        secs.style.setProperty('--s',s2+'px');secs.style.setProperty('--fs',Math.max(7,Math.min(11,Math.round(s2*0.16)))+'px');
+        layout.forEach(function(l){l.grid.style.gridTemplateColumns='repeat('+c2+','+s2+'px)';l.grid.style.gridAutoRows=s2+'px';});
+    }
+
+    /* ---------- carga dos dispositivos ---------- */
+    function setRun(text,kind,keep){
+        clearTimeout(runTimer);runEl.textContent=text||'';if(kind)runEl.dataset.k=kind;else delete runEl.dataset.k;
+        if(text&&kind==='ok'&&!keep)runTimer=setTimeout(function(){runEl.textContent='';delete runEl.dataset.k;},7000);
+    }
+    function paintFoot(){
+        updEl.replaceChildren();var i=el('i','fa fa-refresh');i.setAttribute('aria-hidden','true');updEl.append(i,document.createTextNode(' '));
+        updEl.append(document.createTextNode(updated>0?' '+fmtShort(updated)+' · '+ago(nowS()-updated):' sem registro'));
+    }
+    function paintScanBtn(){
+        var online=agents.some(function(a){return a.online});
+        var blocked=!canScan||!online;
+        refreshBtn.disabled=blocked&&!scanning;
+        refreshBtn.classList.toggle('busy',scanning);
+        refreshBtn.title=scanning?'Varredura em andamento…':(!canScan?(scanReason||'Varredura indisponível.'):(!online?'Agente offline: não é possível varrer agora.':'Atualizar: varrer os dispositivos da rede'));
+        refreshBtn.setAttribute('aria-label',refreshBtn.title);
+    }
+    async function load(id,silent){
+        var my=++reqId;if(ctrl)ctrl.abort();ctrl=new AbortController();
+        if(!silent){secs.replaceChildren();layout=[];msg.hidden=false;msg.textContent='Carregando…';cAll.textContent='–';cOn.textContent='–';cOff.textContent='–';}
+        try{
+            var r=await fetch(endpoint(id),{credentials:'same-origin',cache:'no-store',signal:ctrl.signal,headers:{Accept:'application/json'}});
+            if(!(r.headers.get('content-type')||'').includes('application/json'))throw new Error('resposta inválida');
+            var j=await r.json();if(my!==reqId)return;
+            if(!r.ok||!j.ok)throw new Error(j.error||'falha');
+            clock=Number(j.now||0)-Date.now()/1000;updated=Number(j.updated||0);canScan=!!j.can_scan;scanReason=j.scan_reason||'';agents=j.agents||[];var nextDevices=j.devices||[];trackDeviceTransitions(nextDevices);devices=nextDevices;loaded=true;
+            if(infoDev&&infoDev.m){var nd=devices.filter(function(x){return x.m===infoDev.m})[0];if(nd)infoDev=nd;}
+            render();paintFoot();paintScanBtn();
+            if(info.open)paintInfo();
+        }catch(e){
+            if(e.name==='AbortError'||my!==reqId)return;
+            if(!silent){secs.replaceChildren();layout=[];cAll.textContent='–';cOn.textContent='–';cOff.textContent='–';msg.hidden=false;msg.textContent='Não foi possível carregar os dispositivos. Tente novamente.';}
+        }
+    }
+
+    /* ---------- varredura (comando scan_devices ao agente) ---------- */
+    function endScan(text,kind){scanning=false;clearTimeout(scanTimer);paintScanBtn();setRun(text,kind);}
+    async function scan(){
+        if(scanning||!canScan||!current)return;
+        var online=agents.filter(function(a){return a.online});
+        if(!online.length){setRun('Agente offline: não é possível varrer agora.','err');return;}
+        scanning=true;paintScanBtn();setRun('Enviando varredura ao agente…','busy');
+        var ids=[],netId=current;
+        try{
+            for(var k=0;k<online.length;k++){
+                var r=await fetch(apiUrl('network-command').href,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:Number(netId),agent_id:online[k].id,command:'scan_devices',_csrf:csrf})});
+                var j=await r.json().catch(function(){return{}});
+                if(!r.ok||!j.ok)throw new Error(j.error||'Falha ao enviar a varredura.');
+                ids.push(Number(j.command_id));
+            }
+        }catch(e){endScan(e.message||'Falha ao enviar a varredura.','err');return;}
+        setRun('Varredura em andamento…','busy');pollScan(netId,ids,0);
+    }
+    async function pollScan(netId,ids,n){
+        if(!scanning||netId!==current||!dlg.open)return;
+        if(n>60){endScan('A varredura demorou demais. Tente novamente.','err');return;}
+        try{
+            var u=apiUrl('network-command-status');u.searchParams.set('network_id',netId);
+            var r=await fetch(u.href,{credentials:'same-origin',cache:'no-store'}),j=await r.json();
+            if(!r.ok||!j.ok)throw new Error(j.error||'Não foi possível consultar a varredura.');
+            var mine=(j.commands||[]).filter(function(c){return ids.indexOf(Number(c.id))>-1});
+            var bad=mine.filter(function(c){return c.status==='failed'||c.status==='expired'})[0];
+            if(bad){endScan(bad.status==='expired'?'A varredura expirou sem resposta do agente.':'Varredura não concluída'+(bad.result_text?': '+bad.result_text:'.'),'err');load(netId,true);return;}
+            if(mine.length&&mine.every(function(c){return c.status==='completed'})){
+                endScan('Varredura concluída.','ok');
+                await load(netId,true);
+                setTimeout(function(){if(dlg.open&&current===netId)load(netId,true)},4000); /* dados finais do agente podem chegar logo após */
+                return;
+            }
+        }catch(e){if(n>3){endScan(e.message||'Falha ao acompanhar a varredura.','err');return;}}
+        scanTimer=setTimeout(function(){pollScan(netId,ids,n+1)},3000);
+    }
+
+    /* ---------- mini modal do dispositivo ---------- */
+    function paintInfo(){
+        var d=infoDev;if(!d)return;
+        info.dataset.online=d.o?'1':'0';var flash=transitionFor(d);if(flash)info.dataset.transition=flash;else delete info.dataset.transition;
+        $('arc-pni-icon').className='fa fa-'+icon(d.t);
+        $('arc-pni-name').textContent=d.n;$('arc-pni-sub').textContent=single[canon(d.t)]+(d.g?' · '+d.g:'');
+        $('arc-pni-state').textContent=flash==='online'?'Acabou de ficar online':(flash==='offline'?'Acabou de ficar offline':(d.x?'Sem confirmação (agente offline)':(d.o?'Online':'Offline')));
+        $('arc-pni-dur').textContent=d.s>0?(d.o?'Online há ':'Offline há ')+fmtDur(nowS()-d.s):'Sem registro de tempo';
+        $('arc-pni-since').textContent=d.s>0?(d.o?'Ficou online em ':'Ficou offline em ')+fmtDate(d.s):'';
+        var w=$('arc-pni-warn');
+        if(d.x){w.hidden=false;w.textContent='O agente está sem comunicação; o tempo conta desde o último contato com este dispositivo.';}else w.hidden=true;
+        var rows=$('arc-pni-rows');rows.replaceChildren();
+        [['Ordem da mudança','#'+(devices.slice().sort(function(a,b){return Number(a.s||0)-Number(b.s||0)}).findIndex(function(x){return x===d|| (!!d.m&&x.m===d.m)})+1)],['Última mudança',fmtDate(d.c||d.s)],['Visto por último',fmtDate(d.l)],['Primeira detecção',fmtDate(d.f)],['IP',d.ip],['MAC',d.m],['Tipo',single[canon(d.t)]],['Grupo',d.g||'Sem grupo']].forEach(function(p){
+            if(!p[1]||p[1]==='—')return;var r=el('div');r.append(el('dt',null,p[0]),el('dd',null,p[1]));rows.append(r);
+        });
+    }
+    function openInfo(d){infoDev=d;paintInfo();if(!info.open)info.showModal();}
+
+    /* ---------- relógio: contagens ao vivo enquanto algo estiver aberto ---------- */
+    function startTick(){clearInterval(tick);tick=setInterval(function(){if(document.hidden)return;if(loaded){paintFoot();if(transitions.size){var expired=false;transitions.forEach(function(v,k){if(Date.now()>=v.until){transitions.delete(k);expired=true;}});if(expired)render();}}if(info.open)paintInfo();},1000);}
+    function stop(){clearInterval(timer);clearInterval(tick);timer=0;tick=0;if(ctrl)ctrl.abort();reqId++;scanning=false;clearTimeout(scanTimer);clearTimeout(runTimer);runEl.textContent='';delete runEl.dataset.k;if(info.open)info.close();}
+    function open(link){
+        current=link.dataset.panelNetwork;ttl.textContent=link.dataset.name||'Rede';openLink.href=link.href;
+        devices=[];layout=[];updated=0;agents=[];canScan=false;loaded=false;infoDev=null;previousStates.clear();transitions.clear();
+        secs.replaceChildren();msg.hidden=false;paintFoot();paintScanBtn();refreshBtn.disabled=true;
+        dlg.showModal();load(current,false);startTick();
+        clearInterval(timer);timer=setInterval(function(){if(!document.hidden&&dlg.open&&!scanning)load(current,true);},2000);
+    }
+    document.addEventListener('click',function(e){
+        if(e.defaultPrevented||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;
+        var link=e.target.closest&&e.target.closest('a[data-panel-network]');if(!link)return;
+        e.preventDefault();open(link);
+    });
+    secs.addEventListener('click',function(e){var t=e.target.closest('.arc-pn-tile');if(t&&t._d)openInfo(t._d);});
+    dlg.querySelector('.arc-pn-views').addEventListener('click',function(e){
+        var b=e.target.closest('[data-view]');if(!b||b.dataset.view===view)return;
+        view=b.dataset.view;try{localStorage.setItem('arc-pn-view',view)}catch(x){}
+        render();
+    });
+    dlg.querySelector('.arc-pn-counts').addEventListener('click',function(e){var b=e.target.closest('[data-status]');if(!b)return;statusFilter=b.dataset.status;render();});
+    dlg.querySelector('.arc-pn-sort').addEventListener('click',function(e){var b=e.target.closest('[data-sort]');if(!b)return;sortMode=b.dataset.sort;render();});
+    refreshBtn.addEventListener('click',scan);
+    $('arc-pn-close').addEventListener('click',function(){dlg.close();});
+    $('arc-pni-close').addEventListener('click',function(){info.close();});
+    dlg.addEventListener('click',function(e){if(e.target===dlg)dlg.close();});
+    info.addEventListener('click',function(e){if(e.target===info)info.close();});
+    dlg.addEventListener('close',stop);
+    window.addEventListener('resize',function(){if(dlg.open)fit();});
+    if(window.visualViewport)window.visualViewport.addEventListener('resize',function(){if(dlg.open)fit();});
+})();
+</script>
+
+<script>
+(function(){
+'use strict';
+var modal=document.getElementById('modal-register');
+if(!modal)return;
+var triggers=document.querySelectorAll('[data-open-register]');
+var previousFocus=null;
+function open(){previousFocus=document.activeElement;modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('arc-modal-active');document.getElementById('doc-number')?.focus();}
+function close(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.classList.remove('arc-modal-active');previousFocus?.focus();}
+triggers.forEach(function(trigger){trigger.addEventListener('click',open);});
+modal.querySelector('[data-close-modal]')?.addEventListener('click',close);
+modal.addEventListener('click',e=>{if(e.target===modal)close();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))close();});
+if(new URLSearchParams(location.search).get('nova_rede')==='1')open();
+    /* Documento com reconhecimento progressivo e consulta de CNPJ. */
+    var docInput = document.getElementById('doc-number');
+    var docBadge = document.getElementById('doc-badge');
+    var docStatus = document.getElementById('doc-status');
+    var lastCnpj = '', requestController = null, lookupTimer = null;
+    function digits(value) { return String(value || '').replace(/\D/g, ''); }
+    function maskDocument(value) {
+        var d = digits(value).slice(0,14);
+        if (d.length <= 11) return d.replace(/^(\d{3})(\d)/,'$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+        return d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d{1,2})$/,'$1-$2');
+    }
+    function put(id, value) { var el = document.getElementById(id); if (el) el.value = value == null ? '' : String(value); }
+    function status(message, type) { docStatus.textContent = message; docStatus.className = 'doc-status span2' + (type ? ' ' + type : ''); }
+    function addressFromFields() {
+        var get = function(id){ return (document.getElementById(id)?.value || '').trim(); };
+        put('reg-address', [get('reg-street'), get('reg-number'), get('reg-complement'), get('reg-district'), [get('reg-city'),get('reg-uf')].filter(Boolean).join('/'), get('reg-cep') ? 'CEP ' + get('reg-cep') : ''].filter(Boolean).join(', ').slice(0,255));
+    }
+    ['reg-street','reg-number','reg-complement','reg-district','reg-city','reg-uf','reg-cep'].forEach(function(id) {
+        var el=document.getElementById(id); if (el) el.addEventListener('change', addressFromFields);
+    });
+    function applyCnpj(data) {
+        put('reg-client', data.razao_social || '');
+        put('reg-fantasy', data.nome_fantasia || '');
+        put('reg-name', data.nome_fantasia || data.razao_social || '');
+        put('reg-contact', data.nome_fantasia || data.razao_social || '');
+        put('reg-phone', data.ddd_telefone_1 || data.ddd_telefone_2 || '');
+        put('reg-email', data.email || '');
+        put('reg-cep', String(data.cep || '').replace(/^(\d{5})(\d{3})$/,'$1-$2'));
+        put('reg-uf', data.uf || '');
+        put('reg-street', data.logradouro || '');
+        put('reg-number', data.numero || '');
+        put('reg-complement', data.complemento || '');
+        put('reg-district', data.bairro || '');
+        put('reg-city', data.municipio || '');
+        put('reg-status', data.descricao_situacao_cadastral || '');
+        var cnae = data.cnae_fiscal_descricao || data.cnae_fiscal || '';
+        put('reg-cnae', cnae);
+        put('reg-legal', data.natureza_juridica || '');
+        put('reg-opening', data.data_inicio_atividade || '');
+        addressFromFields();
+        status('Dados públicos do CNPJ preenchidos. Confira as informações antes de salvar.', 'success');
+    }
+    async function lookupCnpj(cnpj) {
+        if (requestController) requestController.abort();
+        requestController = new AbortController();
+        status('Consultando dados públicos do CNPJ...', 'busy');
+        try {
+            var response = await fetch('pages/painel.php?ajax=cnpj_lookup&cnpj=' + encodeURIComponent(cnpj), {signal:requestController.signal,credentials:'same-origin',headers:{'Accept':'application/json'}});
+            var payload=await response.json();
+            if (!response.ok || !payload.ok) throw new Error(payload.error || 'Consulta indisponível');
+            var data = payload.data;
+            if (digits(docInput.value) !== cnpj) return;
+            if (!data || !data.razao_social) throw new Error('CNPJ não encontrado');
+            applyCnpj(data);
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            if (digits(docInput.value) === cnpj) status(error.message || 'Consulta indisponível. Preencha os campos manualmente.', 'error');
+            lastCnpj = '';
+        }
+    }
+    var logoFile=document.getElementById('reg-logo'), logoPreview=document.getElementById('arc-logo-preview');
+    if(logoFile&&logoPreview)logoFile.addEventListener('change',function(){
+        var file=this.files&&this.files[0];if(!file)return;
+        if(file.size>2097152||!/^image\/(png|jpeg|webp)$/.test(file.type)){
+            this.value='';status('A logo deve ser PNG, JPG ou WEBP, com até 2 MB.','error');return;
+        }
+        var reader=new FileReader();reader.onload=function(){var image=document.createElement('img');image.src=String(reader.result);image.alt='Prévia da logo';logoPreview.replaceChildren(image);};reader.readAsDataURL(file);
+    });
+    if (docInput) docInput.addEventListener('input', function() {
+        var caret=docInput.selectionStart||0;
+        var before=digits(docInput.value.slice(0,caret)).length;
+        var d=digits(docInput.value).slice(0,14);
+        var formatted=maskDocument(d);
+        if(docInput.value!==formatted){
+            docInput.value=formatted;
+            var pos=0,count=0;
+            while(pos<formatted.length&&count<before){if(/\d/.test(formatted.charAt(pos)))count++;pos++;}
+            docInput.setSelectionRange(pos,pos);
+        }
+        var type=d.length>11?'CNPJ':d.length===11?'CPF':'CPF/CNPJ';
+        docBadge.textContent=type;
+        docBadge.className='doc-badge '+(type==='CNPJ'?'cnpj':type==='CPF'?'cpf':'');
+        if(lookupTimer)clearTimeout(lookupTimer);
+        if(d.length!==14&&requestController){requestController.abort();requestController=null;}
+        if(!d.length)status('Digite CPF ou CNPJ para identificar o documento.');
+        else if(d.length===11)status('CPF identificado. Para CNPJ, continue digitando até 14 dígitos.');
+        else if(d.length<14)status('Documento: '+d.length+' dígitos informados.');
+        if(d.length===14&&d!==lastCnpj){
+            lookupTimer=setTimeout(function(){if(digits(docInput.value)===d){lastCnpj=d;lookupCnpj(d);}},450);
+        }
+    });
+
+
+})();
+</script>
+<?php require dirname(__DIR__).'/includes/footer.php'; ?>

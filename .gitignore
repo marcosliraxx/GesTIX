@@ -1,0 +1,25 @@
+# Configuração privada e credenciais
+/includes/config.php
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Backups e dados de produção
+/_sql/
+*.sql
+!/database/schema.sql
+*.zip
+*.tar
+*.gz
+
+# Arquivos gerados em execução
+/uploads/*
+!/uploads/.htaccess
+/includes/storage/*
+!/includes/storage/.htaccess
+*.log
+error_log
+__pycache__/
+*.pyc

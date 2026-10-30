@@ -1,0 +1,176 @@
+<?php
+declare(strict_types=1);
+$arcSectionFile = 'mapa';
+require __DIR__.'/_base.php';
+require dirname(__DIR__).'/includes/network-inventory.php';
+$mapDevices = $selectedAgentId > 0 ? arc_inventory_list($pdo,(int)$account,$networkId,$selectedAgentId) : [];
+foreach($mapDevices as &$device){$device['payload']=json_decode((string)($device['payload_json']??''),true)?:[];unset($device['payload_json']);} unset($device);
+$byGroup=[];
+foreach ($mapDevices as $d) {
+    $group=trim((string)$d['group_name']);
+    $byGroup[$group!==''?$group:'Sem grupo'][]=$d;
+}
+ksort($byGroup, SORT_NATURAL|SORT_FLAG_CASE);
+require __DIR__.'/_topo.php';
+?>
+<section class="asc-ops arc-inventory-map arc-topology" aria-label="Topologia lógica da rede">
+ <div class="arc-topology-toolbar">
+  <div class="arc-topology-heading"><i class="fa fa-sitemap" aria-hidden="true"></i><div><strong>Topologia lógica da rede</strong><small>Organização automática por grupos e tipos de dispositivos</small></div></div>
+  <div class="arc-topology-actions"><span class="arc-topology-count"><?=count($mapDevices)?> dispositivos · <?=count($byGroup)?> grupos</span><label class="arc-topology-view">Organizar por <select id="arc-topology-mode" aria-label="Organização do mapa"><option value="group">Grupos / setores</option><option value="type">Tipos de equipamentos</option><option value="infrastructure">Infraestrutura detectada</option></select></label><button type="button" id="arc-zoom-out" class="arc-topology-action" title="Diminuir zoom">−</button><span id="arc-zoom-label" class="arc-zoom-label">100%</span><button type="button" id="arc-zoom-in" class="arc-topology-action" title="Aumentar zoom">+</button><button type="button" id="arc-topology-fullscreen" class="arc-topology-action" title="Exibir topologia em tela inteira" aria-label="Ativar tela inteira" aria-pressed="false"><i class="fa fa-expand" aria-hidden="true"></i> Tela inteira</button><button type="button" id="arc-topology-print" class="arc-topology-action" title="Prévia e impressão A4"><i class="fa fa-print"></i> A4</button><button type="button" id="arc-topology-reset" class="arc-topology-action" title="Restaurar organização automática"><i class="fa fa-undo"></i></button><button type="button" id="arc-topology-fit-width" class="arc-topology-action" title="Centralizar somente na largura"><i class="fa fa-arrows-h" aria-hidden="true"></i> Largura</button><button type="button" id="arc-topology-fit-height" class="arc-topology-action" title="Centralizar somente na altura"><i class="fa fa-arrows-v" aria-hidden="true"></i> Altura</button><button type="button" id="arc-topology-fit" class="arc-topology-action" title="Centralizar e ajustar toda a topologia"><i class="fa fa-crosshairs" aria-hidden="true"></i> Tudo</button></div>
+ </div>
+ <div class="arc-topology-canvas" id="arc-topology-canvas">
+  <svg class="arc-topology-lines" id="arc-topology-lines" aria-hidden="true"><defs><linearGradient id="arc-topo-line" x1="0%" x2="100%"><stop offset="0%" stop-color="#31bcea"/><stop offset="100%" stop-color="#4dd6b2"/></linearGradient></defs><g id="arc-topology-paths"></g></svg>
+  <div class="arc-topology-content" id="arc-topology-content">
+   <div class="arc-topology-root"><button type="button" class="arc-map-hub arc-topology-hub" data-arc-command="scan_map" aria-label="Examinar dispositivos da rede <?=arc_h((string)$network['name'])?>" title="Executar varredura de dispositivos"><i class="fa fa-network-wired fa-sitemap" aria-hidden="true"></i><strong title="<?=arc_h((string)$network['name'])?>"><?=arc_h((string)$network['name'])?></strong><small><?=arc_h((string)($network['site_code']??''))?></small><span class="arc-map-hub-action"><i class="fa fa-refresh"></i> Examinar rede</span></button></div>
+   <?php if (!$mapDevices): ?><div class="arc-topology-empty"><i class="fa fa-search"></i><strong>Nenhum dispositivo no inventário</strong><span>Clique na rede acima para executar uma varredura.</span></div><?php else: ?>
+   <div class="arc-topology-branches" id="arc-topology-branches">
+    <?php foreach($byGroup as $group=>$members): ?>
+     <section class="arc-topology-branch" data-group="<?=arc_h($group)?>">
+      <div class="arc-topology-group"><i class="fa fa-folder-open-o"></i><strong title="<?=arc_h($group)?>"><?=arc_h($group)?></strong><span><?=count($members)?> equipamentos</span></div>
+      <div class="arc-topology-devices">
+       <?php foreach($members as $item):
+        $name=(string)($item['custom_name']?:$item['detected_name']?:$item['ip']);
+        $type=strtolower((string)($item['custom_type']?:$item['detected_type']?:'device'));
+        $icons=['computer'=>'fa-desktop','phone'=>'fa-mobile','tablet'=>'fa-tablet','router'=>'fa-wifi','tv'=>'fa-television','printer'=>'fa-print','camera'=>'fa-video-camera','server'=>'fa-server','switch'=>'fa-sitemap','iot'=>'fa-microchip','ap'=>'fa-wifi','nas'=>'fa-hdd-o'];
+        $icon=$icons[$type]??'fa-laptop';
+       ?>
+       <button type="button" class="arc-map-member arc-topology-device <?=($item['status']??'')==='online'?'online':'offline'?>" data-device-id="<?=(int)$item['id']?>" data-device-type="<?=arc_h($type)?>" title="<?=arc_h($name)?> · <?=arc_h((string)$item['ip'])?>">
+        <i class="fa <?=arc_h($icon)?> arc-topology-device-icon"></i>
+        <span title="<?=arc_h($name)?>"><?=arc_h($name)?></span>
+        <small><?=arc_h((string)$item['ip'])?></small>
+        <?php if(!empty($item['payload']['agent_installed'])): ?><i class="fa fa-cube arc-agent-indicator" title="Agente Windows instalado" aria-label="Agente Windows instalado"></i><?php endif; ?>
+       </button>
+       <?php endforeach; ?>
+      </div>
+     </section>
+    <?php endforeach; ?>
+   </div>
+   <?php endif; ?>
+  </div>
+ </div>
+ <div class="arc-topology-legend"><span><i class="arc-topology-dot online"></i> Online</span><span><i class="arc-topology-dot offline"></i> Offline</span><span><i class="fa fa-cube"></i> Agente instalado</span><small>Linhas representam organização lógica. Na visão infraestrutura, conexões não verificadas aparecem tracejadas; não comprovam caminhos físicos.</small></div>
+</section>
+<style>
+.arc-topology{display:flex;flex-direction:column;min-height:0;height:min(76dvh,760px);overflow:hidden}
+.arc-topology-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 14px;background:#10243a;border-bottom:1px solid #294761}
+.arc-topology-heading{display:flex;align-items:center;gap:10px;min-width:0}.arc-topology-heading>i{font-size:20px;color:#46c3ef}.arc-topology-heading strong,.arc-topology-heading small{display:block}.arc-topology-heading strong{font-size:13px}.arc-topology-heading small{font-size:10px;color:#93afc7}
+.arc-topology-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:11px}.arc-topology-count{color:#9dbbd0}.arc-topology-view{display:flex;align-items:center;gap:7px;color:#92b4ca}.arc-topology-view select,.arc-topology-action{background:#19334d;color:#eaf8ff;border:1px solid #345a77;border-radius:7px;padding:6px 8px;font-size:11px}.arc-topology-action{cursor:pointer}
+.arc-topology:fullscreen,.arc-topology.arc-topology-expanded{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-height:none!important;margin:0!important;z-index:2147483000!important;border-radius:0!important;background:#091c30!important}.arc-topology:fullscreen .arc-topology-canvas,.arc-topology.arc-topology-expanded .arc-topology-canvas{flex:1;min-height:0}.arc-topology-canvas{position:relative;flex:1;min-height:0;overflow:auto;background:radial-gradient(ellipse at 50% 8%,#123953 0%,#091c30 65%,#081626 100%)}.arc-topology-canvas:before{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(#84bdd908 1px,transparent 1px),linear-gradient(90deg,#84bdd908 1px,transparent 1px);background-size:28px 28px}
+.arc-topology-content{position:relative;z-index:2;min-width:100%;width:max-content;min-height:100%;padding:24px 28px 26px;box-sizing:border-box}.arc-topology-root{display:flex;justify-content:center;margin-bottom:62px}.arc-topology-hub{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;min-height:102px;min-width:200px;max-width:255px;padding:12px 20px;border:1px solid #2c9cce!important;border-radius:14px!important;background:#10415b!important;color:#e5faff!important;cursor:pointer}.arc-topology-hub>i{font-size:26px;color:#63e1fa}.arc-topology-hub strong{display:block;max-width:205px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-topology-hub small{color:#b3cee0}.arc-topology-hub .arc-map-hub-action{font-size:10px;color:#80e6d5}
+.arc-topology-branches{display:flex;align-items:flex-start;justify-content:center;gap:22px;width:max-content;min-width:100%;padding:0 10px;box-sizing:border-box}.arc-topology-branch{width:230px;flex:0 0 230px;position:relative;padding:0;border:0;background:transparent}.arc-topology-group{height:65px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;position:relative;z-index:3;background:#173952;border:1px solid #357898;border-radius:12px;color:#d6f3ff;padding:6px;box-sizing:border-box}.arc-topology-group i{color:#69d2f4;font-size:17px}.arc-topology-group strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:195px}.arc-topology-group span{color:#91bfd2;font-size:10px}.arc-topology-devices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;justify-content:center;margin-top:37px}.arc-topology-device{position:relative;min-width:0;min-height:94px;padding:11px 6px 8px;background:#103249!important;border:1px solid #2a607a!important;border-radius:10px!important;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;color:#f2f9ff!important;transition:transform .15s,border-color .15s,box-shadow .15s}.arc-topology-device:hover{transform:translateY(-3px);border-color:#5dccfc!important;box-shadow:0 7px 20px #0007}.arc-topology-device.offline{background:#272238!important;border-color:#695069!important}.arc-topology-device-icon{font-size:26px!important;color:#56d4fa}.arc-topology-device.offline .arc-topology-device-icon{color:#d8a5bf}.arc-topology-device span,.arc-topology-device small{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}.arc-topology-device span{font-size:11px;font-weight:700}.arc-topology-device small{font-size:10px;color:#acc5d5}.arc-topology-device .arc-agent-indicator{position:absolute;right:4px;top:4px;color:#57efb2;font-size:12px}.arc-topology-device.arc-agent-host{border-color:#20ba8c!important}
+.arc-topology-lines{position:absolute;top:0;left:0;z-index:1;pointer-events:none;overflow:visible}.arc-topology-lines path{fill:none;stroke:url(#arc-topo-line);stroke-width:1.8;opacity:.8;stroke-linecap:round}.arc-topology-lines path.arc-topology-unverified{stroke:#c5a77a;stroke-dasharray:4 7;stroke-width:1.5;opacity:.8}.arc-topology-lines path.arc-topology-trunk{stroke-dasharray:5 7;opacity:.65}.arc-topology-lines path.arc-topology-leaf{stroke:#397f9d;stroke-width:1.2;opacity:.58}
+.arc-topology-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-top:1px solid #27445c;background:#10243a;padding:8px 12px;font-size:10px;color:#c3d5e3}.arc-topology-legend span{display:flex;align-items:center;gap:5px}.arc-topology-dot{width:8px;height:8px;border-radius:50%;background:#28c797}.arc-topology-dot.offline{background:#df7891}.arc-topology-legend .fa{color:#57eab5}.arc-topology-legend small{margin-left:auto;color:#789ab2}
+.arc-topology-empty{display:grid;justify-items:center;gap:8px;text-align:center;color:#b6d5e6;margin:20px auto}.arc-topology-empty i{font-size:24px;color:#63d6f6}.arc-topology-empty span{font-size:12px}
+@media(max-width:740px){.arc-topology{height:72dvh}.arc-topology-toolbar{align-items:flex-start}.arc-topology-count{display:none}.arc-topology-legend small{width:100%;margin:0}}
+@media(prefers-reduced-motion:reduce){.arc-topology-device{transition:none}}
+</style>
+<style>
+.arc-free-group,.arc-free-device{position:absolute!important;box-sizing:border-box;z-index:4;pointer-events:auto;touch-action:none;user-select:none;cursor:grab!important}
+.arc-free-group{width:196px;min-height:67px}.arc-free-device{width:112px;min-height:100px;max-width:112px}.arc-free-device:hover{transform:none!important}.is-dragging{cursor:grabbing!important;z-index:20!important;box-shadow:0 0 0 2px #62dbff,0 18px 35px #0009!important}
+.arc-zoom-label{font-size:11px;color:#add1e5;min-width:37px;text-align:center}.arc-topology-lines{z-index:1}.arc-topology-content{z-index:2}.arc-topology-canvas{isolation:isolate}
+#arc-print-dialog{border:1px solid #375979;border-radius:12px;padding:14px;background:#0b1f32;color:#ecfaff;max-width:min(98vw,1180px);max-height:96vh}#arc-print-dialog::backdrop{background:#000b}.arc-print-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.arc-print-page{position:relative;background:#091e30;overflow:hidden;width:min(100%,1050px);height:690px;border:1px solid #42617b;margin:auto}.arc-print-preview{position:relative;transform-origin:top left;margin:0 auto}.arc-print-tools{display:flex;gap:8px}.arc-print-tools button{cursor:pointer;padding:8px 12px;border-radius:7px;border:1px solid #486c84;background:#17405b;color:#fff}
+@media print{@page{size:A4 landscape;margin:8mm}body *{visibility:hidden!important}#arc-print-dialog,#arc-print-dialog .arc-print-page,#arc-print-dialog .arc-print-preview,#arc-print-dialog .arc-print-preview *{visibility:visible!important}#arc-print-dialog{position:fixed!important;inset:0!important;border:0!important;background:#fff!important;padding:0!important;width:100%!important;max-width:none!important;max-height:none!important;overflow:visible!important}#arc-print-dialog .arc-print-head{display:none!important}.arc-print-page{width:277mm!important;height:190mm!important;border:0!important;print-color-adjust:exact;-webkit-print-color-adjust:exact;overflow:hidden!important}}
+</style>
+<dialog id="arc-print-dialog" aria-label="Prévia da topologia em A4"><div class="arc-print-head"><strong>Topologia da rede — A4 horizontal</strong><div class="arc-print-tools"><button type="button" id="arc-print-now"><i class="fa fa-print"></i> Imprimir</button><button type="button" id="arc-print-close">Fechar</button></div></div><div class="arc-print-page"><div class="arc-print-preview" id="arc-print-preview"></div></div></dialog>
+<script>
+(()=>{'use strict';
+const canvas=document.getElementById('arc-topology-canvas'),content=document.getElementById('arc-topology-content'),svg=document.getElementById('arc-topology-lines'),paths=document.getElementById('arc-topology-paths'),branches=document.getElementById('arc-topology-branches'),mode=document.getElementById('arc-topology-mode');
+if(!canvas||!content||!svg||!paths||!branches)return;
+const network=<?= (int)$networkId ?>,agent=<?= (int)$selectedAgentId ?>;
+const key='arc-topology-layout-v2:'+network+':'+agent;
+const modeKey=key+':mode';
+const original=[...branches.querySelectorAll('.arc-topology-device')].map(el=>({el,group:el.closest('.arc-topology-branch')?.dataset.group||'Sem grupo',type:el.dataset.deviceType||'device'}));
+const labels={computer:'Computadores',router:'Roteadores',phone:'Celulares',tablet:'Tablets',printer:'Impressoras',server:'Servidores',ap:'Pontos de acesso',switch:'Switches',nas:'Armazenamento',camera:'Câmeras',tv:'Televisores',iot:'IoT',device:'Outros dispositivos'};
+const W=2200,H=1300;let zoom=1,positions={},groups=new Map(),root=content.querySelector('.arc-topology-hub'),drag=null,moved=false;
+try{positions=JSON.parse(localStorage.getItem(key)||'{}');if(!positions||typeof positions!=='object'||Array.isArray(positions))positions={}}catch(_){positions={}}
+const save=()=>{try{localStorage.setItem(key,JSON.stringify(positions))}catch(_){}};
+try{const lastMode=localStorage.getItem(modeKey);if(['group','type','infrastructure'].includes(lastMode))mode.value=lastMode}catch(_){}
+const devicePositionKey=id=>'d:'+mode.value+':'+id;
+function put(el,x,y){el.style.left=Math.max(0,Math.min(W-170,x))+'px';el.style.top=Math.max(0,Math.min(H-90,y))+'px'}
+function locationOf(el){return {x:parseFloat(el.style.left)||0,y:parseFloat(el.style.top)||0}}
+function center(el){const p=locationOf(el);return {x:p.x+el.offsetWidth/2,y:p.y+el.offsetHeight/2,top:p.y,bottom:p.y+el.offsetHeight}}
+function path(a,b,kind){let d=`M ${a.x} ${a.bottom} C ${a.x} ${(a.bottom+b.top)/2}, ${b.x} ${(a.bottom+b.top)/2}, ${b.x} ${b.top}`;let p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',d);p.setAttribute('class',kind);paths.append(p)}
+function redraw(){svg.setAttribute('width',W);svg.setAttribute('height',H);svg.style.width=W+'px';svg.style.height=H+'px';paths.replaceChildren();let a=center(root);for(let [label,g] of groups){let head=g.head,b=center(head);path(a,b,mode.value==='infrastructure'?'arc-topology-unverified':'arc-topology-trunk');for(let el of g.items)path(b,center(el),mode.value==='infrastructure'?'arc-topology-unverified':'arc-topology-leaf')}}
+let fitOffsetX=0,fitOffsetY=0;
+function applyZoom(){
+ const transform=`translate(${fitOffsetX}px,${fitOffsetY}px) scale(${zoom})`;
+ content.style.transform=transform;svg.style.transform=transform;
+ canvas.querySelector('#arc-topology-spacer')?.remove();
+ const spacer=document.createElement('div');spacer.id='arc-topology-spacer';
+ spacer.style.cssText=`position:absolute;left:0;top:0;pointer-events:none;width:${Math.ceil(W*zoom+fitOffsetX)}px;height:${Math.ceil(H*zoom+fitOffsetY)}px`;
+ canvas.append(spacer);document.getElementById('arc-zoom-label').textContent=Math.round(zoom*100)+'%'
+}
+function topologyBounds(){
+ const nodes=[root,...branches.querySelectorAll('.arc-free-group,.arc-free-device')];
+ if(!nodes.length)return null;
+ return nodes.reduce((r,el)=>{const p=locationOf(el);return {minX:Math.min(r.minX,p.x),minY:Math.min(r.minY,p.y),maxX:Math.max(r.maxX,p.x+el.offsetWidth),maxY:Math.max(r.maxY,p.y+el.offsetHeight)}},{minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity});
+}
+function centerTopology(axis='all'){
+ const b=topologyBounds();if(!b)return;
+ const margin=36,cw=canvas.clientWidth,ch=canvas.clientHeight;
+ const width=Math.max(1,b.maxX-b.minX),height=Math.max(1,b.maxY-b.minY);
+ // Somente 'Tudo' muda o nível de zoom. Os botões de eixo mantêm a escala atual.
+ if(axis==='all')zoom=Math.max(.35,Math.min(1.7,(cw-margin*2)/width,(ch-margin*2)/height));
+ // Como o conteúdo não pode ter scroll negativo, compensamos com deslocamento positivo.
+ // Este cálculo considera apenas os elementos visíveis, não os 2200x1300 do canvas.
+ if(axis==='all'||axis==='width'){
+   const desired=(b.minX+b.maxX)*zoom/2-cw/2;
+   fitOffsetX=Math.max(0,-desired);
+ }
+ if(axis==='all'||axis==='height'){
+   const desired=(b.minY+b.maxY)*zoom/2-ch/2;
+   fitOffsetY=Math.max(0,-desired);
+ }
+ applyZoom();
+ if(axis==='all'||axis==='width')canvas.scrollLeft=Math.max(0,(b.minX+b.maxX)*zoom/2+fitOffsetX-cw/2);
+ if(axis==='all'||axis==='height')canvas.scrollTop=Math.max(0,(b.minY+b.maxY)*zoom/2+fitOffsetY-ch/2);
+}
+function regroup(){const sets=new Map();original.forEach(o=>{let name=mode.value==='infrastructure'?(o.type==='router'?'Roteadores identificados':o.type==='switch'?'Switches identificados':o.type==='ap'?'Pontos de acesso identificados':'Outros dispositivos · conexão não verificada'):mode.value==='type'?(labels[o.type]||'Outros dispositivos'):o.group;if(!sets.has(name))sets.set(name,[]);sets.get(name).push(o.el)});branches.replaceChildren();groups.clear();let n=0;for(let [name,nodes] of [...sets].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'))){let head=document.createElement('div');head.className='arc-topology-group arc-free-group';const icon=document.createElement('i');icon.className='fa fa-'+(mode.value==='infrastructure'?'sitemap':'folder-open-o');const title=document.createElement('strong');title.textContent=name;title.title=name;const count=document.createElement('span');count.textContent=nodes.length+' equipamentos';head.append(icon,title,count);head.dataset.group=name;branches.append(head);groups.set(name,{head,items:nodes});const saved=positions['g:'+mode.value+':'+name];put(head,saved?.x??Math.max(35,110+n*260),saved?.y??240);nodes.forEach((el,i)=>{branches.append(el);el.classList.add('arc-free-device');el.dataset.group=name;let id=el.dataset.deviceId;const pos=positions[devicePositionKey(id)]||(mode.value==='group'?positions['d:'+id]:null);put(el,pos?.x??(110+n*260+(i%2)*118),pos?.y??(365+Math.floor(i/2)*120));attachDrag(el,devicePositionKey(id))});attachDrag(head,'g:'+mode.value+':'+name);n++}put(root,positions.root?.x??Math.max(80,Math.min(W-200,120+n*125)),positions.root?.y??50);attachDrag(root,'root');redraw()}
+function attachDrag(el,id){if(el.dataset.dragReady)return;el.dataset.dragReady='1';el.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();drag={el,id,pid:e.pointerId,startX:e.clientX,startY:e.clientY,...locationOf(el)};moved=false;el.setPointerCapture(e.pointerId);el.classList.add('is-dragging')});el.addEventListener('pointermove',e=>{if(!drag||drag.el!==el||drag.pid!==e.pointerId)return;const dx=(e.clientX-drag.startX)/zoom,dy=(e.clientY-drag.startY)/zoom;if(Math.abs(dx)+Math.abs(dy)>4)moved=true;if(moved){put(el,drag.x+dx,drag.y+dy);redraw()}});el.addEventListener('pointerup',async e=>{if(!drag||drag.el!==el)return;el.classList.remove('is-dragging');const wasMoved=moved;drag=null;if(wasMoved){positions[id]=locationOf(el);save();if(id.startsWith('d:')&&mode.value==='group')await maybeTransfer(el);else redraw()}});el.addEventListener('click',e=>{if(moved){e.stopImmediatePropagation();e.preventDefault();moved=false}},true)}
+async function maybeTransfer(el){const p=center(el);let target=null;for(let [name,g] of groups){let q=center(g.head);if(Math.hypot(p.x-q.x,p.y-q.y)<115&&name!==el.dataset.group){target=name;break}}if(!target){redraw();return}const device=<?=json_encode($mapDevices,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>.find(d=>String(d.id)===el.dataset.deviceId);if(!device)return;let previous=el.dataset.group;el.dataset.group=target;const source=groups.get(previous),dest=groups.get(target);source.items=source.items.filter(x=>x!==el);dest.items.push(el);original.find(x=>x.el===el).group=target;redraw();try{const r=await fetch(<?=json_encode(arc_workspace_base_url().'api/api.php?action=network-device-save')?>,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':<?=json_encode($csrf)?>},body:JSON.stringify({id:Number(device.id),network_id:network,agent_id:agent,custom_name:device.custom_name||'',custom_type:device.custom_type||'',group_name:target,pinned:Number(device.pinned)||0,hidden:0})});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Não foi possível alterar o grupo');device.group_name=target;}catch(err){original.find(x=>x.el===el).group=previous;el.dataset.group=previous;source.items.push(el);dest.items=dest.items.filter(x=>x!==el);alert('Grupo não alterado: '+err.message);redraw()}}
+content.style.width=W+'px';content.style.height=H+'px';content.style.minWidth='0';content.style.minHeight='0';content.style.padding='0';content.style.transformOrigin='0 0';svg.style.transformOrigin='0 0';branches.style.cssText='position:absolute;inset:0;display:block;min-width:0;width:100%;padding:0;pointer-events:none';content.querySelector('.arc-topology-root').style.cssText='position:absolute;inset:0;display:block;margin:0;pointer-events:none';root.style.cssText+=';position:absolute;pointer-events:auto;min-width:185px';
+function z(v){zoom=Math.max(.35,Math.min(1.7,v));fitOffsetX=0;fitOffsetY=0;applyZoom()}document.getElementById('arc-zoom-in').onclick=()=>z(zoom+.15);document.getElementById('arc-zoom-out').onclick=()=>z(zoom-.15);const fullscreenButton=document.getElementById('arc-topology-fullscreen'),topologySection=document.querySelector('.arc-topology');
+const refreshFullscreenButton=()=>{const active=document.fullscreenElement===topologySection||topologySection.classList.contains('arc-topology-expanded');fullscreenButton.setAttribute('aria-pressed',String(active));fullscreenButton.title=active?'Sair da tela inteira':'Exibir topologia em tela inteira';fullscreenButton.innerHTML=active?'<i class="fa fa-compress" aria-hidden="true"></i> Sair da tela inteira':'<i class="fa fa-expand" aria-hidden="true"></i> Tela inteira';};
+fullscreenButton.addEventListener('click',async()=>{try{if(document.fullscreenElement===topologySection){await document.exitFullscreen()}else if(topologySection.classList.contains('arc-topology-expanded')){topologySection.classList.remove('arc-topology-expanded')}else if(topologySection.requestFullscreen){await topologySection.requestFullscreen()}else{topologySection.classList.add('arc-topology-expanded')}}catch(_){topologySection.classList.toggle('arc-topology-expanded')}refreshFullscreenButton();redraw()});
+document.addEventListener('fullscreenchange',()=>{refreshFullscreenButton();redraw()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&topologySection.classList.contains('arc-topology-expanded')){topologySection.classList.remove('arc-topology-expanded');refreshFullscreenButton()}});
+document.getElementById('arc-topology-fit-width').onclick=()=>centerTopology('width');document.getElementById('arc-topology-fit-height').onclick=()=>centerTopology('height');document.getElementById('arc-topology-fit').onclick=()=>centerTopology('all');document.getElementById('arc-topology-reset').onclick=()=>{if(!confirm('Restaurar a organização automática do desenho neste navegador?'))return;positions={};save();regroup()};mode.addEventListener('change',()=>{try{localStorage.setItem(modeKey,mode.value)}catch(_){}regroup()});
+canvas.addEventListener('wheel',e=>{if(e.ctrlKey){e.preventDefault();z(zoom+(e.deltaY<0?.1:-.1))}},{passive:false});
+regroup();applyZoom();
+const printDialog=document.getElementById('arc-print-dialog'),preview=document.getElementById('arc-print-preview');document.getElementById('arc-topology-print').onclick=()=>{const clone=content.cloneNode(true),lines=svg.cloneNode(true);clone.querySelectorAll('[data-arc-command]').forEach(n=>n.removeAttribute('data-arc-command'));preview.replaceChildren(lines,clone);lines.style.cssText='position:absolute;top:0;left:0;z-index:0;transform:none';clone.style.cssText+=';position:absolute;top:0;left:0;transform:none;min-width:0';let used=[root,...branches.querySelectorAll('.arc-free-group,.arc-free-device')];let xmax=900,ymax=600;used.forEach(el=>{const p=locationOf(el);xmax=Math.max(xmax,p.x+el.offsetWidth+25);ymax=Math.max(ymax,p.y+el.offsetHeight+25)});const scale=Math.min(990/xmax,660/ymax,1);preview.style.width=(xmax*scale)+'px';preview.style.height=(ymax*scale)+'px';preview.style.setProperty('--print-zoom',scale);lines.style.transform='scale('+scale+')';clone.style.transform='scale('+scale+')';printDialog.showModal()};document.getElementById('arc-print-close').onclick=()=>printDialog.close();document.getElementById('arc-print-now').onclick=()=>window.print();printDialog.addEventListener('click',e=>{if(e.target===printDialog)printDialog.close()});
+})();
+</script>
+<dialog id="device-detail" class="arc-device-dialog" aria-labelledby="device-modal-title">
+ <form id="device-form" method="dialog" class="arc-device-modal">
+  <div class="arc-device-modalhead"><div><small>ARCOLL / INVENTÁRIO</small><h2 id="device-modal-title">Identificar dispositivo</h2></div><button type="button" class="arc-device-close" id="device-close" aria-label="Fechar">&times;</button></div>
+  <div class="arc-device-modalbody">
+   <div class="arc-device-summary"><span id="device-symbol" class="arc-device-symbol"><i class="fa fa-desktop"></i></span><div><strong id="device-summary-name">Dispositivo</strong><small id="device-summary-address">—</small></div><span id="device-summary-status" class="arc-device-badge">—</span></div>
+   <div class="arc-device-formgrid">
+    <label>Nome personalizado<input name="custom_name" maxlength="160" placeholder="Nome do equipamento"></label>
+    <label>Tipo do dispositivo<select name="custom_type" id="device-type"><option value="">Identificação automática</option><option value="computer">Computador</option><option value="phone">Celular</option><option value="tablet">Tablet</option><option value="tv">TV</option><option value="router">Roteador</option><option value="printer">Impressora</option><option value="server">Servidor</option><option value="camera">Câmera</option><option value="iot">IoT</option><option value="console">Console</option><option value="speaker">Caixa de som</option><option value="switch">Switch</option><option value="ap">Ponto de acesso</option><option value="nas">NAS</option><option value="device">Outro</option></select></label>
+    <label>Grupo / setor<input name="group_name" id="device-group" list="device-groups" maxlength="90" placeholder="Ex.: Sala, Escritório, IoT"></label><datalist id="device-groups"></datalist>
+    <label class="arc-device-check"><input type="checkbox" name="pinned"> Fixar no início da lista</label>
+   </div>
+   <div class="arc-device-facts" id="device-facts"></div>
+  </div>
+  <div class="arc-device-modalfoot"><button type="button" class="arc-device-danger" id="device-delete"><i class="fa fa-trash-o"></i> Excluir do inventário</button><div><button type="button" class="asc-btn" id="device-cancel">Cancelar</button><button type="submit" class="asc-btn asc-primary" id="device-save">Salvar alterações</button></div></div>
+ </form>
+</dialog>
+<script>
+(()=>{'use strict';
+const devices=<?=json_encode($mapDevices,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
+const networkId=<?=(int)$networkId?>,agentId=<?=(int)$selectedAgentId?>,base=<?=json_encode(arc_workspace_base_url())?>,csrf=<?=json_encode($csrf)?>;
+const dlg=document.getElementById('device-detail'),form=document.getElementById('device-form'),facts=document.getElementById('device-facts');let current=null,saving=false;
+const kinds={computer:'desktop',phone:'mobile',tablet:'tablet',router:'wifi',printer:'print',server:'server',tv:'television',camera:'video-camera',iot:'microchip',nas:'hdd-o',switch:'sitemap',ap:'wifi',device:'laptop'};
+function gb(v){return Number(v)>0?(Number(v)/1e9).toLocaleString('pt-BR',{maximumFractionDigits:1})+' GB':'Não informado'}
+function cell(label,value,icon){const item=document.createElement('div');item.className='arc-device-fact-card';const heading=document.createElement('small'),i=document.createElement('i');i.className='fa fa-'+icon;heading.append(i,document.createTextNode(' '+label));const v=document.createElement('strong');v.textContent=value===null||value===undefined||value===''?'Não informado':String(value);item.append(heading,v);facts.append(item)}
+function open(d){current=d;const h=d.payload?.hardware||{};form.elements.namedItem('custom_name').value=d.custom_name||'';form.elements.namedItem('custom_type').value=d.custom_type||'';form.elements.namedItem('group_name').value=d.group_name||'';form.elements.namedItem('pinned').checked=!!Number(d.pinned);
+document.getElementById('device-summary-name').textContent=d.custom_name||d.detected_name||d.ip||'Dispositivo';document.getElementById('device-summary-address').textContent=[d.ip,d.mac].filter(Boolean).join(' · ');const badge=document.getElementById('device-summary-status');badge.textContent=d.status==='online'?'Online':'Offline';badge.className='arc-device-badge '+(d.status==='online'?'online':'offline');const symbol=document.getElementById('device-symbol');symbol.replaceChildren();const i=document.createElement('i');i.className='fa fa-'+(kinds[d.custom_type||d.detected_type]||'laptop');symbol.append(i);
+facts.replaceChildren();cell('Agente Windows',d.payload?.agent_installed?'Instalado neste dispositivo':'Não identificado','cube');cell('Endereço IP',d.ip,'globe');cell('Endereço MAC',d.mac,'barcode');cell('Tipo detectado',d.detected_type,'desktop');cell('Confiança da identificação',({alta:'Alta',media:'Média',baixa:'Baixa',indeterminada:'Não determinada'})[d.payload?.type_confidence]||'Não avaliada','check-circle');cell('Evidências',Array.isArray(d.payload?.type_evidence)?d.payload.type_evidence.join('; '):'Não informadas','info-circle');cell('Meio de conexão',d.payload?.link_type==='wifi'?'Wi-Fi confirmado':d.payload?.link_type==='ethernet'?'Cabo confirmado':'Não identificado','exchange');cell('Grupo / setor',d.group_name||'Sem grupo','folder');cell('Sistema operacional',h.operating_system,'windows');cell('Processador',h.processor,'microchip');cell('Memória RAM',h.memory_bytes?gb(h.memory_bytes):null,'tasks');cell('Placa-mãe',[h.motherboard_manufacturer,h.motherboard_model].filter(Boolean).join(' '),'server');if(Array.isArray(h.disks))h.disks.forEach((disk,n)=>cell('Disco '+(n+1)+' · '+(disk.type||'Tipo não identificado'),[disk.model,gb(disk.size_bytes)].filter(Boolean).join(' · '),'hdd-o'));
+const groups=[...new Set(devices.map(x=>x.group_name).filter(Boolean))];const datalist=document.getElementById('device-groups');datalist.replaceChildren(...groups.map(g=>{const o=document.createElement('option');o.value=g;return o}));dlg.showModal()}
+for(const node of document.querySelectorAll('.arc-map-member[data-device-id]')){const d=devices.find(x=>String(x.id)===node.dataset.deviceId);if(d?.payload?.agent_installed)node.classList.add('arc-agent-host');node.addEventListener('click',()=>{if(d)open(d)})}
+async function save(hidden=false){if(!current||saving)return;saving=true;const btn=document.getElementById('device-save');btn.disabled=true;try{const payload={id:Number(current.id),network_id:networkId,agent_id:agentId,custom_name:form.elements.namedItem('custom_name').value.trim(),custom_type:form.elements.namedItem('custom_type').value,group_name:form.elements.namedItem('group_name').value.trim(),pinned:form.elements.namedItem('pinned').checked?1:0,hidden:hidden?1:0};const response=await fetch(base+'api/api.php?action=network-device-save',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});const j=await response.json();if(!response.ok||!j.ok)throw Error(j.error||'Não foi possível salvar');dlg.close();location.reload()}catch(e){alert(e.message)}finally{saving=false;btn.disabled=false}}
+form.addEventListener('submit',e=>{e.preventDefault();save()});document.getElementById('device-delete').addEventListener('click',()=>{if(current&&confirm('Remover este dispositivo do inventário exibido?'))save(true)});document.getElementById('device-close').addEventListener('click',()=>dlg.close());document.getElementById('device-cancel').addEventListener('click',()=>dlg.close());dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close()});
+})();
+</script>
+<?php require __DIR__.'/_rodape.php';

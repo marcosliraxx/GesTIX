@@ -1,0 +1,14 @@
+# 99BKP-DOMAIN-BLOCK
+# Domínio: app.digital.log.br
+# URL: https://app.digital.log.br
+# Gerado automaticamente pelo 99BKP em 2026-10-26 20:32:34
+# END-99BKP-DOMAIN-BLOCK
+
+Header always set Content-Security-Policy "frame-ancestors https://99bkp.arcoll.com.br"
+Options -Indexes
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Deny from all
+</IfModule>

@@ -1,0 +1,558 @@
+/* ARCOLL SPEED CONNECTION — Gestão de Redes
+   Escopo: apenas a pasta /redes. CSS único; sem @import ou dependências locais.
+   A estrutura geral do aplicativo (header/sidebar/footer) continua no CSS global. */
+.arc-redes-page {
+  --redes-bg:#081222;
+  --redes-surface:#0e1c31;
+  --redes-panel:#11243b;
+  --redes-line:#294362;
+  --redes-text:#e5efff;
+  --redes-muted:#9bb3cc;
+  --redes-cyan:#25b9f4;
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  min-height:0;
+  min-width:0;
+  overflow:hidden;
+  color:var(--redes-text);
+  background:var(--redes-bg);
+  font-family:'Segoe UI',Arial,sans-serif;
+}
+.arc-redes-page *,
+.arc-redes-page *::before,
+.arc-redes-page *::after {box-sizing:border-box}
+.arc-redes-page > .container-wide.arc-redes-shell {
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  width:100%;
+  height:100%;
+  max-height:100%;
+  min-width:0;
+  min-height:0;
+  margin:0 auto;
+  padding:0;
+  overflow:hidden;
+}
+.arc-redes-topo,
+.arc-redes-menu {flex:0 0 auto}
+.arc-redes-conteudo {
+  flex:1 1 auto;
+  min-height:0;
+  min-width:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  padding:12px 14px 24px;
+  scrollbar-color:#355e81 #0c1b2f;
+  scrollbar-width:thin;
+}
+.arc-redes-identity-bar {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:nowrap;
+  gap:10px;
+  min-height:54px;
+  padding:7px 12px;
+  background:#0a1729;
+  color:#f2f7ff;
+  border-bottom:1px solid #294461;
+}
+.arc-redes-menu {
+  display:flex;
+  align-items:center;
+  gap:4px;
+  overflow-x:auto;
+  scrollbar-width:thin;
+  padding:5px 9px;
+  background:#0b1c32;
+  border-bottom:1px solid #294361;
+}
+.arc-redes-menu-link {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  white-space:nowrap;
+  border-radius:5px;
+  padding:9px 11px;
+  color:#adc4db;
+  text-decoration:none;
+  font-size:11px;
+  font-weight:600;
+  transition:background .15s,color .15s;
+}
+.arc-redes-menu-link:hover {color:#fff;background:#1a3c5d}
+.arc-redes-menu-link.active,
+.arc-redes-menu-link[aria-current="page"] {background:#128ec8;color:#fff}
+.arc-redes-secao {display:block;min-width:0}
+.arc-redes-secao .card {min-width:0}
+.arc-redes-page :where(button,a,select,input,textarea):focus-visible {outline:2px solid #3bc9fa;outline-offset:2px}
+.arc-redes-page :where(button,select):disabled {opacity:.55;cursor:not-allowed}
+.arc-redes-page :where(.card,.asc-ops-panel,.asc-chart-panel){min-width:0}
+.arc-redes-page :where(.table-wrap,.table-scroll) {max-width:100%;overflow-x:auto}
+@media(max-width:700px){.arc-redes-conteudo{padding:9px}}
+
+
+/* Barra do agente, modal de gestão e indicadores */
+/* Arcoll — Gestão compacta da rede e painel administrativo */
+.arc-redes-identity-bar .arc-redes-identidade{display:flex;gap:9px;min-width:0;flex:1}
+.arc-network-brand{width:38px;height:38px;display:grid;place-items:center;flex:0 0 38px;border-radius:6px;background:#183653;border:1px solid #2d5676;overflow:hidden}
+.arc-network-brand img{width:100%;height:100%;object-fit:contain}.arc-network-brand i{font-size:18px;color:#40c6f4}
+.arc-redes-identity-bar .arc-redes-identidade>div{min-width:0;display:flex;flex-direction:column;gap:3px}
+.arc-redes-identity-bar .arc-redes-identidade strong{font-size:13px;line-height:1.1;color:#f4f9ff}
+.arc-redes-identity-bar .arc-redes-identidade small{font-size:10px;letter-spacing:.8px;color:#89b6d3}
+.arc-redes-identity-actions{display:flex;gap:7px;align-items:center;flex-shrink:0}
+.arc-identity-icon{position:relative;display:grid;place-items:center;width:35px;height:35px;border:1px solid #365573;background:#142b44;color:#d6e8fa;border-radius:6px;cursor:pointer;text-decoration:none;font-size:15px;transition:background .15s,border-color .15s}
+.arc-identity-icon:hover{background:#215077;color:#fff;border-color:#41c1f0}
+.arc-identity-count{position:absolute;top:-5px;right:-5px;background:#d78b1b;color:#fff;font-size:9px;line-height:15px;min-width:15px;border-radius:10px;text-align:center}
+.arc-network-manager{position:fixed;inset:0;margin:auto;width:min(1100px,calc(100vw - 28px));height:min(780px,calc(100dvh - 32px));max-width:none;max-height:none;padding:0;border:1px solid #345477;border-radius:10px;background:#0d1c30;color:#e6f1ff;box-shadow:0 24px 85px #0009;overflow:hidden}
+.arc-network-manager::backdrop{background:rgba(3,9,19,.78);backdrop-filter:blur(3px)}
+.arc-network-manager[open]{animation:arcManagerOpen .18s ease-out}
+@keyframes arcManagerOpen{from{opacity:0;transform:translateY(9px) scale(.99)}to{opacity:1;transform:none}}
+.arc-network-manager-shell{display:flex;flex-direction:column;height:100%;min-height:0}
+.arc-manager-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;background:#112741;border-bottom:1px solid #2b4868;flex:0 0 auto}
+.arc-manager-heading{display:flex;align-items:center;gap:12px;min-width:0}
+.arc-manager-mark{width:40px;height:40px;border:1px solid #2c6684;background:#16445f;color:#4dc9f3;border-radius:8px;display:grid;place-items:center;font-size:18px}
+.arc-manager-heading small{display:block;font-size:10px;letter-spacing:1px;color:#65c7ec}.arc-manager-heading h2{font-size:17px;margin:3px 0;color:#f2f8ff}.arc-manager-heading p{margin:0;font-size:11px;color:#98b3cb}
+.arc-manager-close,.arc-manager-dismiss{border:1px solid #395777;background:#1b3652;color:#e8f3ff;border-radius:6px;cursor:pointer;padding:9px 12px}
+.arc-manager-close:hover,.arc-manager-dismiss:hover{background:#2a5379}
+.arc-manager-tabs{display:flex;gap:3px;padding:8px 12px 0;background:#11243a;border-bottom:1px solid #2c4969;flex:0 0 auto;overflow-x:auto}
+.arc-manager-tab{display:inline-flex;gap:8px;align-items:center;white-space:nowrap;padding:11px 15px;background:transparent;color:#a9c1d9;border:0;border-bottom:2px solid transparent;font-size:12px;font-weight:700;cursor:pointer}
+.arc-manager-tab:hover{color:#fff;background:#1a3c5b}.arc-manager-tab.active{color:#51d0ff;border-bottom-color:#35c5fa}
+.arc-manager-tab-count{padding:2px 6px;border-radius:8px;background:#25425d;color:#dbefff;font-size:10px}
+.arc-manager-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:15px;background:#0c1a2b}
+.arc-manager-panel[hidden]{display:none!important}.arc-manager-panel>.arc-redes-secao{animation:none}
+.arc-manager-panel .card{background:#11243b;border:1px solid #2b4461;border-radius:7px;box-shadow:none;padding:16px;margin:0 0 12px;color:#e5f0fc}
+.arc-manager-panel .card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #2b4461}
+.arc-manager-panel .card h2{font-size:15px;color:#f3f9ff;margin:0}.arc-manager-panel .card h3{font-size:13px;color:#e4f1ff}
+.arc-manager-panel .text-muted,.arc-manager-panel .card p{color:#9cb5ce;font-size:12px;line-height:1.5}
+.arc-manager-panel .form-field{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 15px;margin:10px 0 16px}
+.arc-manager-panel .form-field>label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:600;color:#b7cce0;min-width:0}
+.arc-manager-panel .form-field>label.span2{grid-column:1/-1}
+.arc-manager-panel input:not([type=checkbox]):not([type=radio]),.arc-manager-panel select,.arc-manager-panel textarea{box-sizing:border-box;display:block;width:100%;min-width:0;min-height:36px;border-radius:5px;background:#0b192a;color:#f0f6ff;border:1px solid #37516c;padding:8px 10px;font:inherit;font-size:12px}
+.arc-manager-panel textarea{min-height:75px;resize:vertical}.arc-manager-panel input:focus,.arc-manager-panel select:focus,.arc-manager-panel textarea:focus{outline:2px solid #1aa9df;outline-offset:1px}
+.arc-manager-panel .form-field>label.inline-flex{flex-direction:row;align-items:center;gap:8px}
+.arc-manager-panel .form-field input[type=file]{padding:7px}.arc-manager-panel .toolbar{display:flex;gap:5px;flex-wrap:wrap}
+.arc-manager-panel .button{font-size:11px;min-height:32px;padding:7px 10px;border-radius:5px}
+.arc-manager-panel .table-wrap{overflow-x:auto;max-width:100%}.arc-manager-panel .data-table{width:100%;border-collapse:collapse;font-size:11px;min-width:680px}
+.arc-manager-panel .data-table th{background:#1a3550;color:#b6d4ed;text-align:left;font-size:10px;white-space:nowrap}
+.arc-manager-panel .data-table td,.arc-manager-panel .data-table th{padding:9px;border-bottom:1px solid #2c415a;vertical-align:middle}
+.arc-manager-panel .data-table td{color:#e1ecf9}.arc-manager-panel .pref-switch{display:flex;align-items:center;gap:10px;margin:10px 0;color:#d7e9f7}
+.arc-manager-panel .pref-switch span{display:flex;flex-direction:column;gap:3px}.arc-manager-panel .pref-switch small{color:#8da9c1}
+.arc-manager-panel .network-danger-zone{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:15px;padding:12px;border:1px solid #6b3d45;background:#311c2a;border-radius:6px;max-width:100%}
+.arc-manager-panel .network-danger-zone>div:first-child{display:flex;flex-direction:column;gap:5px}.arc-manager-panel .network-danger-zone small{color:#dfacb6}
+.arc-manager-panel .network-danger-actions{display:flex;gap:6px;flex-wrap:wrap}
+.arc-manager-footer{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 15px;border-top:1px solid #2d4766;background:#11243a;color:#8caac4;font-size:11px}
+@media(max-width:700px){.arc-network-manager{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.arc-manager-body{padding:9px}.arc-manager-panel .card{padding:11px}.arc-manager-panel .form-field{grid-template-columns:1fr}.arc-manager-panel .form-field>label.span2{grid-column:auto}.arc-manager-footer span{display:none}}
+@media(prefers-reduced-motion:reduce){.arc-network-manager[open]{animation:none}}
+
+/* Toolbar unificada: seleção, estado, atividade e ações na barra de identificação */
+.arc-redes-header-controls{display:flex;align-items:center;gap:7px;min-width:0;flex:1 1 auto;justify-content:flex-end;margin:0}
+.arc-agent-select-wrap{display:flex;align-items:center;gap:7px;background:#102840;border:1px solid #315777;border-radius:6px;padding:0 9px;min-width:110px;max-width:265px;flex:1 1 200px;height:36px;color:#4ec7f5}
+.arc-agent-select-wrap select{background:transparent;color:#e7f4ff;border:0;outline:none;min-width:0;width:100%;font-size:12px;cursor:pointer;height:100%}
+.arc-agent-select-wrap select option{background:#102840;color:#e7f4ff}
+.arc-agent-state,.arc-agent-running{display:grid;place-items:center;flex:0 0 30px;width:30px;height:32px;border-radius:6px;border:1px solid #2e4966;background:#102840;font-size:13px}
+.arc-agent-state.is-online{color:#4ee3a5}.arc-agent-state.is-online i{animation:arcAgentPulse 2.4s ease-in-out infinite}
+.arc-agent-state.is-offline{color:#f18586}.arc-agent-running{color:#6ca2c3}.arc-agent-running.is-running{color:#f9c463}
+.arc-redes-header-controls .arc-identity-icon{flex:0 0 35px}
+.arc-redes-header-controls .is-refreshing i{animation:arcSpin .6s linear infinite}
+@keyframes arcAgentPulse{50%{opacity:.4;filter:drop-shadow(0 0 5px #4ee3a5)}}@keyframes arcSpin{to{transform:rotate(360deg)}}
+.arc-command-log{position:fixed;top:76px;right:18px;z-index:99999;max-width:min(400px,calc(100vw - 36px));min-width:220px;padding:13px 16px;border-radius:8px;background:#18334e;color:#f1f9ff;border:1px solid #3e779b;box-shadow:0 15px 38px #0007;font-size:12px;line-height:1.5;pointer-events:none;opacity:0;transform:translateX(35px)}
+.arc-command-log.arc-toast-show{opacity:1;transform:translateX(0);animation:arcToastEnter .22s ease-out}
+.arc-command-log[data-kind=error]{border-color:#d36771;background:#44232e}.arc-command-log[data-kind=success]{border-color:#36a78c;background:#173d39}
+.arc-command-log[hidden]{display:none!important}
+@keyframes arcToastEnter{from{opacity:0;transform:translateX(35px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:760px){.arc-redes-page .arc-redes-identidade{max-width:28%;min-width:85px}.arc-redes-identity-bar .arc-redes-identidade strong{font-size:11px}.arc-agent-select-wrap{flex-basis:100px}.arc-redes-header-controls{gap:4px}.arc-agent-state,.arc-agent-running{flex-basis:24px;width:24px}.arc-redes-header-controls .arc-identity-icon{width:30px;height:32px;flex-basis:30px}}
+@media(max-width:480px){.arc-redes-identity-bar .arc-redes-identidade{min-width:65px}.arc-agent-select-wrap{min-width:75px;padding:0 4px}.arc-agent-select-wrap>i{display:none}.arc-redes-header-controls .arc-identity-icon{flex-basis:28px;width:28px}}
+@media(prefers-reduced-motion:reduce){.arc-agent-state.is-online i,.arc-redes-header-controls .is-refreshing i,.arc-command-log.arc-toast-show{animation:none}}
+
+/* Cabeçalho operacional: agente à esquerda, atalhos à direita. */
+.arc-redes-operational-header{min-height:48px;padding:6px 12px}
+.arc-redes-operational-header .arc-redes-header-controls{width:100%;justify-content:space-between;gap:10px}
+.arc-redes-header-left,.arc-redes-header-right{display:flex;align-items:center;gap:7px;min-width:0}
+.arc-redes-header-left{flex:1 1 auto}.arc-redes-header-right{flex:0 0 auto;margin-left:auto}
+.arc-redes-operational-header .arc-agent-select-wrap{flex:0 1 325px;width:clamp(155px,28vw,325px);max-width:325px;height:34px;min-width:115px}
+.arc-redes-operational-header .arc-agent-state{border:0;background:none;flex:0 0 12px;width:12px;height:auto;font-size:10px}
+.arc-redes-operational-header .arc-agent-select-wrap.is-online{border-color:#338b72}
+.arc-redes-operational-header .arc-agent-select-wrap.is-offline{border-color:#536374}
+.arc-redes-operational-header .arc-agent-state.is-offline{color:#8494a5}
+.arc-redes-operational-header .arc-agent-running{height:34px}
+.arc-redes-operational-header .arc-identity-icon{height:34px;width:34px;flex:0 0 34px}
+.arc-redes-operational-header .arc-agent-select-wrap option.arc-option-online{color:#58db9b}
+.arc-redes-operational-header .arc-agent-select-wrap option.arc-option-offline{color:#a1a9b2}
+.arc-alert-count[hidden]{display:none!important}
+@media(max-width:600px){.arc-redes-operational-header{padding:6px}.arc-redes-header-left,.arc-redes-header-right{gap:4px}.arc-redes-operational-header .arc-agent-select-wrap{flex:1 1 auto;width:auto;min-width:85px;padding:0 5px}.arc-redes-operational-header .arc-agent-select-wrap>i{display:none}.arc-redes-operational-header .arc-agent-state{display:grid}.arc-redes-operational-header .arc-agent-running{flex:0 0 28px;width:28px}.arc-redes-operational-header .arc-identity-icon{width:30px;flex-basis:30px}}
+
+/* Cards operacionais, dispositivos e relatórios */
+/* Arcoll Speed Connection — painéis de operação alinhados ao desktop Windows */
+.asc-ops,.asc-monitor{--ops-bg:#081222;--ops-panel:#0e1c31;--ops-border:#243954;--ops-text:#e5efff;--ops-muted:#8fa4c1;--ops-accent:#25b9f4;color:var(--ops-text);background:var(--ops-bg);border:1px solid var(--ops-border);border-radius:8px;padding:16px;min-height:320px;font-family:Segoe UI,Arial,sans-serif}
+.asc-ops *,.asc-monitor *{box-sizing:border-box}
+.asc-ops-head,.asc-ops-panel-title{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.asc-ops-head{margin-bottom:14px}.asc-ops-head small{font-size:10px;letter-spacing:1.2px;color:#45c5f4;font-weight:700}
+.asc-ops-head h1{font-size:21px;line-height:1.3;color:#f0f7ff;margin:4px 0}.asc-ops-head p{font-size:12px;color:var(--ops-muted);margin:0}
+.asc-ops-badge{font-size:11px;color:#63dbb3;background:#113b39;border:1px solid #286a60;padding:7px 10px;border-radius:4px}
+.asc-ops-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.asc-ops .asc-btn{background:#182b44;border:1px solid #35506f;color:#e9f4ff;padding:9px 13px;border-radius:4px;font-size:12px;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s,transform .15s}
+.asc-ops .asc-btn:hover{background:#244366;border-color:#42bde9;transform:translateY(-1px)}
+.asc-ops .asc-btn.asc-primary{background:#1199d3;border-color:#26b6ee;color:#061725;font-weight:700}
+.asc-ops-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0}
+.asc-ops-kpi{background:#11243b;border:1px solid #27415f;border-radius:5px;padding:12px;min-width:0}
+.asc-ops-kpi span{display:block;color:var(--ops-muted);font-size:11px;margin-bottom:6px}
+.asc-ops-kpi strong{display:block;font-size:18px;overflow-wrap:anywhere;color:#e7f7ff}
+.asc-ops-panel{border:1px solid var(--ops-border);background:var(--ops-panel);border-radius:5px;padding:13px;margin-top:12px;min-width:0}
+.asc-ops-panel-title{padding-bottom:10px;border-bottom:1px solid #233a58}
+.asc-ops-panel-title h2{font-size:14px;color:#f1f8ff;margin:0}.asc-ops-panel-title span{font-size:11px;color:var(--ops-muted)}
+.asc-ops-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:12px}
+.asc-ops-facts>div{background:#14273e;border:1px solid #263d58;border-radius:4px;padding:10px;min-width:0}
+.asc-ops-facts small{display:block;font-size:10px;color:var(--ops-muted);margin-bottom:6px}
+.asc-ops-facts strong{font-size:12px;color:var(--ops-text);overflow-wrap:anywhere}
+.asc-ops-empty{font-size:12px;color:var(--ops-muted);padding:24px 12px;text-align:center}
+.asc-ops-events{max-height:280px;overflow:auto;margin-top:8px}
+.asc-ops-event{display:grid;grid-template-columns:150px 1fr minmax(100px,1fr);gap:10px;padding:8px;border-bottom:1px solid #23344b;font-size:11px;align-items:center}
+.asc-ops-event span,.asc-ops-event small{color:var(--ops-muted)}
+.asc-ops-event strong{font-weight:600;color:#dbe9fb;overflow-wrap:anywhere}
+.asc-ops-topology{padding:18px 10px;border:1px solid var(--ops-border);border-radius:5px;background:var(--ops-panel)}
+.asc-ops-node{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;background:#142e4b;border:1px solid #315c81;border-radius:6px;padding:12px;min-width:120px;max-width:220px}
+.asc-ops-node i{font-size:22px;color:#2cc2f6}.asc-ops-node strong{font-size:12px;overflow-wrap:anywhere}.asc-ops-node small{font-size:10px;color:var(--ops-muted)}
+.asc-ops-node.root{margin:0 auto 20px;background:#11415a}.asc-ops-nodes{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+@media(max-width:700px){.asc-ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-ops-event{grid-template-columns:1fr 1fr}.asc-ops-event small{display:none}.asc-ops{padding:10px}}
+@media print{.arc-redes-menu,.arc-redes-toolbar,.asc-ops-actions{display:none!important}.asc-ops{color:#111;background:#fff;border:0}.asc-ops-panel{background:#fff;color:#111}}
+
+/* Monitoramento, gráfico e console do agente Windows */
+/* Espelho visual do painel de monitoramento do agente Windows. Escopo exclusivo. */
+.asc-monitor{--asc-bg:#071426;--asc-panel:#101f35;--asc-line:#263d5b;--asc-fg:#e9f3ff;--asc-muted:#9bb0c9;--asc-cyan:#20baf2;color:var(--asc-fg);background:var(--asc-bg);padding:20px;border:1px solid #203b59;border-radius:8px;display:grid;gap:15px;min-width:0;font-family:Segoe UI,Arial,sans-serif}
+.asc-monitor *{box-sizing:border-box}.asc-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.asc-kicker{color:var(--asc-cyan);font-size:10px;font-weight:700;letter-spacing:1.1px}.asc-heading h1{font-size:23px;line-height:1.25;color:var(--asc-fg);margin:5px 0}.asc-heading p{font-size:12px;color:var(--asc-muted);margin:0}.asc-agent-state{font-size:12px;color:#ffca78;border:1px solid #775b34;border-radius:6px;padding:8px 12px;white-space:nowrap}.asc-agent-state.online{color:#6ee7b7;border-color:#205f50}
+.asc-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.asc-metric{background:var(--asc-panel);border:1px solid var(--asc-line);border-radius:5px;padding:13px 15px;display:grid;gap:5px;min-width:0;transition:transform .2s,border-color .2s}.asc-metric:hover{transform:translateY(-2px);border-color:var(--asc-cyan)}.asc-metric span,.asc-metric small{font-size:12px;color:var(--asc-muted)}.asc-metric strong{font-size:25px;line-height:1.2;color:var(--asc-cyan);overflow-wrap:anywhere}
+.asc-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.asc-live{font-size:11px;font-weight:700;background:#113c35;color:#58dfaa;padding:10px 12px;border-radius:4px;margin-right:6px}.asc-live.paused{color:#ffca78;background:#493d29}.asc-live i{font-size:9px;margin-right:5px}.asc-monitor .asc-btn{appearance:none;display:inline-flex;align-items:center;gap:6px;text-decoration:none!important;font-size:12px;font-weight:600;line-height:1.25;color:var(--asc-fg)!important;background:#192b44;border:1px solid #324b6c;border-radius:4px;padding:9px 12px;cursor:pointer;transition:background .18s,transform .18s}.asc-monitor .asc-btn:hover{background:#294565;transform:translateY(-1px)}.asc-monitor .asc-primary{background:#16a9e1;color:#071426!important;border-color:#16a9e1}
+.asc-chart-panel{background:var(--asc-panel);border:1px solid var(--asc-line);border-radius:5px;padding:12px 14px;min-width:0}.asc-chart-title{font-size:14px;font-weight:700;display:flex;justify-content:space-between;gap:12px}.asc-chart-title small{font-size:11px;font-weight:400;color:var(--asc-muted)}.asc-chart-wrap{height:270px;position:relative;margin-top:10px}.asc-chart-wrap svg{display:block;width:100%;height:100%}.asc-tooltip{position:absolute;pointer-events:none;background:#071426;border:1px solid #38bdf8;border-radius:4px;padding:6px 9px;color:#fff;font-size:11px;z-index:3;white-space:nowrap}.asc-chart-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--asc-muted)}.asc-console{background:#0b1729;border:1px solid #253c5b;border-radius:5px;padding:10px 12px;min-height:82px;max-height:120px;overflow:auto;white-space:pre-wrap;color:#9ec8ff;font:11px/1.5 Consolas,monospace}
+@media(max-width:800px){.asc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-heading{align-items:flex-start;flex-direction:column}.asc-chart-wrap{height:220px}}@media(max-width:450px){.asc-monitor{padding:12px}.asc-metrics{gap:7px}.asc-metric{padding:10px}.asc-metric strong{font-size:19px}.asc-actions .asc-btn{flex:1;justify-content:center}}
+
+
+/* Confirmação exclusiva das operações da rede */
+.arc-network-confirm{position:fixed;inset:0;margin:auto;width:min(430px,calc(100vw - 28px));max-width:none;padding:22px;border:1px solid #426084;border-radius:10px;background:#0e2037;color:#e9f4ff;box-shadow:0 20px 65px #0009}
+.arc-network-confirm::backdrop{background:#030b17b9;backdrop-filter:blur(3px)}
+.arc-confirm-head{display:flex;align-items:center;gap:10px}
+.arc-confirm-head i{font-size:20px;color:#ffc17a}
+.arc-confirm-head h2{margin:0;color:#fff;font-size:17px}
+.arc-network-confirm p{margin:14px 0 22px;color:#b8cce1;font-size:13px;line-height:1.55}
+.arc-confirm-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.arc-network-confirm .button{border-radius:5px;padding:9px 13px;font-size:12px}
+
+
+
+/* Padrão de componentes de operação e formulários da rede */
+.arc-redes-page .asc-ops .data-table{width:100%;border-collapse:collapse;min-width:550px;font-size:12px}
+.arc-redes-page .asc-ops .data-table th{background:#183452;color:#bcd9ec;text-align:left;padding:11px 12px;font-size:11px;border-bottom:1px solid #36516c}
+.arc-redes-page .asc-ops .data-table td{color:#e4f0ff;border-bottom:1px solid #2b405c;padding:10px 12px;vertical-align:middle}
+.arc-redes-page .asc-ops .data-table tbody tr:hover{background:#142e49}
+.arc-redes-page .arc-manager-panel .empty-state{background:#11273f;border:1px dashed #315070;border-radius:7px;padding:25px;text-align:center;color:#a9c3d9;font-size:12px}
+.arc-manager-panel :where(input[type="checkbox"],input[type="radio"]){accent-color:#25b9f4}
+.arc-manager-panel :where(.badge,.status){display:inline-flex;gap:6px;align-items:center;white-space:nowrap;border:1px solid #315470;border-radius:20px;padding:5px 9px;background:#193a55;color:#aadaef;font-size:11px;font-weight:700}
+.arc-manager-panel .status.online{color:#5cdeb0;background:#173c3c;border-color:#30705f}
+.arc-manager-panel .card :where(.button,.btn){display:inline-flex;gap:6px;align-items:center;justify-content:center;min-height:32px;max-width:100%;font-size:11px;white-space:normal}
+.arc-manager-panel .card form{min-width:0}
+.arc-manager-panel .card :where(button,.button){transition:background .15s ease,border-color .15s ease}
+.arc-manager-panel .card :where(button,.button):hover{filter:brightness(1.09)}
+/* network-danger-zone max-width lives in its base declaration. */
+.arc-manager-panel .arc-agent-page-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.arc-redes-page .arc-agent-page-actions .button{padding:7px 11px;border-radius:5px}
+@media(min-width:701px){.arc-manager-panel .form-field>label:has(textarea){grid-column:1/-1}}
+@media(prefers-reduced-motion:reduce){.arc-redes-page *, .arc-network-manager[open],.arc-agent-state.is-online i,.arc-agent-running i,.arc-command-log{animation:none!important;transition:none!important}}
+
+
+
+@media(max-width:480px){
+  .arc-network-brand{width:30px;height:30px;flex-basis:30px}
+  .arc-redes-identity-bar{gap:5px;padding-inline:6px}
+  .arc-redes-identity-actions{gap:3px}
+  .arc-agent-select-wrap{max-width:145px}
+  .arc-ops-head h1,.asc-heading h1{font-size:18px}
+}
+
+
+/* Módulos da rede são destinos próprios, sem submenus recolhidos. */
+.arc-redes-menu{gap:6px;padding:9px 12px;scroll-padding-inline:12px}
+.arc-redes-menu-link{flex:0 0 auto;min-height:36px;border:1px solid transparent;border-radius:8px;font-size:12px}
+.arc-redes-menu-link.active{border-color:#3ba9e1;box-shadow:inset 0 -2px 0 #75d7ff}
+.arc-redes-menu-link:focus-visible{outline:2px solid #51cafa;outline-offset:2px}
+@media(max-width:680px){.arc-redes-menu{padding:7px}.arc-redes-menu-link{min-height:40px;padding:8px 10px}}
+
+/* Navegação autônoma das seções da rede, independente do menu administrativo. */
+.arc-redes-menu-link i{width:15px;text-align:center;flex-shrink:0}
+.arc-redes-menu-link.active{font-weight:700}
+
+/* Monitoramento compacto: status e indicadores na mesma linha. */
+.asc-monitor{gap:10px;padding:12px;min-height:0}
+.asc-monitor-summary{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:nowrap}
+.asc-monitor-summary .asc-live{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;margin:0;padding:8px 10px;white-space:nowrap;font-size:10px;min-height:36px}
+.asc-monitor-summary .asc-metrics{display:flex;align-items:stretch;gap:6px;flex:1 1 auto;min-width:0}
+.asc-monitor-summary .asc-metric{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 9px;min-height:36px;border-radius:5px}
+.asc-monitor-summary .asc-metric span{font-size:10px;white-space:nowrap}
+.asc-monitor-summary .asc-metric strong{font-size:14px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asc-monitor .asc-chart-panel{padding:10px 12px}
+@media(max-width:850px){.asc-monitor-summary{flex-wrap:wrap}.asc-monitor-summary .asc-metrics{flex:1 1 100%}}
+@media(max-width:480px){.asc-monitor-summary .asc-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.asc-monitor-summary .asc-metric{padding:7px}.asc-monitor-summary .asc-metric strong{font-size:13px}}
+
+
+/* Área de monitoramento: a altura é governada pelo espaço disponível, sem rolagem. */
+.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;padding:8px 12px;}
+.arc-redes-page .asc-monitor{flex:1 1 auto;min-height:0;max-height:100%;display:flex;flex-direction:column;gap:8px;padding:9px;overflow:hidden;}
+.arc-redes-page .asc-monitor-summary{flex:0 0 auto;}
+.arc-redes-page .asc-monitor .asc-chart-panel{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:8px;}
+.arc-redes-page .asc-monitor .asc-chart-wrap{height:auto!important;min-height:0!important;max-height:none!important;flex:1 1 0;margin-top:4px;overflow:hidden;}
+.arc-redes-page .asc-monitor .asc-chart-title,.arc-redes-page .asc-monitor .asc-chart-foot{flex-shrink:0;}
+@media(max-width:700px){.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{padding:5px}.arc-redes-page .asc-monitor{padding:5px}.asc-monitor-summary{flex-wrap:wrap}.arc-redes-page .asc-monitor .asc-chart-wrap{min-height:0!important}}
+/* Teste de velocidade: interface única e responsiva, sem rolagem interna. */
+.arc-redes-page:has(.arc-speed-view) .arc-redes-conteudo{display:flex;overflow:hidden;padding:8px 12px}
+.arc-speed-view{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:clamp(8px,2vh,20px);color:#e9f3ff;background:#081426;border:1px solid #203b59;border-radius:8px;padding:10px;overflow:hidden}
+.arc-speed-start{position:relative;isolation:isolate;width:clamp(142px,27vh,228px);height:clamp(142px,27vh,228px);border-radius:50%;border:2px solid #20baf2;background:#0b1d32;box-shadow:0 0 0 11px #071b2e,0 0 0 12px #175b74,0 0 0 23px #071b2e,0 0 0 24px #14445b;color:#23d6df;font-weight:750;font-size:clamp(23px,4vh,37px);font-style:italic;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;transition:transform .2s,box-shadow .2s}
+.arc-speed-start:hover:not(:disabled){transform:scale(1.035);box-shadow:0 0 0 11px #071b2e,0 0 0 12px #20baf2,0 0 0 23px #071b2e,0 0 0 24px #20baf2,0 0 40px #178ab433}
+.arc-speed-start:disabled{cursor:progress;opacity:1}.arc-speed-start[aria-busy=true]{animation:arc-speed-pulse 1.5s ease-in-out infinite}
+@keyframes arc-speed-pulse{50%{box-shadow:0 0 0 11px #071b2e,0 0 0 12px #20baf2,0 0 0 23px #071b2e,0 0 0 24px #20baf2,0 0 40px #20baf280}}
+.arc-speed-start small{font-size:12px;font-style:normal;font-weight:500;color:#a4bad0}.arc-speed-caption{font-size:12px;color:#9bb0c9;text-align:center;min-height:18px}.arc-speed-progress{width:min(370px,85%);height:4px;background:#1b3850;border-radius:99px;overflow:hidden}.arc-speed-progress>span{display:block;height:100%;width:0;background:linear-gradient(90deg,#23d6df,#258ee0);transition:width .4s}
+.arc-speed-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;width:min(660px,96%)}.arc-speed-result{border:1px solid #274765;background:#11253b;border-radius:7px;padding:12px;text-align:center;min-width:0}.arc-speed-result span{display:block;color:#93aec7;font-size:11px}.arc-speed-result strong{display:block;color:#24c8f3;font-size:clamp(20px,3vw,32px);font-weight:700;margin:3px 0}.arc-speed-result small{color:#8ca5be;font-size:10px}.arc-speed-note{text-align:center;color:#799ab5;font-size:11px;max-width:90%}
+@media(max-height:650px){.arc-speed-view{gap:8px}.arc-speed-start{width:135px;height:135px;font-size:23px}.arc-speed-result{padding:6px}.arc-speed-result strong{font-size:20px}}
+@media(max-width:450px){.arc-speed-results{gap:4px;width:100%}.arc-speed-result{padding:7px 3px}.arc-speed-result strong{font-size:18px}.arc-speed-result span{font-size:10px}}
+
+/* Inventário compacto: uma linha por equipamento, detalhes em modal. */
+.arc-redes-page .arc-inventory{display:flex;flex-direction:column;gap:9px;min-height:0;height:100%;padding:11px 12px}
+.arc-inventory-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.arc-inventory-toolbar input,.arc-inventory-toolbar select{height:36px;border-radius:7px;border:1px solid #35506e;background:#14253a;color:#f2f8ff;padding:0 10px;font-size:12px}
+.arc-inventory-search{display:flex;align-items:center;gap:8px;min-width:220px;flex:1 1 260px;background:#14253a;border:1px solid #35506e;border-radius:7px;padding-left:10px;color:#83bfe0}
+.arc-inventory-search input{width:100%;background:none;border:0;outline:0}
+.arc-inventory-total{font-size:11px;color:#a0b9d3;white-space:nowrap;margin-right:auto}
+.arc-inventory-state{font-size:11px;color:#8fb3cb;min-height:18px}
+.arc-inventory-tablewrap{min-height:0;flex:1;overflow:auto;border:1px solid #28405f;border-radius:8px;background:#0b192c}
+.arc-inventory-table{width:100%;border-collapse:collapse;font-size:11px;min-width:1000px}
+.arc-inventory-table th{position:sticky;top:0;z-index:1;text-align:left;font-size:10px;background:#183451;color:#a7c7e5;padding:10px;border-bottom:1px solid #35516f}
+.arc-inventory-table td{padding:8px 10px;border-bottom:1px solid #20354e;color:#d6e9fa;white-space:nowrap}
+.arc-inventory-table tr{cursor:pointer}.arc-inventory-table tbody tr:hover,.arc-inventory-table tbody tr:focus-visible{background:#153755;outline:0}
+.arc-inventory-table tr.is-pinned{background:#122f45;border-left:3px solid #36c8f3}
+.arc-device-ident{display:flex;align-items:center;gap:9px}.arc-device-ident strong{display:block;font-weight:650}.arc-device-ident small{display:block;color:#719ab8;font-size:10px;margin-top:2px}
+.arc-device-icon,.arc-device-symbol{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:#183b52;border:1px solid #2e5977;color:#34c5f6;flex:none;font-size:15px}
+.arc-device-badge{display:inline-block;border:1px solid #715267;background:#362238;color:#e7abb9;border-radius:99px;padding:3px 8px;font-size:10px}.arc-device-badge.online{background:#123c35;border-color:#276a57;color:#57ddb3}
+.arc-device-mono{font:10px Consolas,monospace}
+.arc-device-dialog{padding:0;border:1px solid #2a4d66;border-radius:14px;background:#0e2034;color:#e7f3ff;width:min(680px,95vw);max-height:90vh;overflow:auto;box-shadow:0 24px 80px #0009}
+.arc-device-dialog::backdrop{background:#020917ad}.arc-device-modalhead,.arc-device-modalfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 17px;background:#122a43;border-bottom:1px solid #29445f}
+.arc-device-modalhead small{color:#42bde9;font-size:10px;font-weight:700;letter-spacing:.8px}.arc-device-modalhead h2{margin:3px 0 0;font-size:18px;color:#fff}
+.arc-device-close{background:#1c3a56;color:#fff;border:1px solid #315676;border-radius:7px;width:32px;height:32px;cursor:pointer;font-size:20px}
+.arc-device-modalbody{padding:16px}.arc-device-summary{display:flex;gap:12px;align-items:center;margin-bottom:16px}.arc-device-summary strong{display:block;font-size:16px}.arc-device-summary small{display:block;font-size:11px;color:#a1bcd4;margin-top:4px}.arc-device-summary .arc-device-badge{margin-left:auto}
+.arc-device-symbol{width:44px;height:44px;font-size:21px}.arc-device-formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.arc-device-formgrid label{font-size:11px;color:#a9c4dc;display:flex;flex-direction:column;gap:6px}
+.arc-device-formgrid input:not([type=checkbox]),.arc-device-formgrid select{height:36px;background:#102c43;color:#f0f7ff;border:1px solid #395675;border-radius:7px;padding:0 10px;min-width:0}
+.arc-device-formgrid .arc-device-check{display:flex;align-items:center;flex-direction:row;gap:8px;align-self:center}.arc-device-check input{accent-color:#38bdf8}
+.arc-device-facts{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:17px}.arc-device-facts>div{background:#102941;border:1px solid #254561;border-radius:7px;padding:9px;min-width:0}.arc-device-facts small{display:block;color:#8cb0cf;font-size:10px;margin-bottom:5px}.arc-device-facts strong{display:block;overflow-wrap:anywhere;font-size:11px}
+.arc-device-modalfoot{border-top:1px solid #29445f;border-bottom:0}.arc-device-modalfoot>div{display:flex;gap:8px}.arc-device-danger{color:#ffaabc;background:transparent;border:1px solid #7d3e54;border-radius:7px;padding:8px 10px;font-size:11px;cursor:pointer}
+@media(max-width:550px){.arc-device-formgrid,.arc-device-facts{grid-template-columns:1fr}.arc-device-modalfoot{flex-wrap:wrap}}
+.arc-redes-page:has(.arc-inventory) .arc-redes-conteudo,.arc-redes-page:has(.arc-inventory-map) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;min-height:0;padding:8px 12px}
+.arc-inventory-map{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.arc-inventory-map .arc-inventory-toolbar strong{font-size:14px}
+.arc-map-scroll{flex:1;overflow:auto;border:1px solid #2b4561;border-radius:8px;padding:16px;background:#0b1729}
+.arc-map-hub{width:min(250px,100%);display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;margin:0 auto 20px;border:1px solid #1d9bd2;border-radius:10px;background:#0c3549;text-align:center}.arc-map-hub i{font-size:23px;color:#54d5ff}.arc-map-hub strong{font-size:12px}.arc-map-hub small{font-size:10px;color:#8bb2cf}
+.arc-map-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.arc-map-group{min-width:0;border:1px solid #2c4966;border-radius:9px;background:#0f2239;overflow:hidden}.arc-map-group>header{padding:10px 12px;border-bottom:1px solid #284561;display:flex;gap:9px;align-items:center;font-size:12px}.arc-map-group>header i{color:#4dc9ee}.arc-map-group>header small{margin-left:auto;color:#89aac4}.arc-map-members{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:7px;padding:10px}.arc-map-member{min-width:0;text-decoration:none;display:flex;flex-direction:column;gap:3px;align-items:center;text-align:center;padding:10px 5px;border:1px solid #4c3047;background:#261f31;border-radius:8px;color:#dceafa;font-size:11px}.arc-map-member.online{border-color:#1c6a5e;background:#0e353c}.arc-map-member i{font-size:19px;color:#6ccbe8}.arc-map-member span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-map-member small{color:#8eabc4;font-size:10px}.arc-map-member:hover{border-color:#42bdeb;background:#16405b}
+
+/* A central da rede executa a varredura ao ser acionada. */
+.arc-inventory-map button.arc-map-hub{font:inherit;color:inherit;cursor:pointer;appearance:none;-webkit-appearance:none;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}
+.arc-inventory-map button.arc-map-hub:hover{border-color:#54d5ff;background:#10445d;box-shadow:0 0 0 2px rgba(84,213,255,.12)}
+.arc-inventory-map button.arc-map-hub:focus-visible{outline:2px solid #54d5ff;outline-offset:3px}
+.arc-inventory-map button.arc-map-hub:disabled{cursor:wait;opacity:.7}
+.arc-inventory-map .arc-map-hub-action{display:inline-flex;gap:6px;align-items:center;margin-top:4px;color:#83d8f6;font-size:11px;font-weight:600}
+.arc-inventory-map .arc-map-hub-action i{font-size:11px}
+
+/* Seletor operacional: estado informado exclusivamente pela cor do nome. */
+.arc-redes-operational-header .arc-agent-select-wrap{gap:7px;padding-inline:10px}
+.arc-redes-operational-header .arc-agent-picker-icon{font-size:15px;color:#8aaac1;flex-shrink:0}
+.arc-redes-operational-header .arc-agent-state{display:none!important}
+.arc-redes-operational-header .arc-agent-select-wrap select{font-weight:700;background:transparent!important;min-width:0}
+.arc-redes-operational-header .arc-agent-select-wrap.is-online select{color:#3fd48f!important}
+.arc-redes-operational-header .arc-agent-select-wrap.is-offline select{color:#9aa7b5!important}
+.arc-redes-operational-header .arc-agent-select-wrap select option{background:#14273b;color:#cdd9e2}
+.arc-redes-operational-header .arc-agent-select-wrap select option.arc-option-online{color:#42d58d}
+.arc-redes-operational-header .arc-agent-select-wrap select option.arc-option-offline{color:#929ca7}
+.arc-report-dialog{border:1px solid #35566e;background:#101f31;color:#e8f3ff;border-radius:14px;padding:0;width:min(560px,95vw);max-height:92dvh;box-shadow:0 24px 70px #0008}
+.arc-report-dialog::backdrop{background:#030b15c7}
+.arc-report-dialog .arc-report-head{padding:17px 20px;border-bottom:1px solid #2d4860;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.arc-report-dialog .arc-report-head h2{margin:0;font-size:17px;color:#e8f3ff}.arc-report-dialog .arc-report-head small{color:#8eafc7;font-size:11px}
+.arc-report-dialog .arc-report-body{padding:20px;overflow:auto;max-height:calc(92dvh - 122px)}
+.arc-report-dialog .arc-report-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}.arc-report-dialog label{display:grid;gap:6px;font-size:12px;color:#aabed0}
+.arc-report-dialog input[type=date]{width:100%;min-width:0;background:#172c41;border:1px solid #3b5670;border-radius:8px;padding:11px;color:#fff;color-scheme:dark}
+.arc-report-dialog .arc-report-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.arc-report-dialog button{cursor:pointer}
+.arc-report-dialog .arc-report-close{background:transparent;border:0;font-size:22px;color:#b2cadd}.arc-report-dialog .arc-report-hint{font-size:12px;color:#9aafbf;margin:14px 0 0}.arc-report-dialog .arc-report-error{color:#ffacb4;font-size:12px}
+.arc-report-preview-dialog{width:min(950px,97vw);max-height:96dvh}.arc-report-preview-dialog .arc-report-body{max-height:calc(96dvh - 130px);background:#758395;padding:18px}
+.arc-report-sheet{box-sizing:border-box;width:210mm;min-height:297mm;max-width:100%;margin:auto;padding:15mm 14mm;background:white;color:#19283a;box-shadow:0 12px 35px #16223655;font:11px/1.5 Arial,sans-serif}
+.arc-report-sheet h1{font-size:20px;margin:0 0 5px}.arc-report-sheet h2{font-size:12px;margin:20px 0 8px;border-bottom:1px solid #b8c7d4;padding-bottom:6px}.arc-report-sheet .rmuted{color:#576b7b}.arc-report-sheet .rmeta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;border-bottom:2px solid #203f58;padding-bottom:12px}.arc-report-sheet table{border-collapse:collapse;width:100%;font-size:10px}.arc-report-sheet th,.arc-report-sheet td{padding:6px;border-bottom:1px solid #dbe2ea;text-align:left;overflow-wrap:anywhere}.arc-report-sheet th{background:#edf2f6}.arc-report-sheet .rkpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}.arc-report-sheet .rkpis div{padding:10px;border:1px solid #ccd7e0;border-radius:5px}.arc-report-sheet .rkpis strong{display:block;font-size:19px}.arc-report-sheet .rfoot{font-size:9px;color:#74808c;margin-top:24px}
+@media(max-width:650px){.arc-report-dialog .arc-report-form{grid-template-columns:1fr}.arc-report-preview-dialog .arc-report-body{padding:4px}.arc-report-sheet{padding:12px;font-size:9px}.arc-report-sheet .rkpis{gap:4px}}
+@page{size:A4 portrait;margin:0}
+@media print{html,body{background:#fff!important}body *{visibility:hidden!important}#arc-report-preview,#arc-report-preview *{visibility:visible!important}#arc-report-preview{display:block!important;position:static!important;inset:auto!important;overflow:visible!important;border:0!important;max-width:none!important;max-height:none!important;width:100%!important;background:white!important;box-shadow:none!important}#arc-report-preview .arc-report-head,#arc-report-preview .arc-report-actions{display:none!important}#arc-report-preview .arc-report-body{display:block!important;max-height:none!important;overflow:visible!important;background:white!important;padding:0!important}#arc-report-preview .arc-report-sheet{width:210mm!important;min-height:297mm!important;max-width:none!important;box-shadow:none!important;margin:0!important;padding:15mm 14mm!important}#arc-report-preview table tr{break-inside:avoid}}
+
+/* Botões padronizados do workspace de redes e dos modais portais. */
+.arc-redes-page .asc-btn, .arc-report-dialog .asc-btn, .arc-alert-dialog .asc-btn, .arc-network-confirm .button {
+  appearance:none!important;display:inline-flex!important;align-items:center;justify-content:center;gap:7px;
+  min-height:35px;padding:8px 13px!important;border:1px solid #3c5e78!important;border-radius:8px!important;
+  background:#1a3046!important;color:#e6f3fc!important;font:600 12px/1.25 inherit;
+  font-family:inherit!important;font-size:12px!important;font-weight:600!important;
+  cursor:pointer;text-decoration:none!important;box-shadow:none!important;transition:background .15s,border-color .15s,transform .15s;
+}
+.arc-redes-page .asc-btn:hover, .arc-report-dialog .asc-btn:hover,.arc-alert-dialog .asc-btn:hover {background:#294a65!important;border-color:#51b8db!important}
+.arc-redes-page .asc-btn.asc-primary, .arc-report-dialog .asc-btn.asc-primary {
+ background:#078fc4!important;color:#fff!important;border-color:#22b8ed!important;
+}
+.arc-redes-page .asc-btn.asc-primary:hover,.arc-report-dialog .asc-btn.asc-primary:hover{background:#0aaddf!important}
+.arc-redes-page .asc-btn:disabled,.arc-report-dialog .asc-btn:disabled{opacity:.48;cursor:wait}
+.arc-redes-page .asc-btn:focus-visible,.arc-report-dialog .asc-btn:focus-visible{outline:2px solid #73d6ff;outline-offset:3px}
+.arc-report-dialog .arc-report-close{width:29px;height:29px;display:inline-grid;place-items:center;border-radius:7px;line-height:1}
+.arc-report-dialog .arc-report-close:hover{background:#24445e;color:white}
+.arc-report-dialog .arc-report-actions{align-items:center}
+
+/* Painéis administrativos da rede: formulário compacto e logo editável */
+.arc-network-brand-editor{display:grid;grid-template-columns:100px minmax(0,1fr);gap:13px;align-items:stretch;width:100%}
+.arc-network-logo-pick{height:100px;border:1px dashed #497393;border-radius:12px;background:#142e43;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;color:#9dccdf}
+.arc-network-logo-pick img{width:100%;height:100%;object-fit:contain}.arc-network-logo-pick span{text-align:center}.arc-network-logo-pick span i{font-size:28px;display:block;margin-bottom:5px}
+.arc-network-brand-fields{display:grid;gap:8px;min-width:0}.arc-network-brand-fields label{min-width:0}.arc-network-brand-fields input{width:100%;min-width:0}
+.arc-manager-tabs .arc-manager-tab{cursor:pointer;transition:background .15s,border-color .15s,color .15s}.arc-manager-tab.active,.arc-manager-tab[aria-selected=true]{background:#127fb3!important;color:#fff!important;border-bottom:2px solid #5bd9ff!important}
+.arc-manager-panel[hidden]{display:none!important}
+@media(max-width:650px){.arc-network-brand-editor{grid-template-columns:80px minmax(0,1fr)}.arc-network-logo-pick{height:80px}}
+
+/* Relatórios: visualização do mapa lógico em folha A4 */
+.arc-report-form select{width:100%;min-height:36px;background:#1b324a;border:1px solid #355a76;border-radius:7px;padding:6px 9px;color:#e6f4ff}
+.arc-report-netmap{border:1px solid #bfd1e2;border-radius:12px;padding:12px;background:#eff6fb;break-inside:avoid;margin:10px 0}
+.arc-report-netcenter{margin:0 auto 11px;text-align:center;max-width:260px;padding:9px;border:2px solid #267fa4;border-radius:9px;background:#d9f0fa;color:#103d58;font-weight:700}
+.arc-report-netcenter i{display:block;font-size:20px}.arc-report-netnodes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.arc-report-netnode{min-width:0;position:relative;background:white;border:1px solid #94b6ca;border-radius:8px;padding:7px;text-align:center;color:#234a62;overflow:hidden}
+.arc-report-netnode:before{content:'';display:block;position:absolute;top:-7px;left:50%;height:7px;border-left:2px solid #2693bf}.arc-report-netnode span{display:block;color:#0089b4;font-size:16px}
+.arc-report-netnode strong,.arc-report-netnode small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+@media print{.arc-report-netmap{-webkit-print-color-adjust:exact;print-color-adjust:exact}.arc-report-netnodes{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* Relatórios: visualização do mapa lógico em folha A4 */
+.arc-report-form select{width:100%;min-height:36px;background:#1b324a;border:1px solid #355a76;border-radius:7px;padding:6px 9px;color:#e6f4ff}
+.arc-report-netmap{border:1px solid #bfd1e2;border-radius:12px;padding:12px;background:#eff6fb;break-inside:avoid;margin:10px 0}
+.arc-report-netcenter{margin:0 auto 11px;text-align:center;max-width:260px;padding:9px;border:2px solid #267fa4;border-radius:9px;background:#d9f0fa;color:#103d58;font-weight:700}
+.arc-report-netcenter i{display:block;font-size:20px}.arc-report-netnodes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.arc-report-netnode{min-width:0;position:relative;background:white;border:1px solid #94b6ca;border-radius:8px;padding:7px;text-align:center;color:#234a62;overflow:hidden}
+.arc-report-netnode:before{content:'';display:block;position:absolute;top:-7px;left:50%;height:7px;border-left:2px solid #2693bf}.arc-report-netnode span{display:block;color:#0089b4;font-size:16px}
+.arc-report-netnode strong,.arc-report-netnode small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+@media print{.arc-report-netmap{-webkit-print-color-adjust:exact;print-color-adjust:exact}.arc-report-netnodes{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* Relatórios: visualização do mapa lógico em folha A4 */
+.arc-report-form select{width:100%;min-height:36px;background:#1b324a;border:1px solid #355a76;border-radius:7px;padding:6px 9px;color:#e6f4ff}
+.arc-report-netmap{border:1px solid #bfd1e2;border-radius:12px;padding:12px;background:#eff6fb;break-inside:avoid;margin:10px 0}
+.arc-report-netcenter{margin:0 auto 11px;text-align:center;max-width:260px;padding:9px;border:2px solid #267fa4;border-radius:9px;background:#d9f0fa;color:#103d58;font-weight:700}
+.arc-report-netcenter i{display:block;font-size:20px}.arc-report-netnodes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.arc-report-netnode{min-width:0;position:relative;background:white;border:1px solid #94b6ca;border-radius:8px;padding:7px;text-align:center;color:#234a62;overflow:hidden}
+.arc-report-netnode:before{content:'';display:block;position:absolute;top:-7px;left:50%;height:7px;border-left:2px solid #2693bf}.arc-report-netnode span{display:block;color:#0089b4;font-size:16px}
+.arc-report-netnode strong,.arc-report-netnode small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+@media print{.arc-report-netmap{-webkit-print-color-adjust:exact;print-color-adjust:exact}.arc-report-netnodes{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* Ajustes de contraste, densidade e acessibilidade - gestão da rede */
+#arc-network-manager, #arc-network-manager .arc-network-manager-shell { color:#e5f3ff!important; color-scheme:dark; }
+#arc-network-manager .data-table{width:100%;font-size:11px;table-layout:auto;border-collapse:collapse}
+#arc-network-manager .data-table th{padding:7px 8px!important;color:#d7ebff!important;background:#1b354e!important;white-space:nowrap}
+#arc-network-manager .data-table td{padding:6px 8px!important;color:#d8e8f6!important;background:#132a41!important;vertical-align:middle}
+#arc-network-manager .data-table tr:hover td,#arc-network-manager .data-table tr:focus-within td{background:#20405b!important;color:#fff!important}
+#arc-network-manager .data-table tr:hover td *,#arc-network-manager .data-table tr:focus-within td *{color:inherit!important}
+#arc-network-manager .data-table td small {color:#aac4d9!important}
+#arc-network-manager .data-table .toolbar{display:flex;gap:4px;flex-wrap:nowrap}
+#arc-network-manager .data-table .toolbar button{font-size:10px!important;min-height:29px!important;padding:5px 7px!important;white-space:nowrap}
+#arc-network-manager .button:not(.danger):hover,#arc-network-manager button:not(.danger):hover,#arc-network-manager .arc-manager-tab:hover{background:#244b69!important;color:#fff!important;border-color:#4b9fc7!important}
+#arc-network-manager .button.danger:hover{background:#792d40!important;color:#fff!important}
+#arc-network-manager input:not([type=checkbox]):not([type=file]),#arc-network-manager textarea,#arc-network-manager select{background:#112940!important;color:#eff8ff!important;border-color:#3e617c!important;color-scheme:dark}
+#arc-network-manager input:hover,#arc-network-manager textarea:hover,#arc-network-manager select:hover,#arc-network-manager input:focus,#arc-network-manager textarea:focus,#arc-network-manager select:focus{background:#1c3a54!important;color:#fff!important;border-color:#61bfe9!important}
+#arc-network-manager select option{background:#152d45!important;color:#fff!important}
+#arc-network-manager .arc-manager-panel[hidden]{display:none!important}
+.arc-inventory-table td,.arc-inventory-table th{padding:5px 8px!important;font-size:11px!important;line-height:1.2!important}
+.arc-inventory-table tbody tr{height:37px!important}
+.arc-inventory-table .arc-device-ident{gap:7px!important}
+.arc-inventory-table .arc-device-ident .arc-device-icon{width:27px!important;height:27px!important;min-width:27px!important}
+.arc-inventory-table .arc-device-ident small{font-size:10px!important}
+/* Modal de administração ajustado ao conteúdo, sem painel vazio gigante */
+#arc-network-manager{height:auto!important;max-height:min(680px,calc(100dvh - 28px))!important}
+#arc-network-manager .arc-network-manager-shell{height:auto!important;max-height:min(680px,calc(100dvh - 28px))!important}
+#arc-network-manager .arc-manager-body{flex:0 1 auto!important;min-height:0;max-height:calc(100dvh - 215px);overflow:auto!important}
+#arc-network-manager .arc-manager-footer{flex-shrink:0}
+@media (max-width:700px){#arc-network-manager{width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important}#arc-network-manager .arc-manager-body{max-height:calc(100dvh - 190px)}}
+
+/* Central de comandos: layout compacto e sem sobreposição */
+.arc-redes-page:has(.arc-commands-page) .arc-redes-conteudo{display:flex;min-height:0;overflow:hidden;padding:8px 12px}
+.arc-commands-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:12px;color:#eaf4ff;background:#0b192b;border:1px solid #294560;border-radius:10px}
+/* Central de comandos: apenas operações exclusivas, em cards quadrados. */
+.arc-cmd-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.arc-cmd-toolbar label{max-width:440px;width:100%;display:flex;align-items:center;gap:9px;padding:0 12px;border:1px solid #345774;border-radius:8px;background:#12283d}
+.arc-cmd-toolbar input{background:transparent!important;color:#eaf4ff!important;border:0!important;outline:0;width:100%;height:36px}
+.arc-cmd-toolbar span{font-size:11px;color:#95b6cf;white-space:nowrap}
+.arc-cmd-scroll{flex:1;min-height:0;overflow:auto;padding:2px 4px 8px 0}
+.arc-cmd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));align-content:start;gap:12px;width:100%}
+.arc-cmd-card{position:relative;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;aspect-ratio:1/1;min-height:185px;padding:18px;text-align:center;border:1px solid #2c4c68;border-radius:12px;color:#eaf4ff;background:linear-gradient(145deg,#142b43,#0b1d30);cursor:pointer;transition:background .18s,border-color .18s,transform .18s,box-shadow .18s}
+.arc-cmd-card:hover,.arc-cmd-card:focus-visible{background:linear-gradient(145deg,#193e59,#0f263d);border-color:#3bbbea;transform:translateY(-2px);box-shadow:0 8px 23px #02091766;outline:none}
+.arc-cmd-card:disabled{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none}
+.arc-cmd-card[hidden]{display:none!important}
+.arc-cmd-card.is-running{border-color:#21b5f2;box-shadow:inset 0 0 0 1px #21b5f2}
+.arc-cmd-icon{width:56px;height:56px;flex:0 0 56px;display:grid;place-items:center;border-radius:15px;color:#4bd3f7;background:#173d55;font-size:24px}
+.arc-cmd-copy{min-width:0}.arc-cmd-copy strong,.arc-cmd-copy small{display:block;overflow-wrap:anywhere}
+.arc-cmd-copy strong{font-size:14px}.arc-cmd-copy small{font-size:11px;line-height:1.45;color:#a0b9cd;margin-top:7px}
+.arc-cmd-action{font-size:11px;color:#5ad4fa;font-weight:600}
+.arc-cmd-foot{border-top:1px solid #29455f;padding-top:9px;color:#a2c5db;font-size:11px}
+.arc-cmd-empty{color:#a0b9cd;text-align:center;padding:25px}
+.arc-cmd-confirm{width:min(450px,94vw);background:#10263c;color:#e9f5ff;border:1px solid #37627c;border-radius:12px;padding:20px}
+.arc-cmd-confirm::backdrop{background:#020915bb}
+.arc-cmd-confirm-heading{display:flex;gap:10px;align-items:center;color:#ffca75}
+.arc-cmd-confirm-heading h3{color:#e9f5ff;font-size:17px;margin:0}
+.arc-cmd-confirm p{font-size:13px;line-height:1.55;margin:16px 0}
+.arc-cmd-confirm-actions{display:flex;justify-content:flex-end;gap:9px}
+.arc-cmd-confirm-actions button{padding:9px 13px;border-radius:7px;border:1px solid #3e627b;background:#1a344e;color:#effaff;cursor:pointer}
+.arc-cmd-confirm-actions .arc-cmd-affirm{background:#1389bd;border-color:#35baf0}
+@media(max-width:600px){.arc-cmd-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.arc-cmd-card{min-height:145px;padding:12px}.arc-cmd-icon{width:42px;height:42px;flex-basis:42px;font-size:20px}.arc-cmd-toolbar{flex-wrap:wrap}}
+.arc-cmd-target{white-space:normal}}
+
+/* Central de comandos: atalhos quadrados compactos e com identificação por cor. */
+.arc-commands-page .arc-cmd-grid{
+ display:grid;grid-template-columns:repeat(auto-fill, minmax(106px, 116px));gap:9px;
+ justify-content:start;align-content:start;width:100%;
+}
+.arc-commands-page .arc-cmd-card{
+ width:100%;min-width:0;min-height:0;height:auto;aspect-ratio:1/1;
+ display:flex;flex-direction:column;align-items:center;justify-content:center;
+ gap:8px;padding:10px 7px;border-radius:12px;text-align:center;
+ background:linear-gradient(145deg,#0e567c,#09314d);border:1px solid #258bb8;
+ color:#f4fcff;box-shadow:inset 0 1px 0 #ffffff1a;
+ transition:transform .16s ease,filter .16s ease,box-shadow .16s ease;
+}
+.arc-commands-page .arc-cmd-card:nth-child(2){background:linear-gradient(145deg,#176b56,#104236);border-color:#32ae85}
+.arc-commands-page .arc-cmd-card:nth-child(3){background:linear-gradient(145deg,#79502a,#51311d);border-color:#cb914e}
+.arc-commands-page .arc-cmd-card:hover,.arc-commands-page .arc-cmd-card:focus-visible{
+ filter:brightness(1.18);transform:translateY(-3px);box-shadow:0 9px 18px #0005;
+ outline:2px solid #d1f3ff;outline-offset:2px;
+}
+.arc-commands-page .arc-cmd-card:disabled{opacity:.5;filter:grayscale(.35);transform:none;cursor:not-allowed}
+.arc-commands-page .arc-cmd-card.is-running{box-shadow:0 0 0 2px #f1faff,0 0 18px #28c5ff80}
+.arc-commands-page .arc-cmd-icon{
+ width:34px;height:34px;flex:0 0 34px;font-size:19px;border-radius:9px;
+ background:#ffffff22;color:#fff;
+}
+.arc-commands-page .arc-cmd-copy{width:100%}
+.arc-commands-page .arc-cmd-copy strong{font-size:11px;line-height:1.22;font-weight:700;color:#fff;overflow-wrap:normal}
+.arc-commands-page .arc-cmd-copy small,.arc-commands-page .arc-cmd-action{display:none}
+@media(max-width:600px){
+ .arc-commands-page .arc-cmd-grid{grid-template-columns:repeat(auto-fill,minmax(95px,108px));gap:7px}
+ .arc-commands-page .arc-cmd-card{min-height:0;padding:8px 5px}
+ .arc-commands-page .arc-cmd-toolbar{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){.arc-commands-page .arc-cmd-card{transition:none}}
+
+/* Monitoramento: indicadores de tráfego separados por unidade, com linha do tempo. */
+.asc-traffic-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;font-weight:600;margin-top:8px}.asc-monitor .asc-chart-foot{gap:8px;flex-wrap:wrap}.asc-monitor #asc-peak{text-align:right}.asc-monitor .asc-chart-wrap{min-height:190px;flex:1 1 auto}
+
+/* Monitoramento · controles estilo terminal de mercado */
+.arc-trade-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:#0b1b30;border-block:1px solid #25415d;color:#afc7df;font-size:11px}
+.arc-trade-controls label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer}
+.arc-trade-controls input{accent-color:#32bdf1}
+.arc-trade-controls select,.arc-trade-controls button{border:1px solid #355777;background:#132b46;color:#e5f6ff;border-radius:5px;padding:5px 8px;font:inherit}
+.arc-trade-controls button{margin-left:auto;cursor:pointer}
+.arc-trade-detail{font:12px Segoe UI,Arial,sans-serif;background:#142943;border-top:1px solid #325b7d;padding:9px 12px;color:#dff8ff}
+.arc-trade-dialog{border:1px solid #42688a;border-radius:10px;background:#0c1c30;color:#e6f4ff;max-width:min(440px,95vw);padding:20px;box-shadow:0 15px 60px #0009}
+.arc-trade-dialog::backdrop{background:#0009}
+.arc-trade-dialog h3{margin:0 0 10px}
+.arc-trade-dialog label{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}
+.arc-trade-dialog input{background:#162d46;border:1px solid #40668c;color:white;border-radius:5px;padding:7px}
+.arc-trade-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+.arc-trade-dialog-actions button{background:#22547c;border:1px solid #436b87;color:white;border-radius:5px;padding:8px 12px;cursor:pointer}

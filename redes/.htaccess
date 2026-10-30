@@ -1,0 +1,4 @@
+# Componentes internos nunca são endpoints públicos.
+<FilesMatch "^_.*\.php$">
+    Require all denied
+</FilesMatch>

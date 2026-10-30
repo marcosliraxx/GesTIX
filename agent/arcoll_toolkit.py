@@ -1,0 +1,277 @@
+"""Medições locais, de leitura, limitadas para o agente Windows Arcoll."""
+import os, platform, socket, subprocess, time, re, ipaddress, json, locale
+
+def _decode_bytes(value):
+    if not value:return ''
+    if isinstance(value,str):return value
+    candidates=['utf-8-sig','cp850','cp1252',locale.getpreferredencoding(False)]
+    for codec in candidates:
+        try:return value.decode(codec,'strict')
+        except (UnicodeError,LookupError):pass
+    return value.decode('utf-8','replace')
+
+def _exec(args, timeout=6):
+    try:
+        r=subprocess.run(args, capture_output=True, timeout=timeout,
+                         creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        data=_decode_bytes(r.stdout or r.stderr).strip()
+        return {'exit_code':r.returncode,'output':data[:12000]}
+    except Exception as e:
+        return {'error':str(e)[:180]}
+
+def _ps(command):
+    # UTF-8 explícito evita texto corrompido na leitura do PowerShell do Windows.
+    setup="[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);$OutputEncoding=[Console]::OutputEncoding;"
+    result=_exec(['powershell.exe','-NoProfile','-NonInteractive','-Command',setup+command],12)
+    out=result.get('output','')
+    if out and result.get('exit_code')==0:
+        try: result['data']=json.loads(out)
+        except (ValueError,TypeError):pass
+    return result
+
+def _probe(host):
+    if platform.system()!='Windows':return {'status':'indisponível'}
+    r=_exec(['ping','-n','2','-w','900',host],5)
+    times=[float(x.replace(',','.')) for x in re.findall(r'(?:time|tempo)[=<]\s*([0-9]+(?:[.,][0-9]+)?)\s*ms',r.get('output',''),re.I)]
+    return {'host':host,'response_count':len(times),'latency_ms':round(sum(times)/len(times),2) if times else None,'status':'responde' if times else 'sem resposta'}
+
+def _path_check():
+    # ICMP trace limited to a safe fixed public reference, never user-entered targets.
+    return {'trace':_exec(['tracert','-d','-h','12','-w','650','1.1.1.1'],14)}
+
+def _service_check():
+    # Outbound TCP handshake tests to established HTTPS/DNS services.
+    checks=[]
+    for host,port in [('1.1.1.1',443),('1.1.1.1',53),('example.com',443)]:
+        started=time.monotonic()
+        try:
+            with socket.create_connection((host,port),timeout=2.5):pass
+            checks.append({'destination':host,'port':port,'reachable':True,'connect_ms':round((time.monotonic()-started)*1000,1)})
+        except (OSError,TimeoutError) as e:
+            checks.append({'destination':host,'port':port,'reachable':False,'error':type(e).__name__})
+    return {'services':checks}
+
+def _health_check():
+    gateway=_ps('Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty NextHop')
+    gw=(gateway.get('output') or '').strip().splitlines()
+    local=gw[0].strip() if gw else ''
+    try: local=local if ipaddress.ip_address(local).is_private else ''
+    except ValueError:local=''
+    external=_probe('1.1.1.1');internal=_probe(local) if local else {'status':'indisponível'}
+    dns=_ps('Resolve-DnsName example.com -Type A -ErrorAction Stop | Select-Object -First 1 -ExpandProperty IPAddress')
+    facts={'external_ping':external,'gateway_ping':internal,'dns_lookup':dns}
+    checks=[external.get('status')=='responde', dns.get('exit_code')==0]
+    if local:checks.append(internal.get('status')=='responde')
+    return {'score':round(100*sum(checks)/len(checks)),'successful_checks':sum(checks),'total_checks':len(checks),'checks':facts,'note':'Índice baseado somente nos testes executados, não é uma garantia de disponibilidade'}
+
+def _troubleshoot():
+    result=_health_check()
+    issues=[]
+    if result['checks']['external_ping'].get('status')!='responde':issues.append('Destino ICMP não respondeu; pode ser bloqueio de ICMP')
+    if result['checks']['dns_lookup'].get('exit_code')!=0:issues.append('Resolução DNS de referência falhou')
+    if result['checks']['gateway_ping'].get('status')=='sem resposta':issues.append('Gateway não respondeu ao ICMP')
+    return {'findings':issues or ['Nenhuma falha identificada nos testes executados'],'measurements':result,'disclaimer':'Diagnóstico indicativo; não altera a configuração do Windows'}
+
+TOOL_EXTRA={'traceroute':_path_check,'services':_service_check,'health':_health_check,'troubleshooter':_troubleshoot}
+
+def collect_toolkit_selected(selected):
+    if platform.system()!='Windows':raise RuntimeError('Coleta disponível no Windows')
+    if selected not in TOOL_EXTRA:raise ValueError('Ferramenta não autorizada')
+    return {'version':2,'machine':platform.node(),'captured_at':int(time.time()),'results':{selected:TOOL_EXTRA[selected]()},'selected':selected}
+
+def collect_toolkit():
+    if platform.system()!='Windows':raise RuntimeError('Coleta disponível no Windows')
+    # No scanning, modification, arbitrary commands, public topology or external endpoints.
+    routes=_ps('Get-NetRoute -AddressFamily IPv4 | Where-Object {$_.DestinationPrefix -eq "0.0.0.0/0"} | Select-Object -First 5 InterfaceAlias,NextHop,RouteMetric | ConvertTo-Json -Compress')
+    gateways=[]
+    for line in routes.get('output','').splitlines():
+        gateways += re.findall(r'"NextHop"\s*:\s*"([0-9.]+)"',line)
+    gateway=next((ip for ip in gateways if ip not in ('0.0.0.0','') and ipaddress.ip_address(ip).is_private),'')
+    dns=_ps('Get-DnsClientServerAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,ServerAddresses | ConvertTo-Json -Compress')
+    test=_ps('Resolve-DnsName example.com -Type A -ErrorAction Stop | Where-Object {$_.IPAddress} | Select-Object -First 3 Name,IPAddress | ConvertTo-Json -Compress')
+    return {'version':1,'machine':platform.node(),'captured_at':int(time.time()),'results':{
+      'pulse':{'gateway':_probe(gateway) if gateway else {'status':'gateway não identificado'},'public_dns':_probe('1.1.1.1')},
+      'gateway':{'default_route':routes},
+      'dns':{'servers':dns,'example_lookup':test},
+      'routing':{'routes':_ps('Get-NetRoute -AddressFamily IPv4 | Sort-Object RouteMetric | Select-Object -First 18 DestinationPrefix,NextHop,InterfaceAlias,RouteMetric | ConvertTo-Json -Compress')},
+      'interfaces':{'adapters':_ps('Get-NetAdapter | Select-Object Name,Status,LinkSpeed,MacAddress,InterfaceDescription | ConvertTo-Json -Compress')},
+      'system':{'os':platform.platform(),'hostname':platform.node(),'resources':_ps('Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize,LastBootUpTime | ConvertTo-Json -Compress')},
+      'firewall':{'profiles':_ps('Get-NetFirewallProfile | Select-Object Name,Enabled,DefaultInboundAction,DefaultOutboundAction | ConvertTo-Json -Compress')},
+      'tcp':{'summary':_ps('Get-NetTCPConnection | Group-Object State | Select-Object Name,Count | ConvertTo-Json -Compress')},
+      'wifi':{'interface':_exec(['netsh','wlan','show','interfaces'],6)},
+      'dhcp':{'leases':_ps('Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=True" | Select-Object Description,DHCPEnabled,DHCPServer,DHCPLeaseObtained,DHCPLeaseExpires | ConvertTo-Json -Compress')},
+      'ipconfig':{'addresses':_ps('Get-NetIPConfiguration | Select-Object -First 16 InterfaceAlias,@{n="IPv4";e={($_.IPv4Address.IPAddress -join ", ")}},@{n="IPv6";e={($_.IPv6Address.IPAddress -join ", ")}},@{n="Gateway";e={$_.IPv4DefaultGateway.NextHop}},@{n="DNS";e={($_.DNSServer.ServerAddresses -join ", ")}} | ConvertTo-Json -Compress')},
+      'neighbors':{'arp':_ps('Get-NetNeighbor -AddressFamily IPv4 | Where-Object {$_.State -ne "Unreachable"} | Select-Object -First 50 InterfaceAlias,IPAddress,LinkLayerAddress,State | ConvertTo-Json -Compress')},
+      'statistics':{'counters':_ps('Get-NetAdapterStatistics | Select-Object Name,ReceivedBytes,SentBytes,ReceivedPacketErrors,OutboundPacketErrors,ReceivedDiscardedPackets,OutboundDiscardedPackets | ConvertTo-Json -Compress')},
+      'proxy':{'winhttp':_exec(['netsh','winhttp','show','proxy'],5)},
+      'events':{'recent_network_events':_ps('Get-WinEvent -FilterHashtable @{LogName="System";Level=2,3;StartTime=(Get-Date).AddHours(-24)} -MaxEvents 30 -ErrorAction SilentlyContinue | Where-Object {$_.ProviderName -match "Tcpip|DNS|Dhcp|Network|WLAN|NDIS"} | Select-Object -First 12 TimeCreated,ProviderName,Id,LevelDisplayName,Message | ConvertTo-Json -Compress')},
+      'uptime':{'system':_ps('Get-CimInstance Win32_OperatingSystem | Select-Object LastBootUpTime,LocalDateTime,Caption,Version | ConvertTo-Json -Compress')}
+    }}
+
+# ---------------------------------------------------------------------------
+# Comandos rápidos (v2.4) - leitura/medição; a única ação que altera algo é
+# limpar o cache DNS do próprio Windows. Nenhum alvo é informado pela web.
+# ---------------------------------------------------------------------------
+import urllib.request
+
+def _fmt_ms(value):
+    return '--' if value is None else (str(round(value)) + ' ms')
+
+def _tcp_ms(host, port, timeout=2.5):
+    started = time.monotonic()
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return round((time.monotonic() - started) * 1000, 1)
+    except (OSError, TimeoutError):
+        return None
+
+def _dns_ms(name, timeout=3.0):
+    started = time.monotonic()
+    old = socket.getdefaulttimeout()
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.getaddrinfo(name, 443, socket.AF_INET)
+        return round((time.monotonic() - started) * 1000, 1)
+    except OSError:
+        return None
+    finally:
+        socket.setdefaulttimeout(old)
+
+def _default_gateway():
+    try:
+        if platform.system() == 'Windows':
+            out = _exec(['route', 'print', '-4', '0.0.0.0'], 4).get('output', '')
+            for line in out.splitlines():
+                p = line.split()
+                if len(p) >= 3 and p[0] == '0.0.0.0' and p[1] == '0.0.0.0':
+                    return p[2]
+        else:
+            m = re.search(r'default via (\S+)', _exec(['ip', 'route', 'show', 'default'], 3).get('output', ''))
+            if m:
+                return m.group(1)
+    except Exception:
+        pass
+    return ''
+
+def _grade(score):
+    return 'Excelente' if score >= 90 else 'Boa' if score >= 70 else 'Instável' if score >= 40 else 'Crítica'
+
+def quick_health():
+    gw = _default_gateway()
+    gw_ms = None
+    if gw:
+        for port in (80, 443, 53, 445):
+            gw_ms = _tcp_ms(gw, port, 0.8)
+            if gw_ms is not None:
+                break
+    inet = _tcp_ms('1.1.1.1', 443)
+    dns = _dns_ms('example.com')
+    checks = [inet is not None, dns is not None] + ([gw_ms is not None] if gw else [])
+    score = round(100 * sum(checks) / len(checks))
+    if inet is not None and inet > 150:
+        score = max(0, score - 15)
+    summary = 'Saúde %d/100 (%s) · Gateway %s · Internet %s · DNS %s' % (
+        score, _grade(score), _fmt_ms(gw_ms) if gw else 'n/d', _fmt_ms(inet), _fmt_ms(dns))
+    return {'status': 'completed', 'summary': summary, 'details': {'score': score, 'gateway': gw, 'gateway_ms': gw_ms, 'internet_ms': inet, 'dns_ms': dns}}
+
+def dns_test():
+    names = ['example.com', 'google.com', 'cloudflare.com', 'microsoft.com']
+    rows = {n: _dns_ms(n) for n in names}
+    ok = [v for v in rows.values() if v is not None]
+    avg = round(sum(ok) / len(ok)) if ok else None
+    summary = 'DNS: %d/%d nomes resolvidos · média %s · %s' % (
+        len(ok), len(names), _fmt_ms(avg), ' · '.join('%s %s' % (k.split('.')[0], _fmt_ms(v)) for k, v in rows.items()))
+    return {'status': 'completed' if ok else 'failed', 'summary': summary, 'details': rows}
+
+def public_ip():
+    for url in ('https://api.ipify.org', 'https://ifconfig.me/ip', 'https://icanhazip.com'):
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'ArcollAgent/2.4'})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                value = r.read(64).decode('ascii', 'ignore').strip()
+            ipaddress.ip_address(value)
+            return {'status': 'completed', 'summary': 'IP público desta rede: ' + value, 'details': {'public_ip': value, 'source': url}}
+        except Exception:
+            continue
+    return {'status': 'failed', 'summary': 'Não foi possível descobrir o IP público (sem acesso à internet?)', 'details': {}}
+
+def system_snapshot():
+    mem_total = mem_free = uptime = None
+    if platform.system() == 'Windows':
+        import ctypes
+        class MEM(ctypes.Structure):
+            _fields_ = [('l', ctypes.c_ulong), ('load', ctypes.c_ulong), ('tp', ctypes.c_ulonglong), ('ap', ctypes.c_ulonglong),
+                        ('tpf', ctypes.c_ulonglong), ('apf', ctypes.c_ulonglong), ('tv', ctypes.c_ulonglong), ('av', ctypes.c_ulonglong), ('ae', ctypes.c_ulonglong)]
+        m = MEM(); m.l = ctypes.sizeof(m)
+        try:
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+                mem_total, mem_free = int(m.tp), int(m.ap)
+            uptime = int(ctypes.windll.kernel32.GetTickCount64() / 1000)
+        except Exception:
+            pass
+    else:
+        try:
+            vals = {}
+            for line in open('/proc/meminfo', encoding='ascii'):
+                k, v = line.split(':', 1); vals[k] = int(v.split()[0]) * 1024
+            mem_total, mem_free = vals.get('MemTotal'), vals.get('MemAvailable')
+            uptime = int(float(open('/proc/uptime').read().split()[0]))
+        except Exception:
+            pass
+    try:
+        import shutil
+        d = shutil.disk_usage(os.environ.get('SystemDrive', 'C:') + '\\' if platform.system() == 'Windows' else '/')
+        disk_free, disk_total = d.free, d.total
+    except Exception:
+        disk_free = disk_total = None
+    gb = lambda b: '--' if b is None else '%.1f GB' % (b / 1073741824)
+    up = '--' if uptime is None else '%dd %02dh' % (uptime // 86400, (uptime % 86400) // 3600)
+    used = None if not mem_total or mem_free is None else round(100 * (mem_total - mem_free) / mem_total)
+    summary = '%s · %d núcleos · RAM %s (uso %s%%) · Disco livre %s de %s · Ligado há %s' % (
+        platform.node(), os.cpu_count() or 0, gb(mem_total), '--' if used is None else used, gb(disk_free), gb(disk_total), up)
+    return {'status': 'completed', 'summary': summary, 'details': {'host': platform.node(), 'os': platform.platform(), 'cores': os.cpu_count(), 'memory_total': mem_total, 'memory_free': mem_free, 'disk_total': disk_total, 'disk_free': disk_free, 'uptime_seconds': uptime}}
+
+def flush_dns():
+    if platform.system() != 'Windows':
+        return {'status': 'failed', 'summary': 'Limpeza de DNS disponível apenas no Windows', 'details': {}}
+    r = _exec(['ipconfig', '/flushdns'], 8)
+    ok = r.get('exit_code') == 0
+    return {'status': 'completed' if ok else 'failed', 'summary': 'Cache DNS do Windows limpo com sucesso' if ok else 'Não foi possível limpar o cache DNS (execute o agente como administrador)', 'details': r}
+
+def wifi_info():
+    if platform.system() != 'Windows':
+        return {'status': 'failed', 'summary': 'Informações de Wi-Fi disponíveis apenas no Windows', 'details': {}}
+    out = _exec(['netsh', 'wlan', 'show', 'interfaces'], 6).get('output', '')
+    def pick(*keys):
+        for line in out.splitlines():
+            k, _, v = line.partition(':')
+            if k.strip().lower() in keys and v.strip():
+                return v.strip()
+        return ''
+    ssid, signal, radio, channel, rate = pick('ssid'), pick('signal', 'sinal'), pick('radio type', 'tipo de rádio', 'tipo de radio'), pick('channel', 'canal'), pick('receive rate (mbps)', 'taxa de recepção (mbps)', 'taxa de recepcao (mbps)')
+    if not ssid:
+        return {'status': 'completed', 'summary': 'Este computador não está conectado a uma rede Wi-Fi (cabo ou adaptador desligado)', 'details': {}}
+    summary = 'Wi-Fi "%s" · sinal %s · %s · canal %s · %s Mbps' % (ssid, signal or '--', radio or '--', channel or '--', rate or '--')
+    return {'status': 'completed', 'summary': summary, 'details': {'ssid': ssid, 'signal': signal, 'radio': radio, 'channel': channel, 'rate': rate}}
+
+QUICK_COMMANDS = {
+    'quick_health': ('Saúde rápida da rede', quick_health),
+    'dns_test': ('Teste de DNS', dns_test),
+    'public_ip': ('IP público', public_ip),
+    'system_snapshot': ('Recursos do computador', system_snapshot),
+    'flush_dns': ('Limpar cache DNS', flush_dns),
+    'wifi_info': ('Sinal Wi-Fi', wifi_info),
+}
+
+def run_quick_command(name):
+    """Executa um comando rápido autorizado e devolve resumo curto (<= 480 caracteres)."""
+    if name not in QUICK_COMMANDS:
+        raise ValueError('Comando não autorizado')
+    try:
+        result = QUICK_COMMANDS[name][1]()
+    except Exception as exc:
+        result = {'status': 'failed', 'summary': 'Falha: ' + str(exc)[:200], 'details': {}}
+    result['summary'] = str(result.get('summary', ''))[:480]
+    result['title'] = QUICK_COMMANDS[name][0]
+    result['captured_at'] = int(time.time())
+    return result
