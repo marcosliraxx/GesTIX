@@ -8,7 +8,7 @@ class ReleaseVersionTests(unittest.TestCase):
     def test_all_runtime_components_match_release(self):
         version=(ROOT/'VERSION').read_text().strip()
         self.assertRegex(version,r'^\d+\.\d+\.\d+$')
-        sources={'includes/billing.php':r"const ARC_BILLING_VERSION = '([^']+)'",'support/arcoll_support.py':r"VERSION = '([^']+)'",'includes/bootstrap.php':r"const ARC_APP_VERSION = '([^']+)'",'agent/arcoll_app.py':r"AGENT_VERSION='([^']+)'",'agent/arcoll_updater.py':r"VERSION = '([^']+)'",'agent/arcoll_desktop.py':r"VERSION = '([^']+)'",'agent/arcoll_agent.py':r'VERSION = "([^"]+)"'}
+        sources={'agent/arcoll_toolkit.py':r"VERSION = '([^']+)'",'redes/ferramentas.php':r"const ARC_TOOLS_VERSION = '([^']+)'",'includes/billing.php':r"const ARC_BILLING_VERSION = '([^']+)'",'support/arcoll_support.py':r"VERSION = '([^']+)'",'includes/bootstrap.php':r"const ARC_APP_VERSION = '([^']+)'",'agent/arcoll_app.py':r"AGENT_VERSION='([^']+)'",'agent/arcoll_updater.py':r"VERSION = '([^']+)'",'agent/arcoll_desktop.py':r"VERSION = '([^']+)'",'agent/arcoll_agent.py':r'VERSION = "([^"]+)"'}
         for name,pattern in sources.items():
             with self.subTest(component=name):self.assertEqual(re.search(pattern,(ROOT/name).read_text()).group(1),version)
         self.assertIn('arcoll-static-v'+version,(ROOT/'sw.js').read_text())

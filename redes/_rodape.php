@@ -25,24 +25,27 @@ message=window.arcPlainMessage?window.arcPlainMessage(message):String(message);
 }
 function setRunning(on){}
 function setOnline(online){const wrap=status.closest('.arc-agent-select-wrap');if(wrap){wrap.classList.toggle('is-online',!!online);wrap.classList.toggle('is-offline',!online)}status.classList.toggle('is-online',!!online);status.classList.toggle('is-offline',!online);status.title=online?'Agente online':'Agente offline';status.setAttribute('aria-label',status.title)}
+let releaseStatus=null;
 const versionInfo=document.getElementById('arc-agent-version-info'),updateRemote=document.getElementById('arc-agent-update-remote');
 async function refreshAgentVersions(){
  if(!versionInfo)return;
  try{
   const resp=await fetch(base+'api/api.php?action=network-agent-versions&network_id='+networkId,{cache:'no-store',credentials:'same-origin'});
   const result=await resp.json();if(!resp.ok||!result.ok)throw Error(result.error||'Consulta indisponível');
+  releaseStatus=result.release||null;document.dispatchEvent(new CustomEvent('arc:release-status',{detail:releaseStatus}));
   const current=(result.agents||[]).find(a=>Number(a.id)===Number(target.value));
   versionInfo.textContent=current?.version?'v. '+String(current.version).replace(/^v\.?\s*/i,''):'v. --';
   updateRemote.style.display='inline-flex';
   updateRemote.disabled=!(current?.approved);
   updateRemote.title=updateRemote.disabled?'Selecione um agente aprovado':'Atualizar agente; aguarda conexão por até 3 minutos';
- }catch(_e){versionInfo.textContent='v. --';updateRemote.style.display='inline-flex';updateRemote.disabled=true}
+ }catch(_e){releaseStatus=null;document.dispatchEvent(new CustomEvent('arc:release-status',{detail:null}));versionInfo.textContent='v. --';updateRemote.style.display='inline-flex';updateRemote.disabled=true}
 }
 refreshAgentVersions();setInterval(()=>{if(!document.hidden)refreshAgentVersions()},8000);
 target.addEventListener('change',()=>document.getElementById('arc-agent-form').requestSubmit());
 document.addEventListener('arc:command-queued',e=>{const d=e.detail||{};if(d.command_id&&Number(d.agent_id)===Number(target.value)&&!activeProgressId)showProgress(d.command||'Comando remoto','Na fila',Number(d.command_id))});
 const labels={monitor_start:'Monitoramento iniciado',monitor_pause:'Monitoramento pausado',speed_test:'Teste de velocidade',scan_devices:'Varredura de dispositivos',scan_map:'Atualização da topologia',diagnostic:'Diagnóstico',quick_health:'Saúde rápida',dns_test:'Teste de DNS',public_ip:'IP público',system_snapshot:'Recursos do computador',flush_dns:'Limpeza de DNS',wifi_info:'Sinal Wi-Fi',agent_update:'Atualização remota do agente',power_shutdown:'Desligamento',power_restart:'Reinicialização',power_cancel:'Cancelamento do agendamento'};
-function askRemoteUpdateConfirm(){
+async function askRemoteUpdateConfirm(){
+ await refreshAgentVersions();
  return new Promise(resolve=>{
   const dialog=document.getElementById('arc-agent-update-confirm');
   if(!dialog||typeof dialog.showModal!=='function')return resolve(window.confirm('Atualizar remotamente o agente selecionado? O aplicativo será reiniciado.'));
@@ -51,11 +54,13 @@ function askRemoteUpdateConfirm(){
   const details=dialog.querySelector('[data-update-agent-details]'); if(details) details.textContent='A plataforma reinstalará os arquivos publicados, mesmo que a versão seja a mesma. O agente será reiniciado automaticamente.';
   const cancel=dialog.querySelector('[data-update-cancel]');
   const confirm=dialog.querySelector('[data-update-confirm]');
+  const report=dialog.querySelector('[data-update-release]');report.replaceChildren();if(releaseStatus){for(const row of releaseStatus.components||[]){const line=document.createElement('p');line.textContent=row.name+': '+(row.version||'não encontrado')+(row.aligned?'':' · precisa atualizar no servidor');report.append(line);}const info=document.createElement('p');info.textContent='Plataforma: '+releaseStatus.platform_version;report.prepend(info);}else report.textContent='Não foi possível conferir o pacote antes da tentativa.';confirm.disabled=!!releaseStatus&&!releaseStatus.ready;if(releaseStatus&&!releaseStatus.ready)details.textContent='O pacote Windows no servidor está incompleto. Reenvie a pasta agent da atualização. Isso é diferente da versão antiga instalada no computador.';
   const onCancel=(ev)=>{if(ev)ev.preventDefault(); cleanup(false)};
   const onOk=(ev)=>{if(ev)ev.preventDefault(); cleanup(true)};
-  const cleanup=(answer)=>{dialog.close(); cancel?.removeEventListener('click', onCancel); confirm?.removeEventListener('click', onOk); resolve(answer)};
+  let finished=false;const onClose=()=>cleanup(false);
+  const cleanup=(answer)=>{if(finished)return;finished=true;cancel?.removeEventListener('click',onCancel);confirm?.removeEventListener('click',onOk);dialog.removeEventListener('cancel',onCancel);dialog.removeEventListener('close',onClose);if(dialog.open)dialog.close();resolve(answer)};
   cancel?.addEventListener('click', onCancel);
-  confirm?.addEventListener('click', onOk);
+  confirm?.addEventListener('click',onOk);dialog.addEventListener('cancel',onCancel);dialog.addEventListener('close',onClose);
   dialog.showModal();
  });
 }
@@ -82,7 +87,7 @@ document.addEventListener('click',async e=>{
  if(b.disabled)return;
  if(b.dataset.arcCommand==='agent_update'){const proceed=await askRemoteUpdateConfirm();if(!proceed)return;}
  b.disabled=true;setRunning(true);toast('Enviando comando ao agente…');
- try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value),command:b.dataset.arcCommand,_csrf:csrf})});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Falha ao enviar comando');activeCommand=true;queuedCommandId=Number(j.command_id||0);showProgress(labels[b.dataset.arcCommand]||b.dataset.arcCommand,'Na fila',queuedCommandId);document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:b.dataset.arcCommand,command_id:Number(j.command_id),agent_id:Number(target.value)}}));toast('Comando enviado. Aguardando o agente.','success');setTimeout(()=>poll(true),1200)}catch(err){setRunning(false);activeProgressId=0;endProgress('Falha ao enviar comando',false);toast(err.message,'error')}finally{b.disabled=false}
+ try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value),command:b.dataset.arcCommand,_csrf:csrf})});const j=await r.json();if(!r.ok||!j.ok){const error=Error(j.error||'Falha ao enviar comando');error.supportRef=j.error_ref||'';throw error;}activeCommand=true;queuedCommandId=Number(j.command_id||0);showProgress(labels[b.dataset.arcCommand]||b.dataset.arcCommand,'Na fila',queuedCommandId);document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:b.dataset.arcCommand,command_id:Number(j.command_id),agent_id:Number(target.value)}}));toast('Comando enviado. Aguardando o agente.','success');setTimeout(()=>poll(true),1200)}catch(err){setRunning(false);activeProgressId=0;endProgress('Falha ao enviar comando',false);toast(err.message+(err.supportRef?' Referência para suporte: '+err.supportRef:''),'error')}finally{b.disabled=false}
 });
 poll();setInterval(()=>{if(!document.hidden)poll()},5000);
 })();
@@ -388,7 +393,7 @@ close.addEventListener('click',async()=>{await endSession();dialog.close()});
 dialog.addEventListener('cancel',e=>{e.preventDefault();if(document.fullscreenElement)return;endSession().then(()=>dialog.close())});
 })();
 </script>
-<dialog id="arc-agent-update-confirm" class="arc-agent-update-confirm" aria-labelledby="arc-agent-update-title">
+<dialog id="arc-agent-update-confirm" class="arc-agent-update-confirm arc-service-dialog" aria-labelledby="arc-agent-update-title">
 <div class="arc-agent-update-card">
  <div class="arc-agent-update-icon"><i class="fa fa-refresh" aria-hidden="true"></i></div>
  <div class="arc-agent-update-copy">
@@ -396,8 +401,9 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(document.fullscreenEl
   <h2 id="arc-agent-update-title">Confirmar atualização do agente</h2>
   <strong data-update-agent-name>Agente selecionado</strong>
   <p data-update-agent-details>O agente será reiniciado após receber a atualização.</p>
+  <div data-update-release class="arc-update-release-details" role="status"></div>
  </div>
- <div class="arc-agent-update-actions">
+ <div class="arc-agent-update-actions arc-service-actions">
   <button type="button" class="button secondary" data-update-cancel>Cancelar</button>
   <button type="button" class="button" data-update-confirm><i class="fa fa-refresh" aria-hidden="true"></i> Atualizar agente</button>
  </div>

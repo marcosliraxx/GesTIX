@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '3.3.0';
+const ARC_APP_VERSION = '3.3.1';
 const ARC_SCHEMA_VERSION = '2026.10.30-5';
 
 require_once __DIR__.'/billing.php';
@@ -43,16 +43,31 @@ function arc_require_billing_release(): void
     }
 }
 
-/** Refuse mixed platform/agent deployments instead of labeling old code as current. */
+/** Inspect only shipped code metadata. Never read installation credentials or user files. */
+function arc_agent_release_status(): array
+{
+    $patterns=[
+        'arcoll_app.py'=>['Aplicativo do agente',"/AGENT_VERSION\\s*=\\s*'([^']+)'/"],
+        'arcoll_desktop.py'=>['Inicializador Windows',"/VERSION\\s*=\\s*'([^']+)'/"],
+        'arcoll_agent.py'=>['Serviço do agente','/VERSION\\s*=\\s*"([^"]+)"/'],
+        'arcoll_updater.py'=>['Atualizador Windows',"/VERSION\\s*=\\s*'([^']+)'/"],
+        'arcoll_toolkit.py'=>['Ferramentas do agente',"/VERSION\\s*=\\s*'([^']+)'/"],
+    ];
+    $components=[];$ready=true;
+    foreach($patterns as $file=>[$label,$pattern]){
+        $source=@file_get_contents(dirname(__DIR__).'/agent/'.$file,false,null,0,8192);
+        $version=is_string($source)&&preg_match($pattern,$source,$match)?$match[1]:null;
+        $aligned=$version===ARC_APP_VERSION;$ready=$ready&&$aligned;
+        $components[]=['name'=>$label,'file'=>'agent/'.$file,'version'=>$version,'aligned'=>$aligned];
+    }
+    $tools=@file_get_contents(dirname(__DIR__).'/redes/ferramentas.php',false,null,0,4096);
+    $toolsVersion=is_string($tools)&&preg_match("/const ARC_TOOLS_VERSION = '([^']+)'/",$tools,$match)?$match[1]:null;
+    return ['platform_version'=>ARC_APP_VERSION,'ready'=>$ready,'components'=>$components,'tools_version'=>$toolsVersion,'tools_aligned'=>$toolsVersion===ARC_APP_VERSION];
+}
+/** The installed old agent can update only after its server-side package is complete. */
 function arc_require_aligned_agent_release(): void
 {
-    $patterns = ['arcoll_app.py'=>"/AGENT_VERSION\s*=\s*'([^']+)'/", 'arcoll_desktop.py'=>"/VERSION\s*=\s*'([^']+)'/", 'arcoll_agent.py'=>'/VERSION\s*=\s*"([^"]+)"/'];
-    foreach ($patterns as $file=>$pattern) {
-        $source=@file_get_contents(dirname(__DIR__).'/agent/'.$file, false, null, 0, 8192);
-        if (!is_string($source) || !preg_match($pattern,$source,$version) || $version[1]!==ARC_APP_VERSION) {
-            throw new RuntimeException('Versões da plataforma e do agente não estão alinhadas. Envie a atualização completa.');
-        }
-    }
+    if(!arc_agent_release_status()['ready'])throw new RuntimeException('O pacote do agente no servidor está incompleto ou tem versões diferentes. Reenvie a pasta agent do pacote completo antes de atualizar o computador.',503);
 }
 
 function arc_workspace_base_url(): string

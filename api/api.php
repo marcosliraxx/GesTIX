@@ -78,7 +78,7 @@ try {
         $q=$pdo->prepare('SELECT a.id FROM '.arc_table('network_agents').' a INNER JOIN '.arc_table('managed_networks').' n ON n.id=a.network_id AND n.account_id=a.account_id INNER JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id WHERE a.fingerprint=? AND UPPER(a.site_code)=? AND a.status=\'approved\' AND n.is_active=1 AND n.monitoring_enabled=1 AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
         $q->execute([$fp,$code,hash('sha256',$key),$fp]);
         if (!$q->fetchColumn()) arc_json(['ok'=>false,'error'=>'Agente não autorizado'],403);
-        arc_require_aligned_agent_release();
+        try{arc_require_aligned_agent_release();}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e->getMessage(),'error_code'=>'agent_release_incomplete'],503);}
         // Inventário da release: componentes de código em vez de uma lista fixa.
         $sourceDir=realpath(__DIR__.'/../agent');
         if ($sourceDir===false) arc_json(['ok'=>false,'error'=>'Release indisponível'],503);
@@ -156,8 +156,7 @@ try {
         $networkId=(int)($_GET['network_id']??0);
         $check=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=?');
         $check->execute([$networkId,arc_user_id()]);if (!$check->fetchColumn()) arc_json(['ok'=>false,'error'=>'Rede não autorizada'],403);
-        $source=@file_get_contents(__DIR__.'/../agent/arcoll_app.py');
-        $latest=(is_string($source)&&preg_match('/^AGENT_VERSION\s*=\s*[\"\'](\d+\.\d+\.\d+)[\"\']/m',$source,$found))?$found[1]:null;
+        $release=arc_agent_release_status();$latest=$release['components'][0]['version']??null;
         $query=$pdo->prepare('SELECT id,machine_name,agent_version,last_seen_at,status FROM '.arc_table('network_agents').' WHERE network_id=? AND account_id=?');
         $query->execute([$networkId,arc_user_id()]);$agents=[];
         foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -165,7 +164,7 @@ try {
             $online=$row['status']==='approved' && !empty($row['last_seen_at']) && strtotime((string)$row['last_seen_at'])>=time()-15;
             $agents[]=['id'=>(int)$row['id'],'name'=>(string)$row['machine_name'],'version'=>$version,'online'=>$online,'approved'=>$row['status']==='approved','outdated'=>$latest!==null&&preg_match('/^\d+\.\d+\.\d+$/',$version)&&version_compare($version,$latest,'<')];
         }
-        arc_json(['ok'=>true,'published_version'=>$latest,'agents'=>$agents]);
+        arc_json(['ok'=>true,'published_version'=>$latest,'agents'=>$agents,'release'=>$release]);
     }
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'health') {
         arc_json(['ok' => true, 'application' => 'Arcoll Speed Connection', 'version' => ARC_APP_VERSION]);
@@ -343,7 +342,9 @@ try {
         $q=$pdo->prepare('SELECT id,machine_name,headless_mode FROM '.arc_table('network_agents').' WHERE id=? AND network_id=? AND account_id=? AND status=\'approved\'');
         $q->execute([$agentId,$networkId,arc_user_id()]);$targetAgent=$q->fetch();
         if (!$targetAgent) arc_json(['ok'=>false,'error'=>'Selecione um agente aprovado'],403);
-        if ($command==='agent_update') arc_require_aligned_agent_release();
+        if($command==='agent_update'){
+            try{arc_require_aligned_agent_release();}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e->getMessage(),'error_code'=>'agent_release_incomplete','release'=>arc_agent_release_status()],503);}
+        }
         if (in_array($command,['power_shutdown','power_restart','power_cancel'],true)) {
             if (($body['confirmed']??false)!==true) arc_json(['ok'=>false,'error'=>'Confirme a operação no computador selecionado.'],422);
             if($command!=='power_cancel'){
@@ -754,6 +755,7 @@ try {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    error_log('Arcoll API error: ' . $exception->getMessage());
-    arc_json(['ok' => false, 'error' => 'Não foi possível carregar ou salvar os dados. Revise a conexão com o banco.'], 500);
+    $reference=bin2hex(random_bytes(6));
+    error_log('Arcoll API ['.$reference.'] action='.preg_replace('/[^A-Za-z0-9_-]/','',(string)($_GET['action']??'')).' '.get_class($exception).': '.$exception->getMessage());
+    arc_json(['ok'=>false,'error'=>'Não foi possível concluir a solicitação. Tente novamente e, se continuar, informe a referência ao suporte.','error_ref'=>$reference],500);
 }
