@@ -91,29 +91,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost) {
     arc_admin_csrf();
     $action = (string)($_POST['action'] ?? '');
     if ($action === 'login' && !arc_is_admin()) {
-        $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-        $ipHash = hash_hmac('sha256', $ip, (string)(arc_config()['app_secret'] ?? 'arcoll'));
-        $attempts = $pdo->prepare(
-            'SELECT COUNT(*) FROM ' . arc_table('login_attempts') . ' WHERE ip_hash = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)'
-        );
-        $attempts->execute([$ipHash]);
-        if ((int)$attempts->fetchColumn() >= max(3,min(30,(int)arc_platform_setting($pdo,'platform_login_max_attempts','5')))) {
+        $email = strtolower(arc_admin_post('email', 190));
+        try {
+            $loginAttemptId = arc_login_attempt_begin($pdo, $email);
+        } catch (PDOException | RuntimeException $exception) {
+            error_log('Arcoll admin login limiter: ' . $exception->getMessage());
+            http_response_code(503);
+            exit('Não foi possível concluir o acesso. Tente novamente mais tarde.');
+        }
+        if ($loginAttemptId === null) {
             arc_admin_flash('Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.', 'warning');
         } else {
-            $email = strtolower(arc_admin_post('email', 190));
             $password = (string)($_POST['password'] ?? '');
             $query = $pdo->prepare('SELECT id, email, password_hash FROM ' . arc_table('admins') . ' WHERE email = ? LIMIT 1');
             $query->execute([$email]);
             $admin = $query->fetch();
             if ($admin && arc_admin_pw_check($password, (string)$admin['password_hash'])) {
+                arc_login_attempt_succeeded($pdo, $loginAttemptId);
                 session_regenerate_id(true);
                 $_SESSION['arc_admin_id'] = (int)$admin['id'];
                 $_SESSION['arc_admin_email'] = (string)$admin['email'];
-                $pdo->prepare('DELETE FROM ' . arc_table('login_attempts') . ' WHERE ip_hash = ?')->execute([$ipHash]);
                 arc_audit($pdo, 'admin.login', 'Acesso administrativo iniciado.');
                 arc_admin_flash('Acesso autorizado.', 'success');
             } else {
-                $pdo->prepare('INSERT INTO ' . arc_table('login_attempts') . ' (ip_hash) VALUES (?)')->execute([$ipHash]);
                 usleep(250000);
                 arc_admin_flash('E-mail ou senha incorretos.', 'error');
             }

@@ -35,3 +35,11 @@ O token da instalação não é mais enviado automaticamente aos IPs descobertos
 Essa proteção está aplicada tanto ao agente do pacote quanto à cópia oferecida pelo painel. Instalações antigas só recebem a proteção depois de atualizar seus arquivos; pacotes publicados anteriormente também precisam ser republicados com a nova versão. Acesso direto ao agente de outro computador deixa de ser suportado nesta versão.
 
 Testes de segurança: `python3 -m unittest discover -s tests -v`. Os testes simulam a varredura sem acessar equipamentos reais e usam uma porta HTTP temporária apenas no próprio computador para verificar a comunicação do navegador.
+
+## Proteção do login
+
+O formulário público, o acesso administrativo e a autenticação das configurações do agente compartilham o limite por IP definido em **Configurações > Login e acesso**. Sem um valor salvo, o padrão é de 5 tentativas em 15 minutos, com intervalo configurável de 3 a 30. Um acesso correto remove somente a própria tentativa; erros anteriores continuam contando até expirar. Requisições simultâneas reservam suas tentativas com locks do MySQL/MariaDB.
+
+O bloqueio no formulário público e na API retorna HTTP 429 com `Retry-After`. Esta atualização utiliza a tabela existente, sem importação de SQL nem alteração de credenciais. O cadastro público também passa a preencher `access_notes`, obrigatório no schema atual.
+
+Ao instalar, envie **também** o novo arquivo `includes/login-security.php`, antes de substituir o bootstrap e os demais arquivos. Consulte [os testes de autenticação](docs/TESTES.md) para reproduzir a validação em uma instância descartável.

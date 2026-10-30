@@ -25,13 +25,11 @@ try {
             || strlen($email)>254 || strlen($password)>512 || $password==='') {
             arc_json(['ok'=>false,'error'=>'Credenciais inválidas'],403);
         }
-        $pepper=(string)(arc_config()['app_secret']??'arcoll');
-        $ipHash=hash_hmac('sha256',(string)($_SERVER['REMOTE_ADDR']??'unknown'),$pepper);
-        $attempts=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('account_login_attempts').' WHERE ip_hash=? AND attempted_at >= (CURRENT_TIMESTAMP - INTERVAL 15 MINUTE)');
-        $attempts->execute([$ipHash]);
-        if ((int)$attempts->fetchColumn()>=10) arc_json(['ok'=>false,'error'=>'Muitas tentativas. Tente novamente em 15 minutos'],429);
-        $pdo->prepare('INSERT INTO '.arc_table('account_login_attempts').' (ip_hash,identifier_hash) VALUES (?,?)')
-            ->execute([$ipHash,hash_hmac('sha256',$email,$pepper)]);
+        $loginAttemptId = arc_login_attempt_begin($pdo, $email);
+        if ($loginAttemptId === null) {
+            header('Retry-After: 900');
+            arc_json(['ok'=>false,'error'=>'Muitas tentativas. Tente novamente em 15 minutos'],429);
+        }
         $q=$pdo->prepare('SELECT u.id,u.password_hash,u.account_status FROM '.arc_table('user_accounts').' u '
             .'INNER JOIN '.arc_table('managed_networks').' n ON n.account_id=u.id AND n.is_active=1 '
             .'INNER JOIN '.arc_table('network_agents').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\' '
@@ -44,7 +42,7 @@ try {
             || !(password_verify($material,(string)$user['password_hash']) || password_verify($password,(string)$user['password_hash']))) {
             arc_json(['ok'=>false,'error'=>'Gestor não autorizado ou senha inválida'],403);
         }
-        $pdo->prepare('DELETE FROM '.arc_table('account_login_attempts').' WHERE ip_hash=?')->execute([$ipHash]);
+        arc_login_attempt_succeeded($pdo, $loginAttemptId);
         arc_user_audit($pdo,'agent_settings_login','Configurações locais autenticadas no agente '.$code,(int)$user['id']);
         header('Cache-Control: no-store, private');
         arc_json(['ok'=>true]);

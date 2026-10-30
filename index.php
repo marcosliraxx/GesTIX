@@ -72,16 +72,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'As senhas não conferem.';
     } else {
         try {
-            $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-            $pepper = (string)(arc_config()['app_secret'] ?? 'arcoll');
-            $ipHash = hash_hmac('sha256', $ip, $pepper);
             $emailHash = hash('sha256', $postedEmail);
-            $attempts = $pdo->prepare('SELECT COUNT(*) FROM ' . arc_table('account_login_attempts') . ' WHERE ip_hash=? AND attempted_at >= (CURRENT_TIMESTAMP - INTERVAL 15 MINUTE)');
-            $attempts->execute([$ipHash]);
-            if ((int)$attempts->fetchColumn() >= max(3,min(30,(int)arc_platform_setting($pdo,'platform_login_max_attempts','12')))) {
+            $loginAttemptId = arc_login_attempt_begin($pdo, $postedEmail);
+            if ($loginAttemptId === null) {
+                http_response_code(429);
+                header('Retry-After: 900');
                 $error = 'Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.';
             } else {
-                $pdo->prepare('INSERT INTO ' . arc_table('account_login_attempts') . ' (ip_hash,identifier_hash) VALUES (?,?)')->execute([$ipHash, hash_hmac('sha256', $postedEmail, $pepper)]);
                 $passwordMaterial = base64_encode(hash('sha384', $password, true));
                 if ($mode === 'register') {
                     // Cadastro público cria somente cliente. Administradores são cadastrados na área administrativa.
@@ -90,13 +87,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($checkAdmin->fetchColumn()) {
                         $error = 'Não foi possível criar uma conta com esse e-mail.';
                     } else {
-                        $insert = $pdo->prepare('INSERT INTO ' . arc_table('user_accounts') . ' (email,email_hash,display_name,password_hash) VALUES (?,?,?,?)');
-                        $insert->execute([$postedEmail, $emailHash, $postedName, password_hash($passwordMaterial, PASSWORD_DEFAULT)]);
+                        $insert = $pdo->prepare('INSERT INTO ' . arc_table('user_accounts') . ' (email,email_hash,display_name,password_hash,access_notes) VALUES (?,?,?,?,?)');
+                        $insert->execute([$postedEmail, $emailHash, $postedName, password_hash($passwordMaterial, PASSWORD_DEFAULT), '']);
+                        $createdUserId = (int)$pdo->lastInsertId();
+                        arc_login_attempt_succeeded($pdo, $loginAttemptId);
                         session_regenerate_id(true);
                         unset($_SESSION['arc_admin_id'], $_SESSION['arc_admin_email']);
-                        $_SESSION['arc_user_id'] = (int)$pdo->lastInsertId();
+                        $_SESSION['arc_user_id'] = $createdUserId;
                         $_SESSION['arc_user_email'] = $postedEmail;
-                        $pdo->prepare('DELETE FROM ' . arc_table('account_login_attempts') . ' WHERE ip_hash=?')->execute([$ipHash]);
                         header('Location: ' . arc_workspace_base_url() . (arc_authenticated_home($pdo) ?? 'pages/painel.php'), true, 303);
                         exit;
                     }
@@ -107,11 +105,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $adminHash = (string)($admin['password_hash'] ?? '');
                     $adminMaterial = strlen($password) > 72 ? base64_encode(hash('sha256', $password, true)) : $password;
                     if ($admin && $adminHash !== '' && (password_verify($adminMaterial, $adminHash) || (strlen($password) > 72 && password_verify($password, $adminHash)))) {
+                        arc_login_attempt_succeeded($pdo, $loginAttemptId);
                         session_regenerate_id(true);
                         unset($_SESSION['arc_user_id'], $_SESSION['arc_user_email']);
                         $_SESSION['arc_admin_id'] = (int)$admin['id'];
                         $_SESSION['arc_admin_email'] = (string)$admin['email'];
-                        $pdo->prepare('DELETE FROM ' . arc_table('account_login_attempts') . ' WHERE ip_hash=?')->execute([$ipHash]);
                         header('Location: ' . arc_workspace_base_url() . (arc_authenticated_home($pdo) ?? 'pages/painel.php'), true, 303);
                         exit;
                     }
@@ -120,19 +118,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $user = $userQ->fetch(PDO::FETCH_ASSOC);
                     $hash = (string)($user['password_hash'] ?? '');
                     if ($user && (string)($user['account_status'] ?? 'active') === 'active' && (password_verify($passwordMaterial, $hash) || password_verify($password, $hash))) {
+                        arc_login_attempt_succeeded($pdo, $loginAttemptId);
                         session_regenerate_id(true);
                         unset($_SESSION['arc_admin_id'], $_SESSION['arc_admin_email']);
                         $_SESSION['arc_user_id'] = (int)$user['id'];
                         $_SESSION['arc_user_email'] = (string)$user['email'];
                         $pdo->prepare('UPDATE ' . arc_table('user_accounts') . ' SET last_login_at=CURRENT_TIMESTAMP WHERE id=?')->execute([(int)$user['id']]);
-                        $pdo->prepare('DELETE FROM ' . arc_table('account_login_attempts') . ' WHERE ip_hash=?')->execute([$ipHash]);
                         header('Location: ' . arc_workspace_base_url() . (arc_authenticated_home($pdo) ?? 'pages/painel.php'), true, 303);
                         exit;
                     }
                     $error = 'E-mail ou senha incorretos.';
                 }
             }
-        } catch (PDOException $exception) {
+        } catch (PDOException | RuntimeException $exception) {
             error_log('Arcoll index auth: ' . $exception->getMessage());
             $error = $mode === 'register' && (string)$exception->getCode() === '23000'
                 ? 'Já existe uma conta com este e-mail.'

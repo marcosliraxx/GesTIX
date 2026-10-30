@@ -27,6 +27,8 @@ function arc_config(): array
     return $arcLoadedConfig;
 }
 
+require_once __DIR__ . '/login-security.php';
+
 function arc_workspace_base_url(): string
 {
     $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/pages/index.php'));
