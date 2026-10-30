@@ -22,6 +22,7 @@ try{
    $count++;
   }catch(Throwable $e){$errors++;error_log('Renovação conta #'.(int)$s['account_id'].': '.$e->getMessage());}
  }
+ arc_support_files_cleanup($pdo);
  // Tokens expire independently of cleanup; no ticket, invoice or audit history is erased.
  $pdo->exec('DELETE FROM '.arc_table('support_remote_tokens').' WHERE expires_at<DATE_SUB(NOW(),INTERVAL 7 DAY)');
  echo 'Renovações verificadas: '.$count.'; falhas: '.$errors.PHP_EOL;

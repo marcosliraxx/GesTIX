@@ -18,7 +18,7 @@ except Exception:
  QUICK_COMMANDS={}; run_quick_command=None
 
 APP_NAME='Arcoll Speed Connection'
-AGENT_VERSION='3.2.2'
+AGENT_VERSION='3.3.0'
 ROOT=Path(__file__).resolve().parent
 CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.json'
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'
@@ -1881,6 +1881,8 @@ class ArcollApp:
   ident=int(command.get('id',0));name=str(command.get('command_name',''))
   if name in ('power_shutdown','power_restart','power_cancel'):
    self._request_power_action(ident,name,headless=bool(int(command.get('headless_mode') or 0)),role=str(command.get('requester_role') or ''));return
+  if name=='file_transfer':
+   self._request_file_transfer(ident);return
   if name=='agent_update':
    self.update_agent(remote_command_id=ident);return
   if name=='remote_assistance':
@@ -1923,6 +1925,65 @@ class ArcollApp:
    if status=='failed' and name=='speed_test':self._remote_speed_command=None
    if status=='failed' and name in ('scan_devices','scan_map'):self._remote_scan_command=None
    self._ack_remote_command(ident,status,result)
+ def _request_file_transfer(self,ident):
+  from arcoll_toolkit import transfer_request
+  auth={'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY}
+  if getattr(self,'_file_transfer_busy',False):
+   self._ack_remote_command(ident,'failed','Aguarde a transferência anterior.');return
+  self._file_transfer_busy=True
+  def failed(message):
+   self._file_transfer_busy=False
+   self._ack_remote_command(ident,'failed',message)
+  def prepare():
+   try:
+    # The command ID identifies only this agent's queued request; the API resolves its transfer record.
+    result=request_json(ORIGIN+'/api/api.php?action=agent-file-transfer',dict(auth,command_id=ident),timeout=10)
+    if not result.get('ok'):raise RuntimeError(result.get('error') or 'Transferência indisponível.')
+    transfer_id=int(result['transfer_id'])
+    row=transfer_request(ORIGIN,'file-agent-details',auth,transfer_id)['transfer']
+    self.root.after(0,lambda:choose(row,transfer_id))
+   except Exception as exc:self.root.after(0,lambda message=friendly_error(str(exc)):failed(message))
+  def choose(row,transfer_id):
+   try:
+    self.show_window()
+    requester=str(row.get('requester') or 'O suporte')[:80]
+    incoming=row['direction']=='to_agent'
+    prompt=(requester+' quer enviar o arquivo '+str(row['filename'])+'. Deseja escolher onde salvar?') if incoming else (requester+' pediu um arquivo deste computador. Deseja selecionar um arquivo para enviar?')
+    path=''
+    if messagebox.askyesno('Transferência de arquivos',prompt,parent=self.root):
+     path=filedialog.asksaveasfilename(parent=self.root,title='Salvar arquivo recebido do suporte',initialfile=row['filename'],confirmoverwrite=True) if incoming else filedialog.askopenfilename(parent=self.root,title='Selecionar arquivo para enviar ao suporte')
+    def work():
+     try:
+      if not path:
+       transfer_request(ORIGIN,'file-agent-finish',auth,transfer_id,{'status':'declined'});return
+      target=Path(path)
+      if incoming:
+       data=transfer_request(ORIGIN,'file-agent-download',auth,transfer_id,binary=True)
+       if len(data)!=int(row['file_size']) or hashlib.sha256(data).hexdigest()!=row['sha256']:raise ValueError('O arquivo recebido está incompleto.')
+       # The user chose the destination. Use a sibling temporary file and atomic replace; never execute it.
+       temporary=None
+       try:
+        with tempfile.NamedTemporaryFile(prefix='.arcoll-',dir=str(target.parent),delete=False) as stream:
+         temporary=Path(stream.name);stream.write(data)
+        os.replace(temporary,target);temporary=None
+       finally:
+        if temporary:temporary.unlink(missing_ok=True)
+       transfer_request(ORIGIN,'file-agent-finish',auth,transfer_id,{'status':'completed'})
+      else:
+       if not target.is_file():raise ValueError('Escolha um arquivo comum.')
+       with target.open('rb') as stream:data=stream.read(8388609)
+       if len(data)>8388608:raise ValueError('Escolha um arquivo de até 8 MB.')
+       transfer_request(ORIGIN,'file-agent-upload',auth,transfer_id,payload=data,filename=target.name)
+      self.root.after(0,lambda:self._operation_message('remote','Transferência de arquivo concluída.',completed=True))
+     except Exception as exc:
+      try:transfer_request(ORIGIN,'file-agent-finish',auth,transfer_id,{'status':'failed'})
+      except Exception:pass
+      self.root.after(0,lambda message=friendly_error(str(exc)):messagebox.showerror('Transferência',message,parent=self.root))
+     finally:self.root.after(0,lambda:setattr(self,'_file_transfer_busy',False))
+    threading.Thread(target=work,daemon=True).start()
+   except Exception as exc:failed(friendly_error(str(exc)))
+  threading.Thread(target=prepare,daemon=True).start()
+
  def _request_power_action(self,ident,name,headless=False,role=''):
   from arcoll_toolkit import schedule_power_action
   if name!='power_cancel' and not (headless and role=='administrator'):
@@ -3300,6 +3361,10 @@ class ArcollApp:
   except tk.TclError:pass
  def update_agent(self,remote_command_id=None):
   """Download an authenticated code-only update and delegate the swap to a separate process."""
+  if getattr(self,'_file_transfer_busy',False):
+   if remote_command_id:self._ack_remote_command(remote_command_id,'failed','Conclua a transferência de arquivos antes de atualizar.')
+   else:messagebox.showinfo('Atualizar','Conclua a transferência de arquivos antes de atualizar o agente.',parent=self.root)
+   return
   if platform.system()!='Windows' or not ORIGIN or not SITE_CODE or not DOWNLOAD_KEY:
    return messagebox.showerror('Atualizar','Este agente precisa estar conectado e autorizado na plataforma.',parent=self.root)
   if getattr(self,'_update_running',False):

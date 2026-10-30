@@ -18,3 +18,6 @@
 
 - Controles de energia devem usar argumentos Windows fixos, sem shell, sem forçar arquivos não salvos, com confirmação do gestor e revalidação da tarefa antes da execução. Operadores/convidados não podem desligar computadores. Testes devem simular as chamadas de energia.
 - Pix copia e cola/QR deve ser gerado localmente e preservar os dados da cobrança emitida. Informar pagamento nunca libera Pix manual; a conferência administrativa permanece obrigatória. Valide QR com leitura independente, isolamento do checkout e migração reaplicável sem perda de cobranças.
+
+- O mapa abre ajustado pela largura; visão geral é ação explícita. Valide ambos os modos. A rolagem por toque sobre dispositivos deve funcionar; movimentação por toque fica em modo de edição explícito.
+- Transferências usam o armazenamento privado, fila/autenticação existentes e autorização local para selecionar arquivo ou destino. Não executar arquivos nem aceitar caminhos remotos arbitrários. Validar integridade, tamanho, permissões revalidadas, isolamento por solicitante, expiração e limpeza preservando metadados. Testes não devem coletar arquivos reais de usuários.

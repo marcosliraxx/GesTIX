@@ -188,7 +188,7 @@ try {
     };
 
     /* Canal de comandos: ações limitadas, agente aprovado, token da instalação. */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize'],true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-file-transfer'],true)) {
         $raw = file_get_contents('php://input');
         if (!is_string($raw) || strlen($raw)>8192) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
         $body=json_decode($raw,true);
@@ -201,6 +201,11 @@ try {
         $q->execute([$fp,$code,hash('sha256',$key),$fp]);$agent=$q->fetch();
         if (!$agent) arc_json(['ok'=>false,'error'=>'Agente sem autorização'],403);
         $agentId=(int)$agent['id'];
+        if($action==='agent-file-transfer'){
+            $q=$pdo->prepare('SELECT id FROM '.arc_table('support_file_transfers').' WHERE command_id=? AND agent_id=? AND account_id=? AND network_id=?');$q->execute([(int)($body['command_id']??0),$agentId,$agent['account_id'],$agent['network_id']]);$transfer=$q->fetchColumn();
+            if(!$transfer)arc_json(['ok'=>false,'error'=>'Transferência não encontrada.'],404);
+            arc_support_file_record($pdo,(int)$transfer,$agent);arc_json(['ok'=>true,'transfer_id'=>(int)$transfer]);
+        }
         if($action==='agent-power-authorize'){
             $id=(int)($body['command_id']??0);
             $q=$pdo->prepare("SELECT c.command_name,a.headless_mode FROM ".arc_table('agent_commands')." c JOIN ".arc_table('network_agents')." a ON a.id=c.agent_id AND a.account_id=c.account_id JOIN ".arc_table('managed_networks')." n ON n.id=c.network_id AND n.account_id=c.account_id JOIN ".arc_table('user_accounts')." u ON u.id=c.account_id WHERE c.id=? AND c.agent_id=? AND c.account_id=? AND c.network_id=? AND c.status='running' AND c.command_name IN ('power_shutdown','power_restart','power_cancel') AND c.dispatched_at>=DATE_SUB(NOW(),INTERVAL 3 MINUTE) AND u.account_status='active'");

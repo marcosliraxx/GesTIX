@@ -299,9 +299,11 @@ def restart_readiness():
 
 def friendly_error(error):
     text=str(error)
+    if any(word in text.lower() for word in ('permission denied','access is denied')):return 'Sem permissão para ler ou salvar o arquivo. Escolha outra pasta ou peça ajuda ao responsável.'
+    if 'no such file' in text.lower():return 'Arquivo não encontrado. Escolha o arquivo novamente.'
     if any(word in text.lower() for word in ('certificate','ssl','tls')):return 'Não foi possível confirmar a segurança da conexão. Confira a data do computador e o certificado do site.'
     if any(word in text.lower() for word in ('timeout','timed out','connection','network','urlopen','name resolution')):return 'A conexão demorou ou caiu. Confira a internet e tente novamente.'
-    if text.startswith(('Não ','Acesso ','Sessão ','Código ','Conta ','Limite ','Selecione ','Computador ','Agente ')) and not any(word in text for word in ('Traceback','SQLSTATE','{')):return text[:250]
+    if text.startswith(('Não ','Acesso ','Sessão ','Código ','Conta ','Limite ','Selecione ','Computador ','Agente ','Escolha ','Arquivo ','Transferência ','O arquivo ')) and not any(word in text for word in ('Traceback','SQLSTATE','{')):return text[:250]
     return 'Não foi possível concluir. Confira a conexão e tente novamente.'
 
 def schedule_power_action(action):
@@ -459,3 +461,35 @@ class AppearanceManager:
             if saved!=self.choice or resolved!=self.resolved:self.choice=saved;self.apply()
             self.root.after(1800,self.poll)
         except tk.TclError:return
+
+# Authenticated file transport: fixed platform endpoint, bounded reads, verified HTTPS, no redirects.
+def transfer_request(origin, action, auth, transfer_id, payload=None, binary=False, filename=''):
+    import hashlib
+    import urllib.request
+    import urllib.parse
+    import urllib.error
+    allowed={'file-agent-details','file-agent-download','file-agent-upload','file-agent-finish'}
+    parsed=urllib.parse.urlsplit(origin)
+    if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or action not in allowed:
+        raise ValueError('Endereço da plataforma ou operação inválida.')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):return None
+    headers={'X-Arcoll-Fingerprint':auth['fingerprint'],'X-Arcoll-Site':auth['site_code'],'X-Arcoll-Key':auth['download_key'],'Accept':'application/json'}
+    if isinstance(payload,bytes):
+        if len(payload)>8388608:raise ValueError('O arquivo excede 8 MB.')
+        data=payload;headers.update({'Content-Type':'application/octet-stream','X-File-Name':urllib.parse.quote(filename),'X-File-Sha256':hashlib.sha256(payload).hexdigest()})
+    else:data=json.dumps(payload or {}).encode('utf-8');headers['Content-Type']='application/json'
+    url=origin.rstrip('/')+'/api/support.php?action='+action+'&id='+str(int(transfer_id))
+    request=urllib.request.Request(url,data=data,headers=headers,method='POST')
+    try:
+        with urllib.request.build_opener(NoRedirect).open(request,timeout=60) as response:
+            limit=8388608 if binary else 65536;raw=response.read(limit+1)
+            if response.geturl()!=url or len(raw)>limit:raise RuntimeError('Resposta inválida ou arquivo maior que o limite.')
+            if binary:return raw
+            result=json.loads(raw.decode('utf-8'))
+            if not result.get('ok'):raise RuntimeError(result.get('error') or 'Transferência indisponível.')
+            return result
+    except urllib.error.HTTPError as exc:
+        try:message=json.loads(exc.read(4096).decode('utf-8')).get('error')
+        except Exception:message=None
+        raise RuntimeError(message or 'A plataforma não autorizou a transferência.') from None
