@@ -19,7 +19,7 @@ class ReleaseVersionTests(unittest.TestCase):
         self.assertIn('class AppearanceManager:',toolkit)
         self.assertNotIn('arcoll_theme.py',(ROOT/'api/api.php').read_text())
     def test_no_runtime_style_adapters_or_obsolete_files(self):
-        for name in ['_manifest.json','assets/css/appearance.css','assets/css/platform-mobile.css','assets/css/mobile-app.css','assets/css/panel.css','assets/css/arcoll-modern.css','assets/js/appearance.js','assets/js/panel.js','assets/js/arcoll-modern.js','pwa/legacy-dashboard.html','assets/css/network-agent-states.css','assets/js/network-agent-states.js']:
+        for name in ['_manifest.json','api/network-report.php','redes/_relatorio_modal.php','assets/css/appearance.css','assets/css/platform-mobile.css','assets/css/mobile-app.css','assets/css/panel.css','assets/css/arcoll-modern.css','assets/js/appearance.js','assets/js/panel.js','assets/js/arcoll-modern.js','pwa/legacy-dashboard.html','assets/css/network-agent-states.css','assets/js/network-agent-states.js']:
             self.assertFalse((ROOT/name).exists(),name)
         script=(ROOT/'assets/js/arcoll.js').read_text()
         self.assertNotIn('document.styleSheets',script)
