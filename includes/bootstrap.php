@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '3.2.1';
+const ARC_APP_VERSION = '3.2.2';
 const ARC_SCHEMA_VERSION = '2026.10.30-4';
 
 require_once __DIR__.'/billing.php';

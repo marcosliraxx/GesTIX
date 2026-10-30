@@ -2,7 +2,7 @@
 /* Caminho: includes/billing.php */
 declare(strict_types=1);
 
-const ARC_BILLING_VERSION = '3.2.1';
+const ARC_BILLING_VERSION = '3.2.2';
 
 function arc_billing_seed_plans(PDO $pdo): void {
     if ((int)$pdo->query('SELECT COUNT(*) FROM '.arc_table('billing_plans'))->fetchColumn()) return;
@@ -70,9 +70,10 @@ function arc_billing_invoice(PDO $pdo,int $account,int $plan,string $provider): 
     try{
         $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');$q->execute([$account]);if(!$q->fetchColumn())throw new RuntimeException('Conta inválida.');
         $q=$pdo->prepare('SELECT * FROM '.arc_table('billing_plans').' WHERE id=? AND enabled=1');$q->execute([$plan]);$p=$q->fetch();if(!$p||(int)$p['price_cents']<100)throw new RuntimeException('Plano indisponível.');
-        $q=$pdo->prepare("SELECT * FROM ".arc_table('billing_invoices')." WHERE account_id=? AND status IN ('pending','processing','review') ORDER BY id DESC LIMIT 1 FOR UPDATE");$q->execute([$account]);$existing=$q->fetch();
-        if($existing){if((int)$existing['plan_id']!==$plan||$existing['provider']!==$provider)throw new RuntimeException('Conclua ou cancele sua cobrança pendente antes de escolher outra.');$pdo->commit();return $existing;}
-        $sub=arc_billing_subscription($pdo,$account);$cycle=($sub?substr((string)$sub['period_end'],0,19):'initial').'-'.$plan;
+        // Other plans and payment methods remain independent; repeated identical choices reuse their open charge.
+        $q=$pdo->prepare("SELECT * FROM ".arc_table('billing_invoices')." WHERE account_id=? AND plan_id=? AND provider=? AND status IN ('pending','processing','review') ORDER BY id DESC LIMIT 1 FOR UPDATE");$q->execute([$account,$plan,$provider]);$existing=$q->fetch();
+        if($existing){$pdo->commit();return $existing;}
+        $sub=arc_billing_subscription($pdo,$account);$cycle=($sub?substr((string)$sub['period_end'],0,19):'initial').'-'.$plan.'-'.$provider;
         $q=$pdo->prepare('SELECT * FROM '.arc_table('billing_invoices').' WHERE account_id=? AND period_key=? FOR UPDATE');$q->execute([$account,$cycle]);$existing=$q->fetch();
         if($existing && $existing['status']!=='cancelled'){$pdo->commit();return $existing;}
         if($existing)$pdo->prepare('UPDATE '.arc_table('billing_invoices').' SET period_key=CONCAT(period_key,\'-x\',id) WHERE id=?')->execute([$existing['id']]);

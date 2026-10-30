@@ -34,6 +34,14 @@ $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='completed' WHE
 $pdo->prepare('UPDATE '.arc_table('network_agents').' SET headless_mode=1 WHERE id=?')->execute([$agent]);rejects(fn()=>arc_support_request_remote($pdo,$network,$agent,$operator),'Headless access requires gestor');$pdo->prepare('UPDATE '.arc_table('network_agents').' SET headless_mode=0 WHERE id=?')->execute([$agent]);
 arc_platform_save_setting($pdo,'platform_billing_public_url','https://app.example.test');arc_platform_save_setting($pdo,'platform_billing_pix_enabled','1');arc_platform_save_setting($pdo,'platform_billing_pix_key','synthetic@example.test');
 $plan=(int)$pdo->query('SELECT MIN(id) FROM '.arc_table('billing_plans'))->fetchColumn();$invoice=arc_billing_invoice($pdo,$owner,$plan,'pix');$again=arc_billing_invoice($pdo,$owner,$plan,'pix');check($invoice['id']===$again['id'],'Checkout is locally idempotent');
+$secondPlan=(int)$pdo->query('SELECT MIN(id) FROM '.arc_table('billing_plans').' WHERE enabled=1 AND id<>'.$plan)->fetchColumn();
+$alternative=arc_billing_invoice($pdo,$owner,$secondPlan,'pix');check($alternative['id']!==$invoice['id'],'Another plan may be chosen without cancelling a pending charge');
+$q=$pdo->prepare('SELECT status FROM '.arc_table('billing_invoices').' WHERE id=?');$q->execute([$invoice['id']]);check($q->fetchColumn()==='pending','Existing pending invoice remains preserved');
+$pdo->prepare("UPDATE ".arc_table('billing_invoices')." SET status='review' WHERE id=?")->execute([$alternative['id']]);
+$wasEnabled=arc_billing_setting($pdo,'asaas_enabled');arc_platform_save_setting($pdo,'platform_billing_asaas_enabled','1');
+$otherMethod=arc_billing_invoice($pdo,$owner,$plan,'asaas');check($otherMethod['id']!==$invoice['id'],'Another method may be chosen with a charge under review');
+check(arc_billing_invoice($pdo,$owner,$plan,'asaas')['id']===$otherMethod['id'],'Repeated purchase of same plan and method reuses its pending invoice');
+arc_platform_save_setting($pdo,'platform_billing_asaas_enabled',$wasEnabled);
 $payload=arc_billing_pix_snapshot($pdo,$invoice);check(str_contains($payload,'synthetic@example.test'),'Pix contains configured beneficiary key');check(str_contains($payload,'5405'.number_format((int)$invoice['amount_cents']/100,2,'.','')),'Pix contains invoice amount');
 $checkCrc=0xFFFF;$part=substr($payload,0,-4);for($j=0;$j<strlen($part);$j++){$checkCrc^=ord($part[$j])<<8;for($bit=0;$bit<8;$bit++)$checkCrc=(($checkCrc<<1)^(($checkCrc&0x8000)?0x1021:0))&0xFFFF;}check(strtoupper(str_pad(dechex($checkCrc),4,'0',STR_PAD_LEFT))===substr($payload,-4),'Pix checksum valid');
 arc_platform_save_setting($pdo,'platform_billing_pix_key','changed@example.test');check(arc_billing_pix_snapshot($pdo,$invoice)===$payload,'Issued Pix snapshot survives key change');arc_platform_save_setting($pdo,'platform_billing_pix_key','synthetic@example.test');
