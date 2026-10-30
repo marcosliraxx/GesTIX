@@ -14,6 +14,14 @@ declare(strict_types=1);
 
 <footer class="app-footer arc-compact-footer" aria-label="Rodapé do sistema">
     <span class="arc-footer-system-name" title="<?=arc_h((string)$arcSiteName)?>">&copy; <?=date('Y')?> · <?=arc_h((string)$arcSiteName)?></span>
+<?php if (($ARCMode ?? 'app') === 'app'): ?>
+<nav class="arc-mobile-dock" aria-label="Navegação do aplicativo">
+<a href="pages/painel.php" <?=($ARCPageBodyClass??'')==='arc-panel-page'?'aria-current="page"':''?>><i class="fa fa-th-large" aria-hidden="true"></i><span>Painel</span></a>
+<a href="pages/painel.php?nova_rede=1"><i class="fa fa-plus-square-o" aria-hidden="true"></i><span>Nova rede</span></a>
+<a href="pages/perfil.php" <?=basename((string)($_SERVER['SCRIPT_NAME']??''))==='perfil.php'?'aria-current="page"':''?>><i class="fa fa-user-o" aria-hidden="true"></i><span>Perfil</span></a>
+<button type="button" data-mobile-menu aria-label="Abrir menu do aplicativo" aria-controls="app-sidebar" aria-expanded="false"><i class="fa fa-bars" aria-hidden="true"></i><span>Menu</span></button>
+</nav>
+<?php endif; ?>
 </footer>
 
 <script src="assets/js/arcoll.js" defer></script>
@@ -30,10 +38,12 @@ declare(strict_types=1);
         if(sidebar)sidebar.classList.toggle('is-open',!!open);
         if(backdrop)backdrop.hidden=!open;
         if(mobileMenu)mobileMenu.setAttribute('aria-expanded',open?'true':'false');
+        document.querySelectorAll('[data-mobile-menu]').forEach(function(button){button.setAttribute('aria-expanded',open?'true':'false');});
         if(open&&sidebar){var first=sidebar.querySelector('.side-nav a');if(first)first.focus({preventScroll:true});}
         else if(mobileMenu)mobileMenu.focus({preventScroll:true});
     }
     if(mobileMenu)mobileMenu.addEventListener('click',function(){setMobileMenu(!document.body.classList.contains('arc-menu-open'));});
+    document.querySelectorAll('[data-mobile-menu]').forEach(function(button){button.addEventListener('click',function(){setMobileMenu(!document.body.classList.contains('arc-menu-open'));});});
     if(backdrop)backdrop.addEventListener('click',function(){setMobileMenu(false);});
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.body.classList.contains('arc-menu-open'))setMobileMenu(false);});
     window.addEventListener('resize',function(){if(window.innerWidth>860&&document.body.classList.contains('arc-menu-open'))setMobileMenu(false);});

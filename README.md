@@ -43,3 +43,9 @@ O formulário público, o acesso administrativo e a autenticação das configura
 O bloqueio no formulário público e na API retorna HTTP 429 com `Retry-After`. Esta atualização utiliza a tabela existente, sem importação de SQL nem alteração de credenciais. O cadastro público também passa a preencher `access_notes`, obrigatório no schema atual.
 
 Ao instalar, envie **também** o novo arquivo `includes/login-security.php`, antes de substituir o bootstrap e os demais arquivos. Consulte [os testes de autenticação](docs/TESTES.md) para reproduzir a validação em uma instância descartável.
+
+## Painel e aplicativo mobile
+
+O painel organiza as redes em uma grade que calcula sua capacidade pela área disponível da tela. Com muitas redes, a navegação usa páginas em vez de uma lista vertical extensa. Busca, filtros de situação e controles de página mantêm todas as redes acessíveis. No celular, uma barra inferior oferece Painel, Nova rede, Perfil e Menu; áreas seguras e modais respeitam o tamanho da tela.
+
+O manifesto mantém a identidade existente do aplicativo e passa a iniciar em `pages/painel.php`. Ícones padrão e a fonte de ícones das telas compartilhadas são locais. O service worker usa um novo cache de arquivos estáticos; dados privados e páginas autenticadas continuam dependendo da rede. O painel foi validado em Chromium com 35 combinações de tamanho de tela e quantidade de redes, além das interações documentadas nos testes. Instalações físicas em Android/iOS ainda precisam ser conferidas no aparelho.

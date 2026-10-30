@@ -11,14 +11,14 @@ try {
     if ($name === '' || basename($name) !== $name || !preg_match('/^[a-f0-9]{32,40}\.(png|jpg|webp)$/', $name)) {
         header('Content-Type: image/svg+xml; charset=utf-8');
         header('Cache-Control: public, max-age=300');
-        readfile(__DIR__ . '/../assets/img/favicon.svg');
+        readfile(__DIR__ . '/../assets/img/app-mark.svg');
         exit;
     }
     $path = arc_upload_dir('brand') . '/' . $name;
     if (!is_file($path)) {
         header('Content-Type: image/svg+xml; charset=utf-8');
         header('Cache-Control: public, max-age=300');
-        readfile(__DIR__ . '/../assets/img/favicon.svg');
+        readfile(__DIR__ . '/../assets/img/app-mark.svg');
         exit;
     }
     $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path);
@@ -51,5 +51,5 @@ try {
     error_log('Arcoll logo error: ' . $exception->getMessage());
     header('Content-Type: image/svg+xml; charset=utf-8');
     header('Cache-Control: public, max-age=300');
-    readfile(__DIR__ . '/../assets/img/favicon.svg');
+    readfile(__DIR__ . '/../assets/img/app-mark.svg');
 }

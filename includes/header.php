@@ -36,6 +36,7 @@ if (function_exists('arc_is_user') && arc_is_user()) {
 $GLOBALS['arcPrefs'] = $arcPrefs;
 $arcBodyClass = trim(
     (($arcPrefs['density'] ?? '') === 'compact' ? 'density-compact ' : '')
+    . ($ARCMode === 'app' ? 'arc-workspace ' : '')
     . 'font-' . (string)($arcPrefs['font_size'] ?? 'normal')
     . (($arcPrefs['reduce_motion'] ?? '0') === '1' ? ' reduce-motion' : '')
 );
@@ -44,7 +45,8 @@ $arcBodyClass = trim(
 $arcBrand   = function_exists('arc_public_settings') ? arc_public_settings(arc_db()) : [];
 $arcLogo    = trim((string)($arcBrand['logo_path'] ?? '')) !== ''
     ? 'api/brand-logo.php?v=' . substr(hash('sha256', (string)$arcBrand['logo_path']), 0, 12)
-    : 'assets/img/arcoll-mark.svg';
+    : 'assets/img/app-mark.svg';
+$arcAppIcon = trim((string)($arcBrand['logo_path'] ?? '')) !== '' ? 'api/brand-logo.php?icon=192' : 'assets/img/app-icon-192.png';
 $arcSiteName = (string)($arcBrand['site_name'] ?? 'Arcoll Speed Connection');
 $arcThemePref=arc_platform_setting(arc_db(),'platform_theme_mode',(string)($arcBrand['default_theme'] ?? 'auto'));
 $arcDefaultTheme = in_array($arcThemePref,['auto','light','dark'],true)?$arcThemePref:'auto';
@@ -66,13 +68,16 @@ unset($_SESSION['arc_flash']);
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#183249">
-<link rel="icon" type="image/svg+xml" href="api/brand-logo.php?icon=192"><link rel="shortcut icon" href="api/brand-logo.php?icon=192"><link rel="apple-touch-icon" href="api/brand-logo.php?icon=192">
+<link rel="icon" href="<?=arc_h($arcAppIcon)?>"><link rel="shortcut icon" href="<?=arc_h($arcAppIcon)?>"><link rel="apple-touch-icon" sizes="192x192" href="<?=arc_h($arcAppIcon)?>">
 
 
-<title><?= arc_h(($ARCPageTitle ?? $arcSiteName) . ' · ' . $arcSiteName) ?></title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"><link rel="stylesheet" href="assets/css/arcoll.css?v=<?= rawurlencode((string)(@filemtime(dirname(__DIR__) . '/assets/css/arcoll.css') ?: 1)) ?>">
+<title><?= arc_h(($ARCPageTitle ?? $arcSiteName) . ' · ' . $arcSiteName) ?></title><link rel="stylesheet" href="assets/vendor/font-awesome/css/font-awesome.min.css"><link rel="stylesheet" href="assets/css/arcoll.css?v=<?= rawurlencode((string)(@filemtime(dirname(__DIR__) . '/assets/css/arcoll.css') ?: 1)) ?>">
 
     
     <link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="assets/css/mobile-app.css?v=<?=filemtime(dirname(__DIR__).'/assets/css/mobile-app.css')?>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 .arc-toast,.flash.arc-toast{background:color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 12%,rgba(255,255,255,.78))!important;border:1px solid color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 35%,transparent)!important;backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 12px 35px #152a4830}
 .erp-user-button .erp-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}

@@ -239,6 +239,7 @@ try { $panelNetworks=$loadPanelNetworks($pdo,$admin,$uid); }
 catch(Throwable $e) { $panelNetworksFailed=true;error_log('Painel redes: '.$e->getMessage()); }
 $panelOnline=count(array_filter($panelNetworks,static fn(array $n):bool=>(int)$n['is_active']===1 && (int)$n['has_online_agent']===1));
 $panelOffline=count($panelNetworks)-$panelOnline;
+$ARCPageBodyClass='arc-panel-page';
 $ARCMode='app';$ARCPageTitle='Painel';$ARCActiveNav='overview';$ARCHeaderActions='';
 require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';
 ?>
@@ -384,25 +385,36 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 @media(max-width:480px){.arc-panel-network-rail{gap:9px;padding:9px 4px 14px}.arc-panel-network-link{flex-basis:110px;width:110px;max-width:110px;min-height:112px;border-radius:13px;gap:9px;padding:10px 7px}.arc-panel-network-link .fa-desktop{font-size:34px}.arc-panel-add-card{min-height:112px}.arc-panel-add-card .fa-plus{width:46px;height:46px;flex-basis:46px;border-radius:14px;font-size:23px}}
 @media(hover:none){.arc-panel-network-link:hover{transform:none;box-shadow:0 3px 12px rgba(20,48,87,.05)}.arc-panel-network-link:hover .fa-desktop,.arc-panel-add-card:hover .fa-plus{transform:none}.arc-panel-add-card:hover::after{transform:translateX(-150%)}}
 @media(prefers-reduced-motion:reduce){.arc-panel-network-link,.arc-panel-network-link::before,.arc-panel-network-link .fa-desktop,.arc-panel-add-card::after,.arc-panel-add-card .fa-plus{transition:none!important;animation:none!important}.arc-panel-network-link:hover,.arc-panel-network-link:active{transform:none}}
-</style><main class="app-main"><div class="page-content arc-panel-unified" data-role="<?=arc_h($role)?>">
-<div class="arc-panel-commandbar" role="search" aria-label="Buscar e acompanhar redes">
-<label class="arc-panel-search" for="arc-panel-search"><i class="fa fa-search" aria-hidden="true"></i><input id="arc-panel-search" type="search" placeholder="Buscar rede" autocomplete="off" aria-label="Buscar redes"></label>
-<div class="arc-panel-stats" aria-label="Estado das redes" aria-live="polite"><span class="arc-panel-stat on" title="Redes online"><i class="fa fa-signal" aria-hidden="true"></i><strong id="arc-panel-online"><?=$panelOnline?></strong></span><span class="arc-panel-stat off" title="Redes offline, arquivadas ou sem agente conectado"><i class="fa fa-circle-o" aria-hidden="true"></i><strong id="arc-panel-offline"><?=$panelOffline?></strong></span></div>
-<button class="arc-panel-new" type="button" data-open-register title="Cadastrar nova rede" aria-label="Cadastrar nova rede"><i class="fa fa-plus" aria-hidden="true"></i></button>
+</style>
+<link rel="stylesheet" href="assets/css/panel.css?v=<?=filemtime(dirname(__DIR__).'/assets/css/panel.css')?>">
+<script src="assets/js/panel.js?v=<?=filemtime(dirname(__DIR__).'/assets/js/panel.js')?>" defer></script>
+<main class="app-main"><div class="page-content arc-panel-unified" data-role="<?=arc_h($role)?>">
+<header class="arc-panel-heading"><div><span class="arc-panel-eyebrow">CENTRAL DE MONITORAMENTO</span><h1>Suas redes, em um só lugar.</h1><p>Acompanhe suas conexões e acesse cada ambiente.</p></div><span class="arc-panel-sync" id="arc-panel-sync"><span></span> Atualização automática</span></header>
+<div class="arc-panel-summary" role="group" aria-label="Filtrar redes por situação">
+<button type="button" class="arc-panel-metric" data-panel-filter="all" aria-pressed="true"><span class="arc-metric-icon"><i class="fa fa-sitemap" aria-hidden="true"></i></span><span><small>Redes registradas</small><strong id="arc-panel-total"><?=count($panelNetworks)?></strong></span><span class="arc-metric-caption">Todos os ambientes</span></button>
+<button type="button" class="arc-panel-metric on" data-panel-filter="online" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-signal" aria-hidden="true"></i></span><span><small>Conectadas</small><strong id="arc-panel-online"><?=$panelOnline?></strong></span><span class="arc-metric-caption">Agentes em comunicação</span></button>
+<button type="button" class="arc-panel-metric off" data-panel-filter="attention" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-bell-o" aria-hidden="true"></i></span><span><small>Sem conexão</small><strong id="arc-panel-offline"><?=$panelOffline?></strong></span><span class="arc-metric-caption">Offline ou sem agente</span></button>
+</div>
+<div class="arc-panel-commandbar" role="search" aria-label="Buscar redes">
+<label class="arc-panel-search" for="arc-panel-search"><i class="fa fa-search" aria-hidden="true"></i><input id="arc-panel-search" type="search" placeholder="Buscar pelo nome da rede" autocomplete="off" aria-label="Buscar redes"></label>
+<button class="arc-panel-new" type="button" data-open-register aria-label="Cadastrar nova rede"><span aria-hidden="true">+</span><span>Nova rede</span></button>
 </div>
 <?php if($arcError!==''):?><p class="arc-panel-error" role="alert"><?=arc_h($arcError)?></p><?php endif;?>
 <section class="card arc-panel-network-block" aria-labelledby="panel-networks-title">
-<h2 id="panel-networks-title"><i class="fa fa-desktop" aria-hidden="true"></i> Minhas redes</h2>
-<?php if($panelNetworksFailed):?><p class="arc-panel-empty">Não foi possível carregar as redes. Atualize a página.</p>
+<div class="arc-panel-section-heading"><h2 id="panel-networks-title">Meus ambientes <span id="arc-panel-result-count"><?=count($panelNetworks)?></span></h2><span class="arc-panel-section-hint">Toque em uma rede para acompanhar</span></div>
+<?php if($panelNetworksFailed):?><div class="arc-panel-empty" role="alert"><h3>Não foi possível carregar as redes</h3><p>Verifique sua conexão e atualize a página.</p><a class="button" href="pages/painel.php">Tentar novamente</a></div>
 <?php else: ?>
-<div class="arc-panel-network-rail" role="region" aria-label="Minhas redes, role para os lados" tabindex="0">
-<?php foreach($panelNetworks as $network):$on=(int)$network['is_active']===1 && (int)$network['has_online_agent']===1;$state=['online'=>'Todos online','partial'=>'Atenção: parte offline','offline'=>'Todos offline','none'=>'Sem agentes'][$network['agent_state']]; ?>
+<div class="arc-panel-network-rail" id="arc-panel-grid" role="region" aria-label="Redes registradas">
+<?php foreach($panelNetworks as $network):$on=(int)$network['is_active']===1 && (int)$network['has_online_agent']===1;$state=['online'=>'Todos online','partial'=>'Parte dos agentes offline','offline'=>'Agentes offline','none'=>'Sem agentes'][$network['agent_state']]; if((int)$network['is_active']!==1)$state='Rede arquivada'; ?>
 <a class="arc-panel-network-link" aria-haspopup="dialog" data-panel-network="<?=(int)$network['id']?>" data-agent-state="<?=arc_h($network['agent_state'])?>" data-online="<?=$on?'1':'0'?>" data-active="<?=(int)$network['is_active']===1?'1':'0'?>" href="<?=arc_h(arc_workspace_base_url())?>redes/servidor.php?network=<?=(int)$network['id']?>" title="<?=arc_h((string)$network['name'].' — '.$state)?>" aria-label="<?=arc_h((string)$network['name'].' — '.$state)?>" data-name="<?=arc_h((string)$network['name'])?>">
-<i class="fa fa-desktop" aria-hidden="true"></i><span class="arc-panel-network-name"><?=arc_h((string)$network['name'])?></span><span class="arc-panel-network-state"><?=arc_h($state)?></span>
+<span class="arc-panel-card-top"><span class="arc-panel-card-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="5" y="5" width="22" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 20v6m-5 0h10M10 11h5m-5 4h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="arc-panel-status-dot" aria-hidden="true"></span></span>
+<span class="arc-panel-network-name"><?=arc_h((string)$network['name'])?></span><span class="arc-panel-network-state"><?=arc_h($state)?></span><span class="arc-panel-card-action">Acompanhar rede <span aria-hidden="true"><i class="fa fa-angle-right"></i></span></span>
 </a>
 <?php endforeach; ?>
-<button type="button" class="arc-panel-network-link arc-panel-add-card" data-open-register title="Cadastrar nova rede" aria-label="Cadastrar nova rede"><i class="fa fa-plus" aria-hidden="true"></i><span class="arc-panel-network-name">Nova rede</span></button>
-</div><p class="arc-panel-search-empty" id="arc-panel-search-empty" hidden>Nenhuma rede encontrada.</p><?php endif; ?>
+</div>
+<div class="arc-panel-empty" id="arc-panel-search-empty" hidden><span class="arc-panel-empty-icon" aria-hidden="true">⌕</span><h3 id="arc-panel-empty-title">Nenhuma rede encontrada</h3><p id="arc-panel-empty-text">Tente outro nome ou selecione todos os ambientes.</p><button type="button" class="button" id="arc-panel-clear">Limpar filtros</button><button type="button" class="button primary" id="arc-panel-empty-create" data-open-register hidden>Registrar minha primeira rede</button></div>
+<div class="arc-panel-pagination" aria-label="Páginas de redes"><span id="arc-panel-range" role="status" aria-live="polite"></span><div><button type="button" id="arc-panel-prev" aria-label="Página anterior">‹</button><span id="arc-panel-page" aria-label="Página atual">1 / 1</span><button type="button" id="arc-panel-next" aria-label="Próxima página">›</button></div></div>
+<?php endif; ?>
 </section>
 </div></main>
 <div class="modal-overlay" id="modal-register" role="dialog" aria-modal="true" aria-labelledby="register-modal-title" aria-hidden="true">
@@ -481,15 +493,7 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 </dialog>
 <script>
 (function(){
-    var search=document.getElementById('arc-panel-search');
     var links=Array.from(document.querySelectorAll('.arc-panel-network-link[data-panel-network]'));
-    var empty=document.getElementById('arc-panel-search-empty');
-    function filterNetworks(){
-        var term=(search.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(),visible=0;
-        links.forEach(function(link){var name=(link.dataset.name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();var match=!term||name.includes(term);link.hidden=!match;if(match)visible++;});
-        if(empty)empty.hidden=visible!==0;
-    }
-    if(search)search.addEventListener('input',filterNetworks);
     function refreshNetworkStatus(){
         if(document.hidden||!links.length)return;
         fetch(window.location.pathname+'?ajax=network_status',{credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}})
@@ -505,7 +509,9 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
             });
             var onEl=document.getElementById('arc-panel-online'),offEl=document.getElementById('arc-panel-offline');
             if(onEl)onEl.textContent=String(on);if(offEl)offEl.textContent=String(links.length-on);
-        }).catch(function(){});
+            window.dispatchEvent(new Event('arc:network-status'));
+            var sync=document.getElementById('arc-panel-sync');if(sync){sync.classList.remove('is-stale');sync.innerHTML='<span></span> Atualizado agora';}
+        }).catch(function(){var sync=document.getElementById('arc-panel-sync');if(sync){sync.classList.add('is-stale');sync.textContent='Atualização indisponível';}});
     }
     setInterval(refreshNetworkStatus,12000);
 })();

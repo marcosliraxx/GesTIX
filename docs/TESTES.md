@@ -25,3 +25,9 @@ GESTI_LOGIN_HTTP_TEST=1 php tests/login_http_test.php
 São sete testes: CSRF, sessão de cliente, sessão administrativa, limite compartilhado com a API, autenticação do agente, expiração e cadastro com sessão persistida. O teste recusa bancos sem o sufixo exigido e não acompanha redirecionamentos automaticamente. A pasta `tests` bloqueia acesso HTTP pelo Apache.
 
 Validação realizada em PHP 8.3 e MariaDB 11.4. O ambiente do cPanel ainda precisa do teste de instalação da atualização.
+
+## Painel responsivo e navegação mobile
+
+Instale Playwright em um ambiente de testes e disponibilize Chromium. Prepare uma conta fictícia com pelo menos 17 redes, incluindo uma com `nome muito longo` no nome. Defina `GESTI_UI_BASE_URL`, `GESTI_UI_EMAIL` e `GESTI_UI_PASSWORD` no ambiente; opcionalmente defina `GESTI_CHROMIUM_PATH` e `GESTI_UI_OUTPUT_DIR` para o navegador e as capturas. Execute `node tests/panel_mobile.cjs`.
+
+O teste verifica 35 combinações: 0, 1, 2, 5 e 17 redes em 320×568, 360×640, 390×844, 430×932, 768×1024, 844×390 e 1440×900. A quantidade de cartões é alterada somente no HTML interceptado pelo navegador, sem criar ou excluir redes no banco. Confere ausência de rolagem vertical no painel, cartões sem conteúdo cortado, paginação, busca com nome longo, recuperação de busca vazia, modais, menu mobile, destino inicial do PWA e ícones disponíveis. As telas longas de formulário mantêm rolagem interna acessível.

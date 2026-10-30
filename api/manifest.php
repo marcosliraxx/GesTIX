@@ -18,8 +18,8 @@ try {
 $name = (string)($settings['site_name'] ?? 'Arcoll Speed Connection');
 $logoName = trim((string)($settings['logo_path'] ?? ''));
 $logoVersion = $logoName !== '' ? substr(hash('sha256', $logoName), 0, 12) : '';
-$icon192 = $logoName !== '' ? arc_url('api/brand-logo.php?icon=192&v=' . rawurlencode($logoVersion)) : arc_url('assets/img/icon-192.png');
-$icon512 = $logoName !== '' ? arc_url('api/brand-logo.php?icon=512&v=' . rawurlencode($logoVersion)) : arc_url('assets/img/icon-512.png');
+$icon192 = $logoName !== '' ? arc_url('api/brand-logo.php?icon=192&v=' . rawurlencode($logoVersion)) : arc_url('assets/img/app-icon-192.png');
+$icon512 = $logoName !== '' ? arc_url('api/brand-logo.php?icon=512&v=' . rawurlencode($logoVersion)) : arc_url('assets/img/app-icon-512.png');
 $iconType = 'image/png'; $iconSizes = ['192x192','512x512'];
 if ($logoName !== '' && !function_exists('imagecreatefromstring')) {
     $extension = strtolower(pathinfo($logoName, PATHINFO_EXTENSION));
@@ -34,7 +34,7 @@ echo json_encode([
     'short_name' => mb_substr($name, 0, 16),
     'description' => (string)($settings['tagline'] ?? ''),
     'lang' => 'pt-BR',
-    'start_url' => arc_url('pwa/app.php'),
+    'start_url' => arc_url('pages/painel.php'),
     'scope' => arc_base_url() . '/',
     'display' => 'standalone',
     'prefer_related_applications' => false,

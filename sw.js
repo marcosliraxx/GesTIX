@@ -1,7 +1,7 @@
-const CACHE_NAME = 'arcoll-static-v2.2.1';
+const CACHE_NAME = 'arcoll-static-panel-mobile-v1';
 const ROOT = new URL('./', self.location.href);
 const STATIC_ROOT = new URL('assets/', ROOT).pathname;
-const PRECACHE = ['assets/css/arcoll.css', 'assets/js/arcoll.js'];
+const PRECACHE = ['assets/css/arcoll.css', 'assets/js/arcoll.js', 'assets/css/mobile-app.css', 'assets/css/panel.css', 'assets/js/panel.js', 'assets/vendor/font-awesome/css/font-awesome.min.css', 'assets/vendor/font-awesome/fonts/fontawesome-webfont.woff2', 'assets/img/app-mark.svg', 'assets/img/app-icon-192.png', 'assets/img/app-icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME)

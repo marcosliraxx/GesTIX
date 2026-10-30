@@ -6,7 +6,7 @@
   const base = document.querySelector('meta[name="arc-base"]')?.content || "";
   const appAction = document.getElementById("mainAction");
   const actionLabel = document.getElementById("mainActionLabel");
-  const installPath = appAction?.dataset.appUrl || `${base.replace(/\/$/, "")}/pwa/app.php`;
+  const installPath = appAction?.dataset.appUrl || new URL("pages/painel.php", document.baseURI).href;
 
   // App instalado: abre direto o sistema, sem mostrar o portal.
   if (appAction && (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true)) {
@@ -125,7 +125,7 @@
   });
 
   if ("serviceWorker" in navigator && window.isSecureContext) {
-    navigator.serviceWorker.register(`${base}/sw.js`).catch(() => undefined);
+    navigator.serviceWorker.register(new URL("sw.js", document.baseURI).href).catch(() => undefined);
   }
 
   updateMainAction();

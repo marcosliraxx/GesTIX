@@ -7,11 +7,12 @@
    document.querySelectorAll('[data-panel-network], [data-network-status-id]').forEach(el=>{
      const id=el.getAttribute('data-panel-network')||el.getAttribute('data-network-status-id');
      const s=states[id];if(!s)return;
-     el.dataset.agentState=s.state;el.dataset.online=s.state==='online'?'1':'0';
+     el.dataset.agentState=s.state;el.dataset.online=el.hasAttribute('data-panel-network')?(el.dataset.active==='1'&&Number(s.online)>0?'1':'0'):(s.state==='online'?'1':'0');
      const description=labels[s.state]+' ('+s.online+'/'+s.total+' online)';
      el.title=(el.getAttribute('data-name')||'Rede')+' — '+description;
-     if(el.hasAttribute('data-panel-network')){el.setAttribute('aria-label',el.title);const label=el.querySelector('.arc-panel-network-state');if(label)label.textContent=description;}
+     if(el.hasAttribute('data-panel-network')){el.setAttribute('aria-label',el.title);const label=el.querySelector('.arc-panel-network-state');if(label)label.textContent=el.dataset.active!=='1'?'Rede arquivada':({online:'Todos os agentes online',partial:'Parte dos agentes offline',offline:'Agentes offline',none:'Sem agentes'}[s.state]||description);}
    });
+   window.dispatchEvent(new Event('arc:network-status'));
    const selected=document.getElementById('arc-network-global-state');
    if(selected){const id=selected.dataset.networkStatusId, s=states[id];if(s){selected.dataset.agentState=s.state;selected.title=labels[s.state]+' — '+s.online+' de '+s.total+' agentes online';selected.setAttribute('aria-label',selected.title);selected.querySelector('.arc-net-status-text').textContent=s.online+'/'+s.total;}}
  }
