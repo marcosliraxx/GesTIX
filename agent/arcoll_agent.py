@@ -7,13 +7,15 @@ Uso:
 
 O agente deve ser executado no dispositivo que possui a interface de rede a ser
 inventariada. O PWA não consegue instalar ou iniciar este processo sozinho.
+O serviço HTTP aceita conexões apenas deste computador (127.0.0.1).
 """
 import argparse, ctypes, ipaddress, json, os, platform, re, shutil, socket, subprocess, sys, threading, time, urllib.request, urllib.error, uuid
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "7.3"
+VERSION = "7.4"
+LISTEN_HOST = "127.0.0.1"
 PORT = int(os.environ.get("ARCOLL_PORT", "8787"))
 WIN = platform.system().lower() == "windows"
 CREATE_FLAGS = 0x08000000 if WIN else 0
@@ -281,16 +283,6 @@ def system_inventory():
     return {"hostname":socket.gethostname(),"os":platform.platform(),"os_name":platform.system(),"architecture":platform.machine(),"cpu":platform.processor() or platform.machine(),"cpu_cores":os.cpu_count(),"memory_total_bytes":mem_total,"memory_available_bytes":mem_available,"disk_total_bytes":disk_total,"disk_free_bytes":disk_free,"uptime_seconds":uptime,"network_rx_bytes":rx,"network_tx_bytes":tx,"network_rx_mbps":rx_mbps,"network_tx_mbps":tx_mbps,"sampled_at":int(now*1000),"source":"agente autorizado"}
 
 
-def peer_inventory(ip):
-    if not AGENT_TOKEN or ip==local_ip(): return None
-    try:
-        req=urllib.request.Request('http://%s:%d/api/system'%(ip,PORT),headers={"Authorization":"Bearer "+AGENT_TOKEN,"Accept":"application/json"})
-        with urllib.request.urlopen(req,timeout=1.4) as response:
-            payload=json.loads(response.read(128000).decode('utf-8'))
-        data=payload.get('system') if isinstance(payload,dict) else None
-        return data if isinstance(data,dict) else None
-    except Exception: return None
-
 def do_scan(force=False):
     global SCAN_THREAD
     with LOCK:
@@ -339,9 +331,8 @@ def do_scan(force=False):
         with ThreadPoolExecutor(max_workers=32) as pool:
             scanned=list(pool.map(probe_services,live))
         systems={me:system_inventory()}
-        if AGENT_TOKEN:
-            with ThreadPoolExecutor(max_workers=32) as pool:
-                systems.update({ip:data for ip,data in zip(live,pool.map(peer_inventory,live)) if data})
+        # O segredo desta instalação nunca é enviado a dispositivos descobertos.
+        # Hardware detalhado é coletado apenas no próprio agente autorizado.
         arp.update({ip: mac for ip, mac in arp_table().items() if mac})
         if me in live and not valid_mac(arp.get(me)):
             local_mac = local_adapter_mac(me)
@@ -399,14 +390,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Vary", "Origin"); self.end_headers(); self.wfile.write(body)
     def allowed(self):
         try:
-            if not ipaddress.ip_address(self.client_address[0]).is_private: return False
+            if not ipaddress.ip_address(self.client_address[0]).is_loopback: return False
         except Exception: return False
         origin = self.headers.get("Origin", "").rstrip("/")
         return not origin or origin in ALLOWED_ORIGINS
     def do_OPTIONS(self):
-        return self.reply(204, b"") if self.allowed() else self.reply(403, {"error": "origem não autorizada ou fora da rede local"})
+        return self.reply(204, b"") if self.allowed() else self.reply(403, {"error": "origem não autorizada ou acesso fora deste computador"})
     def do_GET(self):
-        if not self.allowed(): return self.reply(403, {"error": "origem não autorizada ou fora da rede local"})
+        if not self.allowed(): return self.reply(403, {"error": "origem não autorizada ou acesso fora deste computador"})
         try:
             u = urlparse(self.path); q = {k: v[0] for k, v in parse_qs(u.query).items()}; p = u.path
             if p == "/api/health": return self.reply(200, {"ok": True, "arcoll": True, "version": VERSION, "host": socket.gethostname(), "os": platform.platform(), "ip": local_ip(), "gateway": gateway(), "port": PORT, "capabilities": ["devices", "icmp", "arp", "ports", "dns", "wol", "service-fingerprint", "authorized-system-inventory"]})
@@ -441,5 +432,5 @@ if __name__ == "__main__":
     print("PWA local: http://localhost:%d" % PORT)
     print("Origens autorizadas: %s" % (", ".join(ALLOWED_ORIGINS) or "nenhuma (use --origin ou ARCOLL_ORIGIN)"))
     print("Pressione Ctrl+C para encerrar.\n")
-    try: ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    try: ThreadingHTTPServer((LISTEN_HOST, PORT), Handler).serve_forever()
     except KeyboardInterrupt: pass
