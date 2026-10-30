@@ -174,7 +174,7 @@ if (arc_is_admin()) {
       </section>
       <section class="tab-content" id="tab-security" role="tabpanel" aria-labelledby="arc-account-tab-security">
         <div class="card"><div class="card-header"><h2><i class="fa fa-lock"></i> Segurança da conta</h2><span class="badge">Acesso protegido</span></div>
-          <p class="text-muted text-sm">Para proteger sua conta, confirme a senha atual antes de definir uma nova senha.</p>
+          <span class="arc-page-help"><button type="button" class="arc-icon-action" data-open-dialog="page-help-1" aria-label="Saiba mais sobre esta área" title="Saiba mais"><i class="fa fa-info" aria-hidden="true"></i></button></span><dialog id="page-help-1" class="arc-service-dialog"><header class="arc-service-heading"><h2>Saiba mais</h2><button type="button" class="arc-icon-action" data-close-dialog aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><p>Para proteger sua conta, confirme a senha atual antes de definir uma nova senha.</p></dialog>
           <form method="post" action="<?=arc_h($profileUrl)?>" id="admin-password-form"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="action" value="password_change">
             <div class="form-field"><label>Senha atual<input type="password" name="current_password" required autocomplete="current-password"></label><label>Nova senha<input type="password" name="new_password" required minlength="10" maxlength="128" autocomplete="new-password"></label><label>Confirmar nova senha<input type="password" name="confirm_password" required minlength="10" maxlength="128" autocomplete="new-password"></label></div>
             <div class="arc-account-actions"><button type="submit" class="button"><i class="fa fa-lock"></i> Atualizar senha</button></div>
@@ -463,7 +463,7 @@ require dirname(__DIR__) . '/includes/sidebar.php';
                             <form method="post" class="mt-2" action="<?=arc_h(arc_workspace_base_url())?>pages/perfil.php">
                                 <input type="hidden" name="_csrf" value="<?= arc_h(arc_csrf_token()) ?>">
                                 <input type="hidden" name="action" value="avatar_remove">
-                                <button class="button ghost button-sm" type="submit">Remover foto</button>
+                                <button class="button ghost button-sm" type="submit" aria-label="Remover foto" title="Remover foto"><i class="fa fa-trash-o" aria-hidden="true"></i><span class="arc-action-label">Remover foto</span></button>
                             </form>
                         <?php endif; ?>
                     </div>
@@ -524,7 +524,7 @@ require dirname(__DIR__) . '/includes/sidebar.php';
 
                 <p class="form-error" id="pw-error" role="alert"><?= arc_h($pwError) ?></p>
 
-                <button class="button full" type="submit">Atualizar senha</button>
+                <button class="button full" type="submit" aria-label="Atualizar senha" title="Atualizar senha"><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">Atualizar senha</span></button>
             </form>
         </div>
     </div>

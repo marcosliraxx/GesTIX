@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '3.0.0';
+const ARC_APP_VERSION = '3.1.0';
 const ARC_SCHEMA_VERSION = '2026.10.30-3';
 
 require_once __DIR__.'/billing.php';
@@ -612,6 +612,42 @@ function arc_delete_network(PDO $pdo, int $networkId, int $accountId): bool
         error_log('Arcoll delete network: ' . $e->getMessage());
         return false;
     }
+}
+
+/** Textos públicos: códigos e detalhes de auditoria continuam somente no registro técnico. */
+function arc_notice_copy(string $event): array {
+    $messages=[
+      'account_login'=>['Acesso realizado','Sua conta foi acessada.'],
+      'account_logout'=>['Você saiu da conta','Sua sessão foi encerrada.'],
+      'account_registered'=>['Sua conta está pronta','Agora você pode cadastrar suas redes.'],
+      'profile_updated'=>['Perfil atualizado','Suas informações foram salvas.'],
+      'avatar_updated'=>['Foto atualizada','Sua nova foto já está no perfil.'],
+      'avatar_removed'=>['Foto removida','Sua foto foi retirada do perfil.'],
+      'password_changed'=>['Senha alterada','Use a nova senha no próximo acesso.'],
+      'preferences_updated'=>['Preferências salvas','Suas escolhas foram atualizadas.'],
+      'network_created'=>['Rede cadastrada','Sua rede já está disponível no painel.'],
+      'network_updated'=>['Rede atualizada','As informações da rede foram salvas.'],
+      'network_deleted'=>['Rede removida','A rede foi retirada da sua lista.'],
+      'network_archived'=>['Rede arquivada','A rede está fora da lista de redes ativas.'],
+      'network_team_saved'=>['Equipe atualizada','O acesso de um integrante foi atualizado.'],
+      'network_team_removed'=>['Acesso da equipe removido','Um integrante deixou de ter acesso à rede.'],
+      'network_agent_approved'=>['Computador liberado','O computador já pode enviar informações para a plataforma.'],
+      'network_agent_blocked'=>['Computador bloqueado','O acesso desse computador foi interrompido.'],
+      'network_agent_rejected'=>['Cadastro não aprovado','O computador precisa de uma nova autorização.'],
+      'network_agent_deleted'=>['Computador removido','O computador foi retirado da rede.'],
+      'agent_command_queued'=>['Verificação solicitada','O computador recebeu uma tarefa. Acompanhe o resultado na página da rede.'],
+      'remote_access_requested'=>['Acesso remoto solicitado','A solicitação foi enviada ao computador.'],
+      'remote_access_auto_requested'=>['Acesso remoto iniciado','Um gestor iniciou o acesso ao servidor autorizado.'],
+      'subscription_invoice_created'=>['Sua renovação está disponível','Abra Planos e cobrança para conferir e pagar.'],
+      'billing_paid'=>['Pagamento confirmado','Seu plano foi liberado. Confira a validade em Planos e cobrança.'],
+      'commercial_admin'=>['Configurações comerciais atualizadas','As configurações de planos ou pagamentos foram salvas.'],
+      'subscription_pause'=>['Assinatura pausada','Novas operações foram pausadas pelo administrador.'],
+      'subscription_resume'=>['Assinatura retomada','O período pago voltou a ficar disponível.'],
+      'subscription_cancel'=>['Renovação cancelada','O período já pago continua disponível até o vencimento.'],
+      'billing_reversed'=>['Pagamento em revisão','Um pagamento foi devolvido ou contestado. Confira sua assinatura.'],
+      'agent_settings_login'=>['Configurações acessadas','Um gestor abriu as configurações do aplicativo no computador.'],
+    ];
+    return $messages[$event]??['Atualização na sua conta','Há uma nova atividade registrada na sua conta.'];
 }
 
 function arc_user_audit(PDO $pdo, string $event, string $details = '', ?int $userId = null): void

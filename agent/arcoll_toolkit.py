@@ -1,3 +1,4 @@
+# Caminho: agent/arcoll_toolkit.py
 """Medições locais, de leitura, limitadas para o agente Windows Arcoll."""
 import os, platform, socket, subprocess, time, re, ipaddress, json, locale
 
@@ -254,7 +255,59 @@ def wifi_info():
     summary = 'Wi-Fi "%s" · sinal %s · %s · canal %s · %s Mbps' % (ssid, signal or '--', radio or '--', channel or '--', rate or '--')
     return {'status': 'completed', 'summary': summary, 'details': {'ssid': ssid, 'signal': signal, 'radio': radio, 'channel': channel, 'rate': rate}}
 
+def storage_health():
+    """Read-only capacity check; does not claim SMART or physical disk health."""
+    import shutil
+    volumes=[]
+    if platform.system()=='Windows':
+        result=_ps("Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json -Compress")
+        data=result.get('data');data=data if isinstance(data,list) else [data] if isinstance(data,dict) else []
+        for item in data:
+            total=int(item.get('Size') or 0);free=int(item.get('FreeSpace') or 0)
+            if total>0:volumes.append({'name':str(item.get('DeviceID') or 'Disco'),'total_bytes':total,'free_bytes':free,'free_percent':round(100*free/total,1)})
+    else:
+        disk=shutil.disk_usage('/');volumes=[{'name':'Sistema','total_bytes':disk.total,'free_bytes':disk.free,'free_percent':round(100*disk.free/disk.total,1)}]
+    if not volumes:return {'status':'failed','summary':'Não foi possível consultar o espaço dos discos.','details':{}}
+    low=[d for d in volumes if d['free_percent']<15]
+    summary='Há pouco espaço em '+', '.join(d['name'] for d in low)+'. Libere arquivos antes que o disco fique cheio.' if low else 'Os discos têm espaço livre suficiente.'
+    return {'status':'completed','summary':summary,'details':{'level':'warning' if low else 'good','volumes':volumes}}
+
+def service_health():
+    if platform.system()!='Windows':return {'status':'failed','summary':'Esta verificação está disponível no Windows.','details':{}}
+    result=_ps("Get-CimInstance Win32_Service | Where-Object { $_.Name -in @('Winmgmt','Dnscache','Dhcp','LanmanWorkstation') } | Select-Object Name,State,StartMode | ConvertTo-Json -Compress")
+    data=result.get('data');data=data if isinstance(data,list) else [data] if isinstance(data,dict) else []
+    if not data:return {'status':'failed','summary':'Não foi possível verificar os serviços do Windows.','details':{}}
+    labels={'Winmgmt':'Monitoramento do Windows','Dnscache':'Abertura de sites','Dhcp':'Configuração da conexão','LanmanWorkstation':'Pastas compartilhadas'}
+    items=[{'name':labels.get(d.get('Name'),'Serviço do Windows'),'running':d.get('State')=='Running','expected':d.get('StartMode')=='Auto'} for d in data]
+    stopped=[d for d in items if d['expected'] and not d['running']]
+    return {'status':'completed','summary':'Um serviço importante está parado. Peça ao responsável para conferir.' if stopped else 'Os serviços essenciais estão funcionando conforme sua configuração.','details':{'level':'warning' if stopped else 'good','services':items}}
+
+def restart_readiness():
+    if platform.system()!='Windows':return {'status':'failed','summary':'Esta verificação está disponível no Windows.','details':{}}
+    import winreg
+    pending=False;checked=0
+    keys=[(r'SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',None),(r'SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired',None),(r'SYSTEM\CurrentControlSet\Control\Session Manager','PendingFileRenameOperations')]
+    for path,value in keys:
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,path,0,winreg.KEY_READ|winreg.KEY_WOW64_64KEY) as key:
+                pending=bool(winreg.QueryValueEx(key,value)[0]) or pending if value else True
+            checked+=1
+        except FileNotFoundError:checked+=1
+        except OSError:pass
+    if checked!=len(keys):return {'status':'failed','summary':'O Windows não permitiu conferir todos os avisos de reinicialização.','details':{}}
+    return {'status':'completed','summary':'O Windows precisa reiniciar para concluir uma alteração. Combine um horário com o usuário.' if pending else 'O Windows não informou reinicialização pendente.','details':{'level':'warning' if pending else 'good','restart_pending':pending}}
+
+def friendly_error(error):
+    text=str(error)
+    if any(word in text.lower() for word in ('certificate','ssl','tls')):return 'Não foi possível confirmar a segurança da conexão. Confira a data do computador e o certificado do site.'
+    if any(word in text.lower() for word in ('timeout','timed out','connection','network','urlopen','name resolution')):return 'A conexão demorou ou caiu. Confira a internet e tente novamente.'
+    if text.startswith(('Não ','Acesso ','Sessão ','Código ','Conta ','Limite ','Selecione ','Computador ','Agente ')) and not any(word in text for word in ('Traceback','SQLSTATE','{')):return text[:250]
+    return 'Não foi possível concluir. Confira a conexão e tente novamente.'
+
 QUICK_COMMANDS = {
+    'storage_health': ('Espaço dos discos', storage_health),
+    'service_health': ('Serviços essenciais', service_health),
+    'restart_readiness': ('Precisa reiniciar?', restart_readiness),
     'quick_health': ('Saúde rápida da rede', quick_health),
     'dns_test': ('Teste de DNS', dns_test),
     'public_ip': ('IP público', public_ip),
@@ -270,7 +323,7 @@ def run_quick_command(name):
     try:
         result = QUICK_COMMANDS[name][1]()
     except Exception as exc:
-        result = {'status': 'failed', 'summary': 'Falha: ' + str(exc)[:200], 'details': {}}
+        result = {'status': 'failed', 'summary': friendly_error(exc), 'details': {}}
     result['summary'] = str(result.get('summary', ''))[:480]
     result['title'] = QUICK_COMMANDS[name][0]
     result['captured_at'] = int(time.time())

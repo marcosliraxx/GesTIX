@@ -316,7 +316,7 @@ try {
         $body=json_decode($raw,true);
         if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
         $networkId=(int)($body['network_id']??0);$command=(string)($body['command']??'');
-        $allowed=['monitor_start','monitor_pause','speed_test','scan_devices','scan_map','diagnostic','toolkit','toolkit_traceroute','toolkit_services','toolkit_health','toolkit_troubleshooter','quick_health','dns_test','public_ip','system_snapshot','flush_dns','wifi_info','terminal_diagnostic','agent_update','remote_assistance'];
+        $allowed=['monitor_start','monitor_pause','speed_test','scan_devices','scan_map','diagnostic','toolkit','toolkit_traceroute','toolkit_services','toolkit_health','toolkit_troubleshooter','quick_health','storage_health','service_health','restart_readiness','dns_test','public_ip','system_snapshot','flush_dns','wifi_info','terminal_diagnostic','agent_update','remote_assistance'];
         if (!in_array($command,$allowed,true)) arc_json(['ok'=>false,'error'=>'Comando não permitido'],422);
         if ($command==='remote_assistance') {
             try {$id=arc_support_request_remote($pdo,$networkId,(int)($body['agent_id']??0),(int)arc_user_id(),(int)($body['ticket_id']??0));}
@@ -352,6 +352,16 @@ try {
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
         arc_user_audit($pdo,'agent_command_queued','Comando '.$command.' para agente '.$agentId.' na rede '.$networkId);
         arc_json(['ok'=>true,'command_id'=>$insertedId,'status'=>'pending']);
+    }
+    if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-tool-result') {
+        if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Entre na plataforma.'],401);
+        $network=(int)($_GET['network_id']??0);$agent=(int)($_GET['agent_id']??0);$id=(int)($_GET['command_id']??0);
+        $q=$pdo->prepare("SELECT c.id,c.status,c.result_text,c.command_name FROM ".arc_table('agent_commands')." c JOIN ".arc_table('managed_networks')." n ON n.id=c.network_id AND n.account_id=c.account_id JOIN ".arc_table('network_agents')." a ON a.id=c.agent_id AND a.network_id=n.id AND a.account_id=n.account_id WHERE c.id=? AND c.network_id=? AND c.agent_id=? AND c.account_id=? AND c.command_name IN ('quick_health','dns_test','system_snapshot','storage_health','service_health','restart_readiness')");
+        $q->execute([$id,$network,$agent,(int)arc_user_id()]);$task=$q->fetch();if(!$task)arc_json(['ok'=>false,'error'=>'Verificação não encontrada.'],404);
+        if(preg_match('/Comando não permitido|indisponível nesta versão/i',(string)$task['result_text']))$task['result_text']='Atualize o aplicativo deste computador para usar esta verificação.';
+        $q=$pdo->prepare("SELECT payload_json FROM ".arc_table('agent_telemetry')." WHERE account_id=? AND network_id=? AND agent_id=? AND event_type='quick_command' ORDER BY id DESC LIMIT 100");$q->execute([(int)arc_user_id(),$network,$agent]);$result=null;
+        foreach($q->fetchAll(PDO::FETCH_COLUMN) as $raw){$data=json_decode($raw,true);if(is_array($data)&&(int)($data['command_id']??0)===$id){$result=['summary'=>mb_substr((string)($data['summary']??''),0,480),'details'=>is_array($data['details']??null)?$data['details']:[]];break;}}
+        arc_json(['ok'=>true,'task'=>$task,'result'=>$result]);
     }
     if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-terminal-latest') {
         if (!arc_is_user()) arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);

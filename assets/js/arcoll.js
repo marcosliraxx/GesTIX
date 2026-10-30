@@ -900,3 +900,8 @@ document.addEventListener('DOMContentLoaded', () => {
  });
  document.getElementById('arc-native-copy')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(code.value);message.textContent='Código copiado.';}catch{code.focus();code.select();}});
 })();
+
+/* Diálogos declarados nos componentes: detalhes sob demanda e retorno de foco. */
+(()=>{const openers=new WeakMap();document.addEventListener('click',event=>{const opener=event.target.closest('[data-open-dialog]');if(opener){const dialog=document.getElementById(opener.dataset.openDialog);if(dialog instanceof HTMLDialogElement){openers.set(dialog,opener);dialog.showModal();}return;}const closer=event.target.closest('[data-close-dialog]');if(closer)closer.closest('dialog')?.close();});document.querySelectorAll('dialog').forEach(dialog=>{dialog.addEventListener('close',()=>openers.get(dialog)?.focus({preventScroll:true}));dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();});});})();
+
+window.arcPlainMessage=(value)=>{const text=String(value??'');if(/SQLSTATE|Traceback|Uncaught|stack trace|Unexpected token|not valid JSON|JSON.parse|[{}].*"(?:error|status|payload)"/i.test(text))return 'Não foi possível concluir. Tente novamente em instantes.';return text.replace(/\bremote_assistance\b/g,'acesso remoto').replace(/\bagent_update\b/g,'atualização do aplicativo').replace(/\bheadless_mode\b/g,'acesso sem confirmação local');};

@@ -12,9 +12,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from urllib.parse import urlsplit
 from PIL import Image, ImageTk
-from arcoll_toolkit import AppearanceManager, bind_theme, theme_color
+from arcoll_toolkit import AppearanceManager, bind_theme, theme_color, friendly_error
 
-VERSION = '3.0.0'
+VERSION = '3.1.0'
 
 class RemoteAPI:
     def __init__(self, origin):
@@ -153,7 +153,7 @@ class SupportApp:
                 if ids!=self.monitor_ids:self.monitor_ids=ids;self.monitors['values']=[m['label'] for m in data.get('monitors',[])]
                 if data.get('selected_monitor') in ids:self.monitors.current(ids.index(data['selected_monitor']))
             elif kind in ('error','input_error'):
-                self.status.set(data);self.control=False;self.pending_move=None;self.pressed.clear();self.buttons.clear()
+                self.status.set(friendly_error(data));self.control=False;self.pending_move=None;self.pressed.clear();self.buttons.clear()
                 while not self.input_queue.empty():
                     try:self.input_queue.get_nowait()
                     except queue.Empty:break

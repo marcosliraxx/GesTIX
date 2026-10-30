@@ -12,6 +12,7 @@ $arcNetworkLinks = [
     ['mapa', 'Mapa', 'fa fa-sitemap'],
     ['conexao', 'Conexão', 'fa fa-wifi'],
     ['suporte', 'Suporte', 'fa fa-life-ring'],
+    ['ferramentas', 'Ferramentas', 'fa fa-wrench'],
 ];
 $arcNetworkBase = arc_workspace_base_url();
 $arcNetworkQuery = ['network' => (int)$networkId];

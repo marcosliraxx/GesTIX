@@ -418,7 +418,7 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 <?php if($arcError!==''):?><p class="arc-panel-error" role="alert"><?=arc_h($arcError)?></p><?php endif;?>
 <section class="arc-panel-network-block" aria-labelledby="panel-networks-title">
 <div class="arc-panel-section-heading"><h2 id="panel-networks-title">Meus ambientes <span id="arc-panel-result-count"><?=count($panelNetworks)?></span></h2><span class="arc-panel-section-hint">Toque em uma rede para acompanhar</span></div>
-<?php if($panelNetworksFailed):?><div class="arc-panel-empty" role="alert"><h3>Não foi possível carregar as redes</h3><p>Verifique sua conexão e atualize a página.</p><a class="button" href="pages/painel.php">Tentar novamente</a></div>
+<?php if($panelNetworksFailed):?><div class="arc-panel-empty" role="alert"><h3>Não foi possível carregar as redes</h3><p>Verifique sua conexão e atualize a página.</p><a class="button" href="pages/painel.php" aria-label="Tentar novamente" title="Tentar novamente"><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">Tentar novamente</span></a></div>
 <?php else: ?>
 <div class="arc-panel-network-rail" id="arc-panel-grid" role="region" aria-label="Redes registradas">
 <?php foreach($panelNetworks as $network):$on=(int)$network['is_active']===1 && (int)$network['has_online_agent']===1;$state=['online'=>'Todos online','partial'=>'Parte dos agentes offline','offline'=>'Agentes offline','none'=>'Sem agentes'][$network['agent_state']]; if((int)$network['is_active']!==1)$state='Rede arquivada'; ?>
@@ -428,7 +428,7 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 </a>
 <?php endforeach; ?>
 </div>
-<div class="arc-panel-empty" id="arc-panel-search-empty" hidden><span class="arc-panel-empty-icon" aria-hidden="true">⌕</span><h3 id="arc-panel-empty-title">Nenhuma rede encontrada</h3><p id="arc-panel-empty-text">Tente outro nome ou selecione todos os ambientes.</p><button type="button" class="button" id="arc-panel-clear">Limpar filtros</button><button type="button" class="button primary" id="arc-panel-empty-create" data-open-register hidden>Registrar minha primeira rede</button></div>
+<div class="arc-panel-empty" id="arc-panel-search-empty" hidden><span class="arc-panel-empty-icon" aria-hidden="true">⌕</span><h3 id="arc-panel-empty-title">Nenhuma rede encontrada</h3><p id="arc-panel-empty-text">Tente outro nome ou selecione todos os ambientes.</p><button type="button" class="button" id="arc-panel-clear" aria-label="Limpar filtros" title="Limpar filtros"><i class="fa fa-eraser" aria-hidden="true"></i><span class="arc-action-label">Limpar filtros</span></button><button type="button" class="button primary" id="arc-panel-empty-create" data-open-register hidden aria-label="Registrar minha primeira rede" title="Registrar minha primeira rede"><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">Registrar minha primeira rede</span></button></div>
 <div class="arc-panel-pagination" aria-label="Páginas de redes"><span id="arc-panel-range" role="status" aria-live="polite"></span><div><button type="button" id="arc-panel-prev" aria-label="Página anterior">‹</button><span id="arc-panel-page" aria-label="Página atual">1 / 1</span><button type="button" id="arc-panel-next" aria-label="Próxima página">›</button></div></div>
 <?php endif; ?>
 </section>
@@ -497,13 +497,13 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 </div>
 <button type="button" class="arc-pn-btn" id="arc-pn-refresh" title="Atualizar: varrer os dispositivos da rede" aria-label="Atualizar: varrer os dispositivos da rede"><i class="fa fa-refresh" aria-hidden="true"></i></button>
 <a class="arc-pn-btn" id="arc-pn-open" href="#" title="Abrir monitoramento" aria-label="Abrir monitoramento da rede"><i class="fa fa-external-link" aria-hidden="true"></i></a>
-<button type="button" class="arc-pn-btn" id="arc-pn-close" title="Fechar" aria-label="Fechar" autofocus>&times;</button>
+<button type="button" class="arc-pn-btn" id="arc-pn-close" title="Fechar" aria-label="Fechar" autofocus><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">&times;</span></button>
 </div>
 <div class="arc-pn-body" id="arc-pn-body"><div id="arc-pn-secs"></div><p class="arc-pn-msg" id="arc-pn-msg" role="status"></p></div>
 <div class="arc-pn-foot"><span id="arc-pn-upd"><i class="fa fa-clock-o" aria-hidden="true"></i> </span><div class="arc-pn-sort" role="group" aria-label="Ordem dos dispositivos"><button type="button" class="arc-pn-btn" data-sort="recent" aria-pressed="true" title="Mudanças mais recentes primeiro" aria-label="Mais recentes"><i class="fa fa-sort-amount-desc"></i></button><button type="button" class="arc-pn-btn" data-sort="oldest" aria-pressed="false" title="Mudanças mais antigas primeiro" aria-label="Mais antigos"><i class="fa fa-sort-amount-asc"></i></button><button type="button" class="arc-pn-btn" data-sort="first" aria-pressed="false" title="Ordem de primeira detecção" aria-label="Primeiros detectados"><i class="fa fa-calendar-o"></i></button></div><span id="arc-pn-run" role="status" aria-live="polite"></span></div>
 </dialog>
 <dialog class="arc-pn-info" id="arc-pn-info" aria-labelledby="arc-pni-name">
-<div class="arc-pni-head"><span class="arc-pni-ico"><i class="fa fa-laptop" id="arc-pni-icon" aria-hidden="true"></i></span><div class="arc-pni-t"><strong id="arc-pni-name">Dispositivo</strong><span id="arc-pni-sub"></span></div><button type="button" class="arc-pn-btn" id="arc-pni-close" title="Fechar" aria-label="Fechar detalhes" autofocus>&times;</button></div>
+<div class="arc-pni-head"><span class="arc-pni-ico"><i class="fa fa-laptop" id="arc-pni-icon" aria-hidden="true"></i></span><div class="arc-pni-t"><strong id="arc-pni-name">Dispositivo</strong><span id="arc-pni-sub"></span></div><button type="button" class="arc-pn-btn" id="arc-pni-close" title="Fechar" aria-label="Fechar detalhes" autofocus><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">&times;</span></button></div>
 <div class="arc-pni-status"><span class="arc-pni-pill"><i></i><b id="arc-pni-state">Offline</b></span><div class="arc-pni-dur" id="arc-pni-dur" aria-live="off">—</div><div class="arc-pni-since" id="arc-pni-since"></div><p class="arc-pni-warn" id="arc-pni-warn" hidden></p></div>
 <dl class="arc-pni-rows" id="arc-pni-rows"></dl>
 </dialog>

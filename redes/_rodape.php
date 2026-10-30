@@ -18,6 +18,8 @@ function endProgress(label,ok){clearInterval(progressTimer);progressLabel.textCo
 
 let toastTimer, lastSignature='', activeCommand=false;let queuedCommandId=0;
 function toast(message,type='info'){
+message=window.arcPlainMessage?window.arcPlainMessage(message):String(message);
+
  clearTimeout(toastTimer);log.textContent=message;log.dataset.kind=type;log.hidden=false;log.classList.remove('arc-toast-show');void log.offsetWidth;log.classList.add('arc-toast-show');
  toastTimer=setTimeout(()=>{log.classList.remove('arc-toast-show');log.hidden=true},5000);
 }

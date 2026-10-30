@@ -12,3 +12,6 @@
 - Arquivos de código criados ou modificados devem identificar seu caminho relativo completo em comentário no topo. Os formatos sem comentários devem ter o caminho indicado na entrega.
 - Gere um único ZIP com as mudanças desde a base fornecida, migrações e marcadores de zero bytes nos caminhos obsoletos; esses marcadores indicam exclusão manual e não devem ser enviados para sobrescrever arquivos.
 - Preserve a cobrança desativada até configuração explícita do administrador. Não confirme pagamentos por retorno de checkout ou referência Pix enviada pelo cliente. Não inclua chaves de gateways, códigos de sessão ou arquivos de fixtures nos pacotes.
+
+- Valide Dispositivos e Mapa no celular com inventário populado, nomes longos e vários grupos, incluindo o enquadramento inicial da topologia e os modais; ausência de overflow no body não basta.
+- No celular, priorize cartões compactos e detalhes em diálogos explícitos; ações por ícone precisam de aria-label/título. Notificações públicas devem usar textos de arc_notice_copy, mantendo códigos e detalhes originais somente na auditoria.

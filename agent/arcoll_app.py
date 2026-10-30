@@ -13,12 +13,12 @@ try:
 except ImportError:
  RealtimeNetworkWatcher=None
 try:
- from arcoll_toolkit import QUICK_COMMANDS, run_quick_command, AppearanceManager, theme_color, bind_theme, bind_canvas
+ from arcoll_toolkit import QUICK_COMMANDS, run_quick_command, AppearanceManager, theme_color, bind_theme, bind_canvas, friendly_error
 except Exception:
  QUICK_COMMANDS={}; run_quick_command=None
 
 APP_NAME='Arcoll Speed Connection'
-AGENT_VERSION='3.0.0'
+AGENT_VERSION='3.1.0'
 ROOT=Path(__file__).resolve().parent
 CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.json'
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'
@@ -3462,6 +3462,11 @@ class ArcollApp:
  def _build_command_center(self):
   """Prompt com digitação dentro da área preta; mesmas ações da aba web."""
   p=self.command_page;self.cmd_cards={}
+  quick=ttk.LabelFrame(p,text='Verificações rápidas',padding=6);quick.pack(fill='x',padx=10,pady=(6,0))
+  for index,(name,label) in enumerate([('quick_health','Internet'),('dns_test','Sites'),('system_snapshot','Recursos'),('storage_health','Discos'),('service_health','Serviços'),('restart_readiness','Reiniciar?')]):
+   quick.columnconfigure(index%3,weight=1)
+   ttk.Button(quick,text=label,command=lambda key=name:self.run_quick(key)).grid(row=index//3,column=index%3,sticky='ew',padx=3,pady=3)
+
   outer=bind_theme(tk.Frame(p, bg=theme_color('surface'), highlightbackground=theme_color('border'), highlightthickness=1), background='surface', highlightbackground='border')
   outer.pack(fill='both',expand=True,padx=12,pady=(10,11))
   title=bind_theme(tk.Frame(outer, bg=theme_color('alt'), height=36), background='alt');title.pack(fill='x');title.pack_propagate(False)
@@ -3476,7 +3481,7 @@ class ArcollApp:
   self.cmd_console=bind_theme(tk.Text(console_area, bg=theme_color('surface'), fg=theme_color('text'), insertbackground=theme_color('text'), font=('Consolas', 10), wrap='word', relief='flat', highlightthickness=0, padx=11, pady=10, spacing1=0, spacing3=0), background='surface', foreground='text', insertbackground='text')
   self.cmd_console.pack(fill='both',expand=True)
   self.cmd_console.configure(state='disabled')
-  for tag,col in (('ok',theme_color('success')),('bad',theme_color('alt')),('info',theme_color('surface')),('time',theme_color('alt'))):self.cmd_console.tag_configure(tag, foreground=col)
+  for tag,col in (('ok',theme_color('success')),('bad',theme_color('danger')),('info',theme_color('text')),('time',theme_color('alt'))):self.cmd_console.tag_configure(tag, foreground=col)
   prompt=bind_theme(tk.Frame(console_area, bg=theme_color('surface')), background='surface');prompt.pack(fill='x', padx=11, pady=(0, 12))
   bind_theme(tk.Label(prompt, text='C:\\ARCOLL> ', bg=theme_color('surface'), fg=theme_color('text'), font=('Consolas', 10)), background='surface', foreground='text').pack(side='left')
   self.cmd_input=bind_theme(tk.Entry(prompt, bg=theme_color('surface'), fg=theme_color('text'), insertbackground=theme_color('text'), relief='flat', highlightthickness=0, bd=0, font=('Consolas', 10)), background='surface', foreground='text', insertbackground='text')
@@ -3593,6 +3598,7 @@ class ArcollApp:
     self._console_write(title,res['summary'],'ok' if good else 'bad')
     self.cmd_status.configure(text=title + (' concluído' if good else ' falhou') + ' · ' + time.strftime('%H:%M:%S'), fg=theme_color('success') if good else theme_color('danger'))
     self.log(title+': '+res['summary'],'INFO' if good else 'WARN')
+    if not remote_id:(messagebox.showwarning if res.get('details',{}).get('level')=='warning' else messagebox.showinfo)(title,res['summary'],parent=self.root)
     self.sync_data({'event':'quick_command','command_name':name,'command_id':remote_id,'title':title,'status':res.get('status'),'summary':res['summary'],'details':res.get('details',{}),'origin':'platform' if remote_id else 'local','captured_at':int(time.time())})
     if remote_id:self._ack_remote_command(remote_id,'completed' if good else 'failed',res['summary'])
    self.root.after(0,done)

@@ -1,4 +1,5 @@
 <?php
+/* Caminho: pages/menus.php */
 declare(strict_types=1);
 require dirname(__DIR__).'/includes/bootstrap.php';
 require dirname(__DIR__).'/includes/icones.php';
@@ -287,7 +288,7 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
       <input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="bulk">
       <span id="menu-selected-count" aria-live="polite">0 selecionados</span>
       <select name="bulk_operation" id="menu-bulk-operation" aria-label="Ação em massa" required><option value="">Ações em massa</option><option value="enable">Ativar</option><option value="disable">Desativar</option><option value="delete">Excluir</option></select>
-      <button type="submit" class="button" id="menu-bulk-apply" disabled>Aplicar</button>
+      <button type="submit" class="button" id="menu-bulk-apply" disabled aria-label="Aplicar" title="Aplicar"><i class="fa fa-check" aria-hidden="true"></i><span class="arc-action-label">Aplicar</span></button>
     </form>
     <form method="post" action="<?=arc_h(arc_workspace_base_url())?>pages/menus.php" onsubmit="return confirm('Transformar os menus da gestão de redes em menus independentes?');"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="normalize_network"><button type="submit" class="button"><i class="fa fa-sitemap"></i> Desagrupar menus de rede</button></form>
     <button type="button" class="button primary" id="menu-new"><i class="fa fa-plus" aria-hidden="true"></i> Criar novo</button>
@@ -324,12 +325,12 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
 <label>Menu pai <small class="menu-parent-note">(opcional)</small><div class="menu-parent-control"><select name="parent_id" id="menu-parent"><option value="0" data-root="1">Nenhum — menu principal</option><?php foreach($items as $p):?><option value="<?=(int)$p['id']?>" data-placement="<?=mh((string)$p['placement'])?>"><?=mh((string)$p['label'])?></option><?php endforeach;?></select><button type="button" class="button" id="menu-remove-parent" title="Remover vínculo e transformar em menu principal"><i class="fa fa-unlink" aria-hidden="true"></i> Sem pai</button></div><small id="menu-parent-state" class="help-text" aria-live="polite">Menu independente, sem menu pai.</small></label>
 
 <label class="form-span">Caminho do arquivo ou URL HTTPS<input name="target_url" id="menu-target" placeholder="pages/configuracoes.php ou redes/servidor.php" maxlength="1024"><small class="help-text">Um menu pai pode ficar sem rota e sem URL.</small></label>
-<label>Ícone<div class="arc-icon-field menu-icon-picker"><input type="hidden" name="icon" id="menu-icon" value="fa-circle"><button class="button menu-icon-preview" type="button" id="arc-open-icons" title="Trocar ícone" aria-label="Escolher ícone"><i id="menu-icon-preview" class="fa fa-circle" aria-hidden="true"></i></button><button class="button" type="button" id="menu-icon-choose">Alterar ícone</button></div></label>
+<label>Ícone<div class="arc-icon-field menu-icon-picker"><input type="hidden" name="icon" id="menu-icon" value="fa-circle"><button class="button menu-icon-preview" type="button" id="arc-open-icons" title="Trocar ícone" aria-label="Escolher ícone"><i id="menu-icon-preview" class="fa fa-circle" aria-hidden="true"></i></button><button class="button" type="button" id="menu-icon-choose" aria-label="Alterar ícone" title="Alterar ícone"><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">Alterar ícone</span></button></div></label>
 <label>Ordem de exibição<input type="number" name="sort_order" id="menu-order" min="0" max="9999" value="100"></label>
 <label>Grupo específico (opcional)<select name="group_id" id="menu-group"><option value="0">Todos os grupos autorizados</option><?php foreach($groups as $g):?><option value="<?=(int)$g['id']?>"><?=mh((string)$g['name'])?></option><?php endforeach;?></select></label>
 <fieldset class="form-span"><legend>Perfis com acesso</legend><div class="roles"><?php foreach($roles as $key=>$title):?><label><input type="checkbox" name="roles[]" value="<?=mh($key)?>" <?= $key==='admin'?'checked':''?>> <?=mh($title)?></label><?php endforeach;?></div></fieldset>
 <label class="form-span menu-status-control"><span>Status</span><span><input type="checkbox" name="enabled" id="menu-enabled" checked> Ativo (desmarque para desativar)</span></label>
-</div><div class="dialog-actions"><button class="button" type="button" data-close-menu>Cancelar</button><button class="button primary" type="submit"><i class="fa fa-save" aria-hidden="true"></i> Salvar menu</button></div></form></dialog>
+</div><div class="dialog-actions"><button class="button" type="button" data-close-menu aria-label="Cancelar" title="Cancelar"><i class="fa fa-times" aria-hidden="true"></i><span class="arc-action-label">Cancelar</span></button><button class="button primary" type="submit"><i class="fa fa-save" aria-hidden="true"></i> Salvar menu</button></div></form></dialog>
 <dialog id="arc-icons-dialog" class="arc-icons-dialog" aria-label="Selecionar ícone"><div class="arc-icons-head"><h2>Ícones Font Awesome</h2><button type="button" class="button" id="arc-close-icons" aria-label="Fechar"><i class="fa fa-times"></i></button></div><input id="arc-icon-search" type="search" placeholder="Buscar ícone por nome" aria-label="Buscar ícone"><div id="arc-icons-grid" class="arc-icons-grid"><?php foreach(arc_fa_icons() as $name):?><button type="button" class="arc-icon-choice" data-icon="fa-<?=mh($name)?>" title="<?=mh($name)?>"><i class="fa fa-<?=mh($name)?>" aria-hidden="true"></i><span><?=mh($name)?></span></button><?php endforeach;?></div></dialog>
 <script>
 (()=>{'use strict';

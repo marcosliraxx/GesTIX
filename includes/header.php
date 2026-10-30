@@ -84,7 +84,7 @@ unset($_SESSION['arc_flash']);
 .arc-toast{background:color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 12%,rgba(255,255,255,.78))!important;border:1px solid color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 35%,transparent)!important;backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 12px 35px #152a4830}
 .flash.arc-toast{background:color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 12%,rgba(255,255,255,.78))!important;border:1px solid color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 35%,transparent)!important;backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 12px 35px #152a4830}
 .erp-user-button .erp-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
-</style><script src="assets/js/arcoll.js?v=3.0.0" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
+</style><script src="assets/js/arcoll.js?v=3.1.0" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
 <body class="<?= arc_h(trim($arcBodyClass . ' ' . ($ARCPageBodyClass ?? ''))) ?>" style="<?php
 $vars=['accent_color'=>'--arc-brand-accent','platform_sidebar_color'=>'--arc-sidebar-bg','platform_header_color'=>'--arc-header-bg','platform_footer_color'=>'--arc-footer-bg'];
 foreach($vars as $key=>$var){$v=$arcThemeSettings[$key]??'';if(preg_match('/^#[0-9a-fA-F]{6}$/',$v))echo $var.':'.arc_h($v).';';}
@@ -161,6 +161,7 @@ if ($arcFlashText !== ''): ?>
                         $arcHS=arc_db()->prepare('SELECT setting_key,setting_value FROM '.arc_table('settings').' WHERE setting_key IN (?,?)');
                         $arcHS->execute(['admin_name_'.$arcAdminId,'admin_avatar_'.$arcAdminId]);
                         $arcHP=$arcHS->fetchAll(PDO::FETCH_KEY_PAIR);
+                        $arcHA=arc_db()->prepare("SELECT CONCAT('admin-',id) AS id,event_type,description AS details,created_at FROM ".arc_table('audit_logs').' WHERE admin_id=? ORDER BY id DESC LIMIT 12');$arcHA->execute([$arcAdminId]);$arcHeaderNotices=$arcHA->fetchAll(PDO::FETCH_ASSOC);
                         $arcHeaderUser['display_name']=(string)($arcHP['admin_name_'.$arcAdminId]??($_SESSION['arc_admin_name']??'Administrador'));
                         $arcAvatar=(string)($arcHP['admin_avatar_'.$arcAdminId]??'');
                         if(preg_match('~^uploads/avatars/admin_[0-9]+_[a-f0-9]{24}\.(?:jpg|png|webp)$~',$arcAvatar)){
@@ -213,9 +214,10 @@ if ($arcFlashText !== ''): ?>
                 <div class="arc-notify-menu" data-arc-notify-menu>
                     <div class="arc-drop-title">Notificações <small>Avisos e atividades recentes</small></div>
                     <div data-arc-notify-list>
-                    <?php if (!$arcHeaderNotices): ?><div class="arc-drop-empty">Nenhuma notificação disponível.</div><?php else: foreach ($arcHeaderNotices as $arcN): ?>
-                        <button type="button" class="arc-notify-item" data-notice-id="<?= arc_h((string)$arcN['id']) ?>" data-notice-title="<?= arc_h((string)($arcN['title'] ?? ucfirst(str_replace('_',' ',(string)($arcN['event_type'] ?? 'Atividade'))))) ?>" data-notice-detail="<?= arc_h((string)$arcN['details']) ?>" data-notice-date="<?= arc_h(arc_when($arcN['created_at'])) ?>">
-                            <b><?= arc_h((string)($arcN['title'] ?? ucfirst(str_replace('_',' ',(string)($arcN['event_type'] ?? 'Atividade'))))) ?></b><span><?= arc_h((string)$arcN['details']) ?></span><small><?= arc_h(arc_when($arcN['created_at'])) ?></small>
+                    <?php if (!$arcHeaderNotices): ?><div class="arc-drop-empty">Nenhuma notificação disponível.</div><?php else: foreach ($arcHeaderNotices as $arcN):
+[$arcNoticeTitle,$arcNoticeDetail]=isset($arcN['title'])?[(string)$arcN['title'],(string)$arcN['details']]:arc_notice_copy((string)($arcN['event_type']??'')); ?>
+                        <button type="button" class="arc-notify-item" data-notice-id="<?= arc_h((string)$arcN['id']) ?>" data-notice-title="<?= arc_h($arcNoticeTitle) ?>" data-notice-detail="<?= arc_h($arcNoticeDetail) ?>" data-notice-date="<?= arc_h(arc_when($arcN['created_at'])) ?>">
+                            <b><?= arc_h($arcNoticeTitle) ?></b><span><?= arc_h($arcNoticeDetail) ?></span><small><?= arc_h(arc_when($arcN['created_at'])) ?></small>
                         </button>
                     <?php endforeach; endif; ?>
                     </div>
