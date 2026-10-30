@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '2.8.0';
+const ARC_APP_VERSION = '2.8.1';
 const ARC_SCHEMA_VERSION = '2026.10.26-8';
 
 /* Fuso horário fixo do Workspace: America/Belem (UTC-03:00). */

@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.8.0"
+VERSION = "2.8.1"
 LISTEN_HOST = "127.0.0.1"
 PORT = int(os.environ.get("ARCOLL_PORT", "8787"))
 WIN = platform.system().lower() == "windows"

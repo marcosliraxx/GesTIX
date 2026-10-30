@@ -11,9 +11,9 @@ import time
 import threading
 import tkinter as tk
 from tkinter import ttk
-from arcoll_toolkit import AppearanceManager
+from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
 
-VERSION = '2.8.0'
+VERSION = '2.8.1'
 
 FILES = {'arcoll_app.py', 'arcoll_desktop.py', 'arcoll_agent.py', 'arcoll_toolkit.py', 'rt_engine.py', 'connection_diagnostics.py'}
 
@@ -80,14 +80,14 @@ def updater_window():
     # Window lives in the helper process while the GUI process exits.
     root = tk.Tk()
     root.title('Atualizando agente Arcoll · v'+VERSION)
-    root.configure(bg='#0c1828')
+    bind_theme(root, background='alt').configure(bg=theme_color('alt'))
     root.resizable(False, False)
     root.withdraw()
     w, h = 430, 165
     root.geometry(f'{w}x{h}+{max(0,(root.winfo_screenwidth()-w)//2)}+{max(0,(root.winfo_screenheight()-h)//2)}')
-    tk.Label(root, text='Atualizando agente', bg='#0c1828', fg='#ffffff', font=('Segoe UI', 15, 'bold')).pack(pady=(18, 5))
+    bind_theme(tk.Label(root, text='Atualizando agente', bg=theme_color('alt'), fg=theme_color('text'), font=('Segoe UI', 15, 'bold')), background='alt', foreground='text').pack(pady=(18, 5))
     status = tk.StringVar(value='Preparando atualização segura...')
-    tk.Label(root, textvariable=status, bg='#0c1828', fg='#a8bed6', font=('Segoe UI', 10)).pack(pady=4)
+    bind_theme(tk.Label(root, textvariable=status, bg=theme_color('alt'), fg=theme_color('muted'), font=('Segoe UI', 10)), background='alt', foreground='muted').pack(pady=4)
     bar = ttk.Progressbar(root, mode='determinate', length=370, maximum=100)
     bar.pack(pady=(10, 6))
     root.protocol('WM_DELETE_WINDOW', lambda: None)

@@ -43,3 +43,10 @@ O teste verifica 35 combinações: 0, 1, 2, 5 e 17 redes em 320×568, 360×640, 
 O instalador foi baixado da aplicação local e inspecionado como ZIP: componentes versionados em 2.8.0 e suporte de aparência presente. O canal autenticado de atualização foi verificado com seis arquivos e seus SHA-256. Não foi executado instalador nem comando remoto em computador de cliente. Sem alterações de schema nesta entrega.
 
 A camada mobile também converte tabelas largas em registros rotulados, mantendo os cabeçalhos de ordenação e a seleção acessíveis. Estilos de impressão mantêm papel claro, mesmo quando o aplicativo está escuro. Na migração completa para 2.8.0, use o novo instalador para substituir também o atualizador auxiliar; o canal legado conserva sua lista de seis arquivos por compatibilidade.
+
+
+## Refatoração direta — 2.8.1
+
+Os mesmos testes agora usam as definições originais consolidadas, sem arquivos de sobreposição nem conversão automática de cores. A suíte de versão também verifica a ausência das implementações removidas e das interceptações de Canvas/Tkinter. O teste do agente usa componentes com papéis de cor declarados explicitamente; não depende de adaptar cores antigas. A cópia duplicada do agente no HTML legado deixou de existir.
+
+Na 2.8.1 passaram 96 cenários de páginas, 35 do painel e 16 testes Python, incluindo uma verificação contra reintrodução dos arquivos e adaptadores removidos. A validação não gerou imagens.

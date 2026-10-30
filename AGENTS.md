@@ -6,3 +6,5 @@
 - Não gere imagens de apresentação nem capturas de tela sem pedido do usuário. Valide a interface por testes e medições no navegador.
 - Use o checkout existente; tarefas em nuvem já são isoladas. Não crie worktrees sem solicitação.
 - Mudanças no GitHub e pacotes ZIP não atualizam o cPanel nem os agentes instalados. Informe claramente os passos que o usuário precisa executar.
+
+- Alterações visuais devem ser feitas nas declarações e estruturas originais. Não criar arquivos de sobreposição, reinterpretar estilos em execução ou interceptar métodos de Canvas/Tkinter. Reutilizar os arquivos existentes e remover implementações substituídas.

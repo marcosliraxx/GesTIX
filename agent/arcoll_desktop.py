@@ -3,9 +3,9 @@
 import argparse, hashlib, json, os, platform, socket, subprocess, sys, threading, time, urllib.error, urllib.request, shutil
 import tkinter as tk
 from tkinter import messagebox
-from arcoll_toolkit import AppearanceManager
+from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
 
-VERSION = '2.8.0'
+VERSION = '2.8.1'
 parser = argparse.ArgumentParser()
 parser.add_argument('--origin', default=os.environ.get('ARCOLL_ORIGIN', '').strip())
 parser.add_argument('--site-code', default=os.environ.get('ARCOLL_SITE_CODE', '').strip().upper())
@@ -108,27 +108,26 @@ class DesktopAgent:
         self.root.title('Arcoll Speed Connection | Agente de Rede')
         self.root.geometry('560x430'); self.root.resizable(True, True); self.root.minsize(360,400)
         self._center_window()
-        self.root.configure(bg='#0b1220')
+        bind_theme(self.root, background='surface').configure(bg=theme_color('surface'))
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favicon.ico')
         if os.path.isfile(icon_path):
             try: self.root.iconbitmap(default=icon_path)
             except Exception: pass
         self.proc = None; self.app_proc = None; self.code = BUNDLED_SITE_CODE; self.download_key = DOWNLOAD_KEY; self.closed = False; self.busy = False; self.progress_step = 0; self.request_started = 0.0; self.app_launch_pending = False
         self.app_closed_by_user = False
-        self.fg = '#e8eefb'; self.muted = '#9aaac3'; self.accent = '#22d3ee'
-        tk.Label(self.root,text='ARCOLL',font=('Segoe UI',11,'bold'),fg=self.accent,bg='#0b1220').place(x=28,y=22)
-        tk.Label(self.root,text='Agente de Rede',font=('Segoe UI',22,'bold'),fg=self.fg,bg='#0b1220').place(x=28,y=52)
-        tk.Label(self.root,text='Cadastro e autorização deste computador',font=('Segoe UI',10),fg=self.muted,bg='#0b1220').place(x=30,y=91)
-        tk.Label(self.root,text='Código do local',font=('Segoe UI',10,'bold'),fg=self.fg,bg='#0b1220').place(x=30,y=133)
+        bind_theme(tk.Label(self.root, text='ARCOLL', font=('Segoe UI', 11, 'bold'), fg=theme_color('accent'), bg=theme_color('surface')), foreground='accent', background='surface').place(x=28, y=22)
+        bind_theme(tk.Label(self.root, text='Agente de Rede', font=('Segoe UI', 22, 'bold'), fg=theme_color('text'), bg=theme_color('surface')), foreground='text', background='surface').place(x=28, y=52)
+        bind_theme(tk.Label(self.root, text='Cadastro e autorização deste computador', font=('Segoe UI', 10), fg=theme_color('muted'), bg=theme_color('surface')), foreground='muted', background='surface').place(x=30, y=91)
+        bind_theme(tk.Label(self.root, text='Código do local', font=('Segoe UI', 10, 'bold'), fg=theme_color('text'), bg=theme_color('surface')), foreground='text', background='surface').place(x=30, y=133)
         self.code_var = tk.StringVar()
-        self.entry = tk.Entry(self.root,textvariable=self.code_var,font=('Segoe UI',15),bg='#172238',fg=self.fg,insertbackground=self.fg,relief='flat')
+        self.entry = bind_theme(tk.Entry(self.root, textvariable=self.code_var, font=('Segoe UI', 15), bg=theme_color('alt'), fg=theme_color('text'), insertbackground=theme_color('text'), relief='flat'), background='alt', foreground='text', insertbackground='text')
         self.entry.place(x=30,y=158,width=500,height=42)
         self.entry.bind('<Return>',lambda _e:self.register())
-        self.button = tk.Button(self.root,text='Cadastrar este computador',command=self.register,font=('Segoe UI',10,'bold'),bg=self.accent,fg='#06131b',relief='flat',cursor='hand2')
+        self.button = bind_theme(tk.Button(self.root, text='Cadastrar este computador', command=self.register, font=('Segoe UI', 10, 'bold'), bg=theme_color('accent'), fg=theme_color('text'), relief='flat', cursor='hand2'), background='accent', foreground='text')
         self.button.place(x=30,y=215,width=230,height=38)
-        self.status = tk.Label(self.root,text='Informe o código de local fornecido pelo gestor da rede.',font=('Segoe UI',10),fg=self.muted,bg='#0b1220',anchor='w',wraplength=500,justify='left')
+        self.status = bind_theme(tk.Label(self.root, text='Informe o código de local fornecido pelo gestor da rede.', font=('Segoe UI', 10), fg=theme_color('muted'), bg=theme_color('surface'), anchor='w', wraplength=500, justify='left'), foreground='muted', background='surface')
         self.status.place(x=30,y=270,width=500,height=48)
-        self.details = tk.Label(self.root,text='Computador: '+platform.node()+'   |   IP local: '+(local_ip() or 'indisponível'),font=('Segoe UI',8),fg='#7f91ad',bg='#0b1220',anchor='w')
+        self.details = bind_theme(tk.Label(self.root, text='Computador: ' + platform.node() + '   |   IP local: ' + (local_ip() or 'indisponível'), font=('Segoe UI', 8), fg=theme_color('muted'), bg=theme_color('surface'), anchor='w'), foreground='muted', background='surface')
         self.details.place(x=30,y=335,width=500,height=24)
         self.root.protocol('WM_DELETE_WINDOW',self.close)
         if BUNDLED_SITE_CODE: self.code_var.set(BUNDLED_SITE_CODE)
@@ -160,7 +159,7 @@ class DesktopAgent:
         self.root.lift()
 
     def set_status(self, message, color=None):
-        self.status.configure(text=message,fg=color or self.muted)
+        self.status.configure(text=message, fg=color or theme_color('muted'))
 
     def restore_saved_code(self):
         """Autoauthenticate using the fresh network installer and stable machine ID.
@@ -173,12 +172,12 @@ class DesktopAgent:
             self.code_var.set(BUNDLED_SITE_CODE)
             self.busy = True
             self.button.configure(state='disabled')
-            self.set_status('Verificando vínculo existente com a rede...', '#22d3ee')
+            self.set_status('Verificando vínculo existente com a rede...', theme_color('accent'))
             self.root.withdraw()  # Do not flash the registration gate for approved installations.
             threading.Thread(target=self._auto_register_worker, daemon=True).start()
         else:
             self._show_registration()
-            self.set_status('O pacote não contém credenciais válidas. Baixe o agente novamente pela plataforma.', '#fb7185')
+            self.set_status('O pacote não contém credenciais válidas. Baixe o agente novamente pela plataforma.', theme_color('danger'))
 
     def _auto_register_worker(self):
         try:
@@ -198,11 +197,11 @@ class DesktopAgent:
         self.save_code()
         self.begin_polling()
         if status == 'approved':
-            self.set_status('Computador aprovado anteriormente. Abrindo o agente...', '#34d399')
+            self.set_status('Computador aprovado anteriormente. Abrindo o agente...', theme_color('success'))
             # Revalidate through agent-poll before launching; no implicit approval.
         else:
             self._show_registration()
-            self.set_status(response.get('message', 'Aguardando aprovação do gestor.'), '#fbbf24' if status == 'pending' else '#fb7185')
+            self.set_status(response.get('message', 'Aguardando aprovação do gestor.'), theme_color('warning') if status == 'pending' else theme_color('danger'))
 
     def _auto_registration_error(self, error):
         if self.closed: return
@@ -211,11 +210,11 @@ class DesktopAgent:
         # Falha temporária de comunicação não cancela uma aprovação já concedida.
         # A janela só é mostrada se for preciso corrigir o cadastro.
         if self.code and self.download_key:
-            self.set_status('Aguardando comunicação com a plataforma para validar o vínculo.', '#fbbf24')
+            self.set_status('Aguardando comunicação com a plataforma para validar o vínculo.', theme_color('warning'))
             self.root.after(12000, self.restore_saved_code)
         else:
             self._show_registration()
-            self.set_status('Não foi possível reconhecer automaticamente o computador: ' + error, '#fb7185')
+            self.set_status('Não foi possível reconhecer automaticamente o computador: ' + error, theme_color('danger'))
 
     def save_code(self):
         path = os.path.join(os.environ.get('APPDATA',os.path.expanduser('~')), 'Arcoll')
@@ -227,14 +226,14 @@ class DesktopAgent:
         if self.busy: return
         code = self.code_var.get().strip().upper()
         if not code:
-            self.set_status('O pacote não contém código local. Baixe novamente o agente pela página da rede.', '#fbbf24'); self.entry.focus_set(); return
+            self.set_status('O pacote não contém código local. Baixe novamente o agente pela página da rede.', theme_color('warning')); self.entry.focus_set(); return
         if not self.download_key:
-            self.set_status('Chave de instalação ausente. Baixe um novo arquivo de agente pela página da rede.', '#fb7185'); return
+            self.set_status('Chave de instalação ausente. Baixe um novo arquivo de agente pela página da rede.', theme_color('danger')); return
         if not __import__('re').fullmatch(r'[A-Z0-9]{5}', code):
-            self.set_status('O código local deve conter exatamente 5 letras ou números maiúsculos.', '#fb7185'); return
+            self.set_status('O código local deve conter exatamente 5 letras ou números maiúsculos.', theme_color('danger')); return
         self.busy=True; self.button.configure(state='disabled'); self.request_started=time.monotonic(); self.progress_step=0
         self.code=code
-        self.set_status('Preparando solicitação segura…', '#22d3ee')
+        self.set_status('Preparando solicitação segura…', theme_color('accent'))
         self._animate_registration_progress()
         threading.Thread(target=self._register_worker,daemon=True).start()
 
@@ -246,7 +245,7 @@ class DesktopAgent:
         message = messages[self.progress_step % len(messages)] + dots + f'\nAguarde; tempo decorrido: {elapsed}s'
         if elapsed >= 12:
             message += '\nA conexão está demorando. O agente exibirá o erro se o servidor não responder.'
-        self.set_status(message, '#22d3ee' if elapsed < 12 else '#fbbf24')
+        self.set_status(message, theme_color('accent') if elapsed < 12 else theme_color('warning'))
         self.progress_step += 1
         self.root.after(650, self._animate_registration_progress)
 
@@ -279,13 +278,13 @@ class DesktopAgent:
     def _registered(self,result):
         self.busy=False; self.button.configure(state='normal')
         if not result.get('ok'):
-            self.set_status(result.get('error','Não foi possível cadastrar o agente.'),'#fb7185'); return
+            self.set_status(result.get('error', 'Não foi possível cadastrar o agente.'), theme_color('danger')); return
         self.save_code()
-        self.set_status(result.get('message','Solicitação enviada.'), '#34d399' if result.get('status')=='approved' else '#fbbf24')
+        self.set_status(result.get('message', 'Solicitação enviada.'), theme_color('success') if result.get('status') == 'approved' else theme_color('warning'))
         self.begin_polling()
 
     def _registration_error(self,message):
-        self.busy=False; self.button.configure(state='normal'); self.set_status('FALHA NO CADASTRO\n'+message+'\nConfira a conexão e tente novamente. Se persistir, envie esta mensagem ao suporte.','#fb7185')
+        self.busy=False; self.button.configure(state='normal'); self.set_status('FALHA NO CADASTRO\n' + message + '\nConfira a conexão e tente novamente. Se persistir, envie esta mensagem ao suporte.', theme_color('danger'))
 
     def begin_polling(self,register_again=False):
         if not self.code: return
@@ -300,7 +299,7 @@ class DesktopAgent:
             result=api('agent-register',self._payload())
             self.root.after(0,lambda:self._registered(result))
         except Exception as e:
-            self.root.after(0,lambda:self.set_status('Não foi possível validar a autorização: '+str(e),'#fb7185'))
+            self.root.after(0, lambda: self.set_status('Não foi possível validar a autorização: ' + str(e), theme_color('danger')))
             self.root.after(15000,self.poll_status)
 
     def poll_status(self):
@@ -310,14 +309,14 @@ class DesktopAgent:
     def _poll_worker(self):
         try: result=api('agent-poll',{'fingerprint':FINGERPRINT,'site_code':self.code})
         except Exception as e:
-            self.root.after(0,lambda:self.set_status('Sem conexão com o servidor. Nova tentativa automática. '+str(e),'#fbbf24'))
+            self.root.after(0, lambda: self.set_status('Sem conexão com o servidor. Nova tentativa automática. ' + str(e), theme_color('warning')))
             self.root.after(15000,self.poll_status); return
         self.root.after(0,lambda:self._apply_status(result))
 
     def _apply_status(self,result):
         state=result.get('status','pending')
         if state=='approved':
-            self.set_status('AGENTE AUTORIZADO · '+result.get('network_name','Rede registrada')+'\nMonitoramento local ativo. O acesso permanece vinculado a este computador.','#34d399')
+            self.set_status('AGENTE AUTORIZADO · ' + result.get('network_name', 'Rede registrada') + '\nMonitoramento local ativo. O acesso permanece vinculado a este computador.', theme_color('success'))
             self.start_local_agent()
             if not self.app_closed_by_user and not self.app_launch_pending and not (self.app_proc and self.app_proc.poll() is None):
                 self.app_launch_pending = True
@@ -325,23 +324,23 @@ class DesktopAgent:
             self.root.after(20000,self.poll_status)
         elif state=='pending':
             self._show_registration()
-            self.set_status('CADASTRO PENDENTE\nO agente só será ativado depois que o gestor aprovar esta solicitação.','#fbbf24')
+            self.set_status('CADASTRO PENDENTE\nO agente só será ativado depois que o gestor aprovar esta solicitação.', theme_color('warning'))
             self.root.after(10000,self.poll_status)
         elif state in ('blocked','rejected'):
             self.stop_full_app()
             self.stop_local_agent()
             try: self._show_registration()
             except Exception: pass
-            self.set_status('ACESSO '+('BLOQUEADO' if state=='blocked' else 'REJEITADO')+' PELO GESTOR\nEste agente não pode ser utilizado. Entre em contato com o responsável pela rede.','#fb7185')
+            self.set_status('ACESSO ' + ('BLOQUEADO' if state == 'blocked' else 'REJEITADO') + ' PELO GESTOR\nEste agente não pode ser utilizado. Entre em contato com o responsável pela rede.', theme_color('danger'))
             self.root.after(20000,self.poll_status)
         else:
             self._show_registration()
-            self.set_status(result.get('error','Agente não cadastrado. Digite novamente o código do local.'),'#fb7185')
+            self.set_status(result.get('error', 'Agente não cadastrado. Digite novamente o código do local.'), theme_color('danger'))
             self.entry.configure(state='normal'); self.button.configure(state='normal')
 
     def start_local_agent(self):
         if self.proc and self.proc.poll() is None:
-            self.set_status('AGENTE AUTORIZADO E EM EXECUÇÃO\nMonitoramento local ativo para '+platform.node()+'.','#34d399')
+            self.set_status('AGENTE AUTORIZADO E EM EXECUÇÃO\nMonitoramento local ativo para ' + platform.node() + '.', theme_color('success'))
             return
         script=os.path.join(os.path.dirname(os.path.abspath(__file__)),'arcoll_agent.py')
         py=sys.executable
@@ -359,14 +358,14 @@ class DesktopAgent:
             self.proc=subprocess.Popen([py,script,'--origin',ORIGIN],stdout=self._agent_log,stderr=subprocess.STDOUT,creationflags=flags,cwd=os.path.dirname(script))
             self.root.after(1800,lambda:self._verify_local_agent(log_path))
         except Exception as e:
-            self.set_status('AGENTE AUTORIZADO, MAS O SERVIÇO NÃO INICIOU\n'+str(e)+'\nLog: '+log_path,'#fb7185')
+            self.set_status('AGENTE AUTORIZADO, MAS O SERVIÇO NÃO INICIOU\n' + str(e) + '\nLog: ' + log_path, theme_color('danger'))
 
     def launch_full_app(self):
         self.app_launch_pending = False
         if self.closed:
             return
         if focus_running_app():
-            self.set_status('APLICATIVO ARCOLL JÁ ESTÁ ABERTO\nA janela existente foi trazida para frente.', '#34d399')
+            self.set_status('APLICATIVO ARCOLL JÁ ESTÁ ABERTO\nA janela existente foi trazida para frente.', theme_color('success'))
             try: self.root.withdraw()
             except Exception: pass
             return
@@ -391,7 +390,7 @@ class DesktopAgent:
             self.root.after(1200, self._verify_full_app)
         except Exception as e:
             self.app_launch_pending = False
-            self.set_status('AGENTE AUTORIZADO, MAS O APLICATIVO COMPLETO NÃO ABRIU\n' + str(e) + '\nLog: ' + log_path, '#fb7185')
+            self.set_status('AGENTE AUTORIZADO, MAS O APLICATIVO COMPLETO NÃO ABRIU\n' + str(e) + '\nLog: ' + log_path, theme_color('danger'))
             try: self._show_registration()
             except Exception: pass
 
@@ -399,7 +398,7 @@ class DesktopAgent:
         if self.closed:
             return
         if self.app_proc and self.app_proc.poll() is None:
-            self.set_status('APLICATIVO ARCOLL ABERTO\nMonitoramento local ativo para ' + platform.node() + '.', '#34d399')
+            self.set_status('APLICATIVO ARCOLL ABERTO\nMonitoramento local ativo para ' + platform.node() + '.', theme_color('success'))
             try: self.root.withdraw()
             except Exception: pass
             self.root.after(3000, self.check_full_app)
@@ -407,7 +406,7 @@ class DesktopAgent:
             self.app_launch_pending = False
             try: self._show_registration()
             except Exception: pass
-            self.set_status('O aplicativo desktop encerrou durante a inicialização. Consulte %LOCALAPPDATA%\\Arcoll\\agent-runtime.log.', '#fb7185')
+            self.set_status('O aplicativo desktop encerrou durante a inicialização. Consulte %LOCALAPPDATA%\\Arcoll\\agent-runtime.log.', theme_color('danger'))
 
     def check_full_app(self):
         if self.closed:
@@ -418,7 +417,7 @@ class DesktopAgent:
         self.app_proc = None
         self.app_closed_by_user = True
         # Interface principal fechada não é motivo para reexibir o cadastro.
-        self.set_status('Aplicativo principal encerrado; autorização permanece válida.', '#fbbf24')
+        self.set_status('Aplicativo principal encerrado; autorização permanece válida.', theme_color('warning'))
 
     def stop_full_app(self):
         if self.app_proc and self.app_proc.poll() is None:
@@ -430,12 +429,12 @@ class DesktopAgent:
     def _verify_local_agent(self,log_path):
         if self.closed: return
         if self.proc and self.proc.poll() is None:
-            self.set_status('AGENTE AUTORIZADO E EM EXECUÇÃO\nMonitoramento local ativo para '+platform.node()+'.\nServiço local iniciado com sucesso.','#34d399')
+            self.set_status('AGENTE AUTORIZADO E EM EXECUÇÃO\nMonitoramento local ativo para ' + platform.node() + '.\nServiço local iniciado com sucesso.', theme_color('success'))
         else:
             try:
                 with open(log_path,'r',encoding='utf-8',errors='replace') as f: tail=f.read()[-900:]
             except Exception: tail='Consulte o log do agente.'
-            self.set_status('AUTORIZADO, MAS O SERVIÇO LOCAL FOI ENCERRADO\n'+tail+'\nLog: '+log_path,'#fb7185')
+            self.set_status('AUTORIZADO, MAS O SERVIÇO LOCAL FOI ENCERRADO\n' + tail + '\nLog: ' + log_path, theme_color('danger'))
 
     def stop_local_agent(self):
         if self.proc and self.proc.poll() is None:

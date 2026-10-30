@@ -115,53 +115,47 @@ poll();setInterval(()=>{if(!document.hidden)poll()},5000);
  <div class="arc-remote-screen-actions"><small id="arc-remote-assistance-state" role="status">Aguardando solicitação de acesso.</small><small id="arc-remote-control-hint" hidden></small><button type="button" id="arc-remote-screen-stop" hidden>Encerrar sessão</button></div>
 </dialog>
 <style>
-.arc-remote-screen-modal{width:min(96vw,1400px);max-width:1400px;height:min(94vh,940px);max-height:94vh;padding:0;border:1px solid #315c7d;border-radius:16px;background:#081521;color:#e6f5ff;box-shadow:0 20px 80px #000b;overflow:hidden}
 .arc-remote-screen-modal[open]{display:flex;flex-direction:column}
 .arc-remote-screen-modal::backdrop{background:#000b;backdrop-filter:blur(5px)}
-.arc-remote-screen-head,.arc-remote-screen-actions{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:6px 10px;background:#10243a;flex:0 0 auto}
-.arc-remote-screen-head{min-height:39px;box-sizing:border-box}
-.arc-remote-heading{flex:0 0 auto;min-width:0}.arc-remote-screen-head h2{font-size:12px;margin:0;white-space:nowrap}.arc-remote-screen-head small{color:#9bbbd1;font-size:11px;font-weight:400}
+.arc-remote-heading{flex:0 0 auto;min-width:0}.arc-remote-screen-head small{color:var(--muted);font-size:11px;font-weight:400}
 #arc-remote-assistance-state{padding:3px 8px;color:#80dcca;font-size:11px;flex:0 0 auto}
 .arc-remote-screen-tools{display:flex;flex:1 1 auto;min-width:0;align-items:center;justify-content:flex-end;gap:2px;overflow-x:auto;scrollbar-width:thin;padding:0 5px;background:transparent}
 .arc-remote-screen-tools[hidden]{display:none!important}
-.arc-remote-tool{appearance:none;display:inline-flex;align-items:center;justify-content:center;flex:0 0 27px;width:27px;height:27px;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:#dbeeff;cursor:pointer;font-size:12px}
-.arc-remote-tool:hover,.arc-remote-tool:focus-visible{background:#254967;border-color:#3d7092;outline:none}
-.arc-remote-divider{width:1px;height:19px;background:#43637b;flex:0 0 1px;margin:0 4px}
-.arc-remote-select-label{display:inline-flex;align-items:center;gap:4px;color:#b8d8ee;font-size:11px;flex:0 0 auto}.arc-remote-select-label select{font-size:11px;max-width:145px;background:#0c2b42;border:1px solid #39607c;border-radius:5px;color:#e6f5ff;padding:4px;outline:none}
-.arc-remote-zoom-value{font:10px 'Segoe UI',sans-serif;color:#9ec5de;white-space:nowrap;min-width:30px;text-align:center}
-.arc-remote-text-wrap{display:flex;align-items:center;flex:0 0 136px;min-width:0;border:1px solid #365b75;border-radius:6px;background:#081521}
-.arc-remote-text-wrap input{width:100%;min-width:0;padding:5px 3px 5px 7px;border:0;outline:none;background:transparent;color:#e6f5ff;font-size:11px}
+.arc-remote-tool{appearance:none;display:inline-flex;align-items:center;justify-content:center;flex:0 0 27px;width:27px;height:27px;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--text);cursor:pointer;font-size:12px}
+.arc-remote-tool:hover{background:var(--surface-alt);border-color:var(--border);outline:none}
+.arc-remote-tool:focus-visible{background:var(--surface-alt);border-color:var(--border);outline:none}
+.arc-remote-divider{width:1px;height:19px;background:var(--surface-alt);flex:0 0 1px;margin:0 4px}
+.arc-remote-select-label{display:inline-flex;align-items:center;gap:4px;color:var(--text);font-size:11px;flex:0 0 auto}.arc-remote-select-label select{font-size:11px;max-width:145px;background:var(--surface-alt);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:4px;outline:none}
+.arc-remote-zoom-value{font:10px 'Segoe UI',sans-serif;color:var(--primary);white-space:nowrap;min-width:30px;text-align:center}
+.arc-remote-text-wrap{display:flex;align-items:center;flex:0 0 136px;min-width:0;border:1px solid var(--border);border-radius:6px;background:var(--surface)}
+.arc-remote-text-wrap input{width:100%;min-width:0;padding:5px 3px 5px 7px;border:0;outline:none;background:transparent;color:var(--text);font-size:11px}
 .arc-remote-text-wrap .arc-remote-tool{flex:0 0 25px;width:25px;height:25px}
-.arc-remote-close{flex:0 0 auto}
-@media(max-width:800px){.arc-remote-screen-head{gap:4px}.arc-remote-screen-tools{justify-content:flex-start}.arc-remote-heading h2{font-size:10px}.arc-remote-heading small{display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis}}
-.arc-remote-screen-canvas{flex:1 1 auto;min-height:220px;display:flex;align-items:center;justify-content:center;position:relative;background:#040a12;overflow:hidden;outline:none}
 .arc-remote-screen-canvas.controlling{cursor:crosshair;box-shadow:inset 0 0 0 2px #2fbf9b}
-.arc-remote-screen-canvas img{width:100%;height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}
-#arc-remote-screen-placeholder{text-align:center;color:#8aa7ba}#arc-remote-screen-placeholder i{font-size:50px;margin-bottom:10px}
-.arc-remote-screen-actions small{color:#a5bfd1}
-/* Visualizador remoto minimalista: barra superior, tela e status inferior. */
-.arc-remote-screen-modal{width:min(98vw,1600px);max-width:1600px;height:min(96vh,1000px);max-height:96vh;border-radius:12px}
-.arc-remote-screen-head{min-height:42px;padding:5px 13px;gap:10px;background:#10243a}
-.arc-remote-screen-head h2{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:800;letter-spacing:.08em}
-.arc-remote-screen-head h2 small{font-size:11px;font-weight:500;letter-spacing:0;color:#b8cbda;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50vw}
-.arc-remote-close{width:29px;height:29px;border:1px solid #39526b;border-radius:9px;background:#1b344c;color:#e8f3ff;cursor:pointer;display:grid;place-items:center;transition:background .15s,border-color .15s}
+.arc-remote-screen-canvas img{width:100%;height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}#arc-remote-screen-placeholder i{font-size:50px;margin-bottom:10px}
+.arc-remote-screen-actions small{color:var(--muted)}
+.arc-remote-screen-modal{width:min(98vw,1600px);max-width:1600px;height:min(96vh,1000px);max-height:96vh;padding:0;border:1px solid #315c7d;border-radius:12px;background:var(--surface);color:var(--text);box-shadow:0 20px 80px #000b;overflow:hidden}
+.arc-remote-screen-head h2{font-size:12px;margin:0;white-space:nowrap;display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.08em}
+.arc-remote-screen-head h2 small{font-size:11px;font-weight:500;letter-spacing:0;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50vw}
+.arc-remote-close{flex:0 0 auto;width:29px;height:29px;border:1px solid var(--border);border-radius:9px;background:var(--surface-alt);color:var(--text);cursor:pointer;display:grid;place-items:center;transition:background .15s,border-color .15s}
 .arc-remote-close:hover{background:#9f3248;border-color:#d3556e}
-.arc-remote-screen-canvas{min-height:0}
-#arc-remote-screen-placeholder{display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:15px}
+.arc-remote-screen-canvas{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;position:relative;background:var(--surface);overflow:hidden;outline:none}
+#arc-remote-screen-placeholder{text-align:center;color:var(--muted);display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:15px}
 #arc-remote-screen-placeholder[hidden]{display:none}
-.arc-remote-request{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-width:168px;padding:22px 26px;border:1px solid #365d79;border-radius:14px;background:#122b43;color:#ecf8ff;font:700 13px 'Segoe UI',sans-serif;cursor:pointer;box-shadow:0 12px 32px #0005;transition:transform .15s,background .15s}
-.arc-remote-request i{font-size:30px;color:#50c5ff}
-.arc-remote-request:hover{background:#194366;transform:translateY(-2px)}
+.arc-remote-request{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-width:168px;padding:22px 26px;border:1px solid var(--border);border-radius:14px;background:var(--surface-alt);color:var(--text);font:700 13px 'Segoe UI',sans-serif;cursor:pointer;box-shadow:0 12px 32px #0005;transition:transform .15s,background .15s}
+.arc-remote-request i{font-size:30px;color:var(--primary)}
+.arc-remote-request:hover{background:var(--surface-alt);transform:translateY(-2px)}
 .arc-remote-request:disabled{opacity:.65;cursor:wait;transform:none}
 .arc-remote-request[hidden]{display:none!important}
-.arc-remote-screen-actions{min-height:26px;padding:4px 12px;background:#10243a;justify-content:center}
+.arc-remote-screen-actions{display:flex;align-items:center;justify-content:center;gap:9px;padding:4px 12px;background:var(--surface-alt);flex:0 0 auto;min-height:26px}
 .arc-remote-screen-actions #arc-remote-assistance-state{font-size:11px;color:#9ddfcc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
-.arc-remote-screen-actions #arc-remote-control-hint,.arc-remote-screen-actions #arc-remote-screen-stop{display:none!important}
+.arc-remote-screen-actions #arc-remote-control-hint{display:none!important}
+.arc-remote-screen-actions #arc-remote-screen-stop{display:none!important}
 
 #arc-remote-monitor-wrap[hidden]{display:none!important}
-#arc-remote-monitor{min-width:85px;max-width:140px;color:#dbeeff}
-.arc-remote-screen-head{display:flex;align-items:center;min-width:0}
+#arc-remote-monitor{min-width:85px;max-width:140px;color:var(--text)}
+.arc-remote-screen-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 13px;background:var(--surface-alt);flex:0 0 auto;min-height:42px;box-sizing:border-box;min-width:0}
 .arc-remote-screen-head .arc-remote-screen-tools{min-width:0;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin}
+@media(max-width:800px){.arc-remote-screen-head{gap:4px}.arc-remote-screen-tools{justify-content:flex-start}.arc-remote-heading h2{font-size:10px}.arc-remote-heading small{display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis}}
 </style>
 <!-- Confirmação de sessão para agentes autorizados pelo gestor como "sem monitor/teclado/mouse"
      (aba Agentes do gerenciador da rede). Faz parte do mesmo botão "Solicitar acesso" acima — não é um
@@ -179,13 +173,13 @@ poll();setInterval(()=>{if(!document.hidden)poll()},5000);
  </form>
 </dialog>
 <style>
-.arc-remote-auto-modal{width:min(92vw,340px);padding:0;border:1px solid #315c7d;border-radius:14px;background:#0c1f33;color:#e6f5ff;box-shadow:0 20px 70px #000b}
+.arc-remote-auto-modal{width:min(92vw,340px);padding:0;border:1px solid #315c7d;border-radius:14px;background:var(--surface-alt);color:var(--text);box-shadow:0 20px 70px #000b}
 .arc-remote-auto-modal::backdrop{background:#000b;backdrop-filter:blur(4px)}
 .arc-remote-auto-modal form{padding:18px 20px}
 .arc-remote-auto-modal h2{font-size:15px;margin:0 0 4px}
-.arc-remote-auto-modal p{font-size:12px;color:#9bbbd1;margin:0 0 10px}
-.arc-remote-auto-modal input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid #315c7d;background:#081521;color:#e6f5ff;font-size:14px}
-#arc-remote-auto-error{display:block;min-height:16px;color:#ff9393;font-size:12px;margin-top:6px}
+.arc-remote-auto-modal p{font-size:12px;color:var(--muted);margin:0 0 10px}
+.arc-remote-auto-modal input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid #315c7d;background:var(--surface);color:var(--text);font-size:14px}
+#arc-remote-auto-error{display:block;min-height:16px;color:var(--text);font-size:12px;margin-top:6px}
 .arc-remote-auto-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
 </style>
 <script>

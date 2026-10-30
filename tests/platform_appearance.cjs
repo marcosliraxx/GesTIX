@@ -28,12 +28,7 @@ const {chromium}=require('playwright');
   if(await page.evaluate(()=>document.documentElement.dataset.theme)!=='dark')failures.push({role,error:'Auto dark failed'});
   await page.emulateMedia({colorScheme:'light'});await page.waitForFunction(()=>document.documentElement.dataset.theme==='light');
   if(await page.evaluate(()=>document.documentElement.dataset.theme)!=='light')failures.push({role,error:'Auto light failed'});
-  for(const theme of ['light','dark']){
-   const canvas=await page.evaluate(theme=>{
-    window.arcTheme.set(theme);const node=document.createElement('canvas');node.width=20;node.height=20;const ctx=node.getContext('2d');ctx.fillStyle='#000000';ctx.fillRect(0,0,20,20);const bg=[...ctx.getImageData(0,0,1,1).data];ctx.fillStyle='#ffffff';ctx.font='14px sans-serif';ctx.fillText('X',1,14);const image=ctx.getImageData(0,0,20,20).data;let text=false;for(let i=0;i<image.length;i+=4)if(image[i]!==bg[0]||image[i+1]!==bg[1]||image[i+2]!==bg[2])text=true;return {bg,text};
-   },theme);
-   if(!canvas.text||(theme==='light'?canvas.bg[0]<240:canvas.bg[0]>40))failures.push({role,theme,error:'Chart background or text contrast failed'});
-  }
+  if(!await page.evaluate(()=>CanvasRenderingContext2D.prototype.fillText.toString().includes('[native code]')))failures.push({role,error:'Canvas native method was replaced'});
   await context.close();
  }
  console.log(JSON.stringify({total,failures},null,2));await browser.close();if(failures.length)process.exitCode=1;

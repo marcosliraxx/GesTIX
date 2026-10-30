@@ -15,6 +15,9 @@ def main():
     if git('status','--porcelain').strip():raise SystemExit('Commit the validated release before packaging')
     files=set(git('diff-tree','--no-commit-id','--name-only','-r','HEAD').decode().splitlines())
     files.update(git('ls-files','agent').decode().splitlines())
+    files.update({'pwa/app.php','api/api.php','api/download-agent.php','api/manifest.php','assets/css/arcoll.css','assets/css/redes.css','assets/js/arcoll.js','includes/bootstrap.php','includes/header.php','includes/footer.php'})
+    removed=[name for name in git('diff-tree','--no-commit-id','--name-only','--diff-filter=D','-r','HEAD').decode().splitlines() if allowed(name)]
+    if removed:instructions+=('\n\nARQUIVOS ANTIGOS A APAGAR NO CPANEL APÓS ENVIAR A ATUALIZAÇÃO\nA extração do ZIP não remove estes arquivos automaticamente.\n'+'\n'.join(removed)+'\n').encode()
     files={name for name in files if allowed(name) and (ROOT/name).is_file()}
     files.add('VERSION');output.parent.mkdir(parents=True,exist_ok=True)
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:

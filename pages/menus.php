@@ -211,20 +211,20 @@ $items=$ordered;
 function mh(string $v):string{return htmlspecialchars($v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeaderActions='';require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';?>
 <style>
-.menu-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.menu-toolbar .search-field{flex:1;min-width:210px}.menu-bulk-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.menu-bulk-actions select{height:36px;padding:0 10px;border:1px solid var(--border,#d9e4ed);border-radius:8px;background:var(--surface,#fff);color:var(--text,#213449);font-size:12px}.menu-bulk-actions span{font-size:11px;color:var(--muted,#64748b);white-space:nowrap}.menu-bulk-actions button:disabled{opacity:.45;cursor:not-allowed}
-.arc-menu-table-scroll{position:relative;overflow:auto;max-height:min(65vh,660px);min-height:180px;overscroll-behavior:contain;border:1px solid var(--border,#dbe5ed);border-radius:10px}.arc-menu-table-scroll table{width:100%;min-width:980px;border-collapse:separate;border-spacing:0}.arc-menu-table-scroll thead{position:sticky;top:0;z-index:5}.arc-menu-table-scroll th{position:sticky;top:0;z-index:5;background:var(--surface,#f5f9fc)!important;box-shadow:0 2px 0 var(--border,#dbe5ed);white-space:nowrap}.arc-menu-table-scroll th .table-sort{display:flex;align-items:center;gap:6px;width:100%;padding:7px 4px;border:0;background:transparent;color:inherit;cursor:pointer;text-align:left;font-weight:700}.arc-menu-table-scroll th .table-sort:hover{color:var(--arc-brand-accent,#1595b5)}.arc-menu-table-scroll td{vertical-align:middle}.arc-menu-table-scroll .menu-select-cell{width:46px;min-width:46px;text-align:center}.arc-menu-table-scroll input[type=checkbox]{width:16px;height:16px;accent-color:#1785a8;cursor:pointer}.menu-icon-cell{width:55px;text-align:center;font-size:17px;color:#1685aa}.menu-path-cell{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,monospace;font-size:11px}.menu-order-hint{display:block;font-size:10px;color:var(--muted,#768696)}.menu-status{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;white-space:nowrap}.menu-status-dot{width:9px;height:9px;border-radius:50%;background:#a1aab4;box-shadow:0 0 0 3px #a1aab420}.menu-status.is-active .menu-status-dot{background:#22b57b;box-shadow:0 0 0 3px #22b57b20}.arc-menu-table-scroll td.actions{white-space:nowrap}.arc-menu-table-scroll td.actions .button{min-width:32px;padding:8px}.menu-status-control{display:flex;align-items:center;justify-content:space-between;gap:15px}.menu-status-control>span:last-child{font-size:12px}@media(max-width:700px){.menu-toolbar{align-items:stretch}.menu-bulk-actions{width:100%}.arc-menu-table-scroll{max-height:60dvh}}
+.menu-bulk-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.menu-bulk-actions span{font-size:11px;color:var(--muted,#64748b);white-space:nowrap}.menu-bulk-actions button:disabled{opacity:.45;cursor:not-allowed}
+.arc-menu-table-scroll{position:relative;overflow:auto;max-height:min(65vh,660px);min-height:180px;overscroll-behavior:contain;border:1px solid var(--border,#dbe5ed);border-radius:10px}.arc-menu-table-scroll table{width:100%;min-width:980px;border-collapse:separate;border-spacing:0}.arc-menu-table-scroll thead{position:sticky;top:0;z-index:5}.arc-menu-table-scroll th{position:sticky;top:0;z-index:5;background:var(--surface,#f5f9fc)!important;box-shadow:0 2px 0 var(--border,#dbe5ed);white-space:nowrap}.arc-menu-table-scroll th .table-sort{display:flex;align-items:center;gap:6px;width:100%;padding:7px 4px;border:0;background:transparent;color:inherit;cursor:pointer;text-align:left;font-weight:700}.arc-menu-table-scroll th .table-sort:hover{color:var(--arc-brand-accent,#1595b5)}.arc-menu-table-scroll td{vertical-align:middle}.arc-menu-table-scroll .menu-select-cell{width:46px;min-width:46px;text-align:center}.arc-menu-table-scroll input[type=checkbox]{width:16px;height:16px;accent-color:#1785a8;cursor:pointer}.menu-icon-cell{width:55px;text-align:center;font-size:17px;color:var(--primary)}.menu-path-cell{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,monospace;font-size:11px}.menu-order-hint{display:block;font-size:10px;color:var(--muted,#768696)}.menu-status{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;white-space:nowrap}.menu-status-dot{width:9px;height:9px;border-radius:50%;background:var(--surface-alt);box-shadow:0 0 0 3px #a1aab420}.menu-status.is-active .menu-status-dot{background:#22b57b;box-shadow:0 0 0 3px #22b57b20}.arc-menu-table-scroll td.actions{white-space:nowrap}.arc-menu-table-scroll td.actions .button{min-width:32px;padding:8px}.menu-status-control{display:flex;align-items:center;justify-content:space-between;gap:15px}.menu-status-control>span:last-child{font-size:12px}
 
-.menu-drag{cursor:grab;color:#8595a8;padding:5px;background:none;border:0}.menu-drag:active{cursor:grabbing}.menu-child td:nth-child(4){padding-left:calc(14px + var(--menu-depth, 1)*22px)}.menu-expand{border:0;background:transparent;color:#146b9e;cursor:pointer;margin-right:6px}.menu-root{background:rgba(26,113,158,.035)}.menu-dragging{opacity:.45}.menu-drop-target{outline:2px dashed #1484bc;outline-offset:-3px}.menu-toolbar .button{border-radius:9px}.menu-kpis{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.menu-kpis span{padding:12px 17px;border:1px solid var(--border,#dce5ef);border-radius:10px;background:var(--surface,#fff);font-size:13px}.menu-kpis strong{font-size:19px;color:#116c9a;margin-right:5px}
-
-/* Editor compacto e hierarquia contextual. */
+.menu-drag{cursor:grab;color:var(--muted);padding:5px;background:none;border:0}.menu-drag:active{cursor:grabbing}.menu-child td:nth-child(4){padding-left:calc(14px + var(--menu-depth, 1)*22px)}.menu-expand{border:0;background:transparent;color:var(--primary);cursor:pointer;margin-right:6px}.menu-root{background:#1a719e}.menu-dragging{opacity:.45}.menu-drop-target{outline:2px dashed #1484bc;outline-offset:-3px}.menu-toolbar .button{border-radius:9px}.menu-kpis{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.menu-kpis span{padding:12px 17px;border:1px solid var(--border,#dce5ef);border-radius:10px;background:var(--surface,#fff);font-size:13px}.menu-kpis strong{font-size:19px;color:var(--primary);margin-right:5px}
 #menu-dialog{width:min(760px,96vw);max-height:92dvh;padding:0;border-radius:14px;overflow:hidden}
 #menu-dialog .dialog-header{padding:12px 18px}
 #menu-dialog #menu-form{display:flex;flex-direction:column;min-height:0;max-height:calc(92dvh - 58px)}
 #menu-dialog .dialog-body{padding:12px 18px;gap:9px 12px;overflow-y:auto;min-height:0;align-content:start}
 #menu-dialog .dialog-body>label{font-size:12px;gap:4px}
-#menu-dialog .dialog-body input:not([type=checkbox]):not([type=hidden]),#menu-dialog .dialog-body select{min-height:34px;height:34px;padding:5px 9px;font-size:12px}
+#menu-dialog .dialog-body input:not([type=checkbox]):not([type=hidden]){min-height:34px;height:34px;padding:5px 9px;font-size:12px}
+#menu-dialog .dialog-body select{min-height:34px;height:34px;padding:5px 9px;font-size:12px}
 #menu-dialog .dialog-body fieldset{padding:6px 10px;margin:0;border-radius:8px}
-#menu-dialog .dialog-body .placement-options,#menu-dialog .dialog-body .roles{display:flex;flex-wrap:wrap;gap:6px 15px}
+#menu-dialog .dialog-body .placement-options{display:flex;flex-wrap:wrap;gap:6px 15px}
+#menu-dialog .dialog-body .roles{display:flex;flex-wrap:wrap;gap:6px 15px}
 #menu-dialog .dialog-body fieldset label{font-size:11px;white-space:nowrap}
 #menu-dialog .dialog-body .help-text{font-size:10px;margin-top:2px}
 #menu-dialog .dialog-actions{padding:10px 18px}
@@ -234,50 +234,46 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
  .menu-parent-note{font-size:10px;color:var(--muted,#738398);font-weight:400}
 #menu-dialog .menu-parent-control{display:flex;gap:7px;align-items:center;min-width:0}
 #menu-dialog .menu-parent-control select{flex:1;min-width:0;width:100%}
-#menu-dialog #menu-remove-parent{flex:none;white-space:nowrap;min-height:34px;padding:6px 10px;background:#e9f3fa;color:#135878;border:1px solid #a9cdda}
-#menu-dialog #menu-remove-parent:hover{background:#d9ecf7}
-#menu-dialog .menu-icon-picker{border:1px solid #c6d8e6;border-radius:9px;padding:5px;background:#f8fbff}
-#menu-dialog .menu-icon-picker #arc-open-icons{width:46px;height:40px;background:#e6f2fa;border:1px solid #b4d5e9;border-radius:7px;color:#126b96}
-#menu-dialog .menu-icon-picker #menu-icon-preview{font-size:24px;display:inline-block;min-width:24px;text-align:center;color:#126b96}
-#menu-dialog .menu-icon-picker #menu-icon-choose{border:0;background:transparent;color:#135b80;text-align:left;font-weight:600}
+#menu-dialog #menu-remove-parent{flex:none;white-space:nowrap;min-height:34px;padding:6px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border)}
+#menu-dialog #menu-remove-parent:hover{background:var(--surface)}
+#menu-dialog .menu-icon-picker{border:1px solid var(--border);border-radius:9px;padding:5px;background:var(--surface)}
+#menu-dialog .menu-icon-picker #arc-open-icons{width:46px;height:40px;background:var(--surface);border:1px solid var(--border);border-radius:7px;color:var(--primary)}
+#menu-dialog .menu-icon-picker #menu-icon-preview{font-size:24px;display:inline-block;min-width:24px;text-align:center;color:var(--primary)}
+#menu-dialog .menu-icon-picker #menu-icon-choose{border:0;background:transparent;color:var(--muted);text-align:left;font-weight:600}
 #menu-dialog .menu-icon-picker #menu-icon-choose:hover{text-decoration:underline}
-
-#menu-table tr.menu-child td{background:rgba(18,103,159,.035);border-bottom-color:rgba(38,121,167,.09)}
 #menu-table tr.menu-child td:nth-child(4){padding-left:calc(15px + var(--menu-depth, 1)*22px);position:relative}
 #menu-table tr.menu-child td:nth-child(4):before{content:"";position:absolute;left:calc(-10px + (var(--menu-depth, 1) - 1)*22px);top:0;bottom:50%;width:12px;border-left:2px solid #9cc8da;border-bottom:2px solid #9cc8da;border-bottom-left-radius:6px}
-#menu-table tr.menu-root td:nth-child(4)>strong{color:#175779}
-#menu-table tr.menu-child td:nth-child(4)>strong{font-weight:600}
-#menu-table .menu-expand{display:inline-grid;place-items:center;width:24px;height:24px;background:#e9f3f9;border-radius:6px;margin-right:8px}
-@media(max-width:600px){#menu-dialog .dialog-body{grid-template-columns:1fr}#menu-dialog{max-height:95dvh}}
-
-/* Painel compacto: indicadores ao lado da busca */
-.menu-toolbar{gap:8px!important;align-items:center!important}
+#menu-table tr.menu-root td:nth-child(4)>strong{color:var(--muted)}
+.menu-toolbar{display:flex;align-items:center!important;gap:8px!important;flex-wrap:wrap}
 .menu-toolbar .search-field{flex:1 1 220px;min-width:180px;max-width:none;margin:0}
 .menu-toolbar .search-field input{height:34px;min-height:34px;font-size:12px}
 .menu-toolbar .menu-kpis{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;margin:0;flex:0 0 auto}
 .menu-toolbar .menu-kpis span{display:flex;align-items:center;gap:4px;white-space:nowrap;padding:5px 8px;border-radius:7px;font-size:10px;min-height:32px;line-height:1.1}
 .menu-toolbar .menu-kpis strong{font-size:14px;margin:0}
-.menu-toolbar>.button,.menu-toolbar>form>.button{min-height:32px;padding:5px 9px;font-size:11px}
+.menu-toolbar>.button{min-height:32px;padding:5px 9px;font-size:11px}
+.menu-toolbar>form>.button{min-height:32px;padding:5px 9px;font-size:11px}
 .menu-bulk-actions[hidden]{display:none!important}
 .menu-bulk-actions:not([hidden]){display:flex;gap:5px}
-.menu-bulk-actions select{height:32px;font-size:11px}
+.menu-bulk-actions select{height:32px;padding:0 10px;border:1px solid var(--border,#d9e4ed);border-radius:8px;background:var(--surface,#fff);color:var(--text,#213449);font-size:11px}
 .menu-bulk-actions .button{padding:5px 8px;font-size:11px}
-#menu-table th,#menu-table td{padding:5px 7px!important;font-size:11px;line-height:1.2}
+#menu-table th{padding:5px 7px!important;font-size:11px;line-height:1.2}
+#menu-table td{padding:5px 7px!important;font-size:11px;line-height:1.2}
 #menu-table thead th .table-sort{padding:3px 2px;font-size:11px}
 #menu-table .menu-select-cell{width:30px;min-width:30px}
 #menu-table .menu-icon-cell{width:35px;font-size:14px}
 #menu-table td.actions .button{min-width:27px;padding:5px!important}
 #menu-table .menu-drag{padding:2px}
-#menu-table .menu-expand{width:19px;height:19px;margin-right:5px}
+#menu-table .menu-expand{display:inline-grid;place-items:center;width:19px;height:19px;background:var(--surface);border-radius:6px;margin-right:5px}
 #menu-table .menu-order-hint{font-size:9px}
 #menu-table .permission-badges{gap:3px}
 #menu-table .permission-badges .badge{padding:2px 5px;font-size:9px}
-#menu-table tr.menu-child td{background:#eaf3fb!important;border-bottom:1px solid #c9dfea!important}
-#menu-table tr.menu-child:nth-child(even) td{background:#e2eff9!important}
+#menu-table tr.menu-child td{background:var(--surface)!important;border-bottom-color:#2679a7;border-bottom:1px solid var(--border)!important}
+#menu-table tr.menu-child:nth-child(even) td{background:var(--surface)!important}
 #menu-table tr.menu-child td:first-child{box-shadow:inset 3px 0 #4c9dc8}
-#menu-table tr.menu-child:hover td{background:#d5eafa!important}
-#menu-table tr.menu-child td:nth-child(4)>strong{color:#235d80}
-@media(max-width:900px){.menu-toolbar .menu-kpis{order:2;width:100%;justify-content:flex-start}.menu-toolbar .search-field{flex:1 1 100%}}
+#menu-table tr.menu-child:hover td{background:var(--surface)!important}
+#menu-table tr.menu-child td:nth-child(4)>strong{font-weight:600;color:var(--primary)}
+@media(max-width:900px){.menu-toolbar .menu-kpis{order:2;width:100%;justify-content:flex-start}.menu-toolbar .search-field{flex:1 1 100%}}@media(max-width:700px){.menu-toolbar{align-items:stretch}.menu-bulk-actions{width:100%}.arc-menu-table-scroll{max-height:60dvh}}
+@media(max-width:600px){#menu-dialog .dialog-body{grid-template-columns:1fr}#menu-dialog{max-height:95dvh}}
 </style>
 <main class="app-main"><div class="main container">
 
@@ -296,7 +292,7 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
     <form method="post" action="<?=arc_h(arc_workspace_base_url())?>pages/menus.php" onsubmit="return confirm('Transformar os menus da gestão de redes em menus independentes?');"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="normalize_network"><button type="submit" class="button"><i class="fa fa-sitemap"></i> Desagrupar menus de rede</button></form>
     <button type="button" class="button primary" id="menu-new"><i class="fa fa-plus" aria-hidden="true"></i> Criar novo</button>
   </div>
-  <div class="table-wrap arc-menu-table-scroll"><table class="data-table" id="menu-table"><thead><tr>
+  <div class="table-wrap arc-menu-table-scroll"><table class="arc-responsive-table data-table" id="menu-table"><thead><tr>
     <th title="Arrastar para ordenar">Ordem</th><th class="menu-select-cell"><input type="checkbox" id="menu-select-all" aria-label="Selecionar todos os menus visíveis"></th>
     <th><button type="button" class="table-sort" data-sort="icon">Ícone <i class="fa fa-sort"></i></button></th>
     <th><button type="button" class="table-sort" data-sort="label">Nome <i class="fa fa-sort"></i></button></th>
@@ -306,16 +302,16 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
     <th><button type="button" class="table-sort" data-sort="status">Status <i class="fa fa-sort"></i></button></th>
     <th>Ações</th></tr></thead><tbody>
   <?php foreach($items as $i): $children=(array_filter($items,static fn($r)=>(int)($r['parent_id']??0)===(int)$i['id'] && $r['placement']===$i['placement'])); $destination=(string)($i['target_url']?:($routes[$i['route_key']][1]??'')); ?>
-    <tr data-id="<?=(int)$i['id']?>" data-parent="<?=(int)($i['parent_id']??0)?>" data-depth="<?=(int)($i['_depth']??0)?>" class="<?=empty($i['parent_id'])?'menu-root':'menu-child'?>" style="--menu-depth:<?=(int)($i['_depth']??0)?>" data-icon="<?=mh((string)($i['icon']??'fa-circle'))?>" data-roles="<?=mh((string)$i['access_roles'])?>" data-label="<?=mh(mb_strtolower((string)$i['label']))?>" data-placement="<?=mh((string)$i['placement'])?>" data-target="<?=mh(mb_strtolower($destination))?>" data-order="<?=(int)$i['sort_order']?>" data-status="<?=(int)$i['enabled']?>">
-      <td><button type="button" class="menu-drag" draggable="true" aria-label="Arrastar para ordenar" title="Arraste para mudar a posição"><i class="fa fa-bars"></i></button></td>
+    <tr data-id="<?=(int)$i['id']?>" data-parent="<?=(int)($i['parent_id']??0)?>" data-depth="<?=(int)($i['_depth']??0)?>" class="<?=empty($i['parent_id'])?'menu-root':'menu-child'?>" style="--menu-depth:<?=(int)($i['_depth']??0)?>" data-icon="<?=mh((string)($i['icon']??'fa-circle'))?>" data-roles="<?=mh((string)$i['access_roles'])?>" data-placement="<?=mh((string)$i['placement'])?>" data-target="<?=mh(mb_strtolower($destination))?>" data-order="<?=(int)$i['sort_order']?>" data-status="<?=(int)$i['enabled']?>">
+      <td data-label="Ordem"><button type="button" class="menu-drag" draggable="true" aria-label="Arrastar para ordenar" title="Arraste para mudar a posição"><i class="fa fa-bars"></i></button></td>
       <td class="menu-select-cell"><input type="checkbox" class="menu-row-select" value="<?=(int)$i['id']?>" aria-label="Selecionar <?=mh((string)$i['label'])?>"></td>
-      <td class="menu-icon-cell"><i class="fa <?=mh((string)($i['icon']??'fa-circle'))?>" aria-hidden="true"></i></td>
-      <td><?php if($children):?><button type="button" class="menu-expand" data-expand="<?=(int)$i['id']?>" aria-expanded="true" title="Expandir ou recolher"><i class="fa fa-chevron-down"></i></button><?php endif;?><strong><?=mh((string)$i['label'])?></strong><?php if(!empty($i['parent_id'])):?><small class="text-muted"> · Submenu</small><?php endif;?></td>
-      <td class="menu-path-cell" title="<?=mh($destination)?>"><?=mh($destination!==''?$destination:'Agrupador sem destino')?></td>
-      <td><?=mh($placements[$i['placement']]??(string)$i['placement'])?><small class="menu-order-hint">Ordem <?=(int)$i['sort_order']?></small></td>
-      <td><div class="permission-badges"><?php foreach(explode(',',(string)$i['access_roles']) as $role): $role=trim($role); if($role!==''): ?><span class="badge"><?=mh($roles[$role]??$role)?></span><?php endif; endforeach; ?></div></td>
-      <td><span class="menu-status <?= $i['enabled']?'is-active':'is-inactive' ?>"><span class="menu-status-dot"></span><?= $i['enabled']?'Ativo':'Desativado' ?></span></td>
-      <td class="actions"><button type="button" class="button edit" title="Editar menu" aria-label="Editar menu" data-record="<?=mh(json_encode($i,JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT))?>"><i class="fa fa-pencil" aria-hidden="true"></i></button>
+      <td class="menu-icon-cell" data-label="Ícone"><i class="fa <?=mh((string)($i['icon']??'fa-circle'))?>" aria-hidden="true"></i></td>
+      <td data-label="Nome"><?php if($children):?><button type="button" class="menu-expand" data-expand="<?=(int)$i['id']?>" aria-expanded="true" title="Expandir ou recolher"><i class="fa fa-chevron-down"></i></button><?php endif;?><strong><?=mh((string)$i['label'])?></strong><?php if(!empty($i['parent_id'])):?><small class="text-muted"> · Submenu</small><?php endif;?></td>
+      <td class="menu-path-cell" title="<?=mh($destination)?>" data-label="Caminho do arquivo"><?=mh($destination!==''?$destination:'Agrupador sem destino')?></td>
+      <td data-label="Posição"><?=mh($placements[$i['placement']]??(string)$i['placement'])?><small class="menu-order-hint">Ordem <?=(int)$i['sort_order']?></small></td>
+      <td data-label="Permissões"><div class="permission-badges"><?php foreach(explode(',',(string)$i['access_roles']) as $role): $role=trim($role); if($role!==''): ?><span class="badge"><?=mh($roles[$role]??$role)?></span><?php endif; endforeach; ?></div></td>
+      <td data-label="Status"><span class="menu-status <?= $i['enabled']?'is-active':'is-inactive' ?>"><span class="menu-status-dot"></span><?= $i['enabled']?'Ativo':'Desativado' ?></span></td>
+      <td class="actions" data-label="Ações"><button type="button" class="button edit" title="Editar menu" aria-label="Editar menu" data-record="<?=mh(json_encode($i,JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT))?>"><i class="fa fa-pencil" aria-hidden="true"></i></button>
       <form method="post" onsubmit="return confirm('Excluir este menu?')" action="<?=arc_h(arc_workspace_base_url())?>pages/menus.php"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?=(int)$i['id']?>"><button class="button danger" type="submit" aria-label="Excluir <?=mh((string)$i['label'])?>"><i class="fa fa-trash" aria-hidden="true"></i></button></form></td>
     </tr>
   <?php endforeach;?></tbody></table><p id="menu-empty" class="empty-state" hidden>Nenhum menu corresponde à busca.</p></div>

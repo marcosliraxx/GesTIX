@@ -24,7 +24,6 @@ declare(strict_types=1);
 <?php endif; ?>
 </footer>
 
-<script src="assets/js/arcoll.js" defer></script>
 <script>
 (function () {
     'use strict';
@@ -137,8 +136,5 @@ declare(strict_types=1);
 </script>
 
 <?php if (!empty($ARCPageJs)) { echo $ARCPageJs; } ?>
-<link rel="stylesheet" href="assets/css/network-agent-states.css?v=20261028">
-<script src="assets/js/network-agent-states.js?v=20261028" defer></script>
-<link rel="stylesheet" href="assets/css/platform-mobile.css?v=2.8.0">
 </body>
 </html>

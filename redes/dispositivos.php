@@ -30,7 +30,7 @@ require __DIR__.'/_topo.php';
   .arc-inventory-toolbar .arc-inventory-refresh{height:32px;width:34px;padding:0;display:grid;place-items:center;flex:0 0 34px}
   .arc-inventory-table th{white-space:nowrap}
   .arc-inventory-table th.arc-sort{cursor:pointer;user-select:none}
-  .arc-inventory-table th.arc-sort:hover{background:rgba(100,135,190,.11)}
+  .arc-inventory-table th.arc-sort:hover{background:#6487be}
   .arc-inventory-table th.arc-sort:after{content:' ↕';font-size:10px;opacity:.45}
   .arc-inventory-table th.arc-sort[aria-sort="ascending"]:after{content:' ↑';opacity:1}
   .arc-inventory-table th.arc-sort[aria-sort="descending"]:after{content:' ↓';opacity:1}
@@ -43,9 +43,12 @@ require __DIR__.'/_topo.php';
   .arc-inventory-startbox strong{font-size:18px}
   .arc-inventory-startbox small{font-size:13px;line-height:1.6;opacity:.75}
   .arc-inventory-startbox button{padding:11px 22px}
-  .arc-bulkbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:7px 9px;border-bottom:1px solid rgba(120,140,165,.2)}
-  .arc-bulkbar[hidden],.arc-inventory-empty-start[hidden],.arc-inventory-tablewrap[hidden]{display:none!important}
-  .arc-bulkbar select,.arc-bulkbar input{height:30px;min-width:100px;max-width:170px;font-size:12px;padding:3px 7px}
+  .arc-bulkbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:7px 9px;border-bottom:1px solid color-mix(in srgb, var(--border) 20%, transparent)}
+  .arc-bulkbar[hidden]{display:none!important}
+  .arc-inventory-empty-start[hidden]{display:none!important}
+  .arc-inventory-tablewrap[hidden]{display:none!important}
+  .arc-bulkbar select{height:30px;min-width:100px;max-width:170px;font-size:12px;padding:3px 7px}
+  .arc-bulkbar input{height:30px;min-width:100px;max-width:170px;font-size:12px;padding:3px 7px}
   .arc-bulkbar button{height:30px;padding:3px 10px;font-size:12px}
   .arc-inventory-feedback{font-size:12px;padding:3px 10px}
   @media(max-width:720px){.arc-inventory-toolbar .arc-inventory-search{flex-basis:100%}.arc-inventory-toolbar select{flex:1 1 125px}}
@@ -66,7 +69,7 @@ require __DIR__.'/_topo.php';
     <button type="button" class="asc-btn" id="device-bulk-clear">Limpar seleção</button>
   </div>
   <div class="arc-inventory-empty-start" id="device-start" hidden><div class="arc-inventory-startbox"><i class="fa fa-sitemap arc-inventory-starticon" aria-hidden="true"></i><strong>Nenhum dispositivo inventariado</strong><small>Inicie uma varredura pelo agente Windows para identificar os dispositivos conectados à rede.</small><button type="button" class="asc-btn asc-primary" data-arc-command="scan_devices" id="device-scan-start"><i class="fa fa-refresh" aria-hidden="true"></i> Examinar rede</button></div></div>
-  <div class="arc-inventory-tablewrap" id="device-tablewrap"><table class="arc-inventory-table">
+  <div class="arc-inventory-tablewrap" id="device-tablewrap"><table class="arc-responsive-table arc-inventory-table">
    <thead><tr><th class="arc-checkcol"><input type="checkbox" id="device-select-all" aria-label="Selecionar todos os dispositivos visíveis"></th><th class="arc-numcol arc-sort" data-sort="number" tabindex="0" aria-sort="none" title="Ordenar pela posição">Nº</th><th class="arc-sort" data-sort="name" tabindex="0" aria-sort="none">Dispositivo</th><th class="arc-sort" data-sort="ip" tabindex="0" aria-sort="none">Endereço IP</th><th class="arc-sort" data-sort="mac" tabindex="0" aria-sort="none">MAC</th><th class="arc-sort" data-sort="type" tabindex="0" aria-sort="none">Tipo</th><th class="arc-sort" data-sort="group" tabindex="0" aria-sort="none">Grupo</th><th class="arc-sort" data-sort="status" tabindex="0" aria-sort="none">Situação</th><th class="arc-sort" data-sort="duration" tabindex="0" aria-sort="none">Tempo no estado</th><th class="arc-sort" data-sort="seen" tabindex="0" aria-sort="none">Última atividade</th></tr></thead>
    <tbody id="device-rows"></tbody>
   </table><p id="device-empty" class="asc-ops-empty" hidden>Nenhum dispositivo corresponde aos filtros selecionados.</p></div>
@@ -81,12 +84,13 @@ require __DIR__.'/_topo.php';
 .arc-device-modalfoot{flex-shrink:0!important;padding:8px 12px!important}
 .arc-device-summary{padding:6px 10px!important;margin-bottom:7px!important}
 .arc-device-formgrid{gap:7px!important;margin-bottom:8px!important}
-.arc-device-formgrid input,.arc-device-formgrid select{min-height:32px!important;padding:5px 8px!important}
+.arc-device-formgrid input{min-height:32px!important;padding:5px 8px!important}
+.arc-device-formgrid select{min-height:32px!important;padding:5px 8px!important}
 .arc-device-facts{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:7px!important}
-.arc-device-fact-card{min-width:0;padding:8px 9px!important;border:1px solid #34506d;border-radius:9px;background:#152b42;overflow:hidden}
-.arc-device-fact-card small{display:block;color:#9dbbd4;margin-bottom:4px;font-size:11px}.arc-device-fact-card small i{color:#5bc9ef;margin-right:4px}
+.arc-device-fact-card{min-width:0;padding:8px 9px!important;border:1px solid var(--border);border-radius:9px;background:var(--surface-alt);overflow:hidden}
+.arc-device-fact-card small{display:block;color:var(--muted);margin-bottom:4px;font-size:11px}.arc-device-fact-card small i{color:var(--primary);margin-right:4px}
 .arc-device-fact-card strong{display:block;font-size:12px;line-height:1.3;overflow-wrap:anywhere}
-.arc-device-name-row{display:flex;align-items:center;gap:6px;min-width:0}.arc-device-name-row strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-device-agent-icon{font-size:12px;flex-shrink:0;color:#5ce3b4;background:#163d35;padding:4px;border-radius:5px}
+.arc-device-name-row{display:flex;align-items:center;gap:6px;min-width:0}.arc-device-name-row strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-device-agent-icon{font-size:12px;flex-shrink:0;color:#5ce3b4;background:var(--surface-alt);padding:4px;border-radius:5px}
 @media(max-width:700px){.arc-device-facts{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 </style>
 <dialog id="device-detail" class="arc-device-dialog" aria-labelledby="device-modal-title">

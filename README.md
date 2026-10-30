@@ -50,14 +50,17 @@ O painel organiza as redes em uma grade que calcula sua capacidade pela área di
 
 O manifesto mantém a identidade existente do aplicativo e passa a iniciar em `pages/painel.php`. Ícones padrão e a fonte de ícones das telas compartilhadas são locais. O service worker usa um novo cache de arquivos estáticos; dados privados e páginas autenticadas continuam dependendo da rede. O painel foi validado em Chromium com 35 combinações de tamanho de tela e quantidade de redes, além das interações documentadas nos testes. Instalações físicas em Android/iOS ainda precisam ser conferidas no aparelho.
 
-## Versão 2.8.0: aparência e versão unificadas
+## Versão 2.8.1: estilos nos componentes originais
 
 A plataforma, a interface principal do agente, o cadastro desktop, o serviço local e o atualizador usam a mesma versão de entrega. `VERSION` é a referência; execute `python3 scripts/bump_version.py X.Y.Z` em cada entrega e valide `tests/test_release_version.py`.
 
 Todas as páginas compartilham as opções **Automático, Claro e Escuro**. No navegador, a escolha fica salva por dispositivo e o automático acompanha `prefers-color-scheme`. No agente, a escolha fica no perfil local do usuário e o automático acompanha o tema de aplicativos do Windows; temas do macOS e a variável GTK_THEME também são reconhecidos. O agente desktop continua sendo um aplicativo de computador, com janela redimensionável e controles compactos; não se torna um aplicativo Android/iOS.
 
-A aparência web usa tokens semânticos em `appearance.css` e uma ponte para as paletas antigas em `appearance.js`, incluindo rótulos e fundos de gráficos Canvas. `platform-mobile.css` encerra a cascata com os ajustes compartilhados de gestão, formulários, modais e operação de redes. Conteúdos extensos permanecem acessíveis por rolagem interna. O endereço antigo do PWA redireciona ao painel compartilhado.
+As definições visuais estão nos arquivos originais `assets/css/arcoll.css`, `assets/css/redes.css` e nos componentes PHP. Seleção de tema e interações compartilhadas ficam em `assets/js/arcoll.js`; o painel possui sua própria inicialização em `pages/painel.php`. Não há leitura ou reescrita de folhas CSS pelo JavaScript, nem substituição de métodos Canvas/Tkinter. No agente, cores são declaradas por papel nos locais de criação dos componentes. A troca de tema atualiza somente essas declarações explícitas. A antiga cópia HTML do PWA foi removida; o endereço instalado continua levando ao painel atual.
 
-O instalador e o canal de atualização usam os arquivos atuais da pasta `agent`. Pacotes antigos publicados separadamente não podem mais misturar versões no download. A geração recusa componentes versionados divergentes. O canal autenticado mantém os seis nomes aceitos por agentes antigos; para atualizar também o atualizador auxiliar e ter a migração completa, baixe o novo instalador na plataforma, encerre o agente anterior e reinstale o pacote 2.8.0 preservando o cadastro. Reinicie o computador na primeira migração caso existam processos antigos abertos.
+O instalador e o canal de atualização usam os arquivos atuais da pasta `agent`. Pacotes antigos publicados separadamente não podem mais misturar versões no download. A geração recusa componentes versionados divergentes. O canal autenticado mantém os seis nomes aceitos por agentes antigos; para atualizar também o atualizador auxiliar e ter a migração completa, baixe o novo instalador na plataforma, encerre o agente anterior e reinstale o pacote atual preservando o cadastro. Reinicie o computador na primeira migração caso existam processos antigos abertos.
 
 Confira a instalação em Windows e o PWA em aparelhos físicos após aplicar o ZIP. Os testes gráficos automatizados do agente usam Linux/Tkinter e não substituem a validação do instalador PowerShell no Windows.
+
+
+Ao instalar 2.8.1 sobre uma versão anterior, remova também os arquivos obsoletos listados no `LEIA-ME` do ZIP. A extração de um ZIP não apaga arquivos antigos automaticamente.

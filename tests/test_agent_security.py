@@ -1,6 +1,6 @@
 """Run with: python3 -m unittest discover -s tests -v.
 
-Exercises both shipped agent implementations without scanning any real network.
+Exercises the shipped agent implementation without scanning any real network.
 """
 import ast
 import http.client
@@ -17,9 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_agents():
-    template = (ROOT / 'pwa/legacy-dashboard.html').read_text()
-    embedded = re.search(r'const AGSRC=String.raw`(.*?)`\.replace', template, re.S).group(1)
-    sources = [('package', (ROOT / 'agent/arcoll_agent.py').read_text()), ('browser download', embedded)]
+    sources = [('package', (ROOT / 'agent/arcoll_agent.py').read_text())]
     agents = []
     for name, source in sources:
         module = types.ModuleType('agent_security_test')

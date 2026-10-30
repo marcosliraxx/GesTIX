@@ -10,7 +10,6 @@ TARGETS={
     'agent/arcoll_updater.py':r"(VERSION = ')[^']+(')",
     'agent/arcoll_desktop.py':r"(VERSION = ')[^']+(')",
     'agent/arcoll_agent.py':r'(VERSION = ")[^"]+(")',
-    'pwa/legacy-dashboard.html':r'(VERSION = ")[^"]+(")',
 }
 def main():
     version=sys.argv[1] if len(sys.argv)==2 else ''

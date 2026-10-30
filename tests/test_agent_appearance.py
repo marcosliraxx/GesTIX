@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'agent'))
-from arcoll_toolkit import AppearanceManager
+from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
 
 @unittest.skipUnless(tk is not None and (os.environ.get('DISPLAY') or sys.platform in ('win32','darwin')), 'A graphical display and Tkinter are required')
 class AppearanceTests(unittest.TestCase):
@@ -23,14 +23,14 @@ class AppearanceTests(unittest.TestCase):
     def tearDown(self):
         self.root.destroy();self.env.stop();self.temp.cleanup()
     def test_light_dark_and_dynamic_canvas_share_semantic_colors(self):
-        label=tk.Label(self.root,bg='#111111',fg='#ffffff');label.pack()
-        canvas=tk.Canvas(self.root,bg='#0b1220');canvas.pack();text=canvas.create_text(10,10,text='test',fill='#ffffff')
+        label=bind_theme(tk.Label(self.root,bg=theme_color('surface'),fg=theme_color('text')),background='surface',foreground='text');label.pack()
+        canvas=bind_theme(tk.Canvas(self.root,bg=theme_color('bg')),background='bg');canvas.pack();text=bind_canvas(canvas,canvas.create_text(10,10,text='test',fill=theme_color('text')),fill='text')
         manager=AppearanceManager(self.root,'2.8.0')
         for choice in ['light','dark','light']:
             manager.set_choice(choice)
             self.assertEqual(label.cget('foreground'),manager.PALETTES[choice]['text'])
             self.assertEqual(canvas.itemcget(text,'fill'),manager.PALETTES[choice]['text'])
-            dynamic=canvas.create_text(20,20,text='dynamic',fill='#ffffff')
+            dynamic=bind_canvas(canvas,canvas.create_text(20,20,text='dynamic',fill=theme_color('text')),fill='text')
             self.assertEqual(canvas.itemcget(dynamic,'fill'),manager.PALETTES[choice]['text'])
     def test_preference_is_saved_and_invalid_values_rejected(self):
         manager=AppearanceManager(self.root);manager.set_choice('dark')
@@ -50,7 +50,7 @@ class AppearanceTests(unittest.TestCase):
         manager=AppearanceManager(self.root,'2.8.0');manager.set_choice('light');self.root.update_idletasks()
         self.assertTrue(any(child.winfo_manager()=='pack' for child in self.root.winfo_children()))
     def test_accent_button_remains_readable(self):
-        button=tk.Button(self.root,bg='#22d3ee',fg='#06131b');button.pack()
+        button=bind_theme(tk.Button(self.root,bg=theme_color('accent'),fg=theme_color('onaccent')),background='accent',foreground='onaccent');button.pack()
         manager=AppearanceManager(self.root)
         for choice in ['light','dark']:
             manager.set_choice(choice);self.assertEqual(button.cget('foreground'),manager.PALETTES[choice]['onaccent'])

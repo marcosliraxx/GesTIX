@@ -129,18 +129,17 @@ if (arc_is_admin()) {
     require dirname(__DIR__).'/includes/sidebar.php';
     ?>
 <style>
-/* Perfil unificado: mesmo desenho para as sessões administrativa e cliente */
 .arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button{border:1px solid var(--border)!important;background:var(--surface,#fff)!important;padding:11px 17px!important;border-radius:9px!important}
-.arc-profile-v2 .arc-account-tabs .tab-button.active{color:#fff!important;background:#174e83!important;border-color:#174e83!important;box-shadow:0 3px 10px #174e8326}
+.arc-profile-v2 .arc-account-tabs .tab-button.active{color:var(--text)!important;background:#174e83!important;border-color:#174e83!important;box-shadow:0 3px 10px #174e8326}
 .arc-profile-v2 .arc-account-panels{padding-top:3px!important}
 .arc-profile-v2 .card{border-radius:13px!important;padding:20px!important;box-shadow:0 4px 16px #102f5509!important}
 .arc-profile-v2 .card-header h2{font-size:15px!important}
-.arc-profile-v2 .profile-hero{background:linear-gradient(105deg,#f0f6fd,#fbfdff)!important;border-color:#dbe7f2!important;padding:20px!important}
-.arc-profile-v2 .avatar-round{border-color:#fff!important;box-shadow:0 0 0 3px #ccdeef;width:88px!important;height:88px!important}
-.arc-profile-v2 .arc-account-facts>div{background:#f5f8fc!important;border-color:#e1e8f1!important}
+.arc-profile-v2 .profile-hero{background:linear-gradient(105deg,var(--surface),var(--surface))!important;border-color:var(--border)!important;padding:20px!important}
+.arc-profile-v2 .avatar-round{border-color:var(--border)!important;box-shadow:0 0 0 3px #ccdeef;width:88px!important;height:88px!important}
+.arc-profile-v2 .arc-account-facts>div{background:var(--surface)!important;border-color:var(--border)!important}
 .arc-profile-v2 .arc-account-actions{gap:10px;flex-wrap:wrap}
-.arc-profile-v2 .ap-success{background:#ecfdf3;border:1px solid #b5e4c8;color:#166534;border-radius:9px;padding:10px 14px;font-size:13px}
+.arc-profile-v2 .ap-success{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 14px;font-size:13px}
 .arc-profile-v2 .form-field{align-items:end!important}
 .arc-profile-v2 .form-field input{border-radius:8px!important}
 @media(max-width:650px){.arc-profile-v2 .card{padding:14px!important}.arc-profile-v2 .form-field{grid-template-columns:1fr!important}.arc-profile-v2 .arc-account-facts{grid-template-columns:repeat(2,minmax(0,1fr))!important}.arc-profile-v2 .profile-hero{padding:13px!important}}
@@ -441,18 +440,17 @@ require dirname(__DIR__) . '/includes/sidebar.php';
 ?>
 
 <style>
-/* Perfil unificado: mesmo desenho para as sessões administrativa e cliente */
 .arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button{border:1px solid var(--border)!important;background:var(--surface,#fff)!important;padding:11px 17px!important;border-radius:9px!important}
-.arc-profile-v2 .arc-account-tabs .tab-button.active{color:#fff!important;background:#174e83!important;border-color:#174e83!important;box-shadow:0 3px 10px #174e8326}
+.arc-profile-v2 .arc-account-tabs .tab-button.active{color:var(--text)!important;background:#174e83!important;border-color:#174e83!important;box-shadow:0 3px 10px #174e8326}
 .arc-profile-v2 .arc-account-panels{padding-top:3px!important}
 .arc-profile-v2 .card{border-radius:13px!important;padding:20px!important;box-shadow:0 4px 16px #102f5509!important}
 .arc-profile-v2 .card-header h2{font-size:15px!important}
-.arc-profile-v2 .profile-hero{background:linear-gradient(105deg,#f0f6fd,#fbfdff)!important;border-color:#dbe7f2!important;padding:20px!important}
-.arc-profile-v2 .avatar-round{border-color:#fff!important;box-shadow:0 0 0 3px #ccdeef;width:88px!important;height:88px!important}
-.arc-profile-v2 .arc-account-facts>div{background:#f5f8fc!important;border-color:#e1e8f1!important}
+.arc-profile-v2 .profile-hero{background:linear-gradient(105deg,var(--surface),var(--surface))!important;border-color:var(--border)!important;padding:20px!important}
+.arc-profile-v2 .avatar-round{border-color:var(--border)!important;box-shadow:0 0 0 3px #ccdeef;width:88px!important;height:88px!important}
+.arc-profile-v2 .arc-account-facts>div{background:var(--surface)!important;border-color:var(--border)!important}
 .arc-profile-v2 .arc-account-actions{gap:10px;flex-wrap:wrap}
-.arc-profile-v2 .ap-success{background:#ecfdf3;border:1px solid #b5e4c8;color:#166534;border-radius:9px;padding:10px 14px;font-size:13px}
+.arc-profile-v2 .ap-success{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 14px;font-size:13px}
 .arc-profile-v2 .form-field{align-items:end!important}
 .arc-profile-v2 .form-field input{border-radius:8px!important}
 @media(max-width:650px){.arc-profile-v2 .card{padding:14px!important}.arc-profile-v2 .form-field{grid-template-columns:1fr!important}.arc-profile-v2 .arc-account-facts{grid-template-columns:repeat(2,minmax(0,1fr))!important}.arc-profile-v2 .profile-hero{padding:13px!important}}

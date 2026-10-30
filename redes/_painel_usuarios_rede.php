@@ -12,11 +12,11 @@
  </form>
 </section>
 <section class="card"><div class="card-header"><h2>Integrantes cadastrados</h2><span class="arc-manager-tab-count"><?= count($networkTeamMembers) + 1 ?></span></div>
-<div class="table-wrap"><table class="data-table"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil cadastrado</th><th>Ações</th></tr></thead><tbody>
-<tr><td><?= arc_h((string)$networkOwner['display_name']) ?> <strong>(Proprietário)</strong></td><td><?= arc_h((string)$networkOwner['email']) ?></td><td><strong>Administrador</strong></td><td>Permissão permanente · não removível</td></tr>
+<div class="table-wrap"><table class="arc-responsive-table data-table"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil cadastrado</th><th>Ações</th></tr></thead><tbody>
+<tr><td data-label="Nome"><?= arc_h((string)$networkOwner['display_name']) ?> <strong>(Proprietário)</strong></td><td data-label="E-mail"><?= arc_h((string)$networkOwner['email']) ?></td><td data-label="Perfil cadastrado"><strong>Administrador</strong></td><td data-label="Ações">Permissão permanente · não removível</td></tr>
 <?php foreach ($networkTeamMembers as $member): ?><tr>
-<td><?= arc_h((string)$member['display_name']) ?></td><td><?= arc_h((string)$member['email']) ?></td>
-<td><?= arc_h(['viewer'=>'Visualizador','operator'=>'Operador','administrator'=>'Administrador'][(string)$member['role']] ?? 'Pendente') ?></td>
-<td><form method="post" data-confirm="Remover este usuário da equipe?" style="display:inline"><input type="hidden" name="_csrf" value="<?= arc_h($csrf) ?>"><input type="hidden" name="action" value="team_remove"><input type="hidden" name="member_user_id" value="<?= (int)$member['member_user_id'] ?>"><button class="button danger" type="submit">Remover</button></form></td>
+<td data-label="Nome"><?= arc_h((string)$member['display_name']) ?></td><td data-label="E-mail"><?= arc_h((string)$member['email']) ?></td>
+<td data-label="Perfil cadastrado"><?= arc_h(['viewer'=>'Visualizador','operator'=>'Operador','administrator'=>'Administrador'][(string)$member['role']] ?? 'Pendente') ?></td>
+<td data-label="Ações"><form method="post" data-confirm="Remover este usuário da equipe?" style="display:inline"><input type="hidden" name="_csrf" value="<?= arc_h($csrf) ?>"><input type="hidden" name="action" value="team_remove"><input type="hidden" name="member_user_id" value="<?= (int)$member['member_user_id'] ?>"><button class="button danger" type="submit">Remover</button></form></td>
 </tr><?php endforeach; ?>
 </tbody></table></div></section>

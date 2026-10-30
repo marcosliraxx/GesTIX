@@ -11,12 +11,12 @@ try:
 except ImportError:
  RealtimeNetworkWatcher=None
 try:
- from arcoll_toolkit import QUICK_COMMANDS, run_quick_command, AppearanceManager
+ from arcoll_toolkit import QUICK_COMMANDS, run_quick_command, AppearanceManager, theme_color, bind_theme, bind_canvas
 except Exception:
  QUICK_COMMANDS={}; run_quick_command=None
 
 APP_NAME='Arcoll Speed Connection'
-AGENT_VERSION='2.8.0'
+AGENT_VERSION='2.8.1'
 ROOT=Path(__file__).resolve().parent
 CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.json'
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'
@@ -58,8 +58,6 @@ if not FINGERPRINT:
  raw=raw or '|'.join((platform.node(),platform.system(),platform.machine()))
  FINGERPRINT=hashlib.sha256(('arcoll-speed-connection|'+raw).encode()).hexdigest()
 
-BG='#071526'; PANEL='#0d2238'; PANEL2='#17354e'; FG='#e9f4ff'; MUTED='#9bb7cc'; ACC='#3bbaff'; GREEN='#32d3ab'; RED='#ff6983'; YELLOW='#ffc966'
-VIOLET='#6251ee'; PANEL3='#1b3b57'
 LOCAL_AGENT='http://127.0.0.1:8787'
 INSTANCE_HOST='127.0.0.1'
 INSTANCE_PORT=38000 + (int(FINGERPRINT[:6], 16) % 2000)
@@ -97,9 +95,9 @@ class HoverTip:
    x,y=widget.winfo_pointerxy()
    self.tip=tk.Toplevel(self.root)
    self.tip.withdraw(); self.tip.overrideredirect(True); self.tip.attributes('-topmost', True)
-   body=tk.Frame(self.tip,bg='#07111d',highlightbackground='#2bc1ff',highlightthickness=1)
+   body=bind_theme(tk.Frame(self.tip, bg=theme_color('surface'), highlightbackground=theme_color('accent'), highlightthickness=1), background='surface', highlightbackground='accent')
    body.pack(fill='both',expand=True)
-   tk.Label(body,text=text,bg='#07111d',fg='#eef7ff',justify='left',wraplength=280,padx=10,pady=8,font=('Segoe UI',8)).pack()
+   bind_theme(tk.Label(body, text=text, bg=theme_color('surface'), fg=theme_color('text'), justify='left', wraplength=280, padx=10, pady=8, font=('Segoe UI', 8)), background='surface', foreground='text').pack()
    self.tip.geometry(f'+{x+14}+{y+16}')
    self.tip.deiconify()
   except tk.TclError:
@@ -750,7 +748,7 @@ class RemoteInput:
 
 class ArcollApp:
  def __init__(self):
-  self.root=tk.Tk(); self.root.title(APP_NAME); self.root.minsize(720,520); self.root.configure(bg=BG)
+  self.root=tk.Tk(); self.root.title(APP_NAME); self.root.minsize(720,520); bind_theme(self.root, background='bg').configure(bg=theme_color('bg'))
   width,height=1360,790
   sx,sy=self.root.winfo_screenwidth(),self.root.winfo_screenheight()
   width=min(width,max(720,sx-48));height=min(height,max(520,sy-96))
@@ -777,7 +775,7 @@ class ArcollApp:
   self._start_realtime()
   self.root.after(1500,self._server_tick)
   self.root.after(1200,self._refresh_platform_config)
-  self.appearance=AppearanceManager(self.root,AGENT_VERSION)
+  self.appearance=AppearanceManager(self.root,AGENT_VERSION,restyle=self._style)
   self.root.mainloop()
  def _presence_loop(self):
   # Canal de presença separado da telemetria e da interface, sem acumular registros.
@@ -828,7 +826,7 @@ class ArcollApp:
 
  def _tree(self,parent,cols):
   """Cria Treeview com os identificadores de coluna registrados antes dos cabeçalhos."""
-  frame=tk.Frame(parent,bg=BG)
+  frame=bind_theme(tk.Frame(parent, bg=theme_color('bg')), background='bg')
   frame.pack(fill='both',expand=True,padx=12,pady=(2,8))
   names=tuple(cols.keys())
   tree=ttk.Treeview(frame,columns=names,show='headings',selectmode='browse')
@@ -893,20 +891,20 @@ class ArcollApp:
 
  def _style(self):
   st=ttk.Style(); st.theme_use('clam')
-  st.configure('TNotebook',background=BG,borderwidth=0,tabmargins=(0,2,0,0))
-  st.configure('TNotebook.Tab',background='#122b44',foreground=MUTED,padding=(20,11),font=('Segoe UI',10,'bold'),borderwidth=0)
-  st.map('TNotebook.Tab',background=[('selected','#226ab9'),('active','#1b466a')],foreground=[('selected','#ffffff'),('active',FG)])
-  st.configure('Treeview',background=PANEL,foreground=FG,fieldbackground=PANEL,rowheight=34,borderwidth=0,font=('Segoe UI',9))
-  st.configure('Treeview.Heading',background='#133651',foreground=FG,font=('Segoe UI',9,'bold'),padding=7)
-  st.map('Treeview',background=[('selected','#195784')],foreground=[('selected','#fff')])
-  st.configure('TProgressbar',background=ACC,troughcolor=PANEL2,borderwidth=0)
-  st.configure('Vertical.TScrollbar',background=PANEL2,troughcolor=BG)
-  st.configure('Arcoll.TCombobox',fieldbackground=PANEL2,background=PANEL2,foreground=FG,arrowcolor=ACC,padding=5)
-  st.map('Arcoll.TCombobox',fieldbackground=[('readonly',PANEL2)],foreground=[('readonly',FG)])
- def label(self,parent,text,size=10,color=FG,bold=False): return tk.Label(parent,text=text,font=('Segoe UI',size,'bold' if bold else 'normal'),bg=parent.cget('bg'),fg=color,anchor='w')
+  st.configure('TNotebook', background=theme_color('bg'), borderwidth=0, tabmargins=(0, 2, 0, 0))
+  st.configure('TNotebook.Tab', background=theme_color('alt'), foreground=theme_color('muted'), padding=(10, 7), font=('Segoe UI', 9, 'bold'), borderwidth=0)
+  st.map('TNotebook.Tab', background=[('selected', theme_color('accent')), ('active', theme_color('alt'))], foreground=[('selected', theme_color('onaccent')), ('active', theme_color('text'))])
+  st.configure('Treeview', background=theme_color('surface'), foreground=theme_color('text'), fieldbackground=theme_color('surface'), rowheight=28, borderwidth=0, font=('Segoe UI', 9))
+  st.configure('Treeview.Heading', background=theme_color('alt'), foreground=theme_color('text'), font=('Segoe UI', 9, 'bold'), padding=7)
+  st.map('Treeview', background=[('selected', theme_color('accent'))], foreground=[('selected', theme_color('onaccent'))])
+  st.configure('TProgressbar', background=theme_color('accent'), troughcolor=theme_color('alt'), borderwidth=0)
+  st.configure('Vertical.TScrollbar', background=theme_color('alt'), troughcolor=theme_color('bg'))
+  st.configure('Arcoll.TCombobox', fieldbackground=theme_color('alt'), background=theme_color('alt'), foreground=theme_color('text'), arrowcolor=theme_color('accent'), padding=5)
+  st.map('Arcoll.TCombobox', fieldbackground=[('readonly', theme_color('alt'))], foreground=[('readonly', theme_color('text'))])
+ def label(self,parent,text,size=10,color=theme_color('text'),bold=False): return tk.Label(parent, text=text, font=('Segoe UI', size, 'bold' if bold else 'normal'), bg=parent.cget('bg'), fg=color, anchor='w')
  def btn(self,parent,text,command,primary=False):
-  b=tk.Button(parent,text=text,command=command,font=('Segoe UI',9,'bold'),bg=ACC if primary else PANEL2,fg='#06131b' if primary else FG,activebackground='#67e8f9',activeforeground='#06131b',relief='flat',padx=12,pady=7,cursor='hand2')
-  self._hover_fx(b,ACC if primary else PANEL2,'#7dd3fc' if primary else '#2a4468'); return b
+  b=bind_theme(tk.Button(parent, text=text, command=command, font=('Segoe UI', 9, 'bold'), bg=theme_color('accent') if primary else theme_color('alt'), fg=theme_color('onaccent') if primary else theme_color('text'), activebackground=theme_color('accent'), activeforeground=theme_color('text'), relief='flat', padx=12, pady=7, cursor='hand2'), activebackground='accent', activeforeground='text', background='accent' if primary else 'alt', foreground='onaccent' if primary else 'text')
+  self._hover_fx(b, theme_color('accent') if primary else theme_color('alt'), theme_color('accent') if primary else theme_color('accent')); return b
  def _tooltip_text(self, widget):
   explicit=getattr(widget,'arc_tooltip',None)
   if explicit:return str(explicit)
@@ -947,7 +945,7 @@ class ArcollApp:
   walk(self.root)
 
  def card(self,parent,title,value,sub=''):
-  f=tk.Frame(parent,bg=PANEL,highlightbackground='#22334d',highlightthickness=1,height=108); tk.Label(f,text=title,bg=PANEL,fg=MUTED,font=('Segoe UI',9)).pack(anchor='w',padx=13,pady=(11,2)); v=tk.Label(f,text=value,bg=PANEL,fg=ACC,font=('Segoe UI',22,'bold')); v.pack(anchor='w',padx=13); tk.Label(f,text=sub,bg=PANEL,fg=MUTED,font=('Segoe UI',8)).pack(anchor='w',padx=13,pady=(0,11)); f.pack_propagate(False); return f,v
+  f=bind_theme(tk.Frame(parent, bg=theme_color('surface'), highlightbackground=theme_color('border'), highlightthickness=1, height=108), background='surface', highlightbackground='border'); bind_theme(tk.Label(f, text=title, bg=theme_color('surface'), fg=theme_color('muted'), font=('Segoe UI', 9)), background='surface', foreground='muted').pack(anchor='w', padx=13, pady=(11, 2)); v=bind_theme(tk.Label(f, text=value, bg=theme_color('surface'), fg=theme_color('accent'), font=('Segoe UI', 22, 'bold')), background='surface', foreground='accent'); v.pack(anchor='w', padx=13); bind_theme(tk.Label(f, text=sub, bg=theme_color('surface'), fg=theme_color('muted'), font=('Segoe UI', 8)), background='surface', foreground='muted').pack(anchor='w', padx=13, pady=(0, 11)); f.pack_propagate(False); return f,v
  def _tabs(self):
   """Sete telas com a aba Servidor em primeiro plano."""
   self.nb=ttk.Notebook(self.root)
@@ -981,9 +979,7 @@ class ArcollApp:
   except (ValueError,OSError):return {}
  def _setup_settings_button(self):
   # The gear is overlaid at the right edge of the notebook; it is not a tab.
-  self._settings_gear=tk.Button(self.root,text='⚙',font=('Segoe UI Symbol',15),
-   bg='#14324c',fg=FG,activebackground='#205074',activeforeground='#ffffff',
-   relief='flat',bd=0,width=3,cursor='hand2',command=self._open_agent_settings)
+  self._settings_gear=bind_theme(tk.Button(self.root, text='⚙', font=('Segoe UI Symbol', 15), bg=theme_color('alt'), fg=theme_color('text'), activebackground=theme_color('accent'), activeforeground=theme_color('text'), relief='flat', bd=0, width=3, cursor='hand2', command=self._open_agent_settings), background='alt', foreground='text', activebackground='accent', activeforeground='text')
   def place_gear(_event=None):
    try:
     self._settings_gear.place(in_=self.nb,relx=1,x=-5,y=4,anchor='ne',height=33)
@@ -1003,20 +999,19 @@ class ArcollApp:
           ('Velocidade',self.speed_page),('Dispositivos',self.devices_page),
           ('Mapa',self.map_page),('Conexão',self.connection_page)]
  def _open_agent_settings(self):
-  dlg=tk.Toplevel(self.root);dlg.title('Configurações do agente');dlg.configure(bg=BG)
+  dlg=tk.Toplevel(self.root);dlg.title('Configurações do agente');bind_theme(dlg, background='bg').configure(bg=theme_color('bg'))
   dlg.resizable(False,False);dlg.transient(self.root);dlg.geometry('420x245')
-  tk.Label(dlg,text='CONFIGURAÇÕES DO AGENTE',bg=BG,fg=FG,
-   font=('Segoe UI',12,'bold')).pack(pady=(21,13))
-  tk.Label(dlg,text='Conta do gestor da rede',bg=BG,fg=MUTED).pack()
+  bind_theme(tk.Label(dlg, text='CONFIGURAÇÕES DO AGENTE', bg=theme_color('bg'), fg=theme_color('text'), font=('Segoe UI', 12, 'bold')), background='bg', foreground='text').pack(pady=(21, 13))
+  bind_theme(tk.Label(dlg, text='Conta do gestor da rede', bg=theme_color('bg'), fg=theme_color('muted')), background='bg', foreground='muted').pack()
   email=tk.Entry(dlg,width=37,font=('Segoe UI',10));email.pack(pady=5)
-  tk.Label(dlg,text='Senha',bg=BG,fg=MUTED).pack()
+  bind_theme(tk.Label(dlg, text='Senha', bg=theme_color('bg'), fg=theme_color('muted')), background='bg', foreground='muted').pack()
   password=tk.Entry(dlg,width=37,show='•',font=('Segoe UI',10));password.pack(pady=5)
-  status=tk.Label(dlg,text='',bg=BG,fg=RED,font=('Segoe UI',9));status.pack()
+  status=bind_theme(tk.Label(dlg, text='', bg=theme_color('bg'), fg=theme_color('danger'), font=('Segoe UI', 9)), background='bg', foreground='danger');status.pack()
   def authenticate():
    user=email.get().strip();secret=password.get()
    if not user or not secret:
     status.config(text='Informe login e senha.');return
-   status.config(text='Validando credenciais...',fg=MUTED)
+   bind_theme(status, foreground='muted').config(text='Validando credenciais...', fg=theme_color('muted'))
    login.config(state='disabled')
    def work():
     try:
@@ -1028,7 +1023,7 @@ class ArcollApp:
     def finished():
      if not dlg.winfo_exists():return
      password.delete(0,'end');login.config(state='normal')
-     if error:status.config(text=error,fg=RED)
+     if error:bind_theme(status, foreground='danger').config(text=error, fg=theme_color('danger'))
      else:
       dlg.destroy();self._show_settings_panel()
     self.root.after(0,finished)
@@ -1037,18 +1032,15 @@ class ArcollApp:
   dlg.bind('<Return>',lambda _e:authenticate())
   email.focus_set()
  def _show_settings_panel(self):
-  dlg=tk.Toplevel(self.root);dlg.title('Configurações do agente');dlg.configure(bg=BG)
+  dlg=tk.Toplevel(self.root);dlg.title('Configurações do agente');bind_theme(dlg, background='bg').configure(bg=theme_color('bg'))
   dlg.geometry('465x490');dlg.resizable(False,False);dlg.transient(self.root)
-  tk.Label(dlg,text='ABAS VISÍVEIS NO AGENTE',bg=BG,fg=FG,
-   font=('Segoe UI',12,'bold')).pack(anchor='w',padx=23,pady=(20,10))
+  bind_theme(tk.Label(dlg, text='ABAS VISÍVEIS NO AGENTE', bg=theme_color('bg'), fg=theme_color('text'), font=('Segoe UI', 12, 'bold')), background='bg', foreground='text').pack(anchor='w', padx=23, pady=(20, 10))
   saved=self._read_settings().get('visible_tabs',{})
   if not isinstance(saved,dict):saved={}
   variables={}
   for label,_ in self._configurable_tabs():
    var=tk.BooleanVar(value=saved.get(label,True));variables[label]=var
-   tk.Checkbutton(dlg,text=label,variable=var,bg=BG,fg=FG,
-    selectcolor=PANEL2,activebackground=BG,activeforeground=FG,
-    font=('Segoe UI',10)).pack(anchor='w',padx=24,pady=3)
+   bind_theme(tk.Checkbutton(dlg, text=label, variable=var, bg=theme_color('bg'), fg=theme_color('text'), selectcolor=theme_color('alt'), activebackground=theme_color('bg'), activeforeground=theme_color('text'), font=('Segoe UI', 10)), background='bg', foreground='text', activebackground='bg', activeforeground='text').pack(anchor='w', padx=24, pady=3)
   def save():
    if not any(var.get() for var in variables.values()):
     messagebox.showwarning('Configurações','Deixe pelo menos uma aba visível.',parent=dlg);return
@@ -1063,22 +1055,20 @@ class ArcollApp:
     except tk.TclError:pass
    dlg.destroy()
   self.btn(dlg,'Salvar abas',save,True).pack(fill='x',padx=22,pady=(14,10))
-  tk.Label(dlg,text='ACESSO REMOTO ADMINISTRATIVO',bg=BG,fg=FG,
-   font=('Segoe UI',10,'bold')).pack(anchor='w',padx=23,pady=(8,4))
-  tk.Label(dlg,text='O acesso sem confirmação local exige cadastro de servidor\nsem monitor e autenticação do gestor na plataforma.',
-   bg=BG,fg=MUTED,justify='left',font=('Segoe UI',9)).pack(anchor='w',padx=23)
+  bind_theme(tk.Label(dlg, text='ACESSO REMOTO ADMINISTRATIVO', bg=theme_color('bg'), fg=theme_color('text'), font=('Segoe UI', 10, 'bold')), background='bg', foreground='text').pack(anchor='w', padx=23, pady=(8, 4))
+  bind_theme(tk.Label(dlg, text='O acesso sem confirmação local exige cadastro de servidor\nsem monitor e autenticação do gestor na plataforma.', bg=theme_color('bg'), fg=theme_color('muted'), justify='left', font=('Segoe UI', 9)), background='bg', foreground='muted').pack(anchor='w', padx=23)
   self.btn(dlg,'Gerenciar autorização na plataforma',
    lambda:webbrowser.open(ORIGIN+'/pages/painel.php') if ORIGIN else None).pack(fill='x',padx=22,pady=10)
  def _page(self,title):
-  f=tk.Frame(self.nb,bg=BG);self.nb.add(f,text=title);return f
+  f=bind_theme(tk.Frame(self.nb, bg=theme_color('bg')), background='bg');self.nb.add(f, text=title);return f
  def _footer(self):
-  f=tk.Frame(self.root,bg='#0e2036',height=33,highlightbackground='#24425b',highlightthickness=1)
+  f=bind_theme(tk.Frame(self.root, bg=theme_color('alt'), height=33, highlightbackground=theme_color('border'), highlightthickness=1), background='alt', highlightbackground='border')
   f.pack(fill='x',side='bottom');f.pack_propagate(False)
-  self.status_label=tk.Label(f,text='Execução local - aguardando operação',font=('Segoe UI',9,'bold'),fg=MUTED,bg='#0e2036',anchor='w')
+  self.status_label=bind_theme(tk.Label(f, text='Execução local - aguardando operação', font=('Segoe UI', 9, 'bold'), fg=theme_color('muted'), bg=theme_color('alt'), anchor='w'), foreground='muted', background='alt')
   self.status_label.pack(side='left',padx=(14,8),fill='x',expand=True)
-  self.sync_label=tk.Label(f,text=self.last_sync,bg='#0e2036',fg=MUTED,font=('Segoe UI',9))
+  self.sync_label=bind_theme(tk.Label(f, text=self.last_sync, bg=theme_color('alt'), fg=theme_color('muted'), font=('Segoe UI', 9)), background='alt', foreground='muted')
   self.sync_label.pack(side='right',padx=(4,12))
-  self.uninstall_footer=tk.Button(f,text='Atualizar',font=('Segoe UI',8),bg='#0e2036',fg='#71889d',activebackground='#18334b',activeforeground='#ffb8bf',relief='flat',bd=0,cursor='hand2',command=self.update_agent)
+  self.uninstall_footer=bind_theme(tk.Button(f, text='Atualizar', font=('Segoe UI', 8), bg=theme_color('alt'), fg=theme_color('muted'), activebackground=theme_color('alt'), activeforeground=theme_color('text'), relief='flat', bd=0, cursor='hand2', command=self.update_agent), background='alt', foreground='muted', activebackground='alt', activeforeground='text')
   # O botão Atualizar fica no cabeçalho, abaixo da versão.
   self.operation_progress=ttk.Progressbar(f,mode='determinate',maximum=100,length=145)
   self.operation_progress.pack(side='right',padx=(6,10))
@@ -1104,64 +1094,64 @@ class ArcollApp:
   self.root.after(0,update)
  def _build_dashboard(self):
   p=self.dashboard
-  bar=tk.Frame(p,bg=BG);bar.pack(fill='x',padx=12,pady=(12,9))
+  bar=bind_theme(tk.Frame(p, bg=theme_color('bg')), background='bg');bar.pack(fill='x', padx=12, pady=(12, 9))
   self.metric_vars={}
-  self.live_badge=tk.Label(bar,text='● MONITORAMENTO CONTÍNUO',bg='#104237',fg=GREEN,font=('Segoe UI',9,'bold'),padx=12,pady=12)
+  self.live_badge=bind_theme(tk.Label(bar, text='● MONITORAMENTO CONTÍNUO', bg=theme_color('alt'), fg=theme_color('success'), font=('Segoe UI', 9, 'bold'), padx=12, pady=12), background='alt', foreground='success')
   self.live_badge.pack(side='left',padx=(0,8))
   for title,key in [('Latência','latency'),('Perda','loss'),('Dispositivos','devices'),('Estado','uptime')]:
-   cell=tk.Frame(bar,bg=PANEL,highlightbackground='#245171',highlightthickness=1)
+   cell=bind_theme(tk.Frame(bar, bg=theme_color('surface'), highlightbackground=theme_color('accent'), highlightthickness=1), background='surface', highlightbackground='accent')
    cell.pack(side='left',fill='both',expand=True,padx=3)
-   tk.Label(cell,text=title.upper(),bg=PANEL,fg=MUTED,font=('Segoe UI',8,'bold')).pack(anchor='w',padx=13,pady=(8,1))
-   value=tk.Label(cell,text='--',bg=PANEL,fg=FG,font=('Segoe UI',16,'bold'))
+   bind_theme(tk.Label(cell, text=title.upper(), bg=theme_color('surface'), fg=theme_color('muted'), font=('Segoe UI', 8, 'bold')), background='surface', foreground='muted').pack(anchor='w', padx=13, pady=(8, 1))
+   value=bind_theme(tk.Label(cell, text='--', bg=theme_color('surface'), fg=theme_color('text'), font=('Segoe UI', 16, 'bold')), background='surface', foreground='text')
    value.pack(anchor='w',padx=13,pady=(0,9));self.metric_vars[key]=value
-  box=tk.Frame(p,bg=PANEL,highlightbackground='#245171',highlightthickness=1)
+  box=bind_theme(tk.Frame(p, bg=theme_color('surface'), highlightbackground=theme_color('accent'), highlightthickness=1), background='surface', highlightbackground='accent')
   box.pack(fill='both',expand=True,padx=13,pady=(0,11))
-  caption=tk.Frame(box,bg=PANEL);caption.pack(fill='x',padx=15,pady=(14,5))
-  tk.Label(caption,text='MONITORAMENTO · LATÊNCIA / DOWNLOAD / UPLOAD',bg=PANEL,fg=ACC,font=('Segoe UI',10,'bold')).pack(side='left')
-  tk.Label(caption,text='Amostras do computador com agente',bg=PANEL,fg=MUTED,font=('Segoe UI',9)).pack(side='right')
-  controls=tk.Frame(box,bg=PANEL);controls.pack(fill='x',padx=13,pady=(2,3))
+  caption=bind_theme(tk.Frame(box, bg=theme_color('surface')), background='surface');caption.pack(fill='x', padx=15, pady=(14, 5))
+  bind_theme(tk.Label(caption, text='MONITORAMENTO · LATÊNCIA / DOWNLOAD / UPLOAD', bg=theme_color('surface'), fg=theme_color('accent'), font=('Segoe UI', 10, 'bold')), background='surface', foreground='accent').pack(side='left')
+  bind_theme(tk.Label(caption, text='Amostras do computador com agente', bg=theme_color('surface'), fg=theme_color('muted'), font=('Segoe UI', 9)), background='surface', foreground='muted').pack(side='right')
+  controls=bind_theme(tk.Frame(box, bg=theme_color('surface')), background='surface');controls.pack(fill='x', padx=13, pady=(2, 3))
   self.trade_style=tk.StringVar(value='Linhas')
   ttk.Combobox(controls,textvariable=self.trade_style,values=['Linhas','Área','Barras'],state='readonly',width=11).pack(side='left',padx=(0,8))
   self.trade_flags={}
-  for name,col,display in [('latency',ACC,'Latência'),('download_mbps','#37d6a9','Download'),('upload_mbps','#a48aff','Upload'),('loss','#ff6983','Perdas')]:
+  for name,col,display in [('latency',theme_color('accent'),'Latência'),('download_mbps',theme_color('success'),'Download'),('upload_mbps',theme_color('accent'),'Upload'),('loss',theme_color('danger'),'Perdas')]:
    v=tk.BooleanVar(value=True);self.trade_flags[name]=v
-   tk.Checkbutton(controls,text=display,variable=v,command=self.draw_chart,selectcolor='#132b43',bg=PANEL,fg=col,activebackground=PANEL,activeforeground=col,font=('Segoe UI',9)).pack(side='left',padx=(0,8))
-  tk.Button(controls,text='Relatório',command=self._trade_report,bg='#14344b',fg=FG,relief='flat',padx=10).pack(side='right')
-  self.chart=tk.Canvas(box,bg=PANEL,highlightthickness=0)
+   bind_theme(tk.Checkbutton(controls, text=display, variable=v, command=self.draw_chart, selectcolor=theme_color('alt'), bg=theme_color('surface'), fg=col, activebackground=theme_color('surface'), activeforeground=col, font=('Segoe UI', 9)), background='surface', activebackground='surface').pack(side='left', padx=(0, 8))
+  bind_theme(tk.Button(controls, text='Relatório', command=self._trade_report, bg=theme_color('alt'), fg=theme_color('text'), relief='flat', padx=10), background='alt', foreground='text').pack(side='right')
+  self.chart=bind_theme(tk.Canvas(box, bg=theme_color('surface'), highlightthickness=0), background='surface')
   self.chart.pack(fill='both',expand=True,padx=9,pady=(2,12))
   self.chart.bind('<Configure>',lambda e:self.draw_chart());self.chart.bind('<Motion>',self._chart_hover);self.chart.bind('<Button-1>',self._chart_click);self.chart.bind('<Leave>',lambda e:self.draw_chart())
-  self.dashboard_log=tk.Text(p,height=1,bg=PANEL,fg=FG,state='disabled')
+  self.dashboard_log=bind_theme(tk.Text(p, height=1, bg=theme_color('surface'), fg=theme_color('text'), state='disabled'), background='surface', foreground='text')
  def _build_speed(self):
   p=self.speed_page
-  center=tk.Frame(p,bg=BG);center.pack(fill='both',expand=True,padx=13,pady=(15,6))
-  tk.Label(center,text='TESTE DE VELOCIDADE',bg=BG,fg=MUTED,font=('Segoe UI',10,'bold')).pack(pady=(7,5))
-  self.speed_gauge=tk.Canvas(center,width=345,height=268,bg=BG,highlightthickness=0,cursor='hand2')
+  center=bind_theme(tk.Frame(p, bg=theme_color('bg')), background='bg');center.pack(fill='both', expand=True, padx=13, pady=(15, 6))
+  bind_theme(tk.Label(center, text='TESTE DE VELOCIDADE', bg=theme_color('bg'), fg=theme_color('muted'), font=('Segoe UI', 10, 'bold')), background='bg', foreground='muted').pack(pady=(7, 5))
+  self.speed_gauge=bind_theme(tk.Canvas(center, width=345, height=268, bg=theme_color('bg'), highlightthickness=0, cursor='hand2'), background='bg')
   self.speed_gauge.pack(expand=True,pady=(4,5))
   self._draw_speed_gauge(0,'INICIAR');self.speed_gauge.bind('<Button-1>',lambda e:self.run_speed_test('full'))
   self.speed_btn=tk.Button(p,command=lambda:self.run_speed_test('full')) # suporte para o estado do mecanismo existente
-  self.speed_status=tk.Label(center,text='Clique no medidor para executar o teste.',bg=BG,fg=MUTED,font=('Segoe UI',10))
+  self.speed_status=bind_theme(tk.Label(center, text='Clique no medidor para executar o teste.', bg=theme_color('bg'), fg=theme_color('muted'), font=('Segoe UI', 10)), background='bg', foreground='muted')
   self.speed_status.pack(pady=5)
   self.speed_progress=ttk.Progressbar(center,mode='determinate',maximum=100)
   self.speed_progress.pack(fill='x',padx=90,pady=(7,12))
-  metrics=tk.Frame(center,bg=BG);metrics.pack(fill='x',padx=14,pady=(5,15))
+  metrics=bind_theme(tk.Frame(center, bg=theme_color('bg')), background='bg');metrics.pack(fill='x', padx=14, pady=(5, 15))
   self.speed_vars={}
   for title,key,sub in [('Download','download','Mbps'),('Upload','upload','Mbps'),('Latência','ping','ms')]:
    cell,value=self.card(metrics,title,'--',sub);cell.pack(side='left',fill='both',expand=True,padx=5,ipady=7)
    self.speed_vars[key]=value
-  self.speed_log=tk.Text(p,height=1,bg=PANEL,fg=FG)
+  self.speed_log=bind_theme(tk.Text(p, height=1, bg=theme_color('surface'), fg=theme_color('text')), background='surface', foreground='text')
  def _draw_speed_gauge(self,value,label):
   c=self.speed_gauge;c.delete('all');cx,cy=172,131;r=106
-  c.create_oval(35,-2,309,267,fill='#0b2136',outline='#204a69',width=2)
+  bind_canvas(c, c.create_oval(35, -2, 309, 267, fill=theme_color('alt'), outline=theme_color('border'), width=2), fill='alt', outline='border')
   for i in range(51):
    ang=math.radians(225-i*270/50)
    a=r+(7 if i%5 else 3);b=r+19
-   c.create_line(cx+a*math.cos(ang),cy-a*math.sin(ang),cx+b*math.cos(ang),cy-b*math.sin(ang),fill='#456982' if i%5 else '#72b7db',width=1 if i%5 else 2)
-  c.create_arc(cx-r,cy-r,cx+r,cy+r,start=225,extent=-270,style='arc',outline='#204661',width=14)
-  if value>0:c.create_arc(cx-r,cy-r,cx+r,cy+r,start=225,extent=-min(269,max(1,value)*2.69),style='arc',outline=ACC if label!='FALHOU' else RED,width=14)
+   c.create_line(cx + a * math.cos(ang), cy - a * math.sin(ang), cx + b * math.cos(ang), cy - b * math.sin(ang), fill=theme_color('border') if i % 5 else theme_color('accent'), width=1 if i % 5 else 2)
+  bind_canvas(c, c.create_arc(cx - r, cy - r, cx + r, cy + r, start=225, extent=-270, style='arc', outline=theme_color('border'), width=14), outline='border')
+  if value>0:c.create_arc(cx - r, cy - r, cx + r, cy + r, start=225, extent=-min(269, max(1, value) * 2.69), style='arc', outline=theme_color('accent') if label != 'FALHOU' else theme_color('danger'), width=14)
   big=('START' if label=='INICIAR' else f'{value:.0f}%')
-  c.create_text(cx,cy-14,text=big,fill=ACC if label!='FALHOU' else RED,font=('Segoe UI',33,'bold'))
-  c.create_text(cx,cy+28,text=label,fill=FG,font=('Segoe UI',11,'bold'))
-  c.create_text(cx,cy+50,text='CLIQUE PARA INICIAR' if not self.speed_busy else 'MEDIÇÃO EM ANDAMENTO',fill=MUTED,font=('Segoe UI',8,'bold'))
+  c.create_text(cx, cy - 14, text=big, fill=theme_color('accent') if label != 'FALHOU' else theme_color('danger'), font=('Segoe UI', 33, 'bold'))
+  bind_canvas(c, c.create_text(cx, cy + 28, text=label, fill=theme_color('text'), font=('Segoe UI', 11, 'bold')), fill='text')
+  bind_canvas(c, c.create_text(cx, cy + 50, text='CLIQUE PARA INICIAR' if not self.speed_busy else 'MEDIÇÃO EM ANDAMENTO', fill=theme_color('muted'), font=('Segoe UI', 8, 'bold')), fill='muted')
  def _animate_ui(self):
   if self.stop_event.is_set():return
   try:
@@ -1181,11 +1171,11 @@ class ArcollApp:
   if 0<=index<len(vals):
    self.draw_chart()
    x=pad+index*(w-2*pad)/(len(vals)-1)
-   self.chart.create_line(x,30,x,max(60,self.chart.winfo_height()-30),fill='#647b9b',dash=(3,4))
-   self.chart.create_text(min(w-100,max(100,x)),28,text=f'{vals[index]["latency"]:.1f} ms',fill=FG,font=('Segoe UI',10,'bold'))
+   bind_canvas(self.chart, self.chart.create_line(x, 30, x, max(60, self.chart.winfo_height() - 30), fill=theme_color('border'), dash=(3, 4)), fill='border')
+   bind_canvas(self.chart, self.chart.create_text(min(w - 100, max(100, x)), 28, text=f"{vals[index]['latency']:.1f} ms", fill=theme_color('text'), font=('Segoe UI', 10, 'bold')), fill='text')
  def run_speed_test(self,mode='full'):
   if self.speed_busy:return
-  self._speed_last_sent=0;self._speed_last_value=-1;self.speed_busy=True; self.speed_btn.configure(state='disabled'); self.speed_progress['value']=0; self.speed_status.configure(text='Preparando teste…',fg=ACC)
+  self._speed_last_sent=0;self._speed_last_value=-1;self.speed_busy=True; self.speed_btn.configure(state='disabled'); self.speed_progress['value']=0; bind_theme(self.speed_status, foreground='accent').configure(text='Preparando teste…', fg=theme_color('accent'))
   def work():
    result={'download':None,'upload':None,'ping':None,'server':'Cloudflare Speed Test'}; logs=[]
    try:
@@ -1224,11 +1214,11 @@ class ArcollApp:
   if not hasattr(self,'speed_history'):return
   c=self.speed_history;c.delete('all');w=max(240,c.winfo_width());h=max(100,c.winfo_height())
   for n in range(1,4):
-   y=12+(h-25)*n/4;c.create_line(8,y,w-8,y,fill='#263750',dash=(3,5))
+   y=12+(h-25)*n/4;bind_canvas(c, c.create_line(8, y, w - 8, y, fill=theme_color('border'), dash=(3, 5)), fill='border')
   try:
    with history_db() as db: rows=list(reversed(db.execute('SELECT captured,download,upload FROM speedtests ORDER BY id DESC LIMIT 20').fetchall()))
   except Exception: rows=[]
-  if not rows:c.create_text(w/2,h/2,text='O GRÁFICO SERÁ PREENCHIDO APÓS O PRIMEIRO TESTE',fill=MUTED,font=('Segoe UI',9));return
+  if not rows:bind_canvas(c, c.create_text(w / 2, h / 2, text='O GRÁFICO SERÁ PREENCHIDO APÓS O PRIMEIRO TESTE', fill=theme_color('muted'), font=('Segoe UI', 9)), fill='muted');return
   limit=max(1,max(float(v or 0) for _,dl,ul in rows for v in (dl,ul)))*1.12
   def poly(index,color):
    points=[]
@@ -1238,13 +1228,13 @@ class ArcollApp:
     x=12+i*(w-24)/max(1,len(rows)-1);y=h-14-(float(v)/limit)*(h-30)
     points.append((x,y))
    if len(points)>1:c.create_line(*[z for pair in points for z in pair],fill=color,width=3,smooth=True)
-   for x,y in points:c.create_oval(x-3,y-3,x+3,y+3,fill=color,outline=PANEL)
-  poly(1,ACC);poly(2,GREEN)
-  c.create_text(10,9,text=f'{limit:.0f} Mbps',fill=MUTED,anchor='w',font=('Segoe UI',8));c.create_text(w-10,9,text=f'{len(rows)} testes',fill=MUTED,anchor='e',font=('Segoe UI',8))
-  c.create_text(12,h-3,text='● Download',fill=ACC,anchor='w',font=('Segoe UI',8));c.create_text(115,h-3,text='● Upload',fill=GREEN,anchor='w',font=('Segoe UI',8))
+   for x,y in points:bind_canvas(c, c.create_oval(x - 3, y - 3, x + 3, y + 3, fill=color, outline=theme_color('surface')), outline='surface')
+  poly(1, theme_color('accent'));poly(2, theme_color('success'))
+  bind_canvas(c, c.create_text(10, 9, text=f'{limit:.0f} Mbps', fill=theme_color('muted'), anchor='w', font=('Segoe UI', 8)), fill='muted');bind_canvas(c, c.create_text(w - 10, 9, text=f'{len(rows)} testes', fill=theme_color('muted'), anchor='e', font=('Segoe UI', 8)), fill='muted')
+  bind_canvas(c, c.create_text(12, h - 3, text='● Download', fill=theme_color('accent'), anchor='w', font=('Segoe UI', 8)), fill='accent');bind_canvas(c, c.create_text(115, h - 3, text='● Upload', fill=theme_color('success'), anchor='w', font=('Segoe UI', 8)), fill='success')
  def _speed_progress(self,value,msg,download=None):
   if download is not None:self.speed_vars['download'].configure(text=f'{download:.2f}')
-  self.speed_progress['value']=value;self._draw_speed_gauge(value,'TESTANDO'); self.speed_status.configure(text=msg,fg=ACC)
+  self.speed_progress['value']=value;self._draw_speed_gauge(value,'TESTANDO'); bind_theme(self.speed_status, foreground='accent').configure(text=msg, fg=theme_color('accent'))
   now=time.monotonic()
   if getattr(self,'_remote_speed_command',None) and (now-getattr(self,'_speed_last_sent',0)>2 or value>=99):
    self._speed_last_sent=now
@@ -1252,7 +1242,7 @@ class ArcollApp:
  def _speed_done(self,result,logs,failed=False):
   for key in ('download','upload','ping'):
    val=result.get(key); self.speed_vars[key].configure(text='--' if val is None else f'{val:.2f}' if isinstance(val,(float,int)) else str(val))
-  self.speed_log.insert('end','\n['+time.strftime('%Y-%m-%d %H:%M:%S')+']\n'+'\n'.join(logs)+'\n'); self.speed_log.see('end'); self.speed_busy=False; self.speed_btn.configure(state='normal'); self.speed_progress['value']=100 if not failed else 0;self._draw_speed_gauge(100 if not failed else 0,'CONCLUÍDO' if not failed else 'FALHOU'); self.speed_status.configure(text='Teste finalizado.' if not failed else 'Teste interrompido; confira o detalhe abaixo.',fg=GREEN if not failed else RED); self.draw_speed_history(); self.log('Teste de velocidade '+('falhou.' if failed else 'concluído.'))
+  self.speed_log.insert('end','\n['+time.strftime('%Y-%m-%d %H:%M:%S')+']\n'+'\n'.join(logs)+'\n'); self.speed_log.see('end'); self.speed_busy=False; self.speed_btn.configure(state='normal'); self.speed_progress['value']=100 if not failed else 0;self._draw_speed_gauge(100 if not failed else 0,'CONCLUÍDO' if not failed else 'FALHOU'); self.speed_status.configure(text='Teste finalizado.' if not failed else 'Teste interrompido; confira o detalhe abaixo.', fg=theme_color('success') if not failed else theme_color('danger')); self.draw_speed_history(); self.log('Teste de velocidade ' + ('falhou.' if failed else 'concluído.'))
   remote=getattr(self,'_remote_speed_command',None)
   if remote:
    self._remote_speed_command=None
@@ -1260,8 +1250,8 @@ class ArcollApp:
    # Sucesso é confirmado somente após persistir o evento no servidor.
  def _build_map(self):
   p=self.map_page
-  bar=tk.Frame(p,bg=BG);bar.pack(fill='x',padx=12,pady=(11,8))
-  tk.Label(bar,text='TOPOLOGIA LÓGICA DA REDE',bg=BG,fg=ACC,font=('Segoe UI',10,'bold')).pack(side='left',padx=(0,10))
+  bar=bind_theme(tk.Frame(p, bg=theme_color('bg')), background='bg');bar.pack(fill='x', padx=12, pady=(11, 8))
+  bind_theme(tk.Label(bar, text='TOPOLOGIA LÓGICA DA REDE', bg=theme_color('bg'), fg=theme_color('accent'), font=('Segoe UI', 10, 'bold')), background='bg', foreground='accent').pack(side='left', padx=(0, 10))
   self.map_mode=tk.StringVar(value='Grupos / setores')
   choices=['Grupos / setores','Tipos de equipamentos','Infraestrutura detectada']
   self.map_mode_box=ttk.Combobox(bar,textvariable=self.map_mode,values=choices,state='readonly',width=23,style='Arcoll.TCombobox')
@@ -1269,9 +1259,9 @@ class ArcollApp:
   self.btn(bar,'Examinar rede',self.scan_devices).pack(side='left',padx=3)
   for title,handler in [('Largura',lambda:self._map_center('x')),('Altura',lambda:self._map_center('y')),('Tudo',lambda:self._map_center('all')),('−',lambda:self._map_zoom(.83)),('+',lambda:self._map_zoom(1.2)),('Tela inteira',self._map_fullscreen),('A4',self._map_print)]:
    self.btn(bar,title,handler).pack(side='left',padx=3)
-  panel=tk.Frame(p,bg=PANEL,highlightbackground='#2d5d78',highlightthickness=1)
+  panel=bind_theme(tk.Frame(p, bg=theme_color('surface'), highlightbackground=theme_color('accent'), highlightthickness=1), background='surface', highlightbackground='accent')
   panel.pack(fill='both',expand=True,padx=12,pady=(0,11))
-  self.map_canvas=tk.Canvas(panel,bg='#0b2639',highlightthickness=0,cursor='hand2')
+  self.map_canvas=bind_theme(tk.Canvas(panel, bg=theme_color('alt'), highlightthickness=0, cursor='hand2'), background='alt')
   self.map_canvas.pack(fill='both',expand=True)
   self.map_canvas.bind('<Configure>',lambda e:self.draw_map())
   self.map_canvas.bind('<ButtonPress-1>',self._map_drag_start)
@@ -1335,27 +1325,27 @@ class ArcollApp:
   def xy(position):return ((position[0]+self.map_offset_x)*self.map_scale,(position[1]+self.map_offset_y)*self.map_scale)
   def line(a,b,source=False):
    x1,y1=xy(a);x2,y2=xy(b)
-   c.create_line(x1,y1,x1+(x2-x1)*.48,y1,x1+(x2-x1)*.48,y2,x2,y2,fill='#46c8ef' if source else '#45738d',width=2 if source else 1.5,smooth=True,dash=() if source else (6,5),tags=('connection',))
+   c.create_line(x1, y1, x1 + (x2 - x1) * 0.48, y1, x1 + (x2 - x1) * 0.48, y2, x2, y2, fill=theme_color('accent') if source else theme_color('border'), width=2 if source else 1.5, smooth=True, dash=() if source else (6, 5), tags=('connection',))
   # Linhas primeiro, cartões depois: acompanham drag e zoom sem gambiarras de geometria.
   for g,indices in groups.items():
    gp=layout['group:'+g];line(root,gp)
    for index in indices:line(gp,layout['device:'+str(self.devices[index].get('_device_id') or index)])
   def card(pos,ww,hh,label,sub,color,tag):
    x,y=xy(pos);wide=ww*self.map_scale;high=hh*self.map_scale
-   c.create_rectangle(x-wide/2,y-high/2,x+wide/2,y+high/2,fill='#102c45',outline=color,width=2,tags=(tag,'node'))
-   c.create_text(x,y-6*self.map_scale,text=label[:29],fill=FG,font=('Segoe UI',max(7,int(11*self.map_scale)),'bold'),width=max(90,wide-10),tags=(tag,'node'))
-   if sub:c.create_text(x,y+14*self.map_scale,text=sub[:40],fill=MUTED,font=('Segoe UI',max(6,int(8*self.map_scale))),width=max(90,wide-8),tags=(tag,'node'))
-  card(root,245,70,SITE_CODE or 'REDE REGISTRADA','Agente Windows • gateway '+(gateway_ip() or '?'),ACC,'root')
+   bind_canvas(c, c.create_rectangle(x - wide / 2, y - high / 2, x + wide / 2, y + high / 2, fill=theme_color('alt'), outline=color, width=2, tags=(tag, 'node')), fill='alt')
+   bind_canvas(c, c.create_text(x, y - 6 * self.map_scale, text=label[:29], fill=theme_color('text'), font=('Segoe UI', max(7, int(11 * self.map_scale)), 'bold'), width=max(90, wide - 10), tags=(tag, 'node')), fill='text')
+   if sub:bind_canvas(c, c.create_text(x, y + 14 * self.map_scale, text=sub[:40], fill=theme_color('muted'), font=('Segoe UI', max(6, int(8 * self.map_scale))), width=max(90, wide - 8), tags=(tag, 'node')), fill='muted')
+  card(root, 245, 70, SITE_CODE or 'REDE REGISTRADA', 'Agente Windows • gateway ' + (gateway_ip() or '?'), theme_color('accent'), 'root')
   for g,indices in groups.items():
-   gp=layout['group:'+g];card(gp,205,68,g,str(len(indices))+' equipamentos','#459bc0','group:'+g)
+   gp=layout['group:'+g];card(gp, 205, 68, g, str(len(indices)) + ' equipamentos', theme_color('accent'), 'group:' + g)
    x,y=gp;self.map_groups_info.append((g,(x-110,y-40,x+110,y+40)))
    for index in indices:
     d=self.devices[index];key='device:'+str(d.get('_device_id') or index)
     name=str(d.get('custom_name') or d.get('name') or d.get('ip') or 'Dispositivo')
     status='Online' if d.get('status')=='online' else 'Offline'
-    card(layout[key],110,62,name,status,GREEN if d.get('status')=='online' else '#687d94','device_index:'+str(index))
-  c.create_text(13,h-12,text='Conexões lógicas / grupos  •  Arraste os cartões para organizar  •  A ligação física só é confirmada com dados de infraestrutura',anchor='w',fill=MUTED,font=('Segoe UI',8),tags=('legend',))
-  if not self.devices:c.create_text(w/2,h/2,text='Aguardando inventário do agente Windows',fill=MUTED,font=('Segoe UI',12))
+    card(layout[key], 110, 62, name, status, theme_color('success') if d.get('status') == 'online' else theme_color('alt'), 'device_index:' + str(index))
+  bind_canvas(c, c.create_text(13, h - 12, text='Conexões lógicas / grupos  •  Arraste os cartões para organizar  •  A ligação física só é confirmada com dados de infraestrutura', anchor='w', fill=theme_color('muted'), font=('Segoe UI', 8), tags=('legend',)), fill='muted')
+  if not self.devices:bind_canvas(c, c.create_text(w / 2, h / 2, text='Aguardando inventário do agente Windows', fill=theme_color('muted'), font=('Segoe UI', 12)), fill='muted')
 
  def _map_mode_key(self):
   return {'Grupos / setores':'group','Tipos de equipamentos':'type','Infraestrutura detectada':'infra'}.get(self.map_mode.get(),'group')
@@ -1445,12 +1435,12 @@ class ArcollApp:
   x0,y0,x1,y1=self._map_bounds();bw=max(1,x1-x0);bh=max(1,y1-y0)
   svg=['<svg xmlns="http://www.w3.org/2000/svg" viewBox="%.1f %.1f %.1f %.1f" width="1120" height="780">'%(x0,y0,bw,bh),'<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="#0b2538"/>'%(x0,y0,bw,bh)]
   for key,pos in nodes.items():
-   if key=='root':name=SITE_CODE;w=230;stroke='#3bbaff';parent=None
-   elif key.startswith('group:'):name=key[6:];w=195;stroke='#429cc8';parent='root'
+   if key=='root':name=SITE_CODE;w=230;stroke=theme_color('accent');parent=None
+   elif key.startswith('group:'):name=key[6:];w=195;stroke=theme_color('accent');parent='root'
    else:
     d=next((d for d in self.devices if key=='device:'+str(d.get('_device_id'))),None)
     if not d:continue
-    name=str(d.get('custom_name') or d.get('name') or 'Dispositivo');w=112;stroke='#32d3ab' if d.get('status')=='online' else '#687d94'
+    name=str(d.get('custom_name') or d.get('name') or 'Dispositivo');w=112;stroke=theme_color('success') if d.get('status')=='online' else theme_color('alt')
     group_name=self.group_name(d.get('group_id')) if self._map_mode_key()=='group' else str(d.get('custom_type') or d.get('type') or 'device').lower().replace('_',' ').capitalize()
     if self._map_mode_key()=='infra':group_name='Equipamentos de infraestrutura' if any(q in str(d.get('type') or '').lower() for q in ('router','roteador','switch','ap','wifi')) else 'Conexão física não determinada'
     parent='group:'+group_name
@@ -1495,25 +1485,25 @@ class ArcollApp:
   self.draw_map()
  def _build_connection(self):
   p=self.connection_page
-  shell=tk.Frame(p,bg=PANEL,highlightbackground='#23506a',highlightthickness=1)
+  shell=bind_theme(tk.Frame(p, bg=theme_color('surface'), highlightbackground=theme_color('border'), highlightthickness=1), background='surface', highlightbackground='border')
   shell.pack(fill='both',expand=True,padx=12,pady=(12,11))
-  head=tk.Frame(shell,bg=PANEL);head.pack(fill='x',padx=12,pady=9)
-  tk.Label(head,text='ARCOLL / CONEXÃO',bg=PANEL,fg=ACC,font=('Segoe UI',9,'bold')).pack(side='left')
-  tk.Label(head,text='  Mapa e provedora',bg=PANEL,fg=FG,font=('Segoe UI',11,'bold')).pack(side='left')
+  head=bind_theme(tk.Frame(shell, bg=theme_color('surface')), background='surface');head.pack(fill='x', padx=12, pady=9)
+  bind_theme(tk.Label(head, text='ARCOLL / CONEXÃO', bg=theme_color('surface'), fg=theme_color('accent'), font=('Segoe UI', 9, 'bold')), background='surface', foreground='accent').pack(side='left')
+  bind_theme(tk.Label(head, text='  Mapa e provedora', bg=theme_color('surface'), fg=theme_color('text'), font=('Segoe UI', 11, 'bold')), background='surface', foreground='text').pack(side='left')
   self.btn(head,'GPS origem',lambda:self._connection_set_gps('origin')).pack(side='right',padx=3)
   self.btn(head,'GPS destino',lambda:self._connection_set_gps('dest')).pack(side='right',padx=3)
   self.btn(head,'Diagnosticar',self.run_diagnostics,True).pack(side='right')
-  self.connection_status=tk.Label(head,text='Aguardando diagnóstico do agente',bg=PANEL,fg=MUTED,font=('Segoe UI',9))
+  self.connection_status=bind_theme(tk.Label(head, text='Aguardando diagnóstico do agente', bg=theme_color('surface'), fg=theme_color('muted'), font=('Segoe UI', 9)), background='surface', foreground='muted')
   self.connection_status.pack(side='right',padx=13)
   fields=[('PROVEDORA DE INTERNET','provider'),('IP PÚBLICO','public_ip'),('ASN','asn'),('REGIÃO DO IP','region'),('GATEWAY','gateway'),('AGENTE / IP LOCAL','local_ip')]
-  band=tk.Frame(shell,bg=PANEL);band.pack(fill='x',padx=10,pady=(0,4));self.connection_fields={}
+  band=bind_theme(tk.Frame(shell, bg=theme_color('surface')), background='surface');band.pack(fill='x', padx=10, pady=(0, 4));self.connection_fields={}
   for name,key in fields:
-   cell=tk.Frame(band,bg='#0c2943',highlightbackground='#295270',highlightthickness=1)
+   cell=bind_theme(tk.Frame(band, bg=theme_color('alt'), highlightbackground=theme_color('accent'), highlightthickness=1), background='alt', highlightbackground='accent')
    cell.pack(side='left',fill='x',expand=True,padx=2,ipady=3)
-   tk.Label(cell,text=name,bg='#0c2943',fg=MUTED,font=('Segoe UI',8,'bold')).pack(anchor='w',padx=9,pady=(8,3))
-   lbl=tk.Label(cell,text='Não identificado',bg='#0c2943',fg=FG,font=('Segoe UI',9,'bold'),anchor='w',justify='left',wraplength=160)
+   bind_theme(tk.Label(cell, text=name, bg=theme_color('alt'), fg=theme_color('muted'), font=('Segoe UI', 8, 'bold')), background='alt', foreground='muted').pack(anchor='w', padx=9, pady=(8, 3))
+   lbl=bind_theme(tk.Label(cell, text='Não identificado', bg=theme_color('alt'), fg=theme_color('text'), font=('Segoe UI', 9, 'bold'), anchor='w', justify='left', wraplength=160), background='alt', foreground='text')
    lbl.pack(anchor='w',fill='x',padx=9,pady=(0,7));self.connection_fields[key]=lbl
-  self.connection_map=tk.Canvas(shell,bg='#0b2538',highlightthickness=0)
+  self.connection_map=bind_theme(tk.Canvas(shell, bg=theme_color('alt'), highlightthickness=0), background='alt')
   self.connection_map.pack(fill='both',expand=True,padx=10,pady=(0,8))
   self.connection_map.bind('<Configure>',lambda _e:self._draw_connection_map())
   self.connection_out=tk.Text(p,height=1)
@@ -1546,25 +1536,25 @@ class ArcollApp:
   c=self.connection_map;c.delete('all');w=max(420,c.winfo_width());h=max(180,c.winfo_height())
   # Esquema lógico do mesmo percurso representado no portal; não inferir saltos físicos.
   for i in range(1,6):
-   yy=h*i/6;c.create_line(0,yy,w,yy-12,fill='#17445d',smooth=True)
+   yy=h*i/6;bind_canvas(c, c.create_line(0, yy, w, yy - 12, fill=theme_color('border'), smooth=True), fill='border')
   x1=max(85,int(w*.20));x2=int(w*.50);x3=min(w-100,int(w*.81));y=int(h*.52)
-  c.create_line(x1+46,y,x2-60,y-38,fill='#4ac5f3',width=3,dash=(9,7),smooth=True)
-  c.create_line(x2+60,y-38,x3-55,y,fill='#4ac5f3',width=3,dash=(9,7),smooth=True)
-  c.create_oval(x1-47,y-32,x1+47,y+32,fill='#103850',outline='#4ccdfa',width=2)
-  c.create_oval(x2-60,y-75,x2+60,y+5,fill='#0d3148',outline='#4ccdfa',width=2)
-  c.create_oval(x3-53,y-32,x3+53,y+32,fill='#103850',outline='#4ccdfa',width=2)
-  c.create_text(x1,y-5,text='ORIGEM',fill=MUTED,font=('Segoe UI',8,'bold'))
-  c.create_text(x1,y+12,text='PROVEDORA',fill=FG,font=('Segoe UI',10,'bold'))
-  c.create_text(x2,y-47,text='INTERNET',fill=FG,font=('Segoe UI',14,'bold'))
-  c.create_text(x2,y-25,text='ROTA LÓGICA',fill=MUTED,font=('Segoe UI',8))
-  c.create_text(x3,y-5,text='DESTINO',fill=MUTED,font=('Segoe UI',8,'bold'))
-  c.create_text(x3,y+12,text='AGENTE WINDOWS',fill=FG,font=('Segoe UI',9,'bold'))
+  bind_canvas(c, c.create_line(x1 + 46, y, x2 - 60, y - 38, fill=theme_color('accent'), width=3, dash=(9, 7), smooth=True), fill='accent')
+  bind_canvas(c, c.create_line(x2 + 60, y - 38, x3 - 55, y, fill=theme_color('accent'), width=3, dash=(9, 7), smooth=True), fill='accent')
+  bind_canvas(c, c.create_oval(x1 - 47, y - 32, x1 + 47, y + 32, fill=theme_color('alt'), outline=theme_color('accent'), width=2), fill='alt', outline='accent')
+  bind_canvas(c, c.create_oval(x2 - 60, y - 75, x2 + 60, y + 5, fill=theme_color('alt'), outline=theme_color('accent'), width=2), fill='alt', outline='accent')
+  bind_canvas(c, c.create_oval(x3 - 53, y - 32, x3 + 53, y + 32, fill=theme_color('alt'), outline=theme_color('accent'), width=2), fill='alt', outline='accent')
+  bind_canvas(c, c.create_text(x1, y - 5, text='ORIGEM', fill=theme_color('muted'), font=('Segoe UI', 8, 'bold')), fill='muted')
+  bind_canvas(c, c.create_text(x1, y + 12, text='PROVEDORA', fill=theme_color('text'), font=('Segoe UI', 10, 'bold')), fill='text')
+  bind_canvas(c, c.create_text(x2, y - 47, text='INTERNET', fill=theme_color('text'), font=('Segoe UI', 14, 'bold')), fill='text')
+  bind_canvas(c, c.create_text(x2, y - 25, text='ROTA LÓGICA', fill=theme_color('muted'), font=('Segoe UI', 8)), fill='muted')
+  bind_canvas(c, c.create_text(x3, y - 5, text='DESTINO', fill=theme_color('muted'), font=('Segoe UI', 8, 'bold')), fill='muted')
+  bind_canvas(c, c.create_text(x3, y + 12, text='AGENTE WINDOWS', fill=theme_color('text'), font=('Segoe UI', 9, 'bold')), fill='text')
   coords=getattr(self,'_connection_gps',{})
   for key,xx in [('origin',x1),('dest',x3)]:
    if key in coords:
     ll=coords[key]
-    c.create_text(xx,y+43,text=f'GPS verificado: {ll[0]:.5f}, {ll[1]:.5f}',fill='#67e8f9',font=('Segoe UI',8),anchor='center')
-  c.create_text(18,h-18,text='Rota lógica ilustrativa. Coordenadas GPS somente se informadas e verificadas no local.',fill=MUTED,font=('Segoe UI',8),anchor='w')
+    bind_canvas(c, c.create_text(xx, y + 43, text=f'GPS verificado: {ll[0]:.5f}, {ll[1]:.5f}', fill=theme_color('accent'), font=('Segoe UI', 8), anchor='center'), fill='accent')
+  bind_canvas(c, c.create_text(18, h - 18, text='Rota lógica ilustrativa. Coordenadas GPS somente se informadas e verificadas no local.', fill=theme_color('muted'), font=('Segoe UI', 8), anchor='w'), fill='muted')
  def _connection_cache_path(self):
   return Path(os.environ.get('LOCALAPPDATA') or str(Path.home()))/'Arcoll'/'connection-last-confirmed.json'
  def _load_confirmed_connection(self):
@@ -1597,9 +1587,9 @@ class ArcollApp:
 
  def _build_devices(self):
   p=self.devices_page
-  tools=tk.Frame(p,bg=BG);tools.pack(fill='x',padx=12,pady=(12,8))
+  tools=bind_theme(tk.Frame(p, bg=theme_color('bg')), background='bg');tools.pack(fill='x', padx=12, pady=(12, 8))
   self.device_filter=tk.StringVar()
-  search=tk.Entry(tools,textvariable=self.device_filter,bg=PANEL2,fg=FG,insertbackground=FG,relief='flat',font=('Segoe UI',10),width=27)
+  search=bind_theme(tk.Entry(tools, textvariable=self.device_filter, bg=theme_color('alt'), fg=theme_color('text'), insertbackground=theme_color('text'), relief='flat', font=('Segoe UI', 10), width=27), background='alt', foreground='text', insertbackground='text')
   search.pack(side='left',ipady=7,padx=(0,8))
   self.device_filter.trace_add('write',lambda *_:self.render_devices())
   self.device_status_filter=tk.StringVar(value='Todas as situações')
@@ -1614,14 +1604,14 @@ class ArcollApp:
   self.device_sort=tk.StringVar(value='Mais recentes')
   self.device_sort_select=ttk.Combobox(tools,textvariable=self.device_sort,state='readonly',width=17,style='Arcoll.TCombobox',values=('Mais recentes','Mais antigos','Primeira detecção','Nome'))
   self.device_sort_select.pack(side='left',padx=4);self.device_sort_select.bind('<<ComboboxSelected>>',lambda e:self.render_devices())
-  self.device_count_label=tk.Label(tools,text='0 dispositivos',bg=BG,fg=ACC,font=('Segoe UI',9,'bold'))
+  self.device_count_label=bind_theme(tk.Label(tools, text='0 dispositivos', bg=theme_color('bg'), fg=theme_color('accent'), font=('Segoe UI', 9, 'bold')), background='bg', foreground='accent')
   self.device_count_label.pack(side='right',padx=5)
-  tk.Button(tools,text='⟳  Atualizar varredura',command=self.scan_devices,font=('Segoe UI',9,'bold'),fg='white',bg='#145e90',activebackground='#1d83b5',activeforeground='white',relief='flat',padx=9,pady=5,cursor='hand2').pack(side='right',padx=8)
+  bind_theme(tk.Button(tools, text='⟳  Atualizar varredura', command=self.scan_devices, font=('Segoe UI', 9, 'bold'), fg='white', bg=theme_color('accent'), activebackground=theme_color('accent'), activeforeground='white', relief='flat', padx=9, pady=5, cursor='hand2'), background='accent', activebackground='accent').pack(side='right', padx=8)
 
   self.device_tree=self._tree(p,{'Nº':45,'Dispositivo':185,'Endereço IP':125,'MAC':148,'Tipo':111,'Grupo':148,'Situação':87,'Tempo no estado':110,'Última atividade':138})
   self.device_tree.bind('<Double-1>',self.edit_device)
   self.load_inventory()
-  self.scan_status=tk.Label(p,text='Inventário sincronizado com o agente Windows.',bg=BG,fg=MUTED,anchor='w',font=('Segoe UI',9))
+  self.scan_status=bind_theme(tk.Label(p, text='Inventário sincronizado com o agente Windows.', bg=theme_color('bg'), fg=theme_color('muted'), anchor='w', font=('Segoe UI', 9)), background='bg', foreground='muted')
   self.scan_status.pack(fill='x',padx=14,pady=(2,9))
  def render_toolkit(self):
   selected=self.tool_selected.get() if hasattr(self,'tool_selected') else 'Visão geral'
@@ -1657,8 +1647,8 @@ class ArcollApp:
    if remote_id:self._ack_remote_command(remote_id,'failed','Análise já em execução')
    return
   self.toolkit_busy=True
-  if hasattr(self,'tool_status'):self.tool_status.configure(text='Coletando medições…',fg=YELLOW)
-  elif hasattr(self,'cmd_status'):self.cmd_status.configure(text='Coletando medições…',fg=YELLOW)
+  if hasattr(self,'tool_status'):bind_theme(self.tool_status, foreground='warning').configure(text='Coletando medições…', fg=theme_color('warning'))
+  elif hasattr(self,'cmd_status'):bind_theme(self.cmd_status, foreground='warning').configure(text='Coletando medições…', fg=theme_color('warning'))
   def work():
    try:
     from arcoll_toolkit import collect_toolkit,collect_toolkit_selected
@@ -1666,7 +1656,7 @@ class ArcollApp:
     report=collect_toolkit_selected(selected) if selected in ('traceroute','services','health','troubleshooter') else collect_toolkit()
     def show():
      self.toolkit_latest=report;self.render_toolkit()
-     if hasattr(self,'tool_status'):self.tool_status.configure(text='Coletado '+time.strftime('%H:%M:%S'),fg=GREEN)
+     if hasattr(self,'tool_status'):bind_theme(self.tool_status, foreground='success').configure(text='Coletado ' + time.strftime('%H:%M:%S'), fg=theme_color('success'))
     self.root.after(0,show)
     if remote_id:
      payload={'event':'toolkit','captured_at':int(time.time()),'report':report}
@@ -1676,7 +1666,7 @@ class ArcollApp:
      self._ack_remote_command(remote_id,'completed','Medições sincronizadas com sucesso')
     else:self.sync_data({'event':'toolkit','report':report,'captured_at':int(time.time())})
    except Exception as exc:
-    self.root.after(0,lambda msg=str(exc):self.cmd_status.configure(text='Erro: '+msg[:120],fg=RED))
+    self.root.after(0, lambda msg=str(exc): bind_theme(self.cmd_status, foreground='danger').configure(text='Erro: ' + msg[:120], fg=theme_color('danger')))
     if remote_id:self._ack_remote_command(remote_id,'failed',str(exc)[:350])
    finally:self.toolkit_busy=False
   threading.Thread(target=work,daemon=True).start()
@@ -1812,7 +1802,7 @@ class ArcollApp:
     self._last_command_error=message
     self.log('Comandos remotos: '+message,'WARN')
    self.last_status='Sem comunicação de comandos: '+message
-   self.status_label.configure(text=self.last_status[:180],fg=RED)
+   bind_theme(self.status_label, foreground='danger').configure(text=self.last_status[:180], fg=theme_color('danger'))
   elif state=='ready':
    if self.last_status.startswith(('Verificando autorização','Sem comunicação de comandos','Autorização pendente')):
     self._operation_message('local','Agente autorizado · pronto para comandos',completed=True)
@@ -1869,19 +1859,18 @@ class ArcollApp:
   result={'v':None}
   dlg=tk.Toplevel(self.root)
   dlg.title('Acesso remoto')
-  dlg.configure(bg='#122338')
+  bind_theme(dlg, background='alt').configure(bg=theme_color('alt'))
   dlg.resizable(False,False)
   dlg.attributes('-topmost',True)
-  tk.Label(dlg,text='ACESSO REMOTO',font=('Segoe UI',11,'bold'),
-           fg='#e6f5ff',bg='#122338').pack(padx=16,pady=(14,12))
-  row=tk.Frame(dlg,bg='#122338');row.pack(padx=12,pady=(0,14))
+  bind_theme(tk.Label(dlg, text='ACESSO REMOTO', font=('Segoe UI', 11, 'bold'), fg=theme_color('text'), bg=theme_color('alt')), foreground='text', background='alt').pack(padx=16, pady=(14, 12))
+  row=bind_theme(tk.Frame(dlg, bg=theme_color('alt')), background='alt');row.pack(padx=12, pady=(0, 14))
   def choose(value):
    result['v']=value
    try:dlg.destroy()
    except tk.TclError:pass
-  for label,value,color in (('PERMITIR','control','#188a70'),
-                            ('VISUALIZAR','view','#285e88'),
-                            ('RECUSAR',None,'#a83b50')):
+  for label,value,color in (('PERMITIR','control',theme_color('success')),
+                            ('VISUALIZAR','view',theme_color('accent')),
+                            ('RECUSAR',None,theme_color('danger'))):
    tk.Button(row,text=label,command=lambda v=value:choose(v),
              font=('Segoe UI',9,'bold'),bg=color,fg='white',
              activebackground=color,activeforeground='white',
@@ -1972,7 +1961,7 @@ class ArcollApp:
   # Um clique abre os controles locais; a sessão nunca fica sem sinalização.
   banner=tk.Toplevel(self.root)
   banner.title('Arcoll · Acesso remoto ativo')
-  banner.configure(bg='#122338');banner.resizable(False,False)
+  bind_theme(banner, background='alt').configure(bg=theme_color('alt'));banner.resizable(False, False)
   banner.overrideredirect(True)
   banner.attributes('-topmost',True)
   bw,bh=38,38
@@ -1994,31 +1983,26 @@ class ArcollApp:
    close_panel()
   def update_indicator():
    is_control=control_event.is_set()
-   icon_btn.configure(text='◉',fg='#ffd27a' if is_control else '#8df5d3',
-                      activeforeground='#ffd27a' if is_control else '#8df5d3')
+   icon_btn.configure(text='◉', fg=theme_color('warning') if is_control else theme_color('success'), activeforeground=theme_color('warning') if is_control else theme_color('success'))
   def open_controls():
    nonlocal control_panel
    if control_panel is not None:
     close_panel();return
    control_panel=tk.Toplevel(self.root)
    control_panel.title('Controle do compartilhamento')
-   control_panel.configure(bg='#122338');control_panel.resizable(False,False)
+   bind_theme(control_panel, background='alt').configure(bg=theme_color('alt'));control_panel.resizable(False, False)
    control_panel.attributes('-topmost',True)
    pw,ph=248,120
    x=max(0,banner.winfo_screenwidth()-pw-12)
    control_panel.geometry(f'{pw}x{ph}+{x}+54')
    mode_text='Controle remoto ativo' if control_event.is_set() else 'Compartilhamento: somente visualização'
-   tk.Label(control_panel,text=mode_text,font=('Segoe UI',9,'bold'),bg='#122338',fg='#e6f5ff').pack(pady=(12,8))
-   actions=tk.Frame(control_panel,bg='#122338');actions.pack()
+   bind_theme(tk.Label(control_panel, text=mode_text, font=('Segoe UI', 9, 'bold'), bg=theme_color('alt'), fg=theme_color('text')), background='alt', foreground='text').pack(pady=(12, 8))
+   actions=bind_theme(tk.Frame(control_panel, bg=theme_color('alt')), background='alt');actions.pack()
    toggle_text='Pausar controle' if control_event.is_set() else 'Permitir controle'
-   tk.Button(actions,text=toggle_text,command=toggle_control,font=('Segoe UI',9),
-             bg='#2c5d86',fg='white',relief='flat',padx=8,pady=6).pack(side='left',padx=3)
-   tk.Button(actions,text='Encerrar acesso',command=end_access,font=('Segoe UI',9),
-             bg='#ba3b57',fg='white',relief='flat',padx=8,pady=6).pack(side='left',padx=3)
+   bind_theme(tk.Button(actions, text=toggle_text, command=toggle_control, font=('Segoe UI', 9), bg=theme_color('accent'), fg='white', relief='flat', padx=8, pady=6), background='accent').pack(side='left', padx=3)
+   bind_theme(tk.Button(actions, text='Encerrar acesso', command=end_access, font=('Segoe UI', 9), bg=theme_color('danger'), fg='white', relief='flat', padx=8, pady=6), background='danger').pack(side='left', padx=3)
    control_panel.protocol('WM_DELETE_WINDOW',close_panel)
-  icon_btn=tk.Button(banner,text='◉',command=open_controls,font=('Segoe UI',17,'bold'),
-                     bg='#122338',fg='#ffd27a',activebackground='#203d58',
-                     activeforeground='#ffd27a',relief='flat',bd=0,cursor='hand2')
+  icon_btn=bind_theme(tk.Button(banner, text='◉', command=open_controls, font=('Segoe UI', 17, 'bold'), bg=theme_color('alt'), fg=theme_color('warning'), activebackground=theme_color('alt'), activeforeground=theme_color('warning'), relief='flat', bd=0, cursor='hand2'), background='alt', foreground='warning', activebackground='alt', activeforeground='warning')
   icon_btn.pack(fill='both',expand=True)
   update_indicator()
   self._remote_screen_banner=banner
@@ -2145,7 +2129,7 @@ class ArcollApp:
    return
   self.nb.select(self.server_page)
   if ident is not None:self._console_write('', 'C:\\ARCOLL> '+raw,'info')
-  self.cmd_status.configure(text='CMD diagnóstico remoto: '+raw,fg=ACC)
+  bind_theme(self.cmd_status, foreground='accent').configure(text='CMD diagnóstico remoto: ' + raw, fg=theme_color('accent'))
   self._operation_message('remote','executando diagnóstico '+raw)
   def work():
    proc=None; timer=None
@@ -2264,7 +2248,7 @@ class ArcollApp:
     elif not transferred:summary='Falha na sincronização da saída do CMD: '+(last_error or 'nenhum resultado transferido')
     else:summary=('Concluído' if ok else 'Falha')+f' (código {code})'
     self.root.after(0,lambda msg=summary,k=('ok' if ok else 'bad'):self._console_write('CMD',msg,k))
-    self.root.after(0,lambda msg=summary,k=(GREEN if ok else RED):self.cmd_status.configure(text=msg,fg=k))
+    self.root.after(0, lambda msg=summary, k=theme_color('success') if ok else theme_color('danger'): self.cmd_status.configure(text=msg, fg=k))
     if not cancelled and live_id is not None:self._ack_remote_command(live_id,'completed' if ok else 'failed',summary[:350])
    except Exception as exc:
     error='Falha ao executar diagnóstico: '+str(exc)[:320]
@@ -2289,7 +2273,7 @@ class ArcollApp:
   prefix='Solicitação remota' if origin=='remote' else 'Execução local'
   suffix=' · Resultado enviado ao solicitante remoto' if completed and origin=='remote' else ''
   line=prefix+' - '+str(message)+suffix
-  self.status_label.configure(text=line[:180],fg=RED if error else GREEN if completed else ACC)
+  self.status_label.configure(text=line[:180], fg=theme_color('danger') if error else theme_color('success') if completed else theme_color('accent'))
   self.last_status=line
  def refresh_status(self):
   if not ORIGIN or not SITE_CODE:
@@ -2310,10 +2294,10 @@ class ArcollApp:
     self.root.after(0,lambda reason=reason:self._set_remote_state('error','Verificação de autorização: '+reason))
   threading.Thread(target=work,daemon=True).start()
  def set_status(self,msg,color):
-  self._operation_message('local',msg,error=color==RED)
-  self.log(msg,'INFO' if color==GREEN else 'WARN' if color==YELLOW else 'ERROR')
- def start_monitor(self): self._operation_message('remote' if getattr(self,'_handling_remote',False) else 'local','monitoramento iniciado',completed=True); self.monitor_on=True; self._realtime.set_paused(False) if self._realtime else None; self.live_badge.configure(text='◉  MONITORAMENTO CONTÍNUO',bg='#113c35',fg=GREEN); self.log('Monitoramento iniciado.'); self.sync_data({'event':'monitor_state','monitoring':True,'origin':'windows','captured_at':int(time.time())})
- def pause_monitor(self): self._operation_message('remote' if getattr(self,'_handling_remote',False) else 'local','monitoramento pausado',completed=True); self.monitor_on=False; self._realtime.set_paused(True) if self._realtime else None; self.live_badge.configure(text='Ⅱ  MONITORAMENTO PAUSADO',bg='#423419',fg=YELLOW); self.log('Monitoramento pausado.','WARN'); self.sync_data({'event':'monitor_state','monitoring':False,'origin':'windows','captured_at':int(time.time())})
+  self._operation_message('local', msg, error=color == theme_color('danger'))
+  self.log(msg, 'INFO' if color == theme_color('success') else 'WARN' if color == theme_color('warning') else 'ERROR')
+ def start_monitor(self): self._operation_message('remote' if getattr(self,'_handling_remote',False) else 'local','monitoramento iniciado',completed=True); self.monitor_on=True; self._realtime.set_paused(False) if self._realtime else None; bind_theme(self.live_badge, background='alt', foreground='success').configure(text='◉  MONITORAMENTO CONTÍNUO', bg=theme_color('alt'), fg=theme_color('success')); self.log('Monitoramento iniciado.'); self.sync_data({'event': 'monitor_state', 'monitoring': True, 'origin': 'windows', 'captured_at': int(time.time())})
+ def pause_monitor(self): self._operation_message('remote' if getattr(self,'_handling_remote',False) else 'local','monitoramento pausado',completed=True); self.monitor_on=False; self._realtime.set_paused(True) if self._realtime else None; bind_theme(self.live_badge, background='alt', foreground='warning').configure(text='Ⅱ  MONITORAMENTO PAUSADO', bg=theme_color('alt'), fg=theme_color('warning')); self.log('Monitoramento pausado.', 'WARN'); self.sync_data({'event': 'monitor_state', 'monitoring': False, 'origin': 'windows', 'captured_at': int(time.time())})
  def _network_byte_totals(self):
   """Bytes reais da máquina com agente; não efetua teste de velocidade."""
   try:
@@ -2370,11 +2354,11 @@ class ArcollApp:
   sample=data[idx];stamp=time.strftime('%d/%m/%Y %H:%M:%S',time.localtime(sample['time']))
   messagebox.showinfo('Detalhes da medição · '+stamp,'\n'.join((f"Latência: {sample.get('latency') if sample.get('latency') is not None else 'Sem resposta'} ms",f"Download: {float(sample.get('download_mbps') or 0):.2f} Mbps",f"Upload: {float(sample.get('upload_mbps') or 0):.2f} Mbps",f"Perda de resposta: {'Sim' if sample.get('latency') is None else 'Não'}")),parent=self.root)
  def _trade_report(self):
-  dialog=tk.Toplevel(self.root);dialog.title('Relatório de monitoramento');dialog.configure(bg=BG);dialog.geometry('400x240');dialog.transient(self.root);dialog.grab_set()
-  tk.Label(dialog,text='Filtrar amostras por data e hora',fg=FG,bg=BG,font=('Segoe UI',11,'bold')).pack(pady=12)
+  dialog=tk.Toplevel(self.root);dialog.title('Relatório de monitoramento');bind_theme(dialog, background='bg').configure(bg=theme_color('bg'));dialog.geometry('400x240');dialog.transient(self.root);dialog.grab_set()
+  bind_theme(tk.Label(dialog, text='Filtrar amostras por data e hora', fg=theme_color('text'), bg=theme_color('bg'), font=('Segoe UI', 11, 'bold')), foreground='text', background='bg').pack(pady=12)
   inputs=[]
   for label,value in [('Início',time.strftime('%d/%m/%Y 00:00')),('Fim',time.strftime('%d/%m/%Y %H:%M'))]:
-   line=tk.Frame(dialog,bg=BG);line.pack(fill='x',padx=20,pady=4);tk.Label(line,text=label,fg=FG,bg=BG,width=8).pack(side='left');entry=tk.Entry(line);entry.insert(0,value);entry.pack(side='left',fill='x',expand=True);inputs.append(entry)
+   line=bind_theme(tk.Frame(dialog, bg=theme_color('bg')), background='bg');line.pack(fill='x', padx=20, pady=4);bind_theme(tk.Label(line, text=label, fg=theme_color('text'), bg=theme_color('bg'), width=8), foreground='text', background='bg').pack(side='left');entry=tk.Entry(line);entry.insert(0, value);entry.pack(side='left', fill='x', expand=True);inputs.append(entry)
   def export():
    try:
     from datetime import datetime
@@ -2389,7 +2373,7 @@ class ArcollApp:
      for x in matches:w.writerow([time.strftime('%d/%m/%Y %H:%M:%S',time.localtime(x['time'])),x.get('latency'),x.get('download_mbps'),x.get('upload_mbps'),int(x.get('latency') is None)])
     dialog.destroy();messagebox.showinfo('Relatório',f'{len(matches)} medições exportadas.',parent=self.root)
    except Exception as e:messagebox.showerror('Relatório',str(e),parent=dialog)
-  tk.Button(dialog,text='Exportar CSV',command=export,bg='#146288',fg='white',relief='flat',padx=18,pady=6).pack(pady=14)
+  bind_theme(tk.Button(dialog, text='Exportar CSV', command=export, bg=theme_color('accent'), fg='white', relief='flat', padx=18, pady=6), background='accent').pack(pady=14)
  def draw_chart(self):
   if not hasattr(self,'chart'):return
   c=self.chart;c.delete('all');w=max(c.winfo_width(),300);h=max(c.winfo_height(),150);left=49;right=53;top=36;bottom=41
@@ -2397,9 +2381,9 @@ class ArcollApp:
   max_latency=max([10.0]+[float(x['latency']) for x in samples if isinstance(x.get('latency'),(int,float))])*1.15
   max_traffic=max([1.0]+[float(x.get(k)) for x in samples for k in ('download_mbps','upload_mbps') if isinstance(x.get(k),(int,float))])*1.15
   for i in range(5):
-   y=top+i*chart_h/4;c.create_line(left,y,w-right,y,fill='#29425a',dash=(2,3));c.create_text(left-7,y,text=f'{max_latency*(4-i)/4:.0f}',fill='#8eaac3',anchor='e',font=('Segoe UI',8));c.create_text(w-right+7,y,text=f'{max_traffic*(4-i)/4:.1f}',fill='#76d8bc',anchor='w',font=('Segoe UI',8))
+   y=top+i*chart_h/4;bind_canvas(c, c.create_line(left, y, w - right, y, fill=theme_color('border'), dash=(2, 3)), fill='border');bind_canvas(c, c.create_text(left - 7, y, text=f'{max_latency * (4 - i) / 4:.0f}', fill=theme_color('muted'), anchor='e', font=('Segoe UI', 8)), fill='muted');bind_canvas(c, c.create_text(w - right + 7, y, text=f'{max_traffic * (4 - i) / 4:.1f}', fill=theme_color('success'), anchor='w', font=('Segoe UI', 8)), fill='success')
   style=self.trade_style.get() if hasattr(self,'trade_style') else 'Linhas'
-  for k,col in [('latency',ACC),('download_mbps','#37d6a9'),('upload_mbps','#a48aff'),('loss','#ff6983')]:
+  for k,col in [('latency',theme_color('accent')),('download_mbps',theme_color('success')),('upload_mbps',theme_color('accent')),('loss',theme_color('danger'))]:
    if not self.trade_flags[k].get():continue
    previous=None
    for i,sample in enumerate(samples):
@@ -2420,13 +2404,13 @@ class ArcollApp:
   if samples:
    for i in range(5):
     idx=round(i*(len(samples)-1)/4);ss=samples[idx];xx=left+i*chart_w/4
-    c.create_text(xx,h-14,text=time.strftime('%H:%M:%S',time.localtime(ss['time'])),fill=MUTED,font=('Consolas',8))
+    bind_canvas(c, c.create_text(xx, h - 14, text=time.strftime('%H:%M:%S', time.localtime(ss['time'])), fill=theme_color('muted'), font=('Consolas', 8)), fill='muted')
    peaks=[]
    for key,lab in [('download_mbps','↓'),('upload_mbps','↑')]:
     good=[x for x in samples if isinstance(x.get(key),(int,float))]
     if good:
      p=max(good,key=lambda x:x[key]);peaks.append(f"{lab} {p[key]:.2f} Mbps às {time.strftime('%H:%M:%S',time.localtime(p['time']))}")
-   c.create_text(w-right,27,text='  |  '.join(peaks),fill=MUTED,anchor='e',font=('Segoe UI',8))
+   bind_canvas(c, c.create_text(w - right, 27, text='  |  '.join(peaks), fill=theme_color('muted'), anchor='e', font=('Segoe UI', 8)), fill='muted')
  def scan_devices(self):
   if self.scan_running:return
   self._operation_message('remote' if getattr(self,'_remote_scan_command',None) else 'local','examinando dispositivos da rede')
@@ -2626,12 +2610,12 @@ class ArcollApp:
   if not selected:return
   idx=int(selected[0]);
   if idx>=len(self.devices):return
-  d=self.devices[idx];win=tk.Toplevel(self.root);win.title('Identificar dispositivo');win.geometry('410x340');win.configure(bg=BG);win.transient(self.root);win.grab_set()
-  tk.Label(win,text=str(d.get('ip','')),bg=BG,fg=ACC).pack(pady=8)
+  d=self.devices[idx];win=tk.Toplevel(self.root);win.title('Identificar dispositivo');win.geometry('410x340');bind_theme(win, background='bg').configure(bg=theme_color('bg'));win.transient(self.root);win.grab_set()
+  bind_theme(tk.Label(win, text=str(d.get('ip', '')), bg=theme_color('bg'), fg=theme_color('accent')), background='bg', foreground='accent').pack(pady=8)
   name=tk.StringVar(value=d.get('custom_name') or d.get('name',''));kind=tk.StringVar(value=d.get('custom_type') or d.get('type','device'))
-  tk.Label(win,text='Nome do dispositivo',bg=BG,fg=FG).pack();tk.Entry(win,textvariable=name,width=40).pack(pady=5)
-  tk.Label(win,text='Tipo',bg=BG,fg=FG).pack();ttk.Combobox(win,textvariable=kind,values=('computador','celular','tablet','TV','roteador','impressora','servidor','camera','IoT','outro'),width=37).pack(pady=5)
-  tk.Label(win,text='Grupo / setor',bg=BG,fg=FG).pack()
+  bind_theme(tk.Label(win, text='Nome do dispositivo', bg=theme_color('bg'), fg=theme_color('text')), background='bg', foreground='text').pack();tk.Entry(win, textvariable=name, width=40).pack(pady=5)
+  bind_theme(tk.Label(win, text='Tipo', bg=theme_color('bg'), fg=theme_color('text')), background='bg', foreground='text').pack();ttk.Combobox(win, textvariable=kind, values=('computador', 'celular', 'tablet', 'TV', 'roteador', 'impressora', 'servidor', 'camera', 'IoT', 'outro'), width=37).pack(pady=5)
+  bind_theme(tk.Label(win, text='Grupo / setor', bg=theme_color('bg'), fg=theme_color('text')), background='bg', foreground='text').pack()
   groups=self.get_groups(); group_labels=['Sem grupo']+[label for gid,label in groups];group_ids=[None]+[gid for gid,label in groups]
   current=next((i for i,gid in enumerate(group_ids) if gid==d.get('group_id')),0);group_var=tk.StringVar(value=group_labels[current]);ttk.Combobox(win,textvariable=group_var,values=group_labels,state='readonly',width=37).pack(pady=5)
   def save():
@@ -2760,55 +2744,55 @@ class ArcollApp:
   self._server_items={}
   self._server_components={}
   self._server_order=[]
-  shell=tk.Frame(page,bg=BG)
+  shell=bind_theme(tk.Frame(page, bg=theme_color('bg')), background='bg')
   shell.pack(fill='both',expand=True,padx=10,pady=10)
-  sidebar=tk.Frame(shell,bg='#101010',width=250,highlightbackground='#2a2a2a',highlightthickness=1)
+  sidebar=bind_theme(tk.Frame(shell, bg=theme_color('surface'), width=250, highlightbackground=theme_color('border'), highlightthickness=1), background='surface', highlightbackground='border')
   sidebar.pack(side='left',fill='y',padx=(0,8))
   sidebar.pack_propagate(False)
   self._server_sidebar=sidebar
-  self._server_sidebar_title=tk.Label(sidebar,text='COMPONENTES',bg='#101010',fg='#d4d4d4',font=('Segoe UI',9,'bold'))
+  self._server_sidebar_title=bind_theme(tk.Label(sidebar, text='COMPONENTES', bg=theme_color('surface'), fg=theme_color('text'), font=('Segoe UI', 9, 'bold')), background='surface', foreground='text')
   self._server_sidebar_title.pack(fill='x',padx=12,pady=(10,6))
-  self._server_list=tk.Frame(sidebar,bg='#101010')
+  self._server_list=bind_theme(tk.Frame(sidebar, bg=theme_color('surface')), background='surface')
   self._server_list.pack(fill='both',expand=True,padx=6,pady=(0,6))
 
-  content=tk.Frame(shell,bg='#121212',highlightbackground='#2a2a2a',highlightthickness=1)
+  content=bind_theme(tk.Frame(shell, bg=theme_color('surface'), highlightbackground=theme_color('border'), highlightthickness=1), background='surface', highlightbackground='border')
   content.pack(side='left',fill='both',expand=True)
-  head=tk.Frame(content,bg='#121212')
+  head=bind_theme(tk.Frame(content, bg=theme_color('surface')), background='surface')
   head.pack(fill='x',padx=18,pady=(14,2))
-  self._server_title=tk.Label(head,text='Servidor',font=('Segoe UI',24,'bold'),fg='#ffffff',bg='#121212')
+  self._server_title=bind_theme(tk.Label(head, text='Servidor', font=('Segoe UI', 24, 'bold'), fg=theme_color('text'), bg=theme_color('surface')), foreground='text', background='surface')
   self._server_title.pack(side='left')
-  self._server_value=tk.Label(head,text='Aguardando leitura',font=('Segoe UI',17),fg='#39c5ff',bg='#121212')
+  self._server_value=bind_theme(tk.Label(head, text='Aguardando leitura', font=('Segoe UI', 17), fg=theme_color('accent'), bg=theme_color('surface')), foreground='accent', background='surface')
   self._server_value.pack(side='right')
-  self._server_subtitle=tk.Label(content,text='Monitoramento passivo dos componentes detectados automaticamente.',font=('Segoe UI',10),fg='#b7b7b7',bg='#121212',anchor='w')
+  self._server_subtitle=bind_theme(tk.Label(content, text='Monitoramento passivo dos componentes detectados automaticamente.', font=('Segoe UI', 10), fg=theme_color('muted'), bg=theme_color('surface'), anchor='w'), foreground='muted', background='surface')
   self._server_subtitle.pack(fill='x',padx=20)
-  self._server_statbar=tk.Frame(content,bg='#121212')
+  self._server_statbar=bind_theme(tk.Frame(content, bg=theme_color('surface')), background='surface')
   self._server_statbar.pack(fill='x',padx=18,pady=(10,6))
   self._server_stats=[]
   for _ in range(4):
-   box=tk.Frame(self._server_statbar,bg='#171717',highlightbackground='#313131',highlightthickness=1)
+   box=bind_theme(tk.Frame(self._server_statbar, bg=theme_color('surface'), highlightbackground=theme_color('border'), highlightthickness=1), background='surface', highlightbackground='border')
    box.pack(side='left',fill='both',expand=True,padx=4)
-   lbl=tk.Label(box,text='—',bg='#171717',fg='#8f8f8f',font=('Segoe UI',9,'bold'))
+   lbl=bind_theme(tk.Label(box, text='—', bg=theme_color('surface'), fg=theme_color('muted'), font=('Segoe UI', 9, 'bold')), background='surface', foreground='muted')
    lbl.pack(anchor='w',padx=10,pady=(8,0))
-   val=tk.Label(box,text='--',bg='#171717',fg='#ffffff',font=('Segoe UI',13,'bold'))
+   val=bind_theme(tk.Label(box, text='--', bg=theme_color('surface'), fg=theme_color('text'), font=('Segoe UI', 13, 'bold')), background='surface', foreground='text')
    val.pack(anchor='w',padx=10,pady=(0,8))
    self._server_stats.append((lbl,val))
-  tk.Label(content,text='Últimos 60 segundos',font=('Segoe UI',9),fg='#a5a5a5',bg='#121212',anchor='w').pack(fill='x',padx=20)
-  self._server_canvas=tk.Canvas(content,background='#0f0f0f',highlightthickness=1,highlightbackground='#2f2f2f',cursor='crosshair')
+  bind_theme(tk.Label(content, text='Últimos 60 segundos', font=('Segoe UI', 9), fg=theme_color('muted'), bg=theme_color('surface'), anchor='w'), foreground='muted', background='surface').pack(fill='x', padx=20)
+  self._server_canvas=bind_theme(tk.Canvas(content, background=theme_color('surface'), highlightthickness=1, highlightbackground=theme_color('border'), cursor='crosshair'), background='surface', highlightbackground='border')
   self._server_canvas.pack(fill='both',expand=True,padx=18,pady=6)
   self._server_canvas.bind('<Configure>',lambda _e:self._server_draw())
   self._server_canvas.bind('<Button-1>',self._server_point_detail)
-  self._server_note=tk.Label(content,text='Aguardando medições da máquina local.',font=('Segoe UI',10),fg='#bcbcbc',bg='#121212',anchor='w',justify='left',wraplength=980)
+  self._server_note=bind_theme(tk.Label(content, text='Aguardando medições da máquina local.', font=('Segoe UI', 10), fg=theme_color('muted'), bg=theme_color('surface'), anchor='w', justify='left', wraplength=980), foreground='muted', background='surface')
   self._server_note.pack(fill='x',padx=18,pady=(4,14))
 
  def _server_palette(self,group,index=0):
   palettes={
-   'internet':['#36c5ff','#2dd4bf','#b388ff','#ffb84d'],
-   'cpu':['#24c8ff'],
-   'memory':['#3f8cff'],
-   'disk':['#8bcf26','#b9dd37','#6cc04a'],
-   'network':['#ff4f9a','#ff6b6b','#ff9d7a'],
-   'gpu':['#c66bff','#e879f9','#a855f7'],
-   'generic':['#5cc8ff','#5dd39e','#ffb84d','#b388ff']
+   'internet':[theme_color('accent'),theme_color('success'),theme_color('violet'),theme_color('warning')],
+   'cpu':[theme_color('accent')],
+   'memory':[theme_color('accent')],
+   'disk':[theme_color('success'),theme_color('success'),theme_color('success')],
+   'network':[theme_color('danger'),theme_color('danger'),theme_color('danger')],
+   'gpu':[theme_color('violet'),theme_color('violet'),theme_color('violet')],
+   'generic':[theme_color('accent'),theme_color('success'),theme_color('warning'),theme_color('violet')]
   }
   options=palettes.get(group,palettes['generic'])
   return options[index % len(options)]
@@ -2871,19 +2855,7 @@ class ArcollApp:
    internet_detail=f'Latência: {self._server_format_unit("ms",latency)} • Download: {self._server_format_unit("Mbps",download)} • Upload: {self._server_format_unit("Mbps",upload)}'
    if isinstance(loss,(int,float)):
     internet_detail+=f' • Perdas: {loss:.1f}%'
-  comps.append(self._server_make_component(
-   'internet','Internet','internet',latency,'ms',internet_detail,
-   subtitle='Latência • tráfego • perdas',
-   series={'latency_ms':latency,'download_mbps':download,'upload_mbps':upload,'loss_percent':loss},
-   series_meta={
-    'latency_ms':{'label':'Latência','unit':'ms','color':'#36c5ff'},
-    'download_mbps':{'label':'Download','unit':'Mbps','color':'#2dd4bf'},
-    'upload_mbps':{'label':'Upload','unit':'Mbps','color':'#b388ff'},
-    'loss_percent':{'label':'Perdas','unit':'%','color':'#ffb84d'},
-   },
-   accent='#36c5ff',
-   header='Monitoramento em tempo real'
-  ))
+  comps.append(self._server_make_component('internet', 'Internet', 'internet', latency, 'ms', internet_detail, subtitle='Latência • tráfego • perdas', series={'latency_ms': latency, 'download_mbps': download, 'upload_mbps': upload, 'loss_percent': loss}, series_meta={'latency_ms': {'label': 'Latência', 'unit': 'ms', 'color': theme_color('accent')}, 'download_mbps': {'label': 'Download', 'unit': 'Mbps', 'color': theme_color('success')}, 'upload_mbps': {'label': 'Upload', 'unit': 'Mbps', 'color': theme_color('violet')}, 'loss_percent': {'label': 'Perdas', 'unit': '%', 'color': theme_color('warning')}}, accent=theme_color('accent'), header='Monitoramento em tempo real'))
   comps.append(self._server_make_component('cpu','CPU','cpu',sample.get('CPU'),'%',details.get('CPU','Calculando uso da CPU...'),subtitle=str(meta.get('cpu_name') or 'Processador'),accent=self._server_palette('cpu')))
   memory=meta.get('memory') or {}
   mem_sub='Memória do sistema'
@@ -2903,19 +2875,10 @@ class ArcollApp:
   total_net=(net_down or 0.0)+(net_up or 0.0) if isinstance(net_down,(int,float)) or isinstance(net_up,(int,float)) else sample.get('Rede')
   net_detail=details.get('Rede','Calculando taxa de rede...')
   if not (meta.get('interfaces') or []):
-   comps.append(self._server_make_component('network_total','Rede','network',total_net,'Mbps',net_detail,subtitle=f"Enviar {self._server_format_unit('Mbps',net_up,True)} • Receber {self._server_format_unit('Mbps',net_down,True)}",accent=self._server_palette('network'),series={'download_mbps':net_down,'upload_mbps':net_up},series_meta={'download_mbps':{'label':'Receber','unit':'Mbps','color':'#ff4f9a'},'upload_mbps':{'label':'Enviar','unit':'Mbps','color':'#ff9d7a'}},header='Adaptadores ativos'))
+   comps.append(self._server_make_component('network_total', 'Rede', 'network', total_net, 'Mbps', net_detail, subtitle=f"Enviar {self._server_format_unit('Mbps', net_up, True)} • Receber {self._server_format_unit('Mbps', net_down, True)}", accent=self._server_palette('network'), series={'download_mbps': net_down, 'upload_mbps': net_up}, series_meta={'download_mbps': {'label': 'Receber', 'unit': 'Mbps', 'color': theme_color('danger')}, 'upload_mbps': {'label': 'Enviar', 'unit': 'Mbps', 'color': theme_color('danger')}}, header='Adaptadores ativos'))
   for idx,iface in enumerate(meta.get('interfaces') or []):
    iface_down=iface.get('download_mbps'); iface_up=iface.get('upload_mbps')
-   comps.append(self._server_make_component(
-    f"network_{idx}",iface.get('name') or f"Adaptador {idx+1}",'network',
-    (iface_down or 0.0)+(iface_up or 0.0) if isinstance(iface_down,(int,float)) or isinstance(iface_up,(int,float)) else None,
-    'Mbps',
-    f"Enviar: {self._server_format_unit('Mbps',iface_up)} • Receber: {self._server_format_unit('Mbps',iface_down)}",
-    subtitle=f"S {self._server_format_unit('Mbps',iface_up,True)} • R {self._server_format_unit('Mbps',iface_down,True)}",
-    series={'download_mbps':iface_down,'upload_mbps':iface_up},
-    series_meta={'download_mbps':{'label':'Receber','unit':'Mbps','color':'#ff4f9a'},'upload_mbps':{'label':'Enviar','unit':'Mbps','color':'#ff9d7a'}},
-    accent=self._server_palette('network',idx+1),
-    header='Interface de rede'))
+   comps.append(self._server_make_component(f'network_{idx}', iface.get('name') or f'Adaptador {idx + 1}', 'network', (iface_down or 0.0) + (iface_up or 0.0) if isinstance(iface_down, (int, float)) or isinstance(iface_up, (int, float)) else None, 'Mbps', f"Enviar: {self._server_format_unit('Mbps', iface_up)} • Receber: {self._server_format_unit('Mbps', iface_down)}", subtitle=f"S {self._server_format_unit('Mbps', iface_up, True)} • R {self._server_format_unit('Mbps', iface_down, True)}", series={'download_mbps': iface_down, 'upload_mbps': iface_up}, series_meta={'download_mbps': {'label': 'Receber', 'unit': 'Mbps', 'color': theme_color('danger')}, 'upload_mbps': {'label': 'Enviar', 'unit': 'Mbps', 'color': theme_color('danger')}}, accent=self._server_palette('network', idx + 1), header='Interface de rede'))
   gpus=meta.get('gpus') or []
   if gpus:
    for idx,gpu in enumerate(gpus):
@@ -2937,15 +2900,15 @@ class ArcollApp:
   self._server_items={}
   for key in self._server_order:
    comp=self._server_components[key]
-   box=tk.Frame(self._server_list,bg='#171717',cursor='hand2',highlightthickness=1,highlightbackground='#252525')
+   box=bind_theme(tk.Frame(self._server_list, bg=theme_color('surface'), cursor='hand2', highlightthickness=1, highlightbackground=theme_color('border')), background='surface', highlightbackground='border')
    box.pack(fill='x',padx=4,pady=4)
-   spark=tk.Canvas(box,width=98,height=54,bg='#0f0f0f',highlightthickness=1,highlightbackground='#303030',cursor='hand2')
+   spark=bind_theme(tk.Canvas(box, width=98, height=54, bg=theme_color('surface'), highlightthickness=1, highlightbackground=theme_color('border'), cursor='hand2'), background='surface', highlightbackground='border')
    spark.pack(side='left',padx=8,pady=8)
-   texts=tk.Frame(box,bg='#171717',cursor='hand2')
+   texts=bind_theme(tk.Frame(box, bg=theme_color('surface'), cursor='hand2'), background='surface')
    texts.pack(side='left',fill='both',expand=True,padx=(0,8),pady=8)
-   title=tk.Label(texts,text=comp['title'],anchor='w',bg='#171717',fg='#f2f2f2',font=('Segoe UI',10,'bold'),cursor='hand2')
+   title=bind_theme(tk.Label(texts, text=comp['title'], anchor='w', bg=theme_color('surface'), fg=theme_color('text'), font=('Segoe UI', 10, 'bold'), cursor='hand2'), background='surface', foreground='text')
    title.pack(fill='x')
-   subtitle=tk.Label(texts,text=comp.get('subtitle') or '',anchor='w',bg='#171717',fg='#a9a9a9',font=('Segoe UI',9),cursor='hand2')
+   subtitle=bind_theme(tk.Label(texts, text=comp.get('subtitle') or '', anchor='w', bg=theme_color('surface'), fg=theme_color('muted'), font=('Segoe UI', 9), cursor='hand2'), background='surface', foreground='muted')
    subtitle.pack(fill='x')
    for widget in (box,spark,texts,title,subtitle):
     widget.bind('<Button-1>',lambda _e,k=key:self._server_select(k))
@@ -2956,9 +2919,9 @@ class ArcollApp:
   for key,item in self._server_items.items():
    selected=(key==self._server_selected)
    comp=self._server_components.get(key,{})
-   item['box'].config(highlightbackground=(comp.get('accent') if selected else '#252525'),bg='#1e1e1e' if selected else '#171717')
-   item['title'].config(bg='#1e1e1e' if selected else '#171717')
-   item['subtitle'].config(bg='#1e1e1e' if selected else '#171717')
+   item['box'].config(highlightbackground=comp.get('accent') if selected else theme_color('border'), bg=theme_color('alt') if selected else theme_color('surface'))
+   item['title'].config(bg=theme_color('alt') if selected else theme_color('surface'))
+   item['subtitle'].config(bg=theme_color('alt') if selected else theme_color('surface'))
 
  def _server_select(self,key):
   self._server_selected=key
@@ -2981,10 +2944,10 @@ class ArcollApp:
   w=max(96,int(canvas.winfo_width() or 96));h=max(54,int(canvas.winfo_height() or 54))
   if comp.get('group')=='internet':
    values=[e.get('series',{}).get('latency_ms') for e in entries]
-   unit='ms';color='#36c5ff';fill='#14394a'
+   unit='ms';color=theme_color('accent');fill=theme_color('alt')
   else:
    values=[e.get('value') for e in entries]
-   unit=comp.get('unit','%');color=comp.get('accent','#5cc8ff');fill='#173242'
+   unit=comp.get('unit','%');color=comp.get('accent', theme_color('accent'));fill=theme_color('alt')
   maxv=self._server_nice_max(unit,values,100.0 if unit=='%' else 10.0)
   points=[]
   for idx,e in enumerate(entries):
@@ -3020,13 +2983,13 @@ class ArcollApp:
   x0,y0,x1,y1=70,24,w-18,h-34
   for i in range(6):
    y=y0+(y1-y0)*i/5
-   c.create_line(x0,y,x1,y,fill='#2a2a2a')
-   c.create_text(x0-8,y,text=f'{maxv*(5-i)/5:g}',fill='#9f9f9f',anchor='e',font=('Consolas',9))
+   bind_canvas(c, c.create_line(x0, y, x1, y, fill=theme_color('border')), fill='border')
+   bind_canvas(c, c.create_text(x0 - 8, y, text=f'{maxv * (5 - i) / 5:g}', fill=theme_color('muted'), anchor='e', font=('Consolas', 9)), fill='muted')
   for i in range(11):
    x=x0+(x1-x0)*i/10
-   c.create_line(x,y0,x,y1,fill='#1c1c1c')
-  c.create_text(x0,y1+18,text='60 segundos',fill='#9f9f9f',anchor='w',font=('Consolas',9))
-  c.create_text(x1,y1+18,text='0',fill='#9f9f9f',anchor='e',font=('Consolas',9))
+   bind_canvas(c, c.create_line(x, y0, x, y1, fill=theme_color('border')), fill='border')
+  bind_canvas(c, c.create_text(x0, y1 + 18, text='60 segundos', fill=theme_color('muted'), anchor='w', font=('Consolas', 9)), fill='muted')
+  bind_canvas(c, c.create_text(x1, y1 + 18, text='0', fill=theme_color('muted'), anchor='e', font=('Consolas', 9)), fill='muted')
   return x0,y0,x1,y1
 
  def _server_plot_single(self,c,entries,comp,w,h):
@@ -3042,10 +3005,10 @@ class ArcollApp:
    y=y1-(max(0.0,min(float(value),maxv))/maxv)*(y1-y0)
    plot.extend((x,y));pts.append((x,y,e.get('time'),value,e.get('detail','')))
   if len(plot)>=4:
-   c.create_polygon(plot[0],y1,*plot,plot[-2],y1,fill='#0d3948',outline='')
-   c.create_line(*plot,fill=comp.get('accent','#36c5ff'),width=2)
+   bind_canvas(c, c.create_polygon(plot[0], y1, *plot, plot[-2], y1, fill=theme_color('alt'), outline=''), fill='alt')
+   c.create_line(*plot, fill=comp.get('accent', theme_color('accent')), width=2)
   elif len(plot)==2:
-   c.create_oval(plot[0]-3,plot[1]-3,plot[0]+3,plot[1]+3,fill=comp.get('accent','#36c5ff'),outline=comp.get('accent','#36c5ff'))
+   c.create_oval(plot[0] - 3, plot[1] - 3, plot[0] + 3, plot[1] + 3, fill=comp.get('accent', theme_color('accent')), outline=comp.get('accent', theme_color('accent')))
   self._server_points=pts
 
  def _server_plot_internet(self,c,entries,comp,w,h):
@@ -3064,15 +3027,15 @@ class ArcollApp:
     y=y1-(max(0.0,min(float(value),maxv))/maxv)*(y1-y0)
     plot.extend((x,y));pts.append((x,y,e.get('time'),value,f"{meta.get('label')}: {self._server_format_unit(meta.get('unit'),value)}"))
    if len(plot)>=4:
-    c.create_line(*plot,fill=meta.get('color','#36c5ff'),width=2)
+    c.create_line(*plot, fill=meta.get('color', theme_color('accent')), width=2)
    elif len(plot)==2:
-    c.create_oval(plot[0]-2,plot[1]-2,plot[0]+2,plot[1]+2,fill=meta.get('color','#36c5ff'),outline=meta.get('color','#36c5ff'))
+    c.create_oval(plot[0] - 2, plot[1] - 2, plot[0] + 2, plot[1] + 2, fill=meta.get('color', theme_color('accent')), outline=meta.get('color', theme_color('accent')))
    self._server_points.extend(pts)
    legend.append(meta)
   lx=x0
   for meta in legend:
    c.create_rectangle(lx,y0-14,lx+10,y0-4,fill=meta.get('color'),outline='')
-   c.create_text(lx+14,y0-9,text=meta.get('label'),fill='#bfbfbf',anchor='w',font=('Segoe UI',8))
+   bind_canvas(c, c.create_text(lx + 14, y0 - 9, text=meta.get('label'), fill=theme_color('muted'), anchor='w', font=('Segoe UI', 8)), fill='muted')
    lx+=90
 
  def _server_update_stats(self,comp,entries):
@@ -3113,9 +3076,9 @@ class ArcollApp:
   if comp.get('group')=='internet':
    last=entries[-1] if entries else {}
    main=(last.get('series') or {}).get('latency_ms')
-   self._server_value.config(text=self._server_format_unit('ms',main),fg=comp.get('accent','#36c5ff'))
+   self._server_value.config(text=self._server_format_unit('ms', main), fg=comp.get('accent', theme_color('accent')))
   else:
-   self._server_value.config(text=self._server_format_unit(comp.get('unit','%'),comp.get('value')),fg=comp.get('accent','#36c5ff'))
+   self._server_value.config(text=self._server_format_unit(comp.get('unit', '%'), comp.get('value')), fg=comp.get('accent', theme_color('accent')))
   self._server_subtitle.config(text=comp.get('header') or comp.get('subtitle') or '')
   self._server_note.config(text=comp.get('detail') or 'Aguardando medições da máquina.')
   self._server_update_stats(comp,entries)
@@ -3261,11 +3224,11 @@ class ArcollApp:
   progress.title('Atualizando agente Arcoll')
   progress.transient(self.root)
   progress.resizable(False,False)
-  progress.configure(bg='#0c1828')
+  bind_theme(progress, background='alt').configure(bg=theme_color('alt'))
   pw,ph=410,145
   progress.geometry(f'{pw}x{ph}+{max(0,(progress.winfo_screenwidth()-pw)//2)}+{max(0,(progress.winfo_screenheight()-ph)//2)}')
-  tk.Label(progress,text='Atualizando agente',font=('Segoe UI',14,'bold'),bg='#0c1828',fg='#f3f7ff').pack(pady=(16,5))
-  progress_text=tk.Label(progress,text='Verificando atualização disponível...',bg='#0c1828',fg='#9fb8ce',font=('Segoe UI',9))
+  bind_theme(tk.Label(progress, text='Atualizando agente', font=('Segoe UI', 14, 'bold'), bg=theme_color('alt'), fg=theme_color('text')), background='alt', foreground='text').pack(pady=(16, 5))
+  progress_text=bind_theme(tk.Label(progress, text='Verificando atualização disponível...', bg=theme_color('alt'), fg=theme_color('muted'), font=('Segoe UI', 9)), background='alt', foreground='muted')
   progress_text.pack(pady=4)
   progress_bar=ttk.Progressbar(progress,mode='indeterminate',length=345)
   progress_bar.pack(pady=(8,6));progress_bar.start(12)
@@ -3372,23 +3335,23 @@ class ArcollApp:
  def _modern_header(self):
   try:self.root.attributes('-alpha',0.0)
   except tk.TclError:pass
-  h=tk.Canvas(self.root,height=60,bg='#060b14',highlightthickness=0);h.pack(fill='x');self.hdr=h
+  h=bind_theme(tk.Canvas(self.root, height=60, bg=theme_color('surface'), highlightthickness=0), background='surface');h.pack(fill='x');self.hdr=h
   self._hdr_phase=0.0;self._hdr_segs=[]
-  h.create_text(22,18,text='ARCOLL DIGITAL  ·  GESTÃO DE REDES',anchor='w',fill=ACC,font=('Segoe UI',9,'bold'))
-  h.create_text(22,40,text='Arcoll Speed Connection',anchor='w',fill=FG,font=('Segoe UI',17,'bold'))
-  self.hdr_version=h.create_text(0,0,anchor='e',fill=MUTED,font=('Consolas',9),text='v. '+AGENT_VERSION)
+  bind_canvas(h, h.create_text(22, 18, text='ARCOLL DIGITAL  ·  GESTÃO DE REDES', anchor='w', fill=theme_color('accent'), font=('Segoe UI', 9, 'bold')), fill='accent')
+  bind_canvas(h, h.create_text(22, 40, text='Arcoll Speed Connection', anchor='w', fill=theme_color('text'), font=('Segoe UI', 17, 'bold')), fill='text')
+  self.hdr_version=bind_canvas(h, h.create_text(0, 0, anchor='e', fill=theme_color('muted'), font=('Consolas', 9), text='v. ' + AGENT_VERSION), fill='muted')
   self.hdr_led=None
   self.hdr_state=None
   self.hdr_clock=None
   self.hdr_local=None
-  self.hdr_min=tk.Label(self.root,text='—',font=('Segoe UI',10),bg='#060b14',fg='#9bb7cc',cursor='hand2')
-  self.hdr_max=tk.Label(self.root,text='□',font=('Segoe UI',9),bg='#060b14',fg='#9bb7cc',cursor='hand2')
+  self.hdr_min=bind_theme(tk.Label(self.root, text='—', font=('Segoe UI', 10), bg=theme_color('surface'), fg=theme_color('muted'), cursor='hand2'), background='surface', foreground='muted')
+  self.hdr_max=bind_theme(tk.Label(self.root, text='□', font=('Segoe UI', 9), bg=theme_color('surface'), fg=theme_color('muted'), cursor='hand2'), background='surface', foreground='muted')
   self.hdr_min.bind('<Button-1>',lambda _e:self._minimize_window())
   self.hdr_max.bind('<Button-1>',lambda _e:self._maximize_window())
   h.create_window(0,0,window=self.hdr_min,anchor='e',tags='window-min')
   h.create_window(0,0,window=self.hdr_max,anchor='e',tags='window-max')
-  self.hdr_uninstall=tk.Button(self.root,text='Atualizar',font=('Segoe UI',8),bg='#101827',fg='#8298ac',activeforeground='#b9ffef',activebackground='#1d293d',relief='flat',bd=0,cursor='hand2',command=self.update_agent);h.create_window(0,0,window=self.hdr_uninstall,anchor='e',tags='uninstall')
-  for _ in range(56):self._hdr_segs.append(h.create_rectangle(0,0,0,0,fill=ACC,outline=''))
+  self.hdr_uninstall=bind_theme(tk.Button(self.root, text='Atualizar', font=('Segoe UI', 8), bg=theme_color('alt'), fg=theme_color('muted'), activeforeground=theme_color('text'), activebackground=theme_color('alt'), relief='flat', bd=0, cursor='hand2', command=self.update_agent), background='alt', foreground='muted', activeforeground='text', activebackground='alt');h.create_window(0, 0, window=self.hdr_uninstall, anchor='e', tags='uninstall')
+  for _ in range(56):self._hdr_segs.append(bind_canvas(h, h.create_rectangle(0, 0, 0, 0, fill=theme_color('accent'), outline=''), fill='accent'))
   h.bind('<Configure>',lambda _e:self._hdr_layout())
   h.bind('<ButtonPress-1>',self._header_drag_start)
   h.bind('<B1-Motion>',self._header_drag_move)
@@ -3415,7 +3378,7 @@ class ArcollApp:
    h=self.hdr;self._hdr_phase+=0.11;w=max(300,h.winfo_width());n=len(self._hdr_segs)
    for i,s in enumerate(self._hdr_segs):
     k=(math.sin(self._hdr_phase+i*0.24)+1)/2
-    h.itemconfigure(s,fill=self._mix('#0b3a52',self._mix(ACC,VIOLET,k),0.35+0.65*k))
+    h.itemconfigure(s, fill=self._mix(theme_color('alt'), self._mix(theme_color('accent'), theme_color('violet'), k), 0.35 + 0.65 * k))
    # Status da comunicação permanece no rodapé do aplicativo.
   except (tk.TclError,AttributeError):return
   self.root.after(70,self._animate_header)
@@ -3423,33 +3386,33 @@ class ArcollApp:
  def _build_command_center(self):
   """Prompt com digitação dentro da área preta; mesmas ações da aba web."""
   p=self.command_page;self.cmd_cards={}
-  outer=tk.Frame(p,bg='#0a0a0a',highlightbackground='#404a57',highlightthickness=1)
+  outer=bind_theme(tk.Frame(p, bg=theme_color('surface'), highlightbackground=theme_color('border'), highlightthickness=1), background='surface', highlightbackground='border')
   outer.pack(fill='both',expand=True,padx=12,pady=(10,11))
-  title=tk.Frame(outer,bg='#202124',height=36);title.pack(fill='x');title.pack_propagate(False)
-  tk.Label(title,text='▣  Arcoll: Prompt de Comando - Agente Windows',bg='#202124',fg='#e9e9e9',font=('Segoe UI',10),anchor='w').pack(side='left',fill='x',expand=True,padx=12)
-  controls=tk.Frame(outer,bg='#171819');controls.pack(fill='x')
+  title=bind_theme(tk.Frame(outer, bg=theme_color('alt'), height=36), background='alt');title.pack(fill='x');title.pack_propagate(False)
+  bind_theme(tk.Label(title, text='▣  Arcoll: Prompt de Comando - Agente Windows', bg=theme_color('alt'), fg=theme_color('text'), font=('Segoe UI', 10), anchor='w'), background='alt', foreground='text').pack(side='left', fill='x', expand=True, padx=12)
+  controls=bind_theme(tk.Frame(outer, bg=theme_color('surface')), background='surface');controls.pack(fill='x')
   for label,raw in (('Teste DNS','nslookup google.com'),('Detalhes Wi-Fi','netsh wlan show interfaces'),('Limpar cache DNS','ipconfig /flushdns')):
    self._cmd_shortcut_button(controls,label,raw)
   self.btn(controls,'Ctrl+C',self._cancel_local_diagnostic).pack(side='left',padx=3,pady=6)
   self.btn(controls,'Limpar tela',self._clear_command_screen).pack(side='left',padx=3,pady=6)
-  self.cmd_status=tk.Label(controls,text='Pronto',bg='#171819',fg='#aebaca',font=('Segoe UI',9));self.cmd_status.pack(side='right',padx=10)
-  console_area=tk.Frame(outer,bg='#0b0b0b');console_area.pack(fill='both',expand=True)
-  self.cmd_console=tk.Text(console_area,bg='#0b0b0b',fg='#f0f0f0',insertbackground='#ffffff',font=('Consolas',10),wrap='word',relief='flat',highlightthickness=0,padx=11,pady=10,spacing1=0,spacing3=0)
+  self.cmd_status=bind_theme(tk.Label(controls, text='Pronto', bg=theme_color('surface'), fg=theme_color('muted'), font=('Segoe UI', 9)), background='surface', foreground='muted');self.cmd_status.pack(side='right', padx=10)
+  console_area=bind_theme(tk.Frame(outer, bg=theme_color('surface')), background='surface');console_area.pack(fill='both', expand=True)
+  self.cmd_console=bind_theme(tk.Text(console_area, bg=theme_color('surface'), fg=theme_color('text'), insertbackground=theme_color('text'), font=('Consolas', 10), wrap='word', relief='flat', highlightthickness=0, padx=11, pady=10, spacing1=0, spacing3=0), background='surface', foreground='text', insertbackground='text')
   self.cmd_console.pack(fill='both',expand=True)
   self.cmd_console.configure(state='disabled')
-  for tag,col in (('ok','#9fe6b3'),('bad','#ff9e9e'),('info','#eaeaea'),('time','#acb5c2')):self.cmd_console.tag_configure(tag,foreground=col)
-  prompt=tk.Frame(console_area,bg='#0b0b0b');prompt.pack(fill='x',padx=11,pady=(0,12))
-  tk.Label(prompt,text='C:\\ARCOLL> ',bg='#0b0b0b',fg='#f0f0f0',font=('Consolas',10)).pack(side='left')
-  self.cmd_input=tk.Entry(prompt,bg='#0b0b0b',fg='#f0f0f0',insertbackground='#ffffff',relief='flat',highlightthickness=0,bd=0,font=('Consolas',10))
+  for tag,col in (('ok',theme_color('success')),('bad',theme_color('alt')),('info',theme_color('surface')),('time',theme_color('alt'))):self.cmd_console.tag_configure(tag, foreground=col)
+  prompt=bind_theme(tk.Frame(console_area, bg=theme_color('surface')), background='surface');prompt.pack(fill='x', padx=11, pady=(0, 12))
+  bind_theme(tk.Label(prompt, text='C:\\ARCOLL> ', bg=theme_color('surface'), fg=theme_color('text'), font=('Consolas', 10)), background='surface', foreground='text').pack(side='left')
+  self.cmd_input=bind_theme(tk.Entry(prompt, bg=theme_color('surface'), fg=theme_color('text'), insertbackground=theme_color('text'), relief='flat', highlightthickness=0, bd=0, font=('Consolas', 10)), background='surface', foreground='text', insertbackground='text')
   self.cmd_input.pack(side='left',fill='x',expand=True)
   self.cmd_input.bind('<Return>',self._command_enter)
   self.cmd_input.bind('<Up>',self._command_history_up)
   self.cmd_input.bind('<Down>',self._command_history_down)
   self.cmd_console.bind('<ButtonRelease-1>',lambda _e:self.cmd_input.focus_set())
   self.cmd_history=[];self.cmd_history_index=0;self._active_diagnostic_proc=None
-  foot=tk.Frame(outer,bg='#202124',height=24);foot.pack(fill='x');foot.pack_propagate(False)
-  tk.Label(foot,text='Comandos de diagnóstico autorizados · Digite ajuda',bg='#202124',fg='#b3c0d0',font=('Segoe UI',8)).pack(side='left',padx=10)
-  tk.Label(foot,text='AGENTE '+SITE_CODE+'  ·  v'+AGENT_VERSION,bg='#202124',fg='#b3c0d0',font=('Consolas',8)).pack(side='right',padx=10)
+  foot=bind_theme(tk.Frame(outer, bg=theme_color('alt'), height=24), background='alt');foot.pack(fill='x');foot.pack_propagate(False)
+  bind_theme(tk.Label(foot, text='Comandos de diagnóstico autorizados · Digite ajuda', bg=theme_color('alt'), fg=theme_color('muted'), font=('Segoe UI', 8)), background='alt', foreground='muted').pack(side='left', padx=10)
+  bind_theme(tk.Label(foot, text='AGENTE ' + SITE_CODE + '  ·  v' + AGENT_VERSION, bg=theme_color('alt'), fg=theme_color('muted'), font=('Consolas', 8)), background='alt', foreground='muted').pack(side='right', padx=10)
   self._console_write('',"Arcoll Speed Connection - Prompt de Diagnóstico Windows\n(c) Arcoll Digital. Operações autorizadas e auditadas.\nDigite ajuda para consultar os comandos disponíveis.\n",'info')
   self.cmd_input.focus_set()
 
@@ -3494,13 +3457,13 @@ class ArcollApp:
   self.cmd_input.focus_set()
  def _command_card(self,parent,item,row,col):
   key,icon,title,desc=item
-  f=tk.Frame(parent,bg=PANEL,highlightbackground='#22334d',highlightthickness=1,cursor='hand2')
+  f=bind_theme(tk.Frame(parent, bg=theme_color('surface'), highlightbackground=theme_color('border'), highlightthickness=1, cursor='hand2'), background='surface', highlightbackground='border')
   f.grid(row=row,column=col,sticky='nsew',padx=6,pady=6)
-  ic=tk.Label(f,text=icon,font=('Segoe UI Emoji',20),bg=PANEL,fg=ACC);ic.pack(anchor='w',padx=14,pady=(12,0))
-  tt=tk.Label(f,text=title,font=('Segoe UI',11,'bold'),bg=PANEL,fg=FG);tt.pack(anchor='w',padx=14)
-  ds=tk.Label(f,text=desc,font=('Segoe UI',8),bg=PANEL,fg=MUTED,wraplength=300,justify='left');ds.pack(anchor='w',padx=14)
-  st=tk.Label(f,text='PRONTO',font=('Segoe UI',8,'bold'),bg=PANEL,fg=MUTED,wraplength=300,justify='left');st.pack(anchor='w',padx=14,pady=(6,4))
-  bar=tk.Canvas(f,height=3,bg=PANEL,highlightthickness=0);bar.pack(fill='x',side='bottom')
+  ic=bind_theme(tk.Label(f, text=icon, font=('Segoe UI Emoji', 20), bg=theme_color('surface'), fg=theme_color('accent')), background='surface', foreground='accent');ic.pack(anchor='w', padx=14, pady=(12, 0))
+  tt=bind_theme(tk.Label(f, text=title, font=('Segoe UI', 11, 'bold'), bg=theme_color('surface'), fg=theme_color('text')), background='surface', foreground='text');tt.pack(anchor='w', padx=14)
+  ds=bind_theme(tk.Label(f, text=desc, font=('Segoe UI', 8), bg=theme_color('surface'), fg=theme_color('muted'), wraplength=300, justify='left'), background='surface', foreground='muted');ds.pack(anchor='w', padx=14)
+  st=bind_theme(tk.Label(f, text='PRONTO', font=('Segoe UI', 8, 'bold'), bg=theme_color('surface'), fg=theme_color('muted'), wraplength=300, justify='left'), background='surface', foreground='muted');st.pack(anchor='w', padx=14, pady=(6, 4))
+  bar=bind_theme(tk.Canvas(f, height=3, bg=theme_color('surface'), highlightthickness=0), background='surface');bar.pack(fill='x', side='bottom')
   card={'frame':f,'labels':[ic,tt,ds,st],'state':st,'bar':bar,'mode':'idle','pos':0,'hover':0.0,'hd':0}
   self.cmd_cards[key]=card
   def hover(d):
@@ -3516,7 +3479,7 @@ class ArcollApp:
   if not c:return
   c['mode']=mode
   label={'running':'EXECUTANDO…','ok':text or 'CONCLUÍDO','bad':text or 'FALHOU','idle':'PRONTO'}[mode]
-  color={'running':ACC,'ok':GREEN,'bad':RED,'idle':MUTED}[mode]
+  color={'running':theme_color('accent'),'ok':theme_color('success'),'bad':theme_color('danger'),'idle':theme_color('muted')}[mode]
   try:c['state'].configure(text=label[:150],fg=color)
   except tk.TclError:pass
  def _console_write(self,title,message,kind='info'):
@@ -3541,10 +3504,10 @@ class ArcollApp:
    return
   if self.quick_busy:
    if remote_id:self._ack_remote_command(remote_id,'failed','Outro comando rápido já está em andamento')
-   else:self.cmd_status.configure(text='Aguarde o comando atual terminar',fg=YELLOW)
+   else:bind_theme(self.cmd_status, foreground='warning').configure(text='Aguarde o comando atual terminar', fg=theme_color('warning'))
    return
   title=QUICK_COMMANDS[name][0];self.quick_busy=True
-  self._command_card_state(name,'running');self.cmd_status.configure(text='Executando: '+title,fg=ACC)
+  self._command_card_state(name,'running');bind_theme(self.cmd_status, foreground='accent').configure(text='Executando: ' + title, fg=theme_color('accent'))
   self._operation_message('remote' if remote_id else 'local','executando '+title.lower())
   def work():
    res=run_quick_command(name)
@@ -3552,7 +3515,7 @@ class ArcollApp:
     self.quick_busy=False;good=res.get('status')=='completed'
     self._command_card_state(name,'ok' if good else 'bad',res['summary'])
     self._console_write(title,res['summary'],'ok' if good else 'bad')
-    self.cmd_status.configure(text=title+(' concluído' if good else ' falhou')+' · '+time.strftime('%H:%M:%S'),fg=GREEN if good else RED)
+    self.cmd_status.configure(text=title + (' concluído' if good else ' falhou') + ' · ' + time.strftime('%H:%M:%S'), fg=theme_color('success') if good else theme_color('danger'))
     self.log(title+': '+res['summary'],'INFO' if good else 'WARN')
     self.sync_data({'event':'quick_command','command_name':name,'command_id':remote_id,'title':title,'status':res.get('status'),'summary':res['summary'],'details':res.get('details',{}),'origin':'platform' if remote_id else 'local','captured_at':int(time.time())})
     if remote_id:self._ack_remote_command(remote_id,'completed' if good else 'failed',res['summary'])

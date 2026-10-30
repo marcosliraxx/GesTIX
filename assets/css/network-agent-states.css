@@ -1,9 +1,0 @@
-/* Status global dos agentes por rede: verde, atenção, falha e ausente. */
-[data-agent-state="online"] .fa-desktop, [data-agent-state="online"].arc-net-status-badge {color:#16a34a!important}
-[data-agent-state="partial"] .fa-desktop, [data-agent-state="partial"].arc-net-status-badge {color:#eab308!important}
-[data-agent-state="offline"] .fa-desktop, [data-agent-state="offline"].arc-net-status-badge {color:#dc2626!important;animation:arc-agent-critical 1s ease-in-out infinite}
-[data-agent-state="none"] .fa-desktop, [data-agent-state="none"].arc-net-status-badge {color:#9299a5!important}
-.arc-net-status-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 7px;border:1px solid currentColor;border-radius:10px;white-space:nowrap;background:transparent}
-.arc-net-status-badge .fa-desktop{font-size:14px}
-@keyframes arc-agent-critical{0%,100%{opacity:1}50%{opacity:.2}}
-@media(prefers-reduced-motion:reduce){[data-agent-state="offline"] .fa-desktop,[data-agent-state="offline"].arc-net-status-badge{animation:none}}
