@@ -1,3 +1,4 @@
+/* Caminho: tests/panel_mobile.cjs */
 /* Visual/interaction checks on a development copy only. Requires Playwright.
    Set GESTI_UI_BASE_URL, GESTI_UI_EMAIL and GESTI_UI_PASSWORD for a test account
    with at least 17 networks. The scenario counts change HTML in the browser;
@@ -46,9 +47,11 @@ const fs = require('node:fs');
             scroll:main.scrollHeight > main.clientHeight + 1,
             clipped:cards.some(card => {const r=card.getBoundingClientRect();return r.bottom > bounds.bottom + 1 || r.right > bounds.right + 1 || card.scrollHeight > card.clientHeight + 1;}),
             visible:cards.length,
+            largestCard:Math.max(0,...cards.map(card=>card.getBoundingClientRect().width)),
             dockVisible:getComputedStyle(document.querySelector('.arc-mobile-dock')).display !== 'none',
             pager:document.querySelector('.arc-panel-pagination').getBoundingClientRect().bottom <= bounds.bottom + 1};
         });
+        assert(measurements.largestCard<=200, `${width}x${height}/${count}: sparse cards expanded beyond compact size`);
         assert(!measurements.horizontal, `${width}x${height}/${count}: horizontal overflow`);
         assert(!measurements.scroll, `${width}x${height}/${count}: panel requires vertical scrolling`);
         assert(!measurements.clipped, `${width}x${height}/${count}: clipped card content`);

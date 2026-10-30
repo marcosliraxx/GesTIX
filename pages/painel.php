@@ -909,7 +909,7 @@ if(new URLSearchParams(location.search).get('nova_rede')==='1')open();
     grid.dataset.compact = String(availableHeight < 150);
     const minCardWidth = window.innerWidth <= 860 ? 124 : 152;
     const minCardHeight = short ? 82 : 132;
-    const columns = Math.max(1, Math.min(Math.floor((width + gap) / (minCardWidth + gap)), matching.length || 1));
+    const columns = Math.max(1, Math.floor((width + gap) / (minCardWidth + gap)));
     const rows = Math.max(1, Math.floor((availableHeight + gap) / (minCardHeight + gap)));
     capacity = columns * rows;
     const pages = Math.max(1, Math.ceil(matching.length / capacity));
