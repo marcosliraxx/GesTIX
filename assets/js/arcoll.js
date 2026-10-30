@@ -1,3 +1,4 @@
+/* ARQUIVO: /assets/js/arcoll.js */
 
 (() => {
 'use strict';
@@ -820,7 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
    const sync=document.getElementById('arc-panel-sync');if(sync){sync.classList.remove('is-stale');sync.replaceChildren(document.createElement('span'),document.createTextNode(' Atualizado agora'));}
    window.dispatchEvent(new Event('arc:network-status'));
    const selected=document.getElementById('arc-network-global-state');
-   if(selected){const id=selected.dataset.networkStatusId, s=states[id];if(s){selected.dataset.agentState=s.state;selected.title=labels[s.state]+' — '+s.online+' de '+s.total+' agentes online';selected.setAttribute('aria-label',selected.title);selected.querySelector('.arc-net-status-text').textContent=s.online+'/'+s.total;}}
+   if(selected){const id=selected.dataset.networkStatusId, s=states[id];if(s){selected.dataset.agentState=s.state;selected.title=labels[s.state]+' — '+s.online+' de '+s.total+' agentes online';selected.setAttribute('aria-label',selected.title);/* Status exibido apenas pelo ícone; totais no título acessível. */}}
  }
  async function refresh(){
    if(document.hidden||inFlight)return;

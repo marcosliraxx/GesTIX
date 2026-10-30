@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+/** Caminho: redes/_base.php — operações das redes. */
 
 
 if (!is_file(dirname(__DIR__) . '/includes/config.php')) {
@@ -30,18 +31,18 @@ if (!arc_is_user()) {
 
 $networkId = (int)($_GET['network'] ?? 0);
 
-$load = $pdo->prepare(
-    'SELECT * FROM ' . arc_table('managed_networks') . ' WHERE id=? AND account_id=? LIMIT 1'
-);
-$load->execute([$networkId, arc_user_id()]);
-$network = $load->fetch();
-
-if (!$network) {
-    $_SESSION['arc_flash'] = 'Rede não encontrada.';
+$access = arc_network_team_access($pdo, $networkId, (int)arc_user_id());
+if (!$access) {
+    $_SESSION['arc_flash'] = 'Rede não encontrada ou acesso revogado.';
     $go('pages/painel.php');
 }
-
-$account = arc_user_id();
+$account = $access['account_id'];
+$teamRole = $access['role'];
+$isNetworkOwner = $teamRole === 'owner';
+$load = $pdo->prepare('SELECT * FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? LIMIT 1');
+$load->execute([$networkId, $account]);
+$network = $load->fetch(PDO::FETCH_ASSOC);
+if (!$network) $go('pages/painel.php');
 $csrf    = arc_csrf_token();
 
 /* ============================================================
@@ -52,6 +53,7 @@ $action = (string)($_POST['action'] ?? '');
 $token  = (string)($_POST['_csrf'] ?? '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$isNetworkOwner) { http_response_code(403); exit('Operação restrita ao proprietário da rede.'); }
     if ($token === '' || !hash_equals($csrf, $token)) {
         $arcError = 'Sessão expirada. Atualize a página e tente novamente.';
 
@@ -204,12 +206,36 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && in_array($action,['team_save','team_r
             $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts')." WHERE email_hash=? AND account_status='active' LIMIT 1");
             $q->execute([hash('sha256',$email)]);
             $userId=(int)$q->fetchColumn();
-            if (!$userId || $userId===$account) $arcError='Informe o e-mail de outra conta ativa da plataforma.';
+            if (!$userId) {
+                // Convite pendente; não concede acesso até a identidade do e-mail ser verificada.
+                $q=$pdo->prepare('INSERT INTO '.arc_table('network_team_invitations').' (account_id,network_id,email_hash,email,role,created_at) VALUES (?,?,?,?,?,NOW()) ON DUPLICATE KEY UPDATE role=VALUES(role),email=VALUES(email),created_at=NOW()');
+                $q->execute([$account,$networkId,hash('sha256',$email),$email,$role]);
+                $mailStatus='Convite cadastrado. Configure o SMTP para enviar o aviso.';
+                try{
+                    if(arc_platform_setting($pdo,'platform_smtp_enabled','0')==='1'){
+                        arc_platform_smtp_send($pdo,$email,'Convite para participar de uma rede Arcoll',
+                            'Você recebeu um convite para a rede '.(string)$network['name'].".\nEntre com o Google usando este e-mail para confirmar sua identidade e aceitar o convite: ".rtrim(arc_base_url(),'/').'/index.php');
+                        $mailStatus='Convite enviado por e-mail.';
+                    }
+                }catch(Throwable $mailError){error_log('Convite rede: '.$mailError->getMessage());}
+                $_SESSION['arc_flash']=$mailStatus.' O vínculo será efetivado após login com e-mail verificado.';
+                $go('redes/servidor.php?network='.$networkId.'#team');
+            }
+            if ($userId===$account) $arcError='O proprietário já possui acesso a esta rede.';
             else {
                 $q=$pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE role=VALUES(role),enabled=1');
                 $q->execute([$account,$networkId,$userId,$role]);
                 arc_user_audit($pdo,'network_team_saved','Membro ID '.$userId.' configurado na rede ID '.$networkId.' como '.$role);
-                $_SESSION['arc_flash']='Membro registrado na equipe. Permissões remotas ainda não foram ativadas.';
+                $mailStatus='O aviso por e-mail não foi enviado.';
+                try{
+                    if(arc_platform_setting($pdo,'platform_smtp_enabled','0')==='1'){
+                        $teamLink=rtrim(arc_base_url(),'/').'/pages/painel.php';
+                        arc_platform_smtp_send($pdo,$email,'Você foi adicionado a uma equipe de rede',
+                            'Sua conta foi incluída na equipe da rede '.(string)$network['name'].".\nAcesse sua conta: ".$teamLink);
+                        $mailStatus='Aviso enviado por e-mail.';
+                    }
+                }catch(Throwable $mailError){error_log('E-mail equipe de rede: '.$mailError->getMessage());}
+                $_SESSION['arc_flash']='Membro registrado na equipe. '.$mailStatus.' O acesso à visualização da rede está disponível no painel; ações remotas permanecem protegidas.';
                 $go('redes/servidor.php?network='.$networkId.'#team');
             }
         }
@@ -221,6 +247,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && in_array($action,['team_save','team_r
         $go('redes/servidor.php?network='.$networkId.'#team');
     }
 }
+$teamInvites=$pdo->prepare('SELECT email,role,created_at FROM '.arc_table('network_team_invitations').' WHERE account_id=? AND network_id=? ORDER BY created_at DESC');
+$teamInvites->execute([$account,$networkId]);
+$pendingTeamInvites=$teamInvites->fetchAll(PDO::FETCH_ASSOC);
 $teamQuery=$pdo->prepare('SELECT m.member_user_id,m.role,m.enabled,u.display_name,u.email FROM '.arc_table('network_team_members').' m JOIN '.arc_table('user_accounts').' u ON u.id=m.member_user_id WHERE m.account_id=? AND m.network_id=? ORDER BY u.display_name');
 $teamQuery->execute([$account,$networkId]);
 $networkTeamMembers=$teamQuery->fetchAll(PDO::FETCH_ASSOC);

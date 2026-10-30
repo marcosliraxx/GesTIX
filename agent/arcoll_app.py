@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Arcoll Speed Connection - aplicativo desktop nativo integrado ao agente local."""
+"""Caminho: agent/arcoll_app.py
+Arcoll Speed Connection - aplicativo desktop nativo integrado ao agente local."""
 import os, sys, json, time, socket, platform, threading, subprocess, urllib.request, urllib.error, csv, ipaddress, re, shutil, hashlib, html, webbrowser
 from pathlib import Path
 import tkinter as tk
@@ -759,8 +760,8 @@ class ArcollApp:
   try:
    if (ROOT/'favicon.ico').is_file(): self.root.iconbitmap(default=str(ROOT/'favicon.ico'))
   except Exception: pass
-  self.root.bind('<Control-q>',lambda _event:self.close())
-  self.root.protocol('WM_DELETE_WINDOW',self.close); self.tray=None; self.tray_ready=False; self._focus_server=None; self._start_focus_server(); self._start_tray();self.root.after(900,self.hide_window) if '--background' in sys.argv else None
+  self.root.bind('<Control-q>',lambda _event:self.hide_window())
+  self.root.protocol('WM_DELETE_WINDOW',self.hide_window); self.tray=None; self.tray_ready=False; self._focus_server=None; self._start_focus_server(); self._start_tray();self.root.after(900,self.hide_window) if '--background' in sys.argv else None
   self._install_tooltips()
   self._presence_worker=threading.Thread(target=self._presence_loop,daemon=True)
   self._presence_worker.start()
@@ -774,9 +775,55 @@ class ArcollApp:
   self._realtime=None
   self._start_realtime()
   self.root.after(1500,self._server_tick)
+  self.root.after(15000,self._confirm_installed_update)
+  self.root.after(2500,self._show_update_news)
   self.root.after(1200,self._refresh_platform_config)
   self.appearance=AppearanceManager(self.root,AGENT_VERSION,restyle=self._style)
   self.root.mainloop()
+ def _show_update_news(self):
+  """Apresenta uma única vez as notas verificadas da versão instalada."""
+  marker=DATA_DIR/'update-release-notes.json'
+  try:
+   if not marker.is_file():return
+   payload=json.loads(marker.read_text(encoding='utf-8'))
+   marker.unlink(missing_ok=True)
+   notes=str(payload.get('notes') or '').strip()[:3000]
+   version=str(payload.get('version') or '')[:32]
+   if not notes:return
+   dlg=tk.Toplevel(self.root)
+   dlg.title('Arcoll • Novidades da atualização')
+   dlg.configure(bg=theme_color('bg'))
+   dlg.resizable(False,False)
+   w,h=560,430
+   dlg.geometry(f'{w}x{h}+{max(0,(dlg.winfo_screenwidth()-w)//2)}+{max(0,(dlg.winfo_screenheight()-h)//2)}')
+   tk.Label(dlg,text='Atualização concluída',font=('Segoe UI',17,'bold'),bg=theme_color('bg'),fg=theme_color('text')).pack(padx=20,pady=(22,6))
+   tk.Label(dlg,text='Versão '+version,font=('Segoe UI',10),bg=theme_color('bg'),fg=theme_color('muted')).pack(pady=(0,12))
+   text=tk.Text(dlg,wrap='word',font=('Segoe UI',11),relief='flat',bg=theme_color('alt'),fg=theme_color('text'),padx=15,pady=15)
+   text.insert('1.0',notes);text.config(state='disabled');text.pack(fill='both',expand=True,padx=20,pady=(0,15))
+   tk.Button(dlg,text='Entendi',command=dlg.destroy,padx=22,pady=7).pack(pady=(0,18))
+   dlg.lift();dlg.focus_force()
+  except (OSError,ValueError,TypeError,tk.TclError) as exc:
+   self.log('Não foi possível exibir as notas da versão: '+str(exc))
+
+ def _confirm_installed_update(self):
+  marker=DATA_DIR/'update-awaiting-confirmation.json'
+  try:
+   if not marker.is_file():return
+   row=json.loads(marker.read_text(encoding='utf-8'))
+   ident=int(row.get('command_id') or 0)
+   if ident<=0:return
+   if row.get('version')!=AGENT_VERSION and row.get('version'):
+    # A versão de exibição pode não mudar durante a publicação de correções.
+    pass
+   if not (ORIGIN and SITE_CODE and DOWNLOAD_KEY):return
+   def confirm():
+    try:
+     result=request_json(ORIGIN+'/api/api.php?action=agent-command-ack',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident,'status':'completed','result':'Nova release instalada e agente reiniciado'},timeout=12)
+     if isinstance(result,dict) and result.get('ok'):marker.unlink(missing_ok=True)
+    except Exception:pass
+   threading.Thread(target=confirm,daemon=True).start()
+  except (OSError,ValueError,TypeError):pass
+
  def _presence_loop(self):
   # Canal de presença separado da telemetria e da interface, sem acumular registros.
   if not (ORIGIN and SITE_CODE and DOWNLOAD_KEY):return
@@ -848,7 +895,7 @@ class ArcollApp:
    if icon_path.is_file(): im=Image.open(icon_path).convert('RGBA')
    else:
     im=Image.new('RGBA',(64,64),(12,26,44,255)); draw=ImageDraw.Draw(im); draw.ellipse((7,7,57,57),outline=(34,211,238,255),width=5); draw.text((23,21),'A',fill='white')
-   menu=pystray.Menu(pystray.MenuItem('Abrir Arcoll Speed Connection',lambda icon,item:self.root.after(0,self.show_window),default=True),pystray.MenuItem('Ocultar janela',lambda icon,item:self.root.after(0,self.hide_window)),pystray.MenuItem('Sair e interromper monitoramento',lambda icon,item:self.root.after(0,self.close)))
+   menu=pystray.Menu(pystray.MenuItem('Abrir Arcoll Speed Connection',lambda icon,item:self.root.after(0,self.show_window),default=True),pystray.MenuItem('Ocultar janela',lambda icon,item:self.root.after(0,self.hide_window)),pystray.Menu.SEPARATOR,pystray.MenuItem('Fechar agente (autenticação do gestor)',lambda icon,item:self.root.after(0,self._request_authenticated_exit)))
    self.tray=pystray.Icon('ArcollSpeedConnection',im,APP_NAME+' · monitoramento ativo',menu)
    threading.Thread(target=self.tray.run,daemon=True).start(); self.tray_ready=True
   except Exception as exc:
@@ -998,42 +1045,60 @@ class ArcollApp:
   return [('Servidor',self.server_page),
           ('Velocidade',self.speed_page),('Dispositivos',self.devices_page),
           ('Mapa',self.map_page),('Conexão',self.connection_page)]
+ def _center_dialog(self, dlg, width, height):
+  # Centraliza no monitor que contém a janela principal, mesmo que esteja oculta.
+  self.root.update_idletasks()
+  sx,sy=self.root.winfo_screenwidth(),self.root.winfo_screenheight()
+  x=max(0,(sx-width)//2);y=max(0,(sy-height)//2)
+  dlg.geometry(f'{width}x{height}+{x}+{y}')
+  dlg.lift()
+  dlg.after(50,lambda:dlg.focus_force() if dlg.winfo_exists() else None)
+ def _request_authenticated_exit(self):
+  self._show_manager_auth('Fechar agente',self.close)
  def _open_agent_settings(self):
-  dlg=tk.Toplevel(self.root);dlg.title('Configurações do agente');bind_theme(dlg, background='bg').configure(bg=theme_color('bg'))
-  dlg.resizable(False,False);dlg.transient(self.root);dlg.geometry('420x245')
-  bind_theme(tk.Label(dlg, text='CONFIGURAÇÕES DO AGENTE', bg=theme_color('bg'), fg=theme_color('text'), font=('Segoe UI', 12, 'bold')), background='bg', foreground='text').pack(pady=(21, 13))
-  bind_theme(tk.Label(dlg, text='Conta do gestor da rede', bg=theme_color('bg'), fg=theme_color('muted')), background='bg', foreground='muted').pack()
-  email=tk.Entry(dlg,width=37,font=('Segoe UI',10));email.pack(pady=5)
-  bind_theme(tk.Label(dlg, text='Senha', bg=theme_color('bg'), fg=theme_color('muted')), background='bg', foreground='muted').pack()
-  password=tk.Entry(dlg,width=37,show='•',font=('Segoe UI',10));password.pack(pady=5)
-  status=bind_theme(tk.Label(dlg, text='', bg=theme_color('bg'), fg=theme_color('danger'), font=('Segoe UI', 9)), background='bg', foreground='danger');status.pack()
+  self._show_manager_auth('Configurações do agente',self._show_settings_panel)
+ def _show_manager_auth(self,title,on_success):
+  existing=getattr(self,'_manager_auth_dialog',None)
+  if existing is not None and existing.winfo_exists():
+   existing.lift();existing.focus_force();return
+  dlg=tk.Toplevel(self.root);self._manager_auth_dialog=dlg
+  dlg.title(title);bind_theme(dlg, background='bg').configure(bg=theme_color('bg'))
+  dlg.resizable(False,False);self._center_dialog(dlg,440,280)
+  bind_theme(tk.Label(dlg,text=title.upper(),bg=theme_color('bg'),fg=theme_color('text'),font=('Segoe UI',12,'bold')),background='bg',foreground='text').pack(pady=(19,10))
+  bind_theme(tk.Label(dlg,text='Login (e-mail) do gestor da rede vinculada',bg=theme_color('bg'),fg=theme_color('muted')),background='bg',foreground='muted').pack()
+  email=tk.Entry(dlg,width=40,font=('Segoe UI',10));email.pack(pady=5)
+  bind_theme(tk.Label(dlg,text='Senha',bg=theme_color('bg'),fg=theme_color('muted')),background='bg',foreground='muted').pack()
+  password=tk.Entry(dlg,width=40,show='•',font=('Segoe UI',10));password.pack(pady=5)
+  status=bind_theme(tk.Label(dlg,text='',bg=theme_color('bg'),fg=theme_color('danger'),font=('Segoe UI',9),wraplength=400),background='bg',foreground='danger');status.pack()
   def authenticate():
    user=email.get().strip();secret=password.get()
-   if not user or not secret:
-    status.config(text='Informe login e senha.');return
-   bind_theme(status, foreground='muted').config(text='Validando credenciais...', fg=theme_color('muted'))
+   if not user or not secret:status.config(text='Informe o e-mail e a senha.');return
+   bind_theme(status,foreground='muted').config(text='Validando credenciais...',fg=theme_color('muted'))
    login.config(state='disabled')
    def work():
     try:
-     result=request_json(ORIGIN+'/api/api.php?action=agent-settings-auth',
-      {'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,
-       'email':user,'password':secret},timeout=12)
-     error='' if result.get('ok') else str(result.get('error') or 'Não autorizado')
-    except Exception as exc:error='Não foi possível autenticar: '+str(exc)[:100]
+     result=request_json(ORIGIN+'/api/api.php?action=agent-settings-auth',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'email':user,'password':secret},timeout=15)
+     error='' if result.get('ok') else str(result.get('error') or 'Gestor não autorizado')
+    except urllib.error.HTTPError as exc:
+     try:error=str(json.loads(exc.read().decode('utf-8','replace')).get('error') or f'Erro HTTP {exc.code}')
+     except Exception:error=f'Erro HTTP {exc.code} ao autenticar'
+    except Exception as exc:error='Não foi possível autenticar: '+str(exc)[:110]
     def finished():
      if not dlg.winfo_exists():return
      password.delete(0,'end');login.config(state='normal')
-     if error:bind_theme(status, foreground='danger').config(text=error, fg=theme_color('danger'))
+     if error:bind_theme(status,foreground='danger').config(text=error,fg=theme_color('danger'))
      else:
-      dlg.destroy();self._show_settings_panel()
-    self.root.after(0,finished)
+      dlg.destroy();self._manager_auth_dialog=None;on_success()
+    try:self.root.after(0,finished)
+    except (RuntimeError,tk.TclError):pass
    threading.Thread(target=work,daemon=True).start()
   login=self.btn(dlg,'Entrar',authenticate,True);login.pack(pady=8)
-  dlg.bind('<Return>',lambda _e:authenticate())
+  dlg.bind('<Return>',lambda _e:authenticate() if login['state']=='normal' else None)
+  dlg.bind('<Escape>',lambda _e:dlg.destroy())
   email.focus_set()
  def _show_settings_panel(self):
   dlg=tk.Toplevel(self.root);dlg.title('Configurações do agente');bind_theme(dlg, background='bg').configure(bg=theme_color('bg'))
-  dlg.geometry('465x490');dlg.resizable(False,False);dlg.transient(self.root)
+  dlg.resizable(False,False);self._center_dialog(dlg,465,490)
   bind_theme(tk.Label(dlg, text='ABAS VISÍVEIS NO AGENTE', bg=theme_color('bg'), fg=theme_color('text'), font=('Segoe UI', 12, 'bold')), background='bg', foreground='text').pack(anchor='w', padx=23, pady=(20, 10))
   saved=self._read_settings().get('visible_tabs',{})
   if not isinstance(saved,dict):saved={}
@@ -3248,33 +3313,41 @@ class ArcollApp:
     if not isinstance(response,dict) or not response.get('ok'):
      raise RuntimeError((response or {}).get('error','Servidor não disponibilizou a atualização.'))
     rows=response.get('files')
-    allow={'arcoll_app.py','arcoll_desktop.py','arcoll_agent.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py'}
-    if not isinstance(rows,list) or len(rows)<5 or len(rows)>len(allow):raise ValueError('Pacote inválido.')
-    changed=[];seen=set()
+    if not isinstance(rows,list) or len(rows)<6 or len(rows)>80:raise ValueError('Inventário da release inválido.')
+    changed=[];seen=set();inventory=[]
     stage=Path(tempfile.mkdtemp(prefix='arcoll-update-',dir=str(DATA_DIR)))
     for row in rows:
      self.root.after(0,lambda: update_progress('Validando arquivos e integridade...'))
      name=row.get('name') if isinstance(row,dict) else None
-     if name not in allow or name in seen:raise ValueError('Arquivo inesperado na atualização.')
+     if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*\.(?:py|ps1)',name) or name in seen:raise ValueError('Arquivo inesperado na atualização.')
      seen.add(name)
      binary=base64.b64decode(row.get('content',''),validate=True)
      if len(binary)>1500000 or hashlib.sha256(binary).hexdigest()!=row.get('sha256'):raise ValueError('Integridade da atualização inválida: '+name)
      # Atualização manual/solicitada pelo gestor: reinstala o pacote autenticado
      # mesmo quando os hashes e AGENT_VERSION permanecem iguais.
      (stage/name).write_bytes(binary)
-     changed.append({'name':name,'sha256':row['sha256']})
-    if not changed:
-     if remote_command_id:self._ack_remote_command(remote_command_id,'completed','Arquivos já coincidem com a versão publicada')
+     inventory.append(name)
+     if not (ROOT/name).is_file() or hashlib.sha256((ROOT/name).read_bytes()).hexdigest()!=row['sha256']:
+      changed.append({'name':name,'sha256':row['sha256']})
+    managed=ROOT/'.arcoll-managed-files.json'
+    try:
+     previous=json.loads(managed.read_text(encoding='utf-8-sig')) if managed.is_file() else []
+     if not isinstance(previous,list):previous=[]
+    except (OSError,ValueError):previous=[]
+    # Apenas arquivos controlados por manifesto anterior podem ser removidos.
+    removed=sorted(set(x for x in previous if isinstance(x,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*\.(?:py|ps1)',x))-set(inventory))
+    if not changed and not removed and managed.is_file():
+     if remote_command_id:self._ack_remote_command(remote_command_id,'completed','Inventário e hashes já coincidem com a release publicada')
      self.root.after(0,close_progress)
      self.root.after(0,lambda:messagebox.showinfo('Atualizar','O agente já está atualizado com a versão disponível no servidor.',parent=self.root))
      return
-    (stage/'manifest.json').write_text(json.dumps({'files':changed}),encoding='utf-8')
+    (stage/'manifest.json').write_text(json.dumps({'files':changed,'inventory':inventory,'remove':removed,'remote_command_id':remote_command_id,'release_notes':str(response.get('notes') or '')[:3000],'release_version':str(response.get('version') or '')[:32]}),encoding='utf-8')
     def confirm():
      close_progress()
-     if remote_command_id is None and not messagebox.askyesno('Atualizar agente',f'{len(changed)} arquivo(s) serão reinstalados a partir da plataforma, mesmo na mesma versão. O agente será reiniciado automaticamente.\n\nDeseja continuar?',parent=self.root):return
+     if remote_command_id is None and not messagebox.askyesno('Atualizar agente',f'{len(changed)} arquivo(s) serão instalados/alterados e {len(removed)} removidos conforme inventário. O agente será reiniciado.\n\nDeseja continuar?',parent=self.root):return
      try:
       subprocess.Popen([sys.executable,str(updater),str(stage),str(os.getpid()),ORIGIN],cwd=str(ROOT),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-      if remote_command_id:self._ack_remote_command(remote_command_id,'completed','Atualização iniciada; confirmação da nova versão após reconexão')
+      # O comando será confirmado somente após o retorno do agente atualizado.
       self.close()
      except Exception as exc:
       if remote_command_id:self._ack_remote_command(remote_command_id,'failed',str(exc)[:300])

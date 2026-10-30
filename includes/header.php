@@ -74,7 +74,10 @@ unset($_SESSION['arc_flash']);
 <title><?= arc_h(($ARCPageTitle ?? $arcSiteName) . ' · ' . $arcSiteName) ?></title><link rel="stylesheet" href="assets/vendor/font-awesome/css/font-awesome.min.css"><link rel="stylesheet" href="assets/css/arcoll.css?v=<?= rawurlencode((string)(@filemtime(dirname(__DIR__) . '/assets/css/arcoll.css') ?: 1)) ?>">
 
     
-    <link rel="manifest" href="manifest.webmanifest">
+    <?php if (($ARCPageBodyClass ?? '') === 'arc-page-redes'): ?>
+<link rel="stylesheet" href="assets/css/redes.css?v=<?= rawurlencode((string)(@filemtime(dirname(__DIR__) . '/assets/css/redes.css') ?: 1)) ?>">
+<?php endif; ?>
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
@@ -110,8 +113,38 @@ if ($arcFlashText !== ''): ?>
     <div class="page-context"><div class="crumb"><?=arc_h($arcSiteName)?></div><div class="top-title"><?= arc_h($ARCPageTitle ?? '') ?></div></div>
     <?php endif; ?>
 
-    <div class="header-actions"><label class="arc-appearance-control"><i class="fa fa-adjust" aria-hidden="true"></i><select data-arc-appearance aria-label="Tema do aplicativo"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label>
-        <?php if (function_exists('arc_is_user') && (arc_is_user() || arc_is_admin())): ?>
+    <div class="header-actions">
+<?php if ($arcNetworkHeader): ?>
+<form class="arc-redes-header-controls arc-redes-operational-header" id="arc-agent-form" method="get" action="" aria-label="Controle do agente">
+  <input type="hidden" name="network" value="<?= (int)$networkId ?>">
+  <div class="arc-redes-header-left">
+   <?php
+    $arcAgentOnline=false;
+    foreach($networkAgents as $a){if((int)$a['id']===$selectedAgentId){$arcAgentOnline=($a['status']??'')==='approved' && !empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-12;break;}}
+   ?>
+   <div class="arc-agent-selector-group">
+   <button type="button" class="arc-net-status-badge" id="arc-network-global-state" data-network-status-id="<?= (int)$networkId ?>" data-agent-state="none" title="Atualizar situação do agente" aria-label="Atualizar situação do agente"><i class="fa fa-desktop" aria-hidden="true"></i></button>
+   <label class="arc-agent-select-wrap <?= $arcAgentOnline?'is-online':'is-offline' ?>" for="arc-agent-target" title="Escolher agente Windows">
+    <span id="arc-connection-status" class="arc-agent-state <?= $arcAgentOnline?'is-online':'is-offline' ?>" role="status" title="<?= $arcAgentOnline?'Agente online':'Agente offline' ?>" aria-label="<?= $arcAgentOnline?'Agente online':'Agente offline' ?>"></span>
+    <select id="arc-agent-target" name="agent" aria-label="Selecionar agente Windows">
+     <option value="">Selecionar agente</option>
+     <?php foreach($networkAgents as $a): if(($a['status']??'')!=='approved')continue;
+      $arcOptionOnline=!empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-12;
+     ?>
+      <option value="<?= (int)$a['id'] ?>" class="<?= $arcOptionOnline?'arc-option-online':'arc-option-offline' ?>" data-headless="<?= (int)($a['headless_mode']??0)===1?'1':'0' ?>" <?= $selectedAgentId===(int)$a['id']?'selected':'' ?>><?= arc_h((string)($a['machine_name']??'Agente')) ?></option>
+     <?php endforeach; ?>
+    </select>
+   </label>
+   </div>
+  </div>
+  <div class="arc-redes-header-right">
+   <span id="arc-agent-version-info" style="font-size:11px;color:#a7c8dc;white-space:nowrap" title="Versão instalada do agente">v. --</span>
+   <button type="button" id="arc-agent-update-remote" class="arc-identity-icon" data-arc-command="agent_update" disabled style="color:#35e9bd" title="Reinstalar arquivos do agente Windows (inclusive na mesma versão)" aria-label="Atualizar agente Windows remotamente"><i class="fa fa-refresh" aria-hidden="true"></i></button>
+   <?php if ($isNetworkOwner): ?><button type="button" class="arc-identity-icon arc-identity-manage" data-network-modal-open aria-label="Gerenciar redes" title="Gerenciar redes"><i class="fa fa-sliders" aria-hidden="true"></i><?php if ($pendingAgentCount): ?><span class="arc-identity-count"><?= (int)$pendingAgentCount ?></span><?php endif; ?></button><?php endif; ?>
+  </div>
+ </form>
+<?php endif; ?>
+        <?php if (!$arcNetworkHeader && function_exists('arc_is_user') && (arc_is_user() || arc_is_admin())): ?>
         <button type="button" id="arc-network-global-overview" class="arc-net-status-badge arc-network-alert-trigger" data-agent-state="<?= arc_h(isset($panelNetworks) && count($panelNetworks) ? (($panelOffline ?? 0) === 0 ? 'online' : (($panelOffline / count($panelNetworks)) > 0.30 ? 'offline' : 'partial')) : 'none') ?>" data-health="<?= arc_h(isset($panelNetworks) && count($panelNetworks) ? (($panelOffline ?? 0) === 0 ? 'healthy' : (($panelOffline / count($panelNetworks)) > 0.30 ? 'critical' : 'warning')) : 'unknown') ?>" aria-label="Consultar situação das redes" title="Consultar situação das redes" aria-haspopup="dialog" aria-controls="arc-network-alert-dialog"><i class="fa fa-desktop" aria-hidden="true"></i></button>
         <?php endif; ?>
         <nav class="arc-header-nav" aria-label="Menu principal"><?php foreach(arc_v15_menu_items($pdo,'header') as $arcTopLink): ?><a href="<?=arc_h($arcTopLink['url'])?>"><span class="arc-db-icon" data-icon="<?=arc_h($arcTopLink['icon'])?>" aria-hidden="true"><i class="fa fa-circle-o" aria-hidden="true"></i></span><?=arc_h($arcTopLink['label'])?></a><?php endforeach;?></nav>
@@ -143,6 +176,34 @@ if ($arcFlashText !== ''): ?>
                 $arcHeaderNotices = $arcHN->fetchAll() ?: [];
                 }
             } catch (Throwable $e) { $arcHeaderNotices = []; }
+            /* Alertas reais dos agentes da rede atual, integrados ao sino padrão. */
+            if (!empty($remoteEvents) && is_array($remoteEvents) && isset($networkId)) {
+                $arcAlertTitles = [
+                    'gateway_unreachable'=>['Roteador não respondeu','O computador não conseguiu falar com o roteador. Confira a conexão.'],
+                    'high_latency'=>['Internet lenta','A rede demorou mais que o normal para responder.'],
+                    'packet_loss'=>['Conexão instável','Algumas tentativas de conexão falharam.'],
+                    'high_packet_loss'=>['Conexão instável','Algumas tentativas de conexão falharam.'],
+                    'agent_offline'=>['Computador desconectado','O computador parou de enviar informações.'],
+                    'agent_online'=>['Computador conectado','O computador voltou a se comunicar com a plataforma.'],
+                    'connection_restored'=>['Conexão normalizada','A conexão voltou a funcionar.']
+                ];
+                foreach (array_slice($remoteEvents, 0, 75) as $arcEvent) {
+                    if (($arcEvent['event_type'] ?? '') !== 'alert') continue;
+                    $arcData = json_decode((string)($arcEvent['payload_json'] ?? ''), true);
+                    if (!is_array($arcData)) $arcData = [];
+                    $arcKind = strtolower((string)($arcData['kind'] ?? $arcData['type'] ?? $arcData['event'] ?? ''));
+                    [$arcTitle, $arcDesc] = $arcAlertTitles[$arcKind] ?? ['Aviso da rede','O agente enviou um aviso. Verifique o computador.'];
+                    $arcMachine = trim((string)($arcEvent['machine_name'] ?? ''));
+                    $arcWhen = (string)($arcEvent['captured_at'] ?? '');
+                    $arcHeaderNotices[] = [
+                        'id'=>'rede-'.(int)$networkId.'-'.(int)($arcEvent['id']??0),
+                        'title'=>$arcTitle,
+                        'details'=>($arcMachine!==''?$arcMachine.'. ':'').$arcDesc,
+                        'created_at'=>$arcWhen,
+                        'network_alert'=>true
+                    ];
+                }
+            }
             $arcHeaderName = (string)($arcHeaderUser['display_name'] ?? $arcHeaderUser['email'] ?? 'Usuário');
             $arcHeaderAvatar = trim((string)($arcHeaderUser['avatar_url'] ?? ''));
             $arcHeaderProfile = arc_is_admin() ? 'Administrador' : (arc_is_user() ? 'Usuário / Gestor' : 'Visitante');
@@ -150,11 +211,11 @@ if ($arcFlashText !== ''): ?>
             <div class="arc-notify-wrap">
                 <button class="arc-notify-button" type="button" data-arc-notify aria-label="Notificações" aria-expanded="false"><i class="fa fa-bell-o" aria-hidden="true"></i><span class="arc-notify-badge" data-arc-notify-count hidden></span></button>
                 <div class="arc-notify-menu" data-arc-notify-menu>
-                    <div class="arc-drop-title">Notificações <small>Atividades recentes da conta</small></div>
+                    <div class="arc-drop-title">Notificações <small>Avisos e atividades recentes</small></div>
                     <div data-arc-notify-list>
                     <?php if (!$arcHeaderNotices): ?><div class="arc-drop-empty">Nenhuma notificação disponível.</div><?php else: foreach ($arcHeaderNotices as $arcN): ?>
-                        <button type="button" class="arc-notify-item" data-notice-id="<?= (int)$arcN['id'] ?>" data-notice-title="<?= arc_h(ucwords(str_replace('_',' ',(string)$arcN['event_type']))) ?>" data-notice-detail="<?= arc_h((string)$arcN['details']) ?>" data-notice-date="<?= arc_h(arc_when($arcN['created_at'])) ?>">
-                            <b><?= arc_h(ucwords(str_replace('_',' ',(string)$arcN['event_type']))) ?></b><span><?= arc_h((string)$arcN['details']) ?></span><small><?= arc_h(arc_when($arcN['created_at'])) ?></small>
+                        <button type="button" class="arc-notify-item" data-notice-id="<?= arc_h((string)$arcN['id']) ?>" data-notice-title="<?= arc_h((string)($arcN['title'] ?? ucfirst(str_replace('_',' ',(string)($arcN['event_type'] ?? 'Atividade'))))) ?>" data-notice-detail="<?= arc_h((string)$arcN['details']) ?>" data-notice-date="<?= arc_h(arc_when($arcN['created_at'])) ?>">
+                            <b><?= arc_h((string)($arcN['title'] ?? ucfirst(str_replace('_',' ',(string)($arcN['event_type'] ?? 'Atividade'))))) ?></b><span><?= arc_h((string)$arcN['details']) ?></span><small><?= arc_h(arc_when($arcN['created_at'])) ?></small>
                         </button>
                     <?php endforeach; endif; ?>
                     </div>
@@ -179,6 +240,6 @@ if ($arcFlashText !== ''): ?>
     </div>
 </header>
 <div id="arc-network-alert-dialog" class="arc-network-alert-overlay" hidden role="presentation"><div class="arc-network-alert-modal" role="dialog" aria-modal="true" aria-labelledby="arc-network-alert-title" tabindex="-1"><div class="arc-network-alert-head"><strong id="arc-network-alert-title"><i class="fa fa-desktop" aria-hidden="true"></i> Situação das redes</strong><button type="button" data-network-alert-close aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></div><p id="arc-network-alert-summary" role="status">Consultando redes...</p><div id="arc-network-alert-list" class="arc-network-alert-list"></div></div></div>
-<div class="arc-notice-modal" data-arc-notice-modal aria-hidden="true" role="presentation"><div class="arc-notice-card" role="dialog" aria-modal="true" aria-labelledby="arc-notice-title" tabindex="-1"><button type="button" data-arc-notice-close aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button><small data-arc-notice-date></small><h2 id="arc-notice-title"></h2><p data-arc-notice-detail></p><a href="pages/painel.php" class="btn secondary">Abrir atividades</a></div></div>
+<div class="arc-notice-modal" data-arc-notice-modal aria-hidden="true" role="presentation"><div class="arc-notice-card" role="dialog" aria-modal="true" aria-labelledby="arc-notice-title" tabindex="-1"><button type="button" data-arc-notice-close aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button><small data-arc-notice-date></small><h2 id="arc-notice-title"></h2><p data-arc-notice-detail></p><a href="pages/painel.php" class="btn secondary">Ver painel</a></div></div>
 <div class="app-body">
 <?php endif; ?>

@@ -4,12 +4,9 @@ declare(strict_types=1);
 /* ============================================================
    pages/perfil.php — MINHA CONTA DO USUÁRIO (página do Workspace)
    Padrão: consome includes/header, sidebar e footer.
-   Aba 1 — Meu perfil: foto redonda, dados pessoais e botão
+   Meu perfil: foto redonda, dados pessoais e botão
            "Alterar senha" ao lado do campo Cargo / função
            (abre modal com senha atual, nova e confirmação).
-   Aba 2 — Preferências: notificações, monitoramento, aparência
-           e região (gravadas na tabela user_preferences).
-   Aba 3 — Atividade: últimos eventos de segurança da conta.
    O fuso horário é fixo (America/Belem) e definido no bootstrap.
    ============================================================ */
 
@@ -124,12 +121,13 @@ if (arc_is_admin()) {
     }
     $validAvatar=(bool)preg_match('~^uploads/avatars/admin_'.$adminId.'_[a-f0-9]{24}\\.(jpg|png|webp)$~',$adminAvatar);
     $avatarSrc=$validAvatar && is_file(dirname(__DIR__).'/'.$adminAvatar) ? arc_workspace_base_url().$adminAvatar : '';
-    $ARCMode='app';$ARCPageTitle='Minha conta';$ARCActiveNav='profile';$ARCHeaderActions='';
+    $ARCMode='app';$ARCPageTitle='Meu perfil';$ARCActiveNav='profile';$ARCHeaderActions='';
     require dirname(__DIR__).'/includes/header.php';
     require dirname(__DIR__).'/includes/sidebar.php';
     ?>
 <style>
-.arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
+
+.arc-profile-v2{width:100%;max-width:none;padding:12px 16px;margin:0}.arc-profile-v2 .card{margin:0 0 12px}.arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button{border:1px solid var(--border)!important;background:var(--surface,#fff)!important;padding:11px 17px!important;border-radius:9px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button.active{color:var(--text)!important;background:#174e83!important;border-color:#174e83!important;box-shadow:0 3px 10px #174e8326}
 .arc-profile-v2 .arc-account-panels{padding-top:3px!important}
@@ -144,7 +142,7 @@ if (arc_is_admin()) {
 .arc-profile-v2 .form-field input{border-radius:8px!important}
 @media(max-width:650px){.arc-profile-v2 .card{padding:14px!important}.arc-profile-v2 .form-field{grid-template-columns:1fr!important}.arc-profile-v2 .arc-account-facts{grid-template-columns:repeat(2,minmax(0,1fr))!important}.arc-profile-v2 .profile-hero{padding:13px!important}}
 </style>
-    <main class="app-main"><div class="container-narrow arc-account arc-profile-v2">
+    <main class="app-main"><div class="page-content arc-account arc-profile-v2">
       <?php if ($admError!==''): ?><div class="arc-account-error" role="alert"><?=arc_h($admError)?></div><?php endif; ?>
       <?php if ($admSuccess!==''): ?><div class="ap-success" role="status"><i class="fa fa-check-circle"></i> <?=arc_h($admSuccess)?></div><?php endif; ?>
       <nav class="tab-list arc-account-tabs" role="tablist" aria-label="Navegação da conta">
@@ -152,7 +150,7 @@ if (arc_is_admin()) {
         <button class="tab-button" type="button" role="tab" data-tab="security" id="arc-account-tab-security" aria-controls="tab-security" aria-selected="false"><i class="fa fa-lock"></i> Segurança</button>
       </nav>
       <div class="arc-account-panels">
-      <section class="tab-content active" id="tab-profile" role="tabpanel" aria-labelledby="arc-account-tab-profile">
+      <section class="tab-content active" id="tab-profile">
         <div class="card"><div class="card-header"><h2><i class="fa fa-id-card-o"></i> Dados pessoais</h2><span class="badge online">Conta administrativa</span></div>
           <div class="profile-hero profile-heading">
             <form method="post" enctype="multipart/form-data" action="<?=arc_h($profileUrl)?>" id="admin-avatar-form" class="display-contents">
@@ -216,7 +214,7 @@ $ipHash   = hash_hmac('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 
 /* Mesmo material de senha usado em pages/clientes.php (login/cadastro). */
 $pwMaterial = static fn (string $password): string => base64_encode(hash('sha384', $password, true));
 
-$arcPrefDefs = arc_pref_defs();
+
 
 /* ============================================================
    1. AÇÕES POST
@@ -355,23 +353,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-    } elseif ($action === 'prefs_save') {
-        $updated = [];
-        foreach ($arcPrefDefs as $key => $def) {
-            $updated[$key] = $def['type'] === 'bool'
-                ? (isset($_POST['pref_' . $key]) ? '1' : '0')
-                : (string)($_POST['pref_' . $key] ?? $def['default']);
-        }
-        try {
-            arc_user_prefs_save($pdo, $userId, $updated);
-            arc_user_audit($pdo, 'preferences_updated', 'Preferências atualizadas');
-            $_SESSION['arc_flash'] = 'Preferências salvas.';
-            $_SESSION['arc_reset_sidebar'] = 1;
-            $go('pages/perfil.php#prefs');
-        } catch (Throwable $e) {
-            error_log('Arcoll prefs_save: ' . $e->getMessage());
-            $arcError = 'Não foi possível salvar as preferências.';
-        }
+
     }
 }
 
@@ -393,7 +375,7 @@ if ((string)($user['timezone'] ?? '') !== ARC_TIMEZONE) {
     $user['timezone'] = ARC_TIMEZONE;
 }
 
-$prefs = arc_user_prefs($pdo, $userId, true);
+
 
 $initial = mb_strtoupper(mb_substr(trim((string)($user['display_name'] ?: $user['email'])), 0, 1));
 
@@ -403,35 +385,21 @@ if ($avatarUrl !== '' && preg_match('~^uploads/avatars/[a-zA-Z0-9_.-]+\.(jpg|jpe
     $avatarSrc = arc_workspace_base_url() . $avatarUrl . '?v=' . filemtime(dirname(__DIR__) . '/' . $avatarUrl);
 }
 
-$act = $pdo->prepare('SELECT event_type,details,created_at FROM ' . arc_table('account_audit') . ' WHERE account_id=? ORDER BY created_at DESC, id DESC LIMIT 20');
-$act->execute([$userId]);
-$activities = $act->fetchAll();
+
 
 $roleLabels=['admin'=>'Administrador','manager'=>'Gestor','user'=>'Usuário','viewer'=>'Visualizador'];
 $roleLabel=$roleLabels[(string)($user['access_role']??'user')]??ucfirst((string)($user['access_role']??'user'));
 $statusLabel=['active'=>'Ativa','pending'=>'Pendente','suspended'=>'Suspensa'][(string)($user['account_status']??'active')]??'Restrita';
 $filled=0;foreach(['display_name','email','phone','company_name','job_title','avatar_url'] as $field){if(trim((string)($user[$field]??''))!=='')$filled++;}
 $profilePercent=(int)round($filled/6*100);
-/* Agrupa as preferências por seção. */
-$prefGroups = [];
-foreach ($arcPrefDefs as $key => $def) {
-    $prefGroups[(string)$def['group']][(string)$key] = $def;
-}
 
-$eventLabels = [
-    'account_login' => 'Login realizado', 'account_logout' => 'Logout', 'account_registered' => 'Conta criada',
-    'profile_updated' => 'Perfil atualizado', 'avatar_updated' => 'Foto alterada', 'avatar_removed' => 'Foto removida',
-    'password_changed' => 'Senha alterada', 'preferences_updated' => 'Preferências atualizadas',
-    'network_created' => 'Rede registrada', 'network_updated' => 'Rede atualizada', 'network_deleted' => 'Rede excluída',
-    'network_archived' => 'Rede arquivada', 'network_selected' => 'Rede selecionada',
-];
 
 /* ============================================================
    3. SAÍDA — WORKSPACE PADRÃO
    ============================================================ */
 
 $ARCMode          = 'app';
-$ARCPageTitle     = 'Minha conta';
+$ARCPageTitle     = 'Meu perfil';
 $ARCActiveNav     = 'profile';
 $ARCHeaderActions = '';
 
@@ -440,7 +408,8 @@ require dirname(__DIR__) . '/includes/sidebar.php';
 ?>
 
 <style>
-.arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
+
+.arc-profile-v2{width:100%;max-width:none;padding:12px 16px;margin:0}.arc-profile-v2 .card{margin:0 0 12px}.arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button{border:1px solid var(--border)!important;background:var(--surface,#fff)!important;padding:11px 17px!important;border-radius:9px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button.active{color:var(--text)!important;background:#174e83!important;border-color:#174e83!important;box-shadow:0 3px 10px #174e8326}
 .arc-profile-v2 .arc-account-panels{padding-top:3px!important}
@@ -456,22 +425,11 @@ require dirname(__DIR__) . '/includes/sidebar.php';
 @media(max-width:650px){.arc-profile-v2 .card{padding:14px!important}.arc-profile-v2 .form-field{grid-template-columns:1fr!important}.arc-profile-v2 .arc-account-facts{grid-template-columns:repeat(2,minmax(0,1fr))!important}.arc-profile-v2 .profile-hero{padding:13px!important}}
 </style>
 <main class="app-main">
-    <div class="container-narrow arc-account arc-profile-v2">
+    <div class="page-content arc-account arc-profile-v2">
 <?php if($arcError!==''): ?><div class="arc-account-error" role="alert"><?= arc_h($arcError) ?></div><?php endif; ?>
-
-        <?php if(arc_is_https() && arc_platform_setting($pdo,'platform_google_enabled')==='1'): ?>
-        <div class="arc-account-google"><a class="button secondary" href="<?=arc_h(arc_workspace_base_url())?>google-auth.php?intent=link"><i class="fa fa-google" aria-hidden="true"></i> Vincular conta Google</a></div>
-        <?php endif; ?>
-        <!-- ==================== ABAS ==================== -->
-        <nav class="tab-list arc-account-tabs" role="tablist" aria-label="Navegação da conta">
-            <button class="tab-button active" type="button" role="tab" id="arc-account-tab-profile" aria-controls="tab-profile" aria-selected="true" data-tab="profile"><i class="fa fa-user-o" aria-hidden="true"></i> Meu perfil</button>
-            <button class="tab-button" type="button" role="tab" id="arc-account-tab-prefs" aria-controls="tab-prefs" aria-selected="false" data-tab="prefs"><i class="fa fa-sliders" aria-hidden="true"></i> Preferências</button>
-            <button class="tab-button" type="button" role="tab" id="arc-account-tab-activity" aria-controls="tab-activity" aria-selected="false" data-tab="activity"><i class="fa fa-history" aria-hidden="true"></i> Atividade <span class="tab-count"><?= count($activities) ?></span></button>
-        </nav>
-
         <div class="arc-account-panels">
-        <!-- ==================== ABA 1: PERFIL ==================== -->
-        <section class="tab-content active" id="tab-profile" role="tabpanel" aria-labelledby="arc-account-tab-profile">
+
+        <section class="tab-content active" id="tab-profile">
             <div class="card">
                 <div class="card-header">
                     <h2><i class="fa fa-id-card-o" aria-hidden="true"></i> Dados pessoais</h2>
@@ -534,76 +492,6 @@ require dirname(__DIR__) . '/includes/sidebar.php';
             </div>
         </section>
 
-        <!-- ==================== ABA 2: PREFERÊNCIAS ==================== -->
-        <section class="tab-content" id="tab-prefs" role="tabpanel" aria-labelledby="arc-account-tab-prefs">
-            <div class="card">
-                <div class="card-header">
-                    <h2><i class="fa fa-sliders" aria-hidden="true"></i> Preferências da conta</h2>
-                </div>
-
-                <form method="post" id="prefs-form" action="<?=arc_h(arc_workspace_base_url())?>pages/perfil.php" >
-                    <input type="hidden" name="_csrf" value="<?= arc_h(arc_csrf_token()) ?>">
-                    <input type="hidden" name="action" value="prefs_save">
-
-                    <?php foreach ($prefGroups as $groupName => $items): ?>
-                        <div class="pref-group">
-                            <h3><?= arc_h($groupName) ?></h3>
-                            <div class="pref-grid">
-                                <?php foreach ($items as $key => $def): ?>
-                                    <?php $value = (string)($prefs[$key] ?? $def['default']); ?>
-                                    <?php if ($def['type'] === 'bool'): ?>
-                                        <label class="pref-switch">
-                                            <input type="checkbox" name="pref_<?= arc_h($key) ?>" value="1" <?= $value === '1' ? 'checked' : '' ?>>
-                                            <span>
-                                                <?= arc_h($def['label']) ?>
-                                                <?php if (!empty($def['help'])): ?><small><?= arc_h($def['help']) ?></small><?php endif; ?>
-                                            </span>
-                                        </label>
-                                    <?php else: ?>
-                                        <label><?= arc_h($def['label']) ?>
-                                            <select name="pref_<?= arc_h($key) ?>">
-                                                <?php foreach ($def['options'] as $optKey => $optLabel): ?>
-                                                    <option value="<?= arc_h($optKey) ?>" <?= $value === (string)$optKey ? 'selected' : '' ?>><?= arc_h($optLabel) ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        </label>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-
-                    <p class="text-muted help-text mt-0">Horário de referência da plataforma: America/Belem (UTC-03:00).</p>
-                    <div class="arc-account-actions"><button class="button" type="submit"><i class="fa fa-check" aria-hidden="true"></i> Salvar preferências</button></div>
-                </form>
-            </div>
-        </section>
-
-        <!-- ==================== ABA 3: ATIVIDADE ==================== -->
-        <section class="tab-content" id="tab-activity" role="tabpanel" aria-labelledby="arc-account-tab-activity">
-            <div class="card">
-                <div class="card-header">
-                    <h2>Atividade recente da conta</h2>
-                    <span class="badge"><?= count($activities) ?> registros</span>
-                </div>
-                <?php if (!$activities): ?>
-                    <div class="empty-state"><i class="fa fa-history" aria-hidden="true"></i><b>Nenhuma atividade registrada</b><p>Os eventos de segurança da sua conta aparecerão aqui.</p></div>
-                <?php else: ?>
-                    <div class="activity-list">
-                        <?php foreach ($activities as $item): ?>
-                            <?php $ev = (string)$item['event_type']; ?>
-                            <div class="activity-row">
-                                <span class="activity-mark"><i class="fa fa-history" aria-hidden="true"></i></span>
-                                <span>
-                                    <b><?= arc_h($eventLabels[$ev] ?? ucfirst(str_replace('_', ' ', $ev))) ?></b>
-                                    <small><?= arc_h((string)$item['details']) ?> · <?= arc_h(arc_when($item['created_at'])) ?></small>
-                                </span>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </section>
         </div>
     </div>
 </main>
@@ -652,13 +540,6 @@ $ARCPageJs = <<<ARCJS
 (function () {
     'use strict';
 
-    /* Abas da conta independentes do controlador global de navegação. */
-    var tabs=Array.from(document.querySelectorAll('.arc-account [data-tab]'));
-    function activateTab(key,writeHash){if(!['profile','prefs','activity'].includes(key))key='profile';tabs.forEach(function(t){var on=t.dataset.tab===key;t.classList.toggle('active',on);t.setAttribute('aria-selected',on?'true':'false');t.tabIndex=on?0:-1;});['profile','prefs','activity'].forEach(function(k){var el=document.getElementById('tab-'+k);if(el)el.classList.toggle('active',k===key);});if(writeHash)history.replaceState(null,'','#'+key);}
-    tabs.forEach(function(t){t.addEventListener('click',function(){activateTab(t.dataset.tab,true);});});
-    activateTab(location.hash.slice(1),false);
-    window.addEventListener('hashchange',function(){activateTab(location.hash.slice(1),false);});
-
     /* ---------- Modal de senha ---------- */
     var modal = document.getElementById('modal-password');
     var openBtn = document.getElementById('btn-open-password');
@@ -703,12 +584,7 @@ $ARCPageJs = <<<ARCJS
         fileInput.setCustomValidity(''); document.getElementById('avatar-form').submit();
     });
 
-    /* ---------- Preferências salvas: o menu lateral passa a seguir a nova preferência ---------- */
-    if ($resetSidebar) {
-        try { localStorage.removeItem('arc_sidebar'); } catch (e) {}
-        var wantCollapsed = window.ARC_PREFS && window.ARC_PREFS.sidebar_default === 'collapsed';
-        document.body.classList.toggle('sidebar-collapsed', !!wantCollapsed);
-    }
+
 })();
 </script>
 ARCJS;

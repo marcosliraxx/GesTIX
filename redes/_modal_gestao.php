@@ -1,3 +1,4 @@
+<?php /** Caminho: redes/_modal_gestao.php */ if (!($isNetworkOwner ?? false)) return; ?>
 <dialog id="arc-network-manager" class="arc-network-manager" aria-labelledby="arc-network-manager-title" aria-modal="true">
  <div class="arc-network-manager-shell">
   <header class="arc-manager-header"><div class="arc-manager-heading"><span class="arc-manager-mark"><i class="fa fa-sliders" aria-hidden="true"></i></span><div><small>ARCOLL / GESTÃO DA REDE</small><h2 id="arc-network-manager-title">Administrar rede</h2><p><?= arc_h((string)$network['name']) ?> · <?= arc_h((string)($network['site_code']??'')) ?></p></div></div><button type="button" class="arc-manager-close" data-network-modal-close aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header>

@@ -1,9 +1,10 @@
+<?php /* Caminho: redes/_rodape.php */ ?>
 </div></div></main>
 <script>
 (function(){
 'use strict';
 const networkId=<?= (int)$networkId ?>, csrf=<?= json_encode($csrf) ?>, base=<?= json_encode(arc_workspace_base_url()) ?>;
-const target=document.getElementById('arc-agent-target'), log=document.getElementById('arc-command-log'), status=document.getElementById('arc-connection-status'), refresh=document.getElementById('arc-agent-refresh');
+const target=document.getElementById('arc-agent-target'), log=document.getElementById('arc-command-log'), status=document.getElementById('arc-connection-status'), refresh=document.getElementById('arc-network-global-state');
 if(!target||!log||!status)return;
 const progress=document.createElement('div');progress.id='arc-operation-progress';progress.style.cssText='position:fixed;z-index:7000;bottom:12px;left:max(110px,12vw);right:16px;background:#10283f;color:#c8eaff;border:1px solid #277ba1;border-radius:8px;padding:7px 11px;box-shadow:0 8px 30px #001827a8;font:12px Segoe UI,Arial,sans-serif;display:none';
 progress.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:5px"><strong id="arc-operation-label">Aguardando execução</strong><span id="arc-operation-state"></span></div><div style="height:4px;overflow:hidden;border-radius:4px;background:#1b4464"><div id="arc-operation-fill" style="height:100%;width:30%;background:linear-gradient(90deg,#35cff0,#556cf0);transition:width .3s"></div></div>';
@@ -420,12 +421,43 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(document.fullscreenEl
   const closer=e.target.closest('[data-network-modal-close]');if(closer){e.preventDefault();modal.close();return}
   const tab=e.target.closest('[data-manager-tab]');if(tab){e.preventDefault();choose(tab.dataset.managerTab)}
  });
- modal.addEventListener('click',e=>{if(e.target===modal)modal.close()});
+ // Fechar apenas quando o clique ocorrer no backdrop, sem fechar ao clicar no conteúdo.
+ function backdropClick(dialog,e){
+  if(!dialog.open || e.target!==dialog)return;
+  const r=dialog.getBoundingClientRect();
+  if(e.clientX<r.left || e.clientX>r.right || e.clientY<r.top || e.clientY>r.bottom || (dialog===modal && !e.target.closest('.arc-network-manager-shell')))dialog.close();
+ }
+ [modal,document.getElementById('arc-network-confirm'),modal.querySelector('#arc-agent-detail-modal'),modal.querySelector('#arc-team-editor'),modal.querySelector('#arc-headless-confirm'),document.getElementById('arc-remote-auto-modal'),document.getElementById('arc-remote-assistance-modal')].filter(Boolean).forEach(d=>d.addEventListener('click',e=>backdropClick(d,e)));
+
  // The original forms submit to their own PHP actions; use a styled confirmation dialog.
  const confirm=document.getElementById('arc-network-confirm');let pending=null;
  document.addEventListener('submit',function(e){const form=e.target.closest('form[data-confirm]');if(!form||!confirm||form.dataset.confirmed==='1')return;e.preventDefault();pending=form;const message=confirm.querySelector('[data-confirm-text]');if(message)message.textContent=form.dataset.confirm;confirm.showModal()},true);
  if(confirm){confirm.querySelector('[data-confirm-cancel]')?.addEventListener('click',()=>{pending=null;confirm.close()});confirm.querySelector('[data-confirm-proceed]')?.addEventListener('click',()=>{if(!pending)return;const f=pending;pending=null;confirm.close();f.dataset.confirmed='1';f.requestSubmit()})}
  const logo=modal.querySelector('#arc-network-logo-input');logo?.addEventListener('change',()=>{const file=logo.files?.[0];if(!file)return;if(file.size>2*1024*1024){alert('A imagem deve ter até 2 MB.');logo.value='';return}const image=modal.querySelector('#arc-logo-preview'),placeholder=modal.querySelector('#arc-logo-placeholder');if(image){const url=URL.createObjectURL(file);image.onload=()=>URL.revokeObjectURL(url);image.src=url;image.hidden=false}if(placeholder)placeholder.hidden=true});
+ // Gerenciamento compacto: busca, detalhes, edição do perfil e modo sem monitor.
+ modal.querySelectorAll('[data-manager-search]').forEach(input=>input.addEventListener('input',()=>{
+  const section=input.closest('.arc-manage-section'),needle=input.value.trim().toLocaleLowerCase('pt-BR');let visible=0;
+  section.querySelectorAll('tbody tr[data-search-text]').forEach(row=>{const hit=(row.dataset.searchText||'').includes(needle);row.hidden=!hit;if(hit)visible++});
+  const empty=section.querySelector('[data-manager-empty]');if(empty)empty.hidden=visible!==0;
+ }));
+ const agentDetail=modal.querySelector('#arc-agent-detail-modal');
+ modal.querySelectorAll('[data-agent-details]').forEach(row=>{
+  const show=()=>{const source=document.getElementById(row.dataset.agentDetails);if(!source||!agentDetail)return;agentDetail.querySelector('[data-detail-content]').replaceChildren(source.cloneNode(true));agentDetail.querySelector('[data-detail-content] > div').hidden=false;agentDetail.showModal()};
+  row.addEventListener('click',e=>{if(!e.target.closest('button,a,form,input,select'))show()});
+  row.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===row){e.preventDefault();show()}});
+ });
+ agentDetail?.querySelector('[data-detail-close]')?.addEventListener('click',()=>agentDetail.close());
+ const teamEditor=modal.querySelector('#arc-team-editor');
+ const editTeam=(email,role)=>{if(!teamEditor)return;teamEditor.querySelector('[name=member_email]').value=email||'';teamEditor.querySelector('[name=member_email]').readOnly=!!email;teamEditor.querySelector('[name=member_role]').value=role||'viewer';teamEditor.querySelector('#arc-team-editor-title').textContent=email?'Editar perfil':'Adicionar integrante';teamEditor.showModal()};
+ modal.querySelector('[data-team-add]')?.addEventListener('click',()=>editTeam('','viewer'));
+ modal.querySelectorAll('[data-team-edit]').forEach(btn=>btn.addEventListener('click',()=>editTeam(btn.dataset.teamEmail,btn.dataset.teamRole)));
+ modal.querySelectorAll('[data-team-close]').forEach(btn=>btn.addEventListener('click',()=>teamEditor?.close()));
+ const headless=modal.querySelector('#arc-headless-confirm');
+ modal.querySelectorAll('.arc-headless-toggle-btn').forEach(btn=>btn.addEventListener('click',()=>{
+  headless.querySelector('#arc-headless-confirm-agent-id').value=btn.dataset.headlessAgentId;
+  headless.querySelector('#arc-headless-confirm-text').textContent=(btn.dataset.headlessCurrent==='1'?'Desativar':'Ativar')+' acesso sem confirmação local para '+btn.dataset.headlessAgentName+'?';headless.showModal();
+ }));
+ modal.querySelector('#arc-headless-confirm-cancel')?.addEventListener('click',()=>headless?.close());
  const hash=(location.hash||'').toLowerCase();if(hash==='#team'||hash==='#users')open('team');else if(hash==='#agents'||hash==='#installations')open('agents');else if(hash==='#settings'||hash==='#preferences')open('settings');else if(hash==='#cadastro')open('data');
 })();
 </script>

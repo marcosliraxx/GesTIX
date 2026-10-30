@@ -1,4 +1,5 @@
 <?php
+/** Caminho: redes/conexao.php */
 declare(strict_types=1);
 $arcSectionFile = 'conexao';
 require __DIR__.'/_base.php';
@@ -105,12 +106,9 @@ require __DIR__.'/_topo.php';
 <style>
 .arc-connect *{box-sizing:border-box}.arc-connect button{cursor:pointer}
 .arc-connect .cc-board{width:100%;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface-alt)}
-.arc-connect .cc-head{height:46px;min-height:46px;display:flex;align-items:center;justify-content:space-between;padding:5px 12px;border-bottom:1px solid var(--line);gap:10px}
-.arc-connect .cc-heading{display:flex;align-items:center;gap:9px;min-width:0}.arc-connect .cc-heading small{font-size:10px;letter-spacing:.08em;color:var(--primary);font-weight:800;white-space:nowrap}.arc-connect .cc-heading h2{font-size:13px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.arc-connect .cc-actions{display:flex;gap:7px;align-items:center}.arc-connect .cc-status{font-size:10px;color:var(--muted);white-space:nowrap}.arc-connect .cc-run{font-size:11px;border:1px solid #34708a;border-radius:7px;color:var(--text);padding:6px 9px;background:var(--surface-alt);white-space:nowrap}.arc-connect .cc-refresh{font-size:11px;border:1px solid #34708a;border-radius:7px;color:var(--text);padding:6px 9px;background:var(--surface-alt);white-space:nowrap}.arc-connect button:focus-visible{outline:2px solid var(--border);outline-offset:2px}.arc-connect .cc-run:disabled{opacity:.5}
+.arc-connect .cc-head{height:34px;min-height:34px;display:flex;align-items:center;justify-content:space-between;padding:3px 9px;border-bottom:1px solid var(--line);gap:10px}
+.arc-connect .cc-heading{display:flex;align-items:center;gap:9px;min-width:0}.arc-connect .cc-heading small{font-size:10px;letter-spacing:.08em;color:var(--primary);font-weight:800;white-space:nowrap}.arc-connect .cc-heading h2{font-size:13px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.arc-connect .cc-actions{display:flex;gap:5px;align-items:center}.arc-connect .cc-status{font-size:10px;color:var(--muted);white-space:nowrap}.arc-connect .cc-run{font-size:11px;border:1px solid #34708a;border-radius:6px;color:var(--text);padding:4px 7px;background:var(--surface-alt);white-space:nowrap}.arc-connect .cc-refresh{font-size:11px;border:1px solid #34708a;border-radius:6px;color:var(--text);padding:4px 7px;background:var(--surface-alt);white-space:nowrap}.arc-connect button:focus-visible{outline:2px solid var(--border);outline-offset:2px}.arc-connect .cc-run:disabled{opacity:.5}
 .arc-connect .cc-surface{flex:1;min-height:0;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--surface-alt)}
-.arc-connect .cc-metrics{position:relative;z-index:6;display:grid;grid-template-columns:minmax(140px,1.5fr) repeat(5,minmax(80px,1fr));align-items:stretch;background:#0a1b2cf5;border-bottom:1px solid var(--border);min-height:72px}
-.arc-connect .cc-provider{padding:10px 12px;min-width:0;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:4px}
-.arc-connect .cc-kpi{padding:10px 12px;min-width:0;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:4px}.arc-connect .cc-provider small{color:var(--muted);font-size:10px;white-space:nowrap}.arc-connect .cc-kpi small{color:var(--muted);font-size:10px;white-space:nowrap}.arc-connect .cc-isp{font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-connect .cc-org{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-connect .cc-kpi strong{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .arc-connect .cc-stage{position:relative;flex:1;min-height:240px;background:radial-gradient(ellipse at center,var(--surface-alt),var(--surface-alt) 74%);overflow:hidden;isolation:isolate}
 .arc-connect .cc-map{position:absolute;inset:0;z-index:0;background:var(--surface-alt);font-family:inherit}
 .arc-connect .leaflet-container{background:var(--surface-alt);font-family:inherit;outline:0}
@@ -130,9 +128,9 @@ require __DIR__.'/_topo.php';
 .arc-connect .cc-link:before{content:"";width:2px;height:20px;border-radius:2px;background:repeating-linear-gradient(#4fdcff 0 4px,transparent 4px 8px);background-size:2px 16px;animation:ccdown 1s linear infinite}
 .arc-connect .cc-link b{font-weight:700;color:var(--text)}
 .arc-connect .cc-tools{top:10px;right:10px;display:flex;flex-direction:column;gap:6px}
-.arc-connect .cc-tool{width:34px;height:34px;display:grid;place-items:center;border:1px solid #3f89a6;border-radius:10px;background:#0a2236ee;color:var(--text);font-size:16px;line-height:1;padding:0;transition:background .2s,transform .2s}
+.arc-connect .cc-tool{width:29px;height:29px;display:grid;place-items:center;border:1px solid #3f89a6;border-radius:10px;background:#0a2236ee;color:var(--text);font-size:13px;line-height:1;padding:0;transition:background .2s,transform .2s}
 .arc-connect .cc-tool:hover{background:var(--surface-alt);transform:scale(1.06)}
-.arc-connect .cc-gps{position:absolute;z-index:500;right:54px;bottom:24px;display:flex;gap:4px;flex-wrap:wrap;max-width:60%;pointer-events:auto}.arc-connect .cc-gps button{background:var(--surface-alt);color:var(--text);border:1px solid #3f89a6;border-radius:7px;padding:7px 8px;font-size:10px;font-weight:700}.arc-connect .cc-layers{left:10px;bottom:24px;display:flex;border:1px solid #3f89a6;border-radius:10px;overflow:hidden;background:#0a2236ee}
+.arc-connect .cc-layers{left:10px;bottom:24px;display:flex;border:1px solid #3f89a6;border-radius:10px;overflow:hidden;background:#0a2236ee}
 .arc-connect .cc-layers button{border:0;border-right:1px solid #2c5a72;background:transparent;color:var(--muted);font-size:10px;font-weight:700;padding:7px 10px;transition:background .2s,color .2s}
 .arc-connect .cc-layers button:last-child{border-right:0}.arc-connect .cc-layers button[aria-pressed=true]{background:#1b6d8d;color:var(--text)}
 .arc-connect .cc-state{left:50%;bottom:26px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;max-width:calc(100% - 40px);padding:7px 13px;border:1px solid #3f89a6;border-radius:20px;background:#0a2236ee;color:var(--text);font-size:11px;box-shadow:0 8px 24px #0008}
@@ -156,21 +154,21 @@ require __DIR__.'/_topo.php';
 .arc-connect .cc-chip i{color:var(--primary)}.arc-connect .cc-chip:hover{background:var(--surface-alt)}
 .arc-connect path.cc-flow{animation:ccflow 1.1s linear infinite}
 .arc-connect path.cc-area{animation:ccbreath 3.4s ease-in-out infinite}
-.arc-connect .cc-popup .leaflet-popup-content-wrapper{padding:0;overflow:hidden;color:var(--text);border:1px solid #4aa6c4;border-radius:16px;background:linear-gradient(170deg,#0b2438f7,#071a2cf7);box-shadow:0 18px 50px #000b;backdrop-filter:blur(10px);animation:ccpop .3s cubic-bezier(.2,1.2,.4,1) backwards}
+.arc-connect .cc-popup .leaflet-popup-content-wrapper{padding:0;overflow:hidden;color:var(--text);border:1px solid #4aa6c4;border-radius:10px;background:linear-gradient(170deg,#0b2438f7,#071a2cf7);box-shadow:0 18px 50px #000b;backdrop-filter:blur(10px);animation:ccpop .3s cubic-bezier(.2,1.2,.4,1) backwards}
 .arc-connect .cc-popup .leaflet-popup-content{margin:0;font-size:11px;line-height:1.45}
 .arc-connect .cc-popup .leaflet-popup-tip{background:var(--surface-alt);border:1px solid #4aa6c4}
-.arc-connect .cc-popup a.leaflet-popup-close-button{top:9px;right:9px;width:24px;height:24px;border-radius:50%;padding:0;display:grid;place-items:center;font:700 16px/1 inherit;color:var(--text);background:#ffffff14;transition:background .2s}
+.arc-connect .cc-popup a.leaflet-popup-close-button{top:5px;right:5px;width:20px;height:20px;border-radius:50%;padding:0;display:grid;place-items:center;font:700 16px/1 inherit;color:var(--text);background:#ffffff14;transition:background .2s}
 .arc-connect .cc-popup a.leaflet-popup-close-button:hover{background:#ffffff2e;color:var(--text)}
-.arc-connect .cc-card-head{display:flex;align-items:center;gap:11px;padding:13px 40px 12px 14px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#12506d66,#0a243800)}
-.arc-connect .cc-card-ico{flex:0 0 36px;width:36px;height:36px;border-radius:12px;display:grid;place-items:center;font-size:17px;color:var(--text);background:linear-gradient(145deg,var(--surface-alt),#2bc4ea);box-shadow:0 0 16px #2bc4ea77}
+.arc-connect .cc-card-head{display:flex;align-items:center;gap:7px;padding:8px 31px 7px 9px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#12506d66,#0a243800)}
+.arc-connect .cc-card-ico{flex:0 0 27px;width:27px;height:27px;border-radius:8px;display:grid;place-items:center;font-size:13px;color:var(--text);background:linear-gradient(145deg,var(--surface-alt),#2bc4ea);box-shadow:0 0 16px #2bc4ea77}
 .arc-connect .cc-card.dest .cc-card-ico{background:linear-gradient(145deg,var(--surface-alt),#33d489);box-shadow:0 0 16px #33d48977}.arc-connect .cc-card.route .cc-card-ico{background:linear-gradient(145deg,var(--surface-alt),#f0a93e);box-shadow:0 0 16px #f0a93e66}
 .arc-connect .cc-card-head div{min-width:0}.arc-connect .cc-card-head small{display:block;font-size:9px;letter-spacing:.1em;font-weight:800;color:var(--primary)}.arc-connect .cc-card.dest .cc-card-head small{color:#52e0a0}.arc-connect .cc-card.route .cc-card-head small{color:#f3b95a}
-.arc-connect .cc-card-head strong{display:block;font-size:14px;line-height:1.25;overflow-wrap:anywhere}.arc-connect .cc-card-head span{display:block;font-size:10px;color:var(--muted)}
-.arc-connect .cc-rows{margin:0;padding:8px 14px 4px;display:grid;gap:0;max-height:min(46vh,300px);overflow:auto}
-.arc-connect .cc-rows div{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px dashed var(--border)}.arc-connect .cc-rows div:last-child{border-bottom:0}
+.arc-connect .cc-card-head strong{display:block;font-size:12px;line-height:1.2;overflow-wrap:anywhere}.arc-connect .cc-card-head span{display:block;font-size:10px;color:var(--muted)}
+.arc-connect .cc-rows{margin:0;padding:4px 9px 3px;display:grid;gap:0;max-height:min(38vh,220px);overflow:auto}
+.arc-connect .cc-rows div{display:grid;grid-template-columns:75px minmax(0,1fr);gap:6px;padding:4px 0;border-bottom:1px dashed var(--border)}.arc-connect .cc-rows div:last-child{border-bottom:0}
 .arc-connect .cc-rows dt{margin:0;color:var(--muted);font-size:10px;letter-spacing:.03em}.arc-connect .cc-rows dd{margin:0;color:var(--text);font-weight:600;overflow-wrap:anywhere}
 .arc-connect .cc-rows dd em{font-style:normal;font-weight:800}
-.arc-connect .cc-card-note{margin:0;padding:9px 14px 11px;border-top:1px solid var(--border);color:var(--muted);font-size:10px;line-height:1.5;background:#05121f66}
+.arc-connect .cc-card-note{margin:0;padding:6px 9px 7px;border-top:1px solid var(--border);color:var(--muted);font-size:10px;line-height:1.5;background:#05121f66}
 .arc-connect .cc-card-note a{color:var(--text);font-weight:700}
 .arc-connect .cc-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 11px;background:var(--surface-alt);border-top:1px solid var(--line);color:var(--muted);font-size:10px;min-height:30px}.arc-connect .cc-bottom #cc-message{color:var(--muted)}.arc-connect .cc-bottom #cc-checked{white-space:nowrap}
 @keyframes ccflow{to{stroke-dashoffset:-13}}
@@ -182,22 +180,14 @@ require __DIR__.'/_topo.php';
 @keyframes ccbreath{0%,100%{fill-opacity:.05;stroke-opacity:.45}50%{fill-opacity:.14;stroke-opacity:.9}}
 @keyframes ccdown{to{background-position:0 16px}}
 .arc-redes-page:has(.arc-connect) .arc-redes-conteudo{display:flex;min-height:0;overflow:hidden;padding:6px 10px}.arc-connect{--line:#29445a;--text:#eaf7ff;--muted:#8fabc0;min-width:0;color:var(--text);width:100%;height:100%;min-height:0;display:flex;font-family:inherit;flex:1}
-@media(max-width:1050px){.arc-connect .cc-provider{padding:6px 9px}.arc-connect .cc-kpi{padding:6px 9px}.arc-connect .cc-metrics{grid-template-columns:repeat(3,minmax(0,1fr));min-height:0}}
-@media(max-width:620px){.arc-redes-page:has(.arc-connect) .arc-redes-conteudo{overflow:auto}.arc-connect{min-height:600px}.arc-connect .cc-head{height:auto}.arc-connect .cc-heading h2{font-size:11px}.arc-connect .cc-status{display:none}.arc-connect .cc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.arc-connect .cc-stage{min-height:380px}.arc-connect .cc-route{width:min(200px,60%);padding:8px 10px}.arc-connect .cc-stop strong{font-size:12px}.arc-connect .cc-tag{max-width:132px;padding:4px 8px}.arc-connect .cc-tag strong{font-size:11px}.arc-connect .cc-layers button{padding:7px 8px}.arc-connect .cc-rows div{grid-template-columns:80px minmax(0,1fr)}}
+@media(max-width:1050px){}
+@media(max-width:620px){.arc-redes-page:has(.arc-connect) .arc-redes-conteudo{overflow:auto}.arc-connect{min-height:600px}.arc-connect .cc-head{height:auto}.arc-connect .cc-heading h2{font-size:11px}.arc-connect .cc-status{display:none}.arc-connect .cc-stage{min-height:380px}.arc-connect .cc-route{width:min(200px,60%);padding:8px 10px}.arc-connect .cc-stop strong{font-size:12px}.arc-connect .cc-tag{max-width:132px;padding:4px 8px}.arc-connect .cc-tag strong{font-size:11px}.arc-connect .cc-layers button{padding:7px 8px}.arc-connect .cc-rows div{grid-template-columns:80px minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.arc-connect *{animation:none!important}.arc-connect path.cc-flow{animation:none!important}}
 </style>
 <section class="asc-ops arc-connect" aria-label="Conexão e provedora">
  <div class="cc-board">
   <header class="cc-head"><div class="cc-heading"><small>CONEXÃO</small></div><div class="cc-actions"><span id="cc-status" class="cc-status">Dados do agente Windows</span><button type="button" id="cc-update" class="cc-refresh" title="Atualizar dados" aria-label="Atualizar dados"><i class="fa fa-refresh" aria-hidden="true"></i></button><button type="button" id="cc-run" class="cc-run" data-arc-command="diagnostic" <?= $selectedAgentId ? '' : 'disabled' ?>><i class="fa fa-bolt" aria-hidden="true"></i> Diagnosticar</button></div></header>
   <div class="cc-surface">
-   <div class="cc-metrics" aria-label="Informações da conexão">
-    <div class="cc-provider"><small>PROVEDORA DE INTERNET</small><strong id="cc-isp" class="cc-isp">Aguardando diagnóstico</strong><span id="cc-org" class="cc-org">Dados do agente Windows</span></div>
-    <div class="cc-kpi"><small>IP público</small><strong id="cc-public-ip">Não disponível</strong></div>
-    <div class="cc-kpi"><small>ASN</small><strong id="cc-asn">Não disponível</strong></div>
-    <div class="cc-kpi"><small>Origem · cidade do provedor</small><strong id="cc-origin-city">Não disponível</strong></div>
-    <div class="cc-kpi"><small>Destino · cidade da rede</small><strong id="cc-dest-city">Não informado</strong></div>
-    <div class="cc-kpi"><small>Latência até a internet</small><strong id="cc-latency">Não disponível</strong></div>
-   </div>
    <div class="cc-stage" aria-label="Mapa da região: cidade de origem do provedor e cidade de destino da rede">
     <div class="cc-map" id="cc-map" role="application" aria-label="Mapa interativo da região da conexão"></div>
     <div class="cc-ui cc-route" id="cc-route" aria-live="polite">
@@ -211,7 +201,6 @@ require __DIR__.'/_topo.php';
      <button type="button" class="cc-tool" id="cc-zout" title="Afastar" aria-label="Afastar"><i class="fa fa-minus" aria-hidden="true"></i></button>
      <button type="button" class="cc-tool" id="cc-fit" title="Centralizar na rota" aria-label="Centralizar na rota"><i class="fa fa-crosshairs" aria-hidden="true"></i></button>
     </div>
-    <div class="cc-ui cc-gps" role="group" aria-label="Coordenadas verificadas"><button type="button" id="cc-gps-origin" title="Informar coordenadas GPS verificadas do provedor">GPS origem</button><button type="button" id="cc-gps-dest" title="Informar coordenadas GPS verificadas do local da rede">GPS destino</button><button type="button" id="cc-gps-here" title="Usar localização autorizada deste navegador quando ele estiver no local da rede">GPS deste dispositivo</button><button type="button" id="cc-gps-agent" title="Usar última localização autorizada enviada pelo agente Windows">GPS do agente</button></div>
     <div class="cc-ui cc-layers" role="group" aria-label="Estilo do mapa"><button type="button" data-layer="dark" aria-pressed="true">Escuro</button><button type="button" data-layer="streets" aria-pressed="false">Ruas</button><button type="button" data-layer="sat" aria-pressed="false">Satélite</button></div>
     <div class="cc-ui cc-state" id="cc-state" role="status" hidden></div>
     <div class="cc-ui cc-empty" id="cc-empty" hidden><div><i class="fa fa-map-o" aria-hidden="true"></i><span id="cc-empty-text"></span></div></div>
@@ -249,40 +238,6 @@ const agentPoint=state.agentGps||null,agentCoords=pointCoords(agentPoint);
 if(savedOrigin){origin.ll=savedOrigin;origin.fromIp=false;origin.gpsVerified=true;origin.geoSource=String(points.origin.source||'manual_verified');origin.accuracy_m=points.origin.accuracy_m;}
 if(savedDest){dest.ll=savedDest;dest.gpsVerified=true;dest.geocodeSource='localização confirmada da rede';dest.accuracy_m=points.dest.accuracy_m;}
 else if(agentCoords){dest.ll=agentCoords;dest.gpsVerified=true;dest.geocodeSource='localização autorizada do Windows';dest.accuracy_m=agentPoint.accuracy_m;}
-async function setGps(kind,coords,accuracy,source){
- if(!verifiedCoord(coords))return;
- if(!state.geoAvailable){alert('Armazenamento de GPS indisponível no servidor.');return;}
- const url=new URL(window.location.href);url.searchParams.set('gps_action','save');
- try{
- const response=await fetch(url.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:state.gpsCsrf,kind,latitude:coords[0],longitude:coords[1],accuracy_m:accuracy,source})});
- const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Falha ao salvar');
- location.reload();
- }catch(error){alert('Não foi possível salvar a localização: '+error.message);}
-}
-function requestGps(kind){
- const point=points[kind]||{};
- const raw=window.prompt('Informe latitude e longitude obtidas de uma medição verificada (ex.: -1.4558, -48.4902). IP não é GPS exato.',point.latitude!=null?point.latitude+', '+point.longitude:'');
- if(raw===null)return;
- const parts=raw.trim().split(/[,; ]+/).map(Number);
- if(parts.length!==2||!validLL(parts[0],parts[1])){alert('Coordenadas inválidas.');return;}
- if(confirm('Salvar essas coordenadas como ponto confirmado de '+(kind==='origin'?'origem':'destino')+'?'))setGps(kind,parts,null,'manual_verified');
-}
-$('cc-gps-origin').onclick=()=>requestGps('origin');
-$('cc-gps-dest').onclick=()=>requestGps('dest');
-$('cc-gps-here').onclick=()=>{
- if(!confirm('Você está fisicamente no local da REDE de destino e autoriza salvar a localização informada por este dispositivo?'))return;
- if(!navigator.geolocation){alert('Geolocalização indisponível no navegador.');return;}
- navigator.geolocation.getCurrentPosition(pos=>{
-  const accuracy=Math.round(pos.coords.accuracy||0);
-  if(confirm('Precisão estimada: ±'+accuracy+' m. Salvar este ponto para o destino da rede?'))setGps('dest',[pos.coords.latitude,pos.coords.longitude],accuracy,'browser_geolocation');
- },err=>alert('Localização indisponível ou sem permissão: '+err.message),{enableHighAccuracy:true,timeout:20000,maximumAge:0});
-};
-$('cc-gps-agent').onclick=()=>{
- if(!agentCoords){alert('O agente ainda não enviou uma localização autorizada. No Windows, abra Conexão e use "Localização do Windows".');return;}
- const accuracy=agentPoint.accuracy_m;
- const a=accuracy!=null?'Precisão informada: ±'+Math.round(accuracy)+' m. ':'Precisão não informada. ';
- if(confirm(a+'Usar a última posição autorizada do agente como destino da rede?'))setGps('dest',agentCoords,accuracy,'manual_verified');
-};
 
 const originLabel=label(origin.city,origin.uf||origin.region);
 const destLabel=label(dest.city,dest.uf);
@@ -293,13 +248,6 @@ const ms=h=>{const v=h?lat[h]:null;return v&&v.responded&&v.avg_ms!=null?Number(
 const inet=[ms('1.1.1.1'),ms('8.8.8.8')].filter(v=>v!=null);
 const inetAvg=inet.length?inet.reduce((a,b)=>a+b,0)/inet.length:null;
 const quality=v=>v==null?null:v<40?['Excelente','#3ddc97']:v<80?['Boa','#8be28b']:v<150?['Regular','#ffc857']:['Alta','#ff7b7b'];
-$('cc-isp').textContent=measured?esc(p.isp):'Aguardando diagnóstico';
-$('cc-org').textContent=measured?esc(p.org):'Aguardando dados do agente';
-$('cc-asn').textContent=measured&&p.asn?'AS'+String(p.asn).replace(/^AS/i,''):'Não disponível';
-$('cc-public-ip').textContent=measured?esc(state.publicIp):'Não disponível';
-$('cc-origin-city').textContent=originLabel||'Não disponível';
-$('cc-dest-city').textContent=destLabel||'Não informado';
-$('cc-latency').textContent=inetAvg!=null?Math.round(inetAvg)+' ms':'Não disponível';
 $('cc-status').textContent=measured?'Diagnóstico recebido':'Aguardando agente';
 $('cc-r-from').textContent=originLabel||(measured?'Cidade não identificada':'Aguardando diagnóstico');
 $('cc-r-to').textContent=destLabel||'Cidade não informada';
@@ -350,7 +298,7 @@ function pin(kind,ll,title,sub,side,content){
  const m=L.marker(ll,{icon:L.divIcon({className:'cc-mk-wrap',html:root,iconSize:[0,0]}),title:title+' — '+sub,alt:title,keyboard:true,riseOnHover:true}).addTo(map);
  m.bindPopup(content,popupOpts(-20));markers.push(m);return m;
 }
-function popupOpts(dy){const w=Math.max(220,Math.min(310,$('cc-map').clientWidth-40));return{className:'cc-popup',maxWidth:w,minWidth:Math.min(240,w),offset:[0,dy||0],autoPanPaddingTopLeft:[16,16],autoPanPaddingBottomRight:[16,64]}}
+function popupOpts(dy){const w=Math.max(180,Math.min(265,$('cc-map').clientWidth-40));return{className:'cc-popup',maxWidth:w,minWidth:Math.min(190,w),offset:[0,dy||0],autoPanPaddingTopLeft:[16,16],autoPanPaddingBottomRight:[16,64]}}
 function fit(animate){
  if(!map||!markers.length)return;
  const rt=$('cc-route'),top=(rt&&!rt.hidden?rt.offsetHeight:0)+34,side=$('cc-map').clientWidth<480?70:100;

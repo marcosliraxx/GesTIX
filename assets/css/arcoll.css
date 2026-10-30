@@ -45,7 +45,6 @@ button {
 .app-main {
   min-width: 0;
   flex: 1;
-  padding: 20px 24px;
   width: 100%;
   overflow-x: auto;
   overflow-y: auto;

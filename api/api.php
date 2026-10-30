@@ -1,4 +1,5 @@
 <?php
+// Caminho: api/api.php
 declare(strict_types=1);
 
 require __DIR__ . '/../includes/bootstrap.php';
@@ -78,23 +79,33 @@ try {
         $q->execute([$fp,$code,hash('sha256',$key),$fp]);
         if (!$q->fetchColumn()) arc_json(['ok'=>false,'error'=>'Agente não autorizado'],403);
         arc_require_aligned_agent_release();
-        $files=['arcoll_app.py','arcoll_desktop.py','arcoll_agent.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py'];
+        // Inventário da release: componentes de código em vez de uma lista fixa.
+        $sourceDir=realpath(__DIR__.'/../agent');
+        if ($sourceDir===false) arc_json(['ok'=>false,'error'=>'Release indisponível'],503);
+        $paths=glob($sourceDir.'/*');
+        if ($paths===false) arc_json(['ok'=>false,'error'=>'Inventário indisponível'],503);
         $package=[];
-        foreach ($files as $name) {
-            $path=__DIR__.'/../agent/'.$name;
-            if (!is_file($path)) continue;
+        foreach ($paths as $path) {
+            $name=basename($path);
+            if (!is_file($path) || !preg_match('/^[A-Za-z][A-Za-z0-9_-]*\.(?:py|ps1)$/D',$name)) continue;
             $contents=file_get_contents($path);
-            if (!is_string($contents) || strlen($contents)>1500000) arc_json(['ok'=>false,'error'=>'Pacote indisponível'],503);
+            if (!is_string($contents) || strlen($contents)>1500000) arc_json(['ok'=>false,'error'=>'Pacote indisponível: '.$name],503);
             $package[]=['name'=>$name,'sha256'=>hash('sha256',$contents),'content'=>base64_encode($contents)];
         }
-        if (count($package)!==count($files)) arc_json(['ok'=>false,'error'=>'Arquivos do agente incompletos'],503);
+        if (count($package)<6 || count($package)>80) arc_json(['ok'=>false,'error'=>'Release incompleta'],503);
+        usort($package,static fn($a,$b)=>strcmp($a['name'],$b['name']));
         $publishedVersion = ARC_APP_VERSION;
         $agentSource = @file_get_contents(__DIR__.'/../agent/arcoll_app.py', false, null, 0, 4096);
         if (is_string($agentSource) && preg_match('/AGENT_VERSION\s*=\s*[\"\'](\d+\.\d+\.\d+)[\"\']/', $agentSource, $vm)) {
             $publishedVersion = $vm[1];
         }
+        // A mesma versão publicada na administração fornece as notas exibidas no Windows.
+        $releaseNotes='';
+        $releases=$pdo->prepare('SELECT m.notes FROM '.arc_table('releases').' r LEFT JOIN '.arc_table('agent_release_metadata')." m ON m.release_id=r.id WHERE r.platform='windows' AND r.is_active=1 AND r.version=? AND (m.channel='stable' OR m.channel IS NULL) ORDER BY r.created_at DESC LIMIT 1");
+        $releases->execute([$publishedVersion]);
+        $releaseNotes=(string)($releases->fetchColumn() ?: '');
         header('Cache-Control: no-store, private');
-        arc_json(['ok'=>true,'version'=>$publishedVersion,'files'=>$package]);
+        arc_json(['ok'=>true,'version'=>$publishedVersion,'notes'=>mb_substr($releaseNotes,0,3000),'files'=>$package]);
     }
     /* Presença rápida: autenticação revogável da instalação. Sem registro de telemetria. */
     if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='agent-presence') {

@@ -15,7 +15,11 @@ from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canv
 
 VERSION = '2.8.1'
 
-FILES = {'arcoll_app.py', 'arcoll_desktop.py', 'arcoll_agent.py', 'arcoll_toolkit.py', 'rt_engine.py', 'connection_diagnostics.py'}
+# Caminho: agent/arcoll_updater.py
+import re
+
+VALID_NAME = re.compile(r'[A-Za-z][A-Za-z0-9_-]*\.(?:py|ps1)\Z')
+MANAGED = '.arcoll-managed-files.json'
 
 
 def run(report=lambda _message,_percent:None):
@@ -23,57 +27,83 @@ def run(report=lambda _message,_percent:None):
         raise ValueError('Argumentos de atualização inválidos')
     staging = pathlib.Path(sys.argv[1]).resolve()
     root = pathlib.Path(__file__).resolve().parent
-    pid = int(sys.argv[2])
-    origin = sys.argv[3]
-    if origin.startswith('https://') is False:
+    pid = int(sys.argv[2]); origin = sys.argv[3]
+    if not origin.startswith('https://'):
         raise ValueError('Origem HTTPS inválida')
     data = json.loads((staging / 'manifest.json').read_text(encoding='utf-8'))
-    files = data.get('files')
-    if not isinstance(files, list) or not files:
-        raise ValueError('Pacote vazio')
-    for row in files:
-        name = row.get('name', '')
-        if name not in FILES or not isinstance(row.get('sha256'), str):
-            raise ValueError('Arquivo não permitido no pacote')
-        actual = hashlib.sha256((staging / name).read_bytes()).hexdigest()
-        if actual != row['sha256']:
-            raise ValueError('Falha de integridade: ' + name)
-    report('Aguardando encerramento seguro...', 10)
-    # Let the running GUI and bootstrap gate terminate before replacing scripts.
-    for _ in range(100):
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            break
-        time.sleep(.25)
-    backup = staging / 'backup'
-    backup.mkdir(exist_ok=True)
-    installed = []
+    files = data.get('files'); inventory=data.get('inventory'); removals=data.get('remove')
+    if not isinstance(files,list) or not isinstance(inventory,list) or not isinstance(removals,list):
+        raise ValueError('Manifesto incompleto')
+    if not 6 <= len(inventory) <= 80 or len(set(inventory)) != len(inventory) or any(not isinstance(n,str) or not VALID_NAME.fullmatch(n) for n in inventory):
+        raise ValueError('Inventário inválido')
+    if len(set(removals))!=len(removals) or any(not isinstance(n,str) or not VALID_NAME.fullmatch(n) or n in inventory for n in removals):
+        raise ValueError('Remoção inválida')
+    prior_path=root/MANAGED
     try:
-        for index, row in enumerate(files):
-            report('Aplicando ' + row['name'], int(20 + index * 65 / len(files)))
-            name = row['name']
-            dest = root / name
-            if dest.exists():
-                shutil.copy2(dest, backup / name)
-            temp = root / (name + '.updating')
-            shutil.copy2(staging / name, temp)
-            os.replace(temp, dest)
-            installed.append(name)
+        prior=json.loads(prior_path.read_text(encoding='utf-8-sig')) if prior_path.exists() else []
+        if not isinstance(prior,list):prior=[]
+    except (OSError,ValueError):prior=[]
+    if not set(removals).issubset(set(prior)):
+        raise ValueError('Não é permitido remover arquivo não gerenciado')
+    seen=set()
+    for row in files:
+        if not isinstance(row,dict):raise ValueError('Entrada inválida')
+        name=row.get('name')
+        if not isinstance(name,str) or not VALID_NAME.fullmatch(name) or name not in inventory or name in seen:
+            raise ValueError('Arquivo não permitido')
+        seen.add(name)
+        if hashlib.sha256((staging/name).read_bytes()).hexdigest()!=row.get('sha256'):
+            raise ValueError('Falha de integridade: '+name)
+    report('Aguardando encerramento seguro...', 10)
+    for _ in range(100):
+        try:os.kill(pid,0)
+        except OSError:break
+        time.sleep(.25)
+    backup=staging/'backup';backup.mkdir(exist_ok=True)
+    touched=[]
+    old_manifest=prior_path.read_bytes() if prior_path.exists() else None
+    try:
+        operations=[('write',row['name']) for row in files]+[('remove',n) for n in removals]
+        for index,(action,name) in enumerate(operations):
+            report(('Instalando ' if action=='write' else 'Removendo ')+name,int(20+index*65/max(1,len(operations))))
+            dest=root/name
+            if dest.exists():shutil.copy2(dest,backup/name)
+            touched.append(name)
+            if action=='write':
+                temp=root/(name+'.updating')
+                shutil.copy2(staging/name,temp)
+                os.replace(temp,dest)
+            else:dest.unlink(missing_ok=True)
+        temp=root/(MANAGED+'.updating')
+        temp.write_text(json.dumps(inventory,ensure_ascii=False),encoding='utf-8')
+        os.replace(temp,prior_path)
     except Exception:
-        for name in reversed(installed):
-            old = backup / name
-            if old.exists():
-                shutil.copy2(old, root / name)
-            else:
-                (root / name).unlink(missing_ok=True)
+        for name in reversed(touched):
+            old=backup/name
+            if old.exists():shutil.copy2(old,root/name)
+            else:(root/name).unlink(missing_ok=True)
+        if old_manifest is None:prior_path.unlink(missing_ok=True)
+        else:prior_path.write_bytes(old_manifest)
         raise
-    report('Arquivos atualizados; iniciando agente...', 95)
-    exe = pathlib.Path(sys.executable)
-    if exe.name.lower() == 'python.exe' and exe.with_name('pythonw.exe').exists():
-        exe = exe.with_name('pythonw.exe')
-    subprocess.Popen([str(exe), str(root / 'arcoll_desktop.py'), '--origin', origin], cwd=str(root), creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    report('Concluído! Reiniciando...', 100)
+    # Notas são entregues ao processo atualizado, inclusive nas atualizações locais.
+    notes=str(data.get('release_notes') or '').strip()[:3000]
+    if notes:
+        local=pathlib.Path(os.environ.get('LOCALAPPDATA',str(pathlib.Path.home())))/'Arcoll'
+        local.mkdir(parents=True,exist_ok=True)
+        (local/'update-release-notes.json').write_text(json.dumps({'version':str(data.get('release_version') or '')[:32],'notes':notes},ensure_ascii=False),encoding='utf-8')
+    # Confirmação remota só é emitida após o novo processo iniciar.
+    command_id=data.get('remote_command_id')
+    if command_id is not None:
+        command_id=int(command_id)
+        if command_id>0:
+            local=pathlib.Path(os.environ.get('LOCALAPPDATA',str(pathlib.Path.home())))/'Arcoll'
+            local.mkdir(parents=True,exist_ok=True)
+            (local/'update-awaiting-confirmation.json').write_text(json.dumps({'command_id':command_id}),encoding='utf-8')
+    report('Arquivos instalados; reiniciando agente...',95)
+    exe=pathlib.Path(sys.executable)
+    if exe.name.lower()=='python.exe' and exe.with_name('pythonw.exe').exists():exe=exe.with_name('pythonw.exe')
+    subprocess.Popen([str(exe),str(root/'arcoll_desktop.py'),'--origin',origin],cwd=str(root),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    report('Reiniciando...',100)
 
 
 def updater_window():

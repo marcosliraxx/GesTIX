@@ -1,4 +1,5 @@
 <?php
+/* Caminho: includes/bootstrap.php */
 declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
@@ -65,7 +66,7 @@ function arc_table(string $name): string
         'admins', 'settings', 'pages', 'page_fields', 'sessions', 'preferences',
         'samples', 'devices', 'alerts', 'releases', 'login_attempts', 'audit_logs',
         'field_values', 'user_accounts', 'managed_networks', 'network_sessions', 'account_login_attempts', 'account_audit', 'pwa_installations',
-        'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members',
+        'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations',
     ];
     if (!in_array($name, $allowed, true)) {
         throw new InvalidArgumentException('Tabela não permitida.');
@@ -491,6 +492,17 @@ function arc_user_id(): ?int
 }
 
 function arc_is_user(): bool { return arc_user_id() !== null; }
+
+/** Permissões de rede por usuário, verificadas no banco a cada requisição. */
+function arc_network_team_access(PDO $pdo, int $networkId, int $userId): ?array
+{
+    if ($networkId <= 0 || $userId <= 0) return null;
+    $q = $pdo->prepare('SELECT n.account_id, CASE WHEN n.account_id=? THEN \'owner\' ELSE m.role END AS team_role FROM '.arc_table('managed_networks').' n LEFT JOIN '.arc_table('network_team_members').' m ON m.network_id=n.id AND m.account_id=n.account_id AND m.member_user_id=? AND m.enabled=1 WHERE n.id=? AND (n.account_id=? OR (n.is_active=1 AND m.member_user_id IS NOT NULL)) LIMIT 1');
+    $q->execute([$userId,$userId,$networkId,$userId]);
+    $access = $q->fetch(PDO::FETCH_ASSOC);
+    if (!$access || !in_array((string)$access['team_role'], ['owner','administrator','operator','viewer'], true)) return null;
+    return ['account_id'=>(int)$access['account_id'],'role'=>(string)$access['team_role']];
+}
 
 function arc_current_network_id(): ?int
 {
@@ -1019,7 +1031,7 @@ function arc_v15_routes(): array {
       'measurements'=>['Medições','pages/medicoes.php'],
       'activities'=>['Atividades','pages/atividades.php'],
       'profile'=>['Meu perfil','pages/perfil.php'],
-      'settings'=>['Preferências','pages/perfil.php'],
+      'settings'=>['Preferências','pages/preferencias.php'],
       'devices'=>['Dispositivos','pages/clientes.php?view=devices'],
       'agent'=>['Agentes','pages/agentes.php'],
       'admin'=>['Painel','pages/painel.php'],
@@ -1093,6 +1105,9 @@ function arc_v15_menu_items(PDO $pdo, string $placement, ?int $networkId=null): 
             }
         }
         if($key==='platform_settings')$url='pages/configuracoes.php';
+        if($key==='settings')$url='pages/preferencias.php';
+        if($key==='activities')$url='pages/atividades.php';
+        if($key==='profile')$url='pages/perfil.php';
         if($target==='' && arc_is_admin() && in_array($key,['networks','measurements','devices','agent'],true)) $url=match($key){'networks'=>'pages/inventario.php','measurements'=>'pages/estatisticas.php','devices'=>'pages/dispositivos.php','agent'=>'pages/agentes.php'};
         if(str_starts_with($key,'network_')) {
             if($placement!=='network'||$networkId===null||$networkId<1)continue;

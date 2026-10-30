@@ -1,4 +1,5 @@
 <?php
+// Caminho: api/download-agent.php
 declare(strict_types=1);
 
 if (!is_file(__DIR__ . '/../includes/config.php')) {
@@ -45,6 +46,12 @@ try {
     // Download and authenticated updates use the same current release sources.
     $source = __DIR__ . '/../agent';
     $required = ['arcoll_agent.py','arcoll_desktop.py','arcoll_app.py','arcoll_toolkit.py','rt_engine.py','arcoll_updater.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
+    // Inclui automaticamente novos módulos Python/PowerShell da release.
+    foreach (glob($source.'/*') ?: [] as $candidate) {
+        $name=basename($candidate);
+        if (is_file($candidate) && preg_match('/^[A-Za-z][A-Za-z0-9_-]*\.(?:py|ps1)$/D', $name) && !in_array($name,$required,true)) $required[]=$name;
+    }
+    sort($required, SORT_STRING);
     foreach ($required as $file) {
         if (!is_readable($source.'/'.$file)) throw new RuntimeException('Arquivo do agente ausente: '.$file);
     }
@@ -101,7 +108,7 @@ BAT;
     }
     // Módulo complementar, disponível mesmo quando a release foi publicada antes dele.
     $extraModule = $source . '/connection_diagnostics.py';
-    if (is_file($extraModule) && is_readable($extraModule)) {
+    if (!in_array('connection_diagnostics.py',$required,true) && is_file($extraModule) && is_readable($extraModule)) {
         $zip->addFile($extraModule, 'Arcoll_Agente/.dados/connection_diagnostics.py');
     }
     $zip->addFromString('Arcoll_Agente/.dados/.arcoll-installer-marker', 'ARCOLL-INSTALL-V14');

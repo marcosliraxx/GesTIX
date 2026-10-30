@@ -59,6 +59,14 @@ $arcMenuIds=array_column($arcMenu,'id');
           <?php if($arcSub):?><div class="arc-nav-children" id="arc-submenu-<?=(int)$arcItem['id']?>" <?=$arcExpanded?'':'hidden'?>><?php foreach($arcSub as $sub):?><a href="<?=arc_h($sub['url'])?>" class="<?=($ARCActiveNav??'')===$sub['key']?'active':''?>"><span class="arc-db-icon" data-icon="<?=arc_h($sub['icon'])?>" aria-hidden="true"></span><span><?=arc_h($sub['label'])?></span></a><?php endforeach;?></div><?php endif;?>
         </div>
         <?php endforeach; ?>
+      <div class="arc-nav-group" aria-label="Central de relatórios">
+        <div class="arc-nav-entry"><a href="redes/relatorios.php" class="<?=($ARCActiveNav??'')==='reports_center'?'active':''?>" title="Central de relatórios"><i class="fa fa-bar-chart" aria-hidden="true"></i><span class="side-label">Relatórios</span></a></div>
+      </div>
+      <div class="arc-nav-group" aria-label="Área pessoal">
+        <div class="arc-nav-entry"><a href="pages/perfil.php" class="<?=($ARCActiveNav??'')==='profile'?'active':''?>"><i class="fa fa-user-circle-o" aria-hidden="true"></i><span class="side-label">Meu perfil</span></a></div>
+        <div class="arc-nav-entry"><a href="pages/preferencias.php" class="<?=($ARCActiveNav??'')==='settings'?'active':''?>"><i class="fa fa-sliders" aria-hidden="true"></i><span class="side-label">Preferências</span></a></div>
+        <div class="arc-nav-entry"><a href="pages/atividades.php" class="<?=($ARCActiveNav??'')==='activities'?'active':''?>"><i class="fa fa-history" aria-hidden="true"></i><span class="side-label">Minhas atividades</span></a></div>
+      </div>
     </nav>
 
     <div class="side-bottom">

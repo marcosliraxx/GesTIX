@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+/** Caminho: google-auth.php — OAuth Google. */
 require __DIR__.'/includes/bootstrap.php';
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
@@ -47,6 +48,20 @@ try {
   if(!hash_equals($clientId,(string)($identity['aud']??''))||!in_array((string)($identity['iss']??''),['https://accounts.google.com','accounts.google.com'],true)||!hash_equals((string)$saved['nonce'],(string)($identity['nonce']??''))||(int)($identity['exp']??0)<time()||!in_array((string)($identity['email_verified']??''),['true','1'],true))throw new RuntimeException('Identidade Google não verificada.');
   $sub=(string)($identity['sub']??'');$email=strtolower(trim((string)($identity['email']??'')));
   if($sub===''||!filter_var($email,FILTER_VALIDATE_EMAIL))throw new RuntimeException('Identidade Google incompleta.');
+  // Identidades administrativas são autenticadas na própria conta administrativa.
+  // A correspondência ocorre somente após validação do token, público OAuth, nonce e e-mail verificado.
+  if(($saved['intent']??'')!=='link'){
+   $adminStmt=$pdo->prepare('SELECT id,email FROM '.arc_table('admins').' WHERE email=? LIMIT 1');
+   $adminStmt->execute([$email]);
+   $googleAdmin=$adminStmt->fetch(PDO::FETCH_ASSOC);
+   if($googleAdmin){
+    session_regenerate_id(true);
+    unset($_SESSION['arc_user_id'],$_SESSION['arc_user_email'],$_SESSION['arc_current_network_id']);
+    $_SESSION['arc_admin_id']=(int)$googleAdmin['id'];
+    $_SESSION['arc_admin_email']=(string)$googleAdmin['email'];
+    header('Location: '.$base.'pages/painel.php',true,303);exit;
+   }
+  }
   // Vinculação utiliza arc_user_preferences existente; nenhuma tabela nova.
   $prefs=arc_table('user_preferences');
   if(($saved['intent']??'')==='link'){
@@ -64,17 +79,63 @@ try {
   $q=$pdo->prepare('SELECT u.id,u.email,u.account_status FROM '.$prefs.' g JOIN '.arc_table('user_accounts').' u ON u.id=g.user_id WHERE g.pref_key=? AND g.pref_value=? LIMIT 1');$q->execute(['google_sub',$sub]);$account=$q->fetch(PDO::FETCH_ASSOC);
   if(!$account){
    $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE email_hash=? LIMIT 1');$q->execute([hash('sha256',$email)]);
-   if($q->fetchColumn()!==false)throw new RuntimeException('Já existe uma conta com esse e-mail. Entre com senha e vincule o Google em Minha Conta.');
+   $existingId=$q->fetchColumn();
+   if($existingId!==false){
+    $existing=$pdo->prepare('SELECT id,email,account_status FROM '.arc_table('user_accounts').' WHERE id=? LIMIT 1');
+    $existing->execute([(int)$existingId]);$account=$existing->fetch(PDO::FETCH_ASSOC);
+    if(!$account || strtolower((string)$account['email'])!==$email)throw new RuntimeException('Não foi possível confirmar a conta existente.');
+    if((string)$account['account_status']!=='active')throw new RuntimeException('Conta indisponível.');
+    $pdo->prepare('INSERT INTO '.$prefs.' (user_id,pref_key,pref_value) VALUES (?,?,?) ON DUPLICATE KEY UPDATE pref_value=VALUES(pref_value)')->execute([$account['id'],'google_sub',$sub]);
+   }else{ 
    $adminCheck=$pdo->prepare('SELECT id FROM '.arc_table('admins').' WHERE email=? LIMIT 1');$adminCheck->execute([$email]);
-   if($adminCheck->fetchColumn()!==false)throw new RuntimeException('Este endereço pertence a uma conta administrativa. Utilize a autenticação administrativa.');
+   if($adminCheck->fetchColumn()!==false)throw new RuntimeException('A conta administrativa não pôde ser validada.');
    if(arc_platform_setting($pdo,'platform_registration_enabled','1')!=='1')throw new RuntimeException('Cadastro de novas contas desativado.');
    $name=mb_substr(trim((string)($identity['name']??'Usuário Google')),0,120);
    $randomPassword=base64_encode(random_bytes(48));
-   $pdo->prepare('INSERT INTO '.arc_table('user_accounts').' (email,email_hash,display_name,password_hash) VALUES (?,?,?,?)')->execute([$email,hash('sha256',$email),$name,password_hash($randomPassword,PASSWORD_DEFAULT)]);
+   $pdo->prepare('INSERT INTO '.arc_table('user_accounts').' (email,email_hash,display_name,password_hash,access_notes) VALUES (?,?,?,?,?)')->execute([$email,hash('sha256',$email),$name,password_hash($randomPassword,PASSWORD_DEFAULT),'']);
    $account=['id'=>(int)$pdo->lastInsertId(),'email'=>$email,'account_status'=>'active'];
    $pdo->prepare('INSERT INTO '.$prefs.' (user_id,pref_key,pref_value) VALUES (?,?,?) ON DUPLICATE KEY UPDATE pref_value=VALUES(pref_value)')->execute([$account['id'],'google_sub',$sub]);
+   }
   }
   if((string)$account['account_status']!=='active')throw new RuntimeException('Conta indisponível.');
+  // Captura a foto pública validada da identidade Google apenas se o perfil ainda não possui foto.
+  $picture=(string)($identity['picture']??'');
+  $imageHost=strtolower((string)parse_url($picture,PHP_URL_HOST));
+  if($imageHost==='lh3.googleusercontent.com' && str_starts_with($picture,'https://') && strlen($picture)<1500){
+   try{
+    $avatarCheck=$pdo->prepare('SELECT avatar_url FROM '.arc_table('user_accounts').' WHERE id=?');
+    $avatarCheck->execute([(int)$account['id']]);
+    if(trim((string)$avatarCheck->fetchColumn())===''){
+     $ch=curl_init($picture);
+     curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>6,CURLOPT_CONNECTTIMEOUT=>3,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_MAXFILESIZE=>2097152]);
+     $bytes=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);curl_close($ch);
+     if(is_string($bytes)&&$status===200&&strlen($bytes)>0&&strlen($bytes)<=2097152){
+      $mime=(new finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+      $ext=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'][$mime]??null;
+      if($ext && @getimagesizefromstring($bytes)){
+       $directory=__DIR__.'/uploads/avatars';
+       if(is_dir($directory) && is_writable($directory)){
+        $filename='u'.(int)$account['id'].'-'.bin2hex(random_bytes(4)).'.'.$ext;
+        $path=$directory.'/'.$filename;
+        if(file_put_contents($path,$bytes,LOCK_EX)!==false){
+         $pdo->prepare('UPDATE '.arc_table('user_accounts')." SET avatar_url=? WHERE id=? AND avatar_url='' ")->execute(['uploads/avatars/'.$filename,(int)$account['id']]);
+        }
+       }
+      }
+     }
+    }
+   }catch(Throwable $photoError){error_log('Google avatar: '.$photoError->getMessage());}
+  }
+  // Aceita convites somente após o Google comprovar a posse deste e-mail.
+  $invitations=$pdo->prepare('SELECT account_id,network_id,role FROM '.arc_table('network_team_invitations').' WHERE email_hash=? AND email=?');
+  $invitations->execute([hash('sha256',$email),$email]);
+  foreach($invitations->fetchAll(PDO::FETCH_ASSOC) as $invitation){
+   $ownerCheck=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1');
+   $ownerCheck->execute([(int)$invitation['network_id'],(int)$invitation['account_id']]);
+   if(!$ownerCheck->fetchColumn())continue;
+   $pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role,enabled) VALUES (?,?,?,?,1) ON DUPLICATE KEY UPDATE role=VALUES(role),enabled=1')->execute([(int)$invitation['account_id'],(int)$invitation['network_id'],(int)$account['id'],(string)$invitation['role']]);
+   $pdo->prepare('DELETE FROM '.arc_table('network_team_invitations').' WHERE network_id=? AND email_hash=?')->execute([(int)$invitation['network_id'],hash('sha256',$email)]);
+  }
   session_regenerate_id(true);
   unset($_SESSION['arc_admin_id'],$_SESSION['arc_admin_email']);
   $_SESSION['arc_user_id']=(int)$account['id'];$_SESSION['arc_user_email']=(string)$account['email'];

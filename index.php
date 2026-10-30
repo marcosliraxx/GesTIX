@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-/** Arcoll: autenticação e cadastro no próprio index.php da raiz. */
+/** Caminho: index.php — autenticação pública. */
 if (!is_file(__DIR__ . '/includes/config.php')) {
     http_response_code(503);
     exit('Instalação não configurada.');
@@ -43,6 +43,10 @@ $settings = arc_setting_values($pdo);
 $registrationEnabled = arc_platform_setting($pdo,'platform_registration_enabled','1') === '1';
 $googleEnabled = arc_is_https() && arc_platform_setting($pdo,'platform_google_enabled')==='1'
  && arc_platform_setting($pdo,'platform_google_client_id')!=='' && arc_platform_setting($pdo,'platform_google_client_secret')!=='';
+$passwordPolicy=arc_platform_setting($pdo,'platform_registration_password_policy','medium');
+if(!in_array($passwordPolicy,['none','basic','medium','advanced'],true))$passwordPolicy='medium';
+$passwordMin=['none'=>1,'basic'=>6,'medium'=>10,'advanced'=>12][$passwordPolicy];
+$loginFlag=static fn(string $name,string $default='0'):bool => arc_platform_setting($pdo,$name,$default)==='1';
 $googleError=(string)($_SESSION['arc_google_error']??'');unset($_SESSION['arc_google_error']);
 
 $siteName = trim((string)($settings['site_name'] ?? 'Arcoll Speed Connection')) ?: 'Arcoll Speed Connection';
@@ -66,8 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Informe sua senha.';
     } elseif ($mode === 'register' && (mb_strlen($postedName) < 2 || mb_strlen($postedName) > 120)) {
         $error = 'Informe seu nome (entre 2 e 120 caracteres).';
-    } elseif ($mode === 'register' && (strlen($password) < 10 || false)) {
-        $error = 'Use uma senha com pelo menos 10 caracteres.';
+    } elseif ($mode === 'register' && (mb_strlen($password) < $passwordMin || ($passwordPolicy==='medium' && (!preg_match('/[A-Za-z]/',$password) || !preg_match('/[0-9]/',$password))) || ($passwordPolicy==='advanced' && (!preg_match('/[a-z]/',$password) || !preg_match('/[A-Z]/',$password) || !preg_match('/[0-9]/',$password) || !preg_match('/[^a-zA-Z0-9]/',$password))))) {
+        $error = 'A senha não atende à política de segurança definida para novos cadastros.';
     } elseif ($mode === 'register' && !hash_equals($password, $confirm)) {
         $error = 'As senhas não conferem.';
     } else {
@@ -169,22 +173,24 @@ $csrfToken = arc_csrf_token();
 @media(max-width:820px){.arc-auth-page{display:flex;flex-direction:column;min-height:100dvh}.arc-auth-showcase{min-height:auto;padding:18px 20px;gap:0}.arc-auth-showcase .arc-auth-message{display:none}.arc-auth-showcase-footer{display:none}.arc-auth-brand{font-size:15px}.arc-auth-brand img{width:37px;height:37px}.arc-auth-panel{flex:1;min-height:0;align-items:flex-start;padding:24px 18px}.arc-auth-card{width:min(100%,430px);margin:auto}.arc-auth-card h2{font-size:26px}}
 @media(max-width:420px){.arc-auth-panel{padding:18px 14px}.arc-auth-card h2{font-size:24px}}
 .arc-login-left .arc-auth-panel{order:-1}.arc-login-center .arc-auth-showcase{display:none}.arc-login-center .arc-auth-page{grid-template-columns:1fr}.arc-login-center .arc-auth-panel{min-height:100dvh}.arc-login-center .arc-auth-card{max-width:450px}
+.arc-login-no-showcase .arc-auth-showcase{display:none}.arc-login-no-showcase .arc-auth-page{grid-template-columns:1fr}.arc-login-no-showcase .arc-auth-panel{min-height:100dvh}
+.arc-login-compact .arc-auth-card{max-width:380px}.arc-login-compact .arc-auth-field{margin-bottom:10px}.arc-login-compact .arc-auth-field input{height:41px}.arc-login-compact .arc-auth-card h2{font-size:23px}.arc-login-compact .arc-auth-submit{height:43px}.arc-login-compact .arc-auth-panel{padding:20px}.arc-login-compact .arc-auth-tabs{margin-bottom:12px}
 </style><script src="assets/js/arcoll.js?v=2.8.1" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
 <?php $loginLayout=arc_platform_setting($pdo,'platform_login_layout','right');if(!in_array($loginLayout,['left','center','right'],true))$loginLayout='right'; ?>
-<body class="arc-login-<?= $escape($loginLayout) ?>"><label class="arc-appearance-control arc-appearance-public"><i class="fa fa-adjust" aria-hidden="true"></i><select data-arc-appearance aria-label="Tema do aplicativo"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label><main class="arc-auth-page">
-<section class="arc-auth-showcase" aria-label="Apresentação da plataforma"><div class="arc-auth-brand"><img src="api/brand-logo.php" alt="" onerror="this.style.display='none'"><span><?= $escape($siteName) ?></span></div>
+<body class="arc-login-<?= $escape($loginLayout) ?> <?= $loginFlag('platform_login_compact','1') ? 'arc-login-compact' : '' ?> <?= !$loginFlag('platform_login_show_showcase') ? 'arc-login-no-showcase' : '' ?>"><?php if($loginFlag('platform_login_show_theme')): ?><label class="arc-appearance-control arc-appearance-public"><i class="fa fa-adjust" aria-hidden="true"></i><select data-arc-appearance aria-label="Tema do aplicativo"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label><?php endif; ?><main class="arc-auth-page">
+<section class="arc-auth-showcase" aria-label="Apresentação da plataforma"><div class="arc-auth-brand"><?php if($loginFlag('platform_login_show_logo','1')): ?><img src="api/brand-logo.php" alt="" onerror="this.style.display='none'"><?php endif; ?><span><?= $escape($siteName) ?></span></div>
 <div class="arc-auth-message"><span class="arc-auth-pill">Plataforma de monitoramento</span><h1>Controle sua rede.<br><em>Tenha visão de tudo.</em></h1><p>Uma plataforma para acompanhar conexões, dispositivos, agentes e a gestão de suas redes com segurança e organização.</p></div>
 <div class="arc-auth-showcase-footer"><span>Monitoramento de redes</span><span>Gestão de dispositivos</span><span>Administração centralizada</span></div></section>
-<section class="arc-auth-panel"><div class="arc-auth-card"><span class="arc-auth-topline">Área de acesso</span><h2><?= $escape($mode === 'register' ? 'Crie sua conta' : arc_platform_setting($pdo,'platform_login_heading','Bem-vindo de volta')) ?></h2><p class="arc-auth-subtitle"><?= $escape($mode === 'register' ? 'Cadastre-se para começar a gerenciar suas redes.' : arc_platform_setting($pdo,'platform_login_subtitle','Entre com suas credenciais para acessar a plataforma.')) ?></p>
+<section class="arc-auth-panel"><div class="arc-auth-card"><span class="arc-auth-topline">Área de acesso</span><h2><?= $escape($mode === 'register' ? 'Crie sua conta' : arc_platform_setting($pdo,'platform_login_heading','Bem-vindo de volta')) ?></h2><?php if($loginFlag('platform_login_show_subtitle')): ?><p class="arc-auth-subtitle"><?= $escape($mode === 'register' ? 'Cadastre-se para começar a gerenciar suas redes.' : arc_platform_setting($pdo,'platform_login_subtitle','Entre com suas credenciais para acessar a plataforma.')) ?></p><?php endif; ?>
 <nav class="arc-auth-tabs" aria-label="Autenticação"><a class="arc-auth-tab" href="index.php?mode=login" aria-current="<?= $mode === 'login' ? 'page' : 'false' ?>">Entrar</a><?php if($registrationEnabled):?><a class="arc-auth-tab" href="index.php?mode=register" aria-current="<?= $mode === 'register' ? 'page' : 'false' ?>">Criar conta</a><?php endif;?></nav>
 <?php if ($googleError !== ''): ?><div class="arc-auth-error" role="alert"><?= $escape($googleError) ?></div><?php endif; ?>
 <?php if ($error !== ''): ?><div class="arc-auth-error" role="alert"><?= $escape($error) ?></div><?php endif; ?>
 <form method="post" action="index.php<?= isset($_GET['admin_login']) ? '?admin_login=1' : '' ?>" autocomplete="on"><input type="hidden" name="_csrf" value="<?= $escape($csrfToken) ?>"><input type="hidden" name="mode" value="<?= $escape($mode) ?>">
 <?php if ($mode === 'register'): ?><label class="arc-auth-field"><span>Nome completo</span><input name="display_name" type="text" maxlength="120" autocomplete="name" required value="<?= $escape($postedName) ?>" placeholder="Seu nome completo"></label><?php endif; ?>
 <label class="arc-auth-field"><span>E-mail</span><input name="email" type="email" maxlength="254" autocomplete="email" required value="<?= $escape($postedEmail) ?>" placeholder="voce@empresa.com.br"></label>
-<label class="arc-auth-field"><span>Senha</span><input name="password" type="password" <?= $mode === 'register' ? 'minlength="10" autocomplete="new-password"' : 'autocomplete="current-password"' ?> required placeholder="<?= $mode === 'register' ? 'Mínimo de 10 caracteres' : 'Sua senha de acesso' ?>"></label>
-<?php if ($mode === 'register'): ?><label class="arc-auth-field"><span>Confirmar senha</span><input name="confirm_password" type="password" minlength="10" autocomplete="new-password" required placeholder="Repita sua senha"></label><?php endif; ?>
+<label class="arc-auth-field"><span>Senha</span><input name="password" type="password" <?= $mode === 'register' ? 'minlength="'.$passwordMin.'" autocomplete="new-password"' : 'autocomplete="current-password"' ?> required placeholder="<?= $mode === 'register' ? 'Política: '.(['none'=>'livre','basic'=>'6 caracteres','medium'=>'10 caracteres e letras/números','advanced'=>'12 caracteres, maiúscula, minúscula, número e símbolo'][$passwordPolicy]) : 'Sua senha de acesso' ?>"></label>
+<?php if ($mode === 'register'): ?><label class="arc-auth-field"><span>Confirmar senha</span><input name="confirm_password" type="password" minlength="<?= $passwordMin ?>" autocomplete="new-password" required placeholder="Repita sua senha"></label><?php endif; ?>
 <button class="arc-auth-submit" type="submit"><?= $mode === 'register' ? 'Criar minha conta' : 'Entrar na plataforma' ?></button></form>
 <?php if($googleEnabled):?><div class="arc-google-divider"><span>ou continue com</span></div><a class="arc-google-login" href="google-auth.php"><i class="fa fa-google" aria-hidden="true"></i> Entrar com Google</a><?php endif;?>
-<p class="arc-auth-note"><?= $mode === 'register' ? 'O cadastro público cria uma conta de cliente. Contas administrativas são gerenciadas por administradores autorizados.' : 'Acesso unificado para administradores e clientes, com permissões individuais.' ?></p>
+<?php if($loginFlag('platform_login_show_footer')): ?><p class="arc-auth-note"><?= $mode === 'register' ? 'O cadastro público cria uma conta de cliente. Contas administrativas são gerenciadas por administradores autorizados.' : 'Acesso unificado para administradores e clientes, com permissões individuais.' ?></p><?php endif; ?>
 </div></section></main></body></html>

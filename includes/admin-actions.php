@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+/** Caminho: includes/admin-actions.php — comandos da administração. */
 
 $configPath = __DIR__ . '/config.php';
 if (!is_file($configPath)) {
@@ -51,8 +52,8 @@ function arc_admin_redirect(string $anchor = ''): never
         exit;
     }
     $view = in_array($anchor, $views, true) ? $anchor : ($actionViews[$action] ?? 'overview');
-    $destination = ['identity'=>'configuracoes.php?tab=dados','security'=>'configuracoes.php?tab=seguranca','users'=>'clientes.php','overview'=>'painel.php'][$view] ?? 'painel.php';
-    header('Location: ' . arc_workspace_base_url() . 'pages/' . $destination . ($anchor !== '' ? '#' . rawurlencode($anchor) : ''), true, 303);
+    $destination = ['identity'=>'configuracoes.php?tab=dados','security'=>'configuracoes.php?tab=seguranca','users'=>'clientes.php','releases'=>'agentwin.php','overview'=>'painel.php'][$view] ?? 'painel.php';
+    header('Location: ' . arc_workspace_base_url() . 'pages/' . $destination . ($anchor !== '' && $anchor!=='releases' ? '#' . rawurlencode($anchor) : ''), true, 303);
     exit;
 }
 

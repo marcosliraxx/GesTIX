@@ -1,4 +1,5 @@
 <?php
+/** Caminho: pages/painel.php */
 declare(strict_types=1);
 require dirname(__DIR__).'/includes/bootstrap.php';
 $pdo=arc_db();
@@ -7,6 +8,28 @@ $admin=arc_is_admin();
 $uid=arc_user_id();
 if(!$admin && !$uid){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
 $role=$admin?'admin':arc_v15_user_role($pdo);
+// Efetivar convites ao usuário autenticado, utilizando a identidade registrada.
+if ($uid && arc_is_user()) {
+    $who=$pdo->prepare('SELECT email_hash FROM '.arc_table('user_accounts')." WHERE id=? AND account_status='active' LIMIT 1");
+    $who->execute([(int)$uid]);
+    $emailHash=(string)$who->fetchColumn();
+    if (preg_match('/^[a-f0-9]{64}$/D',$emailHash)) {
+        $pdo->beginTransaction();
+        try {
+            $invites=$pdo->prepare('SELECT i.id,i.account_id,i.network_id,i.role FROM '.arc_table('network_team_invitations').' i JOIN '.arc_table('managed_networks').' n ON n.id=i.network_id AND n.account_id=i.account_id AND n.is_active=1 WHERE i.email_hash=? FOR UPDATE');
+            $invites->execute([$emailHash]);
+            foreach ($invites->fetchAll(PDO::FETCH_ASSOC) as $invite) {
+                if ((int)$invite['account_id']===(int)$uid) continue;
+                if (!in_array((string)$invite['role'],['viewer','operator','administrator'],true)) continue;
+                $q=$pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role,enabled) VALUES (?,?,?,?,1) ON DUPLICATE KEY UPDATE role=VALUES(role),enabled=1');
+                $q->execute([(int)$invite['account_id'],(int)$invite['network_id'],(int)$uid,(string)$invite['role']]);
+                $pdo->prepare('DELETE FROM '.arc_table('network_team_invitations').' WHERE id=?')->execute([(int)$invite['id']]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) { if($pdo->inTransaction())$pdo->rollBack(); error_log('Falha na ativação do convite de rede: '.$e->getMessage()); }
+    }
+}
+
 
 $arcError='';
 $go=static function(string $target): never {
@@ -134,6 +157,23 @@ $loadPanelNetworks = static function(PDO $pdo, bool $admin, ?int $uid): array {
     $sql.=' GROUP BY n.id,n.name,n.is_active ORDER BY n.is_active DESC,n.name,n.id';
     $q=$pdo->prepare($sql);$q->execute($args);
     $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+    // Redes compartilhadas aparecem no mesmo inventário da conta, sem conceder titularidade.
+    if (!$admin && $uid) {
+        $sharedSql='SELECT n.id,n.name,n.is_active,m.role,COUNT(a.id) AS agent_total, '
+            .'COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL 12 SECOND) THEN 1 ELSE 0 END),0) AS agent_online, '
+            .'UNIX_TIMESTAMP(MAX(a.last_seen_at)) AS last_seen_ts '
+            .'FROM '.arc_table('network_team_members').' m '
+            .'JOIN '.arc_table('managed_networks').' n ON n.id=m.network_id AND n.account_id=m.account_id '
+            .'LEFT JOIN '.arc_table('network_agents').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\' '
+            .'WHERE m.member_user_id=? AND m.enabled=1 AND n.is_active=1 AND n.account_id<>? '
+            .'GROUP BY n.id,n.name,n.is_active,m.role ORDER BY n.name,n.id';
+        $sharedStmt=$pdo->prepare($sharedSql);
+        $sharedStmt->execute([(int)$uid,(int)$uid]);
+        foreach ($sharedStmt->fetchAll(PDO::FETCH_ASSOC) as $sharedRow) {
+            $sharedRow['shared']=1;
+            $rows[]=$sharedRow;
+        }
+    }
     foreach($rows as &$r){
         $count=(int)$r['agent_total'];$online=(int)$r['agent_online'];
         $r['agent_state']=$count===0?'none':($online===0?'offline':($online===$count?'online':'partial'));
@@ -149,9 +189,12 @@ if (($_GET['ajax'] ?? '') === 'network_devices') {
     try {
         require_once dirname(__DIR__).'/includes/network-inventory.php';
         $netId=(int)($_GET['network'] ?? 0);
-        $sql='SELECT id,account_id,name,is_active,monitoring_enabled FROM '.arc_table('managed_networks').' WHERE id=?';
+        $sql='SELECT n.id,n.account_id,n.name,n.is_active,n.monitoring_enabled FROM '.arc_table('managed_networks').' n WHERE n.id=?';
         $args=[$netId];
-        if(!$admin){$sql.=' AND account_id=?';$args[]=(int)$uid;}
+        if(!$admin){
+            $sql.=' AND (n.account_id=? OR EXISTS (SELECT 1 FROM '.arc_table('network_team_members').' tm WHERE tm.account_id=n.account_id AND tm.network_id=n.id AND tm.member_user_id=? AND tm.enabled=1 AND n.is_active=1))';
+            $args[]=(int)$uid;$args[]=(int)$uid;
+        }
         $q=$pdo->prepare($sql);$q->execute($args);
         $net=$q->fetch(PDO::FETCH_ASSOC);
         if(!$net) arc_json(['ok'=>false,'error'=>'Rede não encontrada.'],404);
@@ -249,6 +292,7 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 .arc-panel-error{padding:12px;border:1px solid #d47466;border-radius:8px;color:#b03e35;margin:12px 0}.arc-panel-new:hover{filter:brightness(1.08);color:var(--text)}
 .arc-panel-search-empty{margin:10px 0 0;color:var(--muted,#718096)}
 .arc-panel-network-link[hidden]{display:none!important}
+.arc-panel-shared{display:block;margin-top:5px;font-size:10px;font-weight:500;color:var(--primary,#36b6e8)}
 .arc-panel-network-block{min-width:0;margin:16px 0;padding:18px}
 .arc-pn-dialog{box-sizing:border-box;width:min(94vw,460px);max-width:94vw;max-height:94dvh;margin:auto;padding:0;border:1px solid var(--border,#dbe5ee);border-radius:12px;background:var(--surface,#fff);color:var(--text,#263648);box-shadow:0 20px 60px #0b243d55;overflow:hidden}
 .arc-pn-dialog[open]{display:flex;flex-direction:column}
@@ -430,9 +474,9 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 <?php else: ?>
 <div class="arc-panel-network-rail" id="arc-panel-grid" role="region" aria-label="Redes registradas">
 <?php foreach($panelNetworks as $network):$on=(int)$network['is_active']===1 && (int)$network['has_online_agent']===1;$state=['online'=>'Todos online','partial'=>'Parte dos agentes offline','offline'=>'Agentes offline','none'=>'Sem agentes'][$network['agent_state']]; if((int)$network['is_active']!==1)$state='Rede arquivada'; ?>
-<a class="arc-panel-network-link" aria-haspopup="dialog" data-panel-network="<?=(int)$network['id']?>" data-agent-state="<?=arc_h($network['agent_state'])?>" data-online="<?=$on?'1':'0'?>" data-active="<?=(int)$network['is_active']===1?'1':'0'?>" href="<?=arc_h(arc_workspace_base_url())?>redes/servidor.php?network=<?=(int)$network['id']?>" title="<?=arc_h((string)$network['name'].' — '.$state)?>" aria-label="<?=arc_h((string)$network['name'].' — '.$state)?>" data-name="<?=arc_h((string)$network['name'])?>">
+<a class="arc-panel-network-link" aria-haspopup="dialog" data-panel-network="<?=(int)$network['id']?>" data-shared="<?=!empty($network['shared'])?'1':'0'?>" data-agent-state="<?=arc_h($network['agent_state'])?>" data-online="<?=$on?'1':'0'?>" data-active="<?=(int)$network['is_active']===1?'1':'0'?>" href="<?=arc_h(arc_workspace_base_url()).'redes/servidor.php?network='.(int)$network['id']?>" title="<?=arc_h((string)$network['name'].' — '.$state)?>" aria-label="<?=arc_h((string)$network['name'].' — '.$state)?>" data-name="<?=arc_h((string)$network['name'])?>">
 <span class="arc-panel-card-top"><span class="arc-panel-card-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="5" y="5" width="22" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 20v6m-5 0h10M10 11h5m-5 4h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="arc-panel-status-dot" aria-hidden="true"></span></span>
-<span class="arc-panel-network-name"><?=arc_h((string)$network['name'])?></span><span class="arc-panel-network-state"><?=arc_h($state)?></span><span class="arc-panel-card-action">Acompanhar rede <span aria-hidden="true"><i class="fa fa-angle-right"></i></span></span>
+<span class="arc-panel-network-name"><?=arc_h((string)$network['name'])?><?php if(!empty($network['shared'])): ?> <small class="arc-panel-shared">Compartilhada · <?=arc_h(['administrator'=>'Administrador','operator'=>'Operador','viewer'=>'Visualizador'][(string)($network['role']??'viewer')]??'Visualizador')?></small><?php endif; ?></span><span class="arc-panel-network-state"><?=arc_h($state)?></span><span class="arc-panel-card-action">Acompanhar rede <span aria-hidden="true"><i class="fa fa-angle-right"></i></span></span>
 </a>
 <?php endforeach; ?>
 </div>
@@ -722,7 +766,7 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
     function startTick(){clearInterval(tick);tick=setInterval(function(){if(document.hidden)return;if(loaded){paintFoot();if(transitions.size){var expired=false;transitions.forEach(function(v,k){if(Date.now()>=v.until){transitions.delete(k);expired=true;}});if(expired)render();}}if(info.open)paintInfo();},1000);}
     function stop(){clearInterval(timer);clearInterval(tick);timer=0;tick=0;if(ctrl)ctrl.abort();reqId++;scanning=false;clearTimeout(scanTimer);clearTimeout(runTimer);runEl.textContent='';delete runEl.dataset.k;if(info.open)info.close();}
     function open(link){
-        current=link.dataset.panelNetwork;ttl.textContent=link.dataset.name||'Rede';openLink.href=link.href;
+        current=link.dataset.panelNetwork;ttl.textContent=link.dataset.name||'Rede';openLink.href=link.href;openLink.hidden=false;
         devices=[];layout=[];updated=0;agents=[];canScan=false;loaded=false;infoDev=null;previousStates.clear();transitions.clear();
         secs.replaceChildren();msg.hidden=false;paintFoot();paintScanBtn();refreshBtn.disabled=true;
         dlg.showModal();load(current,false);startTick();

@@ -1,4 +1,5 @@
 <?php
+/* Caminho: redes/_menu.php */
 /**
  * Menu interno da rede gerenciada.
  * Fonte local fixa: não consulta registros ou permissões de menus do banco.
@@ -10,6 +11,7 @@ $arcNetworkLinks = [
     ['dispositivos', 'Dispositivos', 'fa fa-desktop'],
     ['mapa', 'Mapa', 'fa fa-sitemap'],
     ['conexao', 'Conexão', 'fa fa-wifi'],
+    ['suporte', 'Suporte', 'fa fa-life-ring'],
 ];
 $arcNetworkBase = arc_workspace_base_url();
 $arcNetworkQuery = ['network' => (int)$networkId];
