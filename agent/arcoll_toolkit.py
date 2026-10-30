@@ -1,5 +1,5 @@
 # Caminho: agent/arcoll_toolkit.py
-"""Medições locais, de leitura, limitadas para o agente Windows Arcoll."""
+"""Medições locais e operações Windows limitadas para o agente Arcoll."""
 import os, platform, socket, subprocess, time, re, ipaddress, json, locale
 
 def _decode_bytes(value):
@@ -303,6 +303,20 @@ def friendly_error(error):
     if any(word in text.lower() for word in ('timeout','timed out','connection','network','urlopen','name resolution')):return 'A conexão demorou ou caiu. Confira a internet e tente novamente.'
     if text.startswith(('Não ','Acesso ','Sessão ','Código ','Conta ','Limite ','Selecione ','Computador ','Agente ')) and not any(word in text for word in ('Traceback','SQLSTATE','{')):return text[:250]
     return 'Não foi possível concluir. Confira a conexão e tente novamente.'
+
+def schedule_power_action(action):
+    """Fixed local Windows actions only. Never executes a hostname or arbitrary shell text."""
+    if platform.system() != 'Windows':
+        raise RuntimeError('Controle de energia disponível apenas no Windows.')
+    flags = {'power_shutdown': ['/s', '/t', '60'], 'power_restart': ['/r', '/t', '60'], 'power_cancel': ['/a']}
+    if action not in flags:
+        raise ValueError('Operação de energia inválida.')
+    executable = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32', 'shutdown.exe')
+    result = subprocess.run([executable] + flags[action], capture_output=True, timeout=10, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    if result.returncode != 0:
+        raise RuntimeError('O Windows não autorizou a operação ou não há desligamento agendado.')
+    return 'Agendamento cancelado.' if action == 'power_cancel' else 'Operação agendada para daqui a 60 segundos. Salve os arquivos abertos. O Windows pode adiar se houver trabalho não salvo.'
+
 
 QUICK_COMMANDS = {
     'storage_health': ('Espaço dos discos', storage_health),

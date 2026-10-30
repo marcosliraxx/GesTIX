@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '3.1.0';
-const ARC_SCHEMA_VERSION = '2026.10.30-3';
+const ARC_APP_VERSION = '3.2.0';
+const ARC_SCHEMA_VERSION = '2026.10.30-4';
 
 require_once __DIR__.'/billing.php';
 require_once __DIR__.'/support.php';
@@ -400,10 +400,12 @@ function arc_ensure_user_schema(PDO $pdo): void
   UNIQUE KEY `uq_invitation` (`network_id`,`email_hash`),
   KEY `idx_invitation_email` (`email_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
-    $migration = file_get_contents(dirname(__DIR__).'/database/migrations/3.0.0.sql');
-    if ($migration === false) throw new RuntimeException('Migração 3.0.0 ausente.');
-    $migration = str_replace('`arc_', '`'.arc_prefix(), $migration);
-    $pdo->exec($migration);
+    foreach(['3.0.0','3.2.0'] as $release){
+        $migration=file_get_contents(dirname(__DIR__).'/database/migrations/'.$release.'.sql');
+        if($migration===false)throw new RuntimeException('Migração '.$release.' ausente.');
+        $migration=str_replace(['`arc_',"'arc_"],['`'.arc_prefix(),"'".arc_prefix()],$migration);
+        $pdo->exec($migration);
+    }
     arc_billing_seed_plans($pdo);
     arc_platform_save_setting($pdo,'platform_schema_version',ARC_SCHEMA_VERSION);
     $_SESSION['arc_schema_ok'] = ARC_SCHEMA_VERSION;
@@ -635,7 +637,7 @@ function arc_notice_copy(string $event): array {
       'network_agent_blocked'=>['Computador bloqueado','O acesso desse computador foi interrompido.'],
       'network_agent_rejected'=>['Cadastro não aprovado','O computador precisa de uma nova autorização.'],
       'network_agent_deleted'=>['Computador removido','O computador foi retirado da rede.'],
-      'agent_command_queued'=>['Verificação solicitada','O computador recebeu uma tarefa. Acompanhe o resultado na página da rede.'],
+      'agent_command_queued'=>['Operação solicitada','Sua solicitação foi enviada ao computador. Acompanhe o resultado na página da rede.'],
       'remote_access_requested'=>['Acesso remoto solicitado','A solicitação foi enviada ao computador.'],
       'remote_access_auto_requested'=>['Acesso remoto iniciado','Um gestor iniciou o acesso ao servidor autorizado.'],
       'subscription_invoice_created'=>['Sua renovação está disponível','Abra Planos e cobrança para conferir e pagar.'],

@@ -14,20 +14,47 @@ import tkinter as tk
 from tkinter import ttk
 from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
 
-VERSION = '3.1.0'
+VERSION = '3.2.0'
 
-# Caminho: agent/arcoll_updater.py
 import re
 
 VALID_NAME = re.compile(r'[A-Za-z][A-Za-z0-9_-]*\.(?:py|ps1)\Z')
 MANAGED = '.arcoll-managed-files.json'
 
 
+def wait_for_exit(pid):
+    """os.kill(pid, 0) terminates processes on Windows; use a read-only wait handle."""
+    if pid<=0 or pid==os.getpid():raise ValueError('Processo de origem inválido')
+    if os.name=='nt':
+        import ctypes
+        from ctypes import wintypes
+        kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+        kernel.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
+        kernel.OpenProcess.restype=wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes=[wintypes.HANDLE,wintypes.DWORD]
+        kernel.WaitForSingleObject.restype=wintypes.DWORD
+        kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+        handle=kernel.OpenProcess(0x00100000,False,pid)
+        if not handle:
+            if ctypes.get_last_error()==87:return
+            raise RuntimeError('Não foi possível aguardar o processo anterior com segurança.')
+        try:
+            if kernel.WaitForSingleObject(handle,30000)!=0:raise RuntimeError('O agente anterior não encerrou. Nenhum arquivo foi alterado.')
+        finally:kernel.CloseHandle(handle)
+    else:
+        for _ in range(120):
+            try:os.kill(pid,0)
+            except ProcessLookupError:return
+            time.sleep(.25)
+        raise RuntimeError('O agente anterior não encerrou. Nenhum arquivo foi alterado.')
+
+
 def run(report=lambda _message,_percent:None):
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4,5):
         raise ValueError('Argumentos de atualização inválidos')
     staging = pathlib.Path(sys.argv[1]).resolve()
-    root = pathlib.Path(__file__).resolve().parent
+    root = pathlib.Path(sys.argv[4]).resolve() if len(sys.argv)==5 else pathlib.Path(__file__).resolve().parent
+    if not (root/'arcoll_app.py').is_file():raise ValueError('Pasta do agente não encontrada')
     pid = int(sys.argv[2]); origin = sys.argv[3]
     if not origin.startswith('https://'):
         raise ValueError('Origem HTTPS inválida')
@@ -56,10 +83,7 @@ def run(report=lambda _message,_percent:None):
         if hashlib.sha256((staging/name).read_bytes()).hexdigest()!=row.get('sha256'):
             raise ValueError('Falha de integridade: '+name)
     report('Aguardando encerramento seguro...', 10)
-    for _ in range(100):
-        try:os.kill(pid,0)
-        except OSError:break
-        time.sleep(.25)
+    wait_for_exit(pid)
     backup=staging/'backup';backup.mkdir(exist_ok=True)
     touched=[]
     old_manifest=prior_path.read_bytes() if prior_path.exists() else None
@@ -99,7 +123,7 @@ def run(report=lambda _message,_percent:None):
         if command_id>0:
             local=pathlib.Path(os.environ.get('LOCALAPPDATA',str(pathlib.Path.home())))/'Arcoll'
             local.mkdir(parents=True,exist_ok=True)
-            (local/'update-awaiting-confirmation.json').write_text(json.dumps({'command_id':command_id}),encoding='utf-8')
+            (local/'update-awaiting-confirmation.json').write_text(json.dumps({'command_id':command_id,'version':str(data.get('release_version') or '')[:32]}),encoding='utf-8')
     report('Arquivos instalados; reiniciando agente...',95)
     exe=pathlib.Path(sys.executable)
     if exe.name.lower()=='python.exe' and exe.with_name('pythonw.exe').exists():exe=exe.with_name('pythonw.exe')

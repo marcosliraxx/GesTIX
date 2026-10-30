@@ -11,7 +11,7 @@ const {chromium}=require('playwright');
   await page.goto(new URL('index.php',base).href);
   await page.locator('[name=email]').fill(role==='admin'?admin.adminEmail:fixture.email);await page.locator('[name=password]').fill(role==='admin'?(process.env.GESTI_UI_ADMIN_PASSWORD||fixture.password):fixture.password);
   await Promise.all([page.waitForURL('**/pages/painel.php'),page.locator('form button[type=submit]').click()]);
-  const routes=role==='admin'?['pages/agentwin.php','pages/preferencias.php','pages/atividades.php','pages/comercial.php','pages/atendimentos.php','pages/painel.php','pages/clientes.php','pages/usuarios.php','pages/permissoes.php','pages/menus.php','pages/configuracoes.php','pages/perfil.php','pages/renovar-senha.php']:['pages/preferencias.php','pages/atividades.php','pages/assinatura.php','pages/atendimentos.php','pages/painel.php','pages/perfil.php','pages/renovar-senha.php',...['servidor','velocidade','dispositivos','mapa','conexao','suporte','ferramentas','relatorios'].map(p=>'redes/'+p+'.php?network='+admin.networkId)];
+  const routes=role==='admin'?['pages/agentwin.php','pages/preferencias.php','pages/atividades.php','pages/comercial.php','pages/atendimentos.php','pages/painel.php','pages/clientes.php','pages/usuarios.php','pages/permissoes.php','pages/menus.php','pages/configuracoes.php','pages/perfil.php','pages/renovar-senha.php']:['pages/preferencias.php','pages/atividades.php','pages/assinatura.php','pages/cobrancas.php','pages/atendimentos.php','pages/painel.php','pages/perfil.php','pages/renovar-senha.php',...['servidor','velocidade','dispositivos','mapa','conexao','suporte','ferramentas','relatorios'].map(p=>'redes/'+p+'.php?network='+admin.networkId)];
   for(const [width,height] of [[320,568],[360,640],[844,390],[1440,900]]){
    await page.setViewportSize({width,height});
    for(const theme of ['light','dark']){
@@ -29,7 +29,7 @@ const {chromium}=require('playwright');
       if(JSON.stringify(header)!==JSON.stringify(context.panelHeader)||controls.bg!=='rgba(0, 0, 0, 0)'||controls.scroll||controls.bounds>width)failures.push({route,width,error:'Header styles or controls overflow',header,controls});
      }
      if(data.main && width<=860) {
-      if(await page.locator('#arc-mobile-menu').count() || !await page.locator('.arc-mobile-brand img').isVisible())failures.push({route,width,error:'Mobile brand missing or duplicate hamburger'});
+      if(await page.locator('#arc-mobile-menu').count() || !await page.locator('.arc-mobile-brand').isVisible())failures.push({route,width,error:'Mobile brand missing or duplicate hamburger'});
      }
      total++;
      if(response.status()!==200||data.fatal||errors.length||data.w>width+1||data.theme!==theme||!data.select||data.main&&data.main.sw>data.main.w+1)failures.push({role,route,width,height,status:response.status(),...data,errors});

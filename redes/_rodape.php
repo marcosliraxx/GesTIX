@@ -34,19 +34,19 @@ async function refreshAgentVersions(){
   const current=(result.agents||[]).find(a=>Number(a.id)===Number(target.value));
   versionInfo.textContent=current?.version?'v. '+String(current.version).replace(/^v\.?\s*/i,''):'v. --';
   updateRemote.style.display='inline-flex';
-  updateRemote.disabled=!(current?.approved&&current?.online);
-  updateRemote.title=updateRemote.disabled?'Selecione um agente aprovado e online':'Reinstalar arquivos do agente (mesma versão permitida)';
+  updateRemote.disabled=!(current?.approved);
+  updateRemote.title=updateRemote.disabled?'Selecione um agente aprovado':'Atualizar agente; aguarda conexão por até 3 minutos';
  }catch(_e){versionInfo.textContent='v. --';updateRemote.style.display='inline-flex';updateRemote.disabled=true}
 }
 refreshAgentVersions();setInterval(()=>{if(!document.hidden)refreshAgentVersions()},8000);
 target.addEventListener('change',()=>document.getElementById('arc-agent-form').requestSubmit());
 document.addEventListener('arc:command-queued',e=>{const d=e.detail||{};if(d.command_id&&Number(d.agent_id)===Number(target.value)&&!activeProgressId)showProgress(d.command||'Comando remoto','Na fila',Number(d.command_id))});
-const labels={monitor_start:'Monitoramento iniciado',monitor_pause:'Monitoramento pausado',speed_test:'Teste de velocidade',scan_devices:'Varredura de dispositivos',scan_map:'Atualização da topologia',diagnostic:'Diagnóstico',quick_health:'Saúde rápida',dns_test:'Teste de DNS',public_ip:'IP público',system_snapshot:'Recursos do computador',flush_dns:'Limpeza de DNS',wifi_info:'Sinal Wi-Fi',agent_update:'Atualização remota do agente'};
+const labels={monitor_start:'Monitoramento iniciado',monitor_pause:'Monitoramento pausado',speed_test:'Teste de velocidade',scan_devices:'Varredura de dispositivos',scan_map:'Atualização da topologia',diagnostic:'Diagnóstico',quick_health:'Saúde rápida',dns_test:'Teste de DNS',public_ip:'IP público',system_snapshot:'Recursos do computador',flush_dns:'Limpeza de DNS',wifi_info:'Sinal Wi-Fi',agent_update:'Atualização remota do agente',power_shutdown:'Desligamento',power_restart:'Reinicialização',power_cancel:'Cancelamento do agendamento'};
 function askRemoteUpdateConfirm(){
  return new Promise(resolve=>{
   const dialog=document.getElementById('arc-agent-update-confirm');
   if(!dialog||typeof dialog.showModal!=='function')return resolve(window.confirm('Atualizar remotamente o agente selecionado? O aplicativo será reiniciado.'));
-  const label=(document.querySelector('#arc-agent-select option:checked')?.textContent||'Agente selecionado').trim();
+  const label=(document.querySelector('#arc-agent-target option:checked')?.textContent||'Agente selecionado').trim();
   const title=dialog.querySelector('[data-update-agent-name]'); if(title) title.textContent=label;
   const details=dialog.querySelector('[data-update-agent-details]'); if(details) details.textContent='A plataforma reinstalará os arquivos publicados, mesmo que a versão seja a mesma. O agente será reiniciado automaticamente.';
   const cancel=dialog.querySelector('[data-update-cancel]');

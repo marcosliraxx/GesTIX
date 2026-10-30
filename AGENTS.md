@@ -15,3 +15,6 @@
 
 - Valide Dispositivos e Mapa no celular com inventário populado, nomes longos e vários grupos, incluindo o enquadramento inicial da topologia e os modais; ausência de overflow no body não basta.
 - No celular, priorize cartões compactos e detalhes em diálogos explícitos; ações por ícone precisam de aria-label/título. Notificações públicas devem usar textos de arc_notice_copy, mantendo códigos e detalhes originais somente na auditoria.
+
+- Controles de energia devem usar argumentos Windows fixos, sem shell, sem forçar arquivos não salvos, com confirmação do gestor e revalidação da tarefa antes da execução. Operadores/convidados não podem desligar computadores. Testes devem simular as chamadas de energia.
+- Pix copia e cola/QR deve ser gerado localmente e preservar os dados da cobrança emitida. Informar pagamento nunca libera Pix manual; a conferência administrativa permanece obrigatória. Valide QR com leitura independente, isolamento do checkout e migração reaplicável sem perda de cobranças.

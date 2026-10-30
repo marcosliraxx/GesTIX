@@ -84,7 +84,7 @@ unset($_SESSION['arc_flash']);
 .arc-toast{background:color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 12%,rgba(255,255,255,.78))!important;border:1px solid color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 35%,transparent)!important;backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 12px 35px #152a4830}
 .flash.arc-toast{background:color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 12%,rgba(255,255,255,.78))!important;border:1px solid color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 35%,transparent)!important;backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 12px 35px #152a4830}
 .erp-user-button .erp-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
-</style><script src="assets/js/arcoll.js?v=3.1.0" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
+</style><script src="assets/js/arcoll.js?v=3.2.0" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
 <body class="<?= arc_h(trim($arcBodyClass . ' ' . ($ARCPageBodyClass ?? ''))) ?>" style="<?php
 $vars=['accent_color'=>'--arc-brand-accent','platform_sidebar_color'=>'--arc-sidebar-bg','platform_header_color'=>'--arc-header-bg','platform_footer_color'=>'--arc-footer-bg'];
 foreach($vars as $key=>$var){$v=$arcThemeSettings[$key]??'';if(preg_match('/^#[0-9a-fA-F]{6}$/',$v))echo $var.':'.arc_h($v).';';}
@@ -102,8 +102,9 @@ if ($arcFlashText !== ''): ?>
 <?php if ($ARCMode === 'app'): ?>
 <header class="app-header">
 <button class="arc-header-sidebar-toggle" type="button" id="sidebar-collapse" aria-controls="app-sidebar" aria-expanded="true" aria-label="Recolher menu lateral" title="Recolher / expandir menu lateral"><i class="fa fa-angle-double-left" aria-hidden="true" data-sidebar-toggle-icon></i></button>
-<a class="arc-mobile-brand" href="pages/painel.php" aria-label="<?=arc_h($arcSiteName)?> — painel"><img src="<?=arc_h($arcLogo)?>" alt="<?=arc_h($arcSiteName)?>"></a>
+
     <?php $arcNetworkHeader = ($ARCPageBodyClass ?? '') === 'arc-page-redes' && isset($network,$networkId) && is_array($network) && (int)($network['id']??0)===(int)$networkId; ?>
+    <a class="arc-mobile-brand" href="<?=$arcNetworkHeader?'redes/servidor.php?network='.(int)$networkId:'pages/painel.php'?>" aria-label="<?=arc_h($arcNetworkHeader?$network['name']:$arcSiteName)?>"><?php if($arcNetworkHeader):?><?php if(!empty($network['logo_file'])):?><img src="api/network-logo.php?network=<?=(int)$networkId?>" alt="<?=arc_h($network['name'])?>" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><i class="fa fa-sitemap" hidden aria-hidden="true"></i><?php else:?><i class="fa fa-sitemap" aria-hidden="true"></i><?php endif;?><?php else:?><img src="<?=arc_h($arcLogo)?>" alt="<?=arc_h($arcSiteName)?>"><?php endif;?></a>
     <?php if ($arcNetworkHeader): ?>
     <div class="page-context arc-header-network">
         <span class="arc-header-network-logo"><?php if (!empty($network['logo_file'])): ?><img src="api/network-logo.php?network=<?= (int)$networkId ?>" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><i class="fa fa-sitemap" hidden aria-hidden="true"></i><?php else: ?><i class="fa fa-sitemap" aria-hidden="true"></i><?php endif; ?></span>

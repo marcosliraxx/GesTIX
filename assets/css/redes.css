@@ -438,38 +438,13 @@
 .arc-agent-select-wrap.is-online{box-shadow:0 0 0 1px rgba(59,232,168,.35),0 0 24px -6px rgba(59,232,168,.55)}
 .arc-agent-state.is-online{color:#4ee3a5;animation:mBeat 2.2s ease-in-out infinite}
 @keyframes mBeat{0%,100%{box-shadow:0 0 0 0 rgba(59,232,168,.55)}50%{box-shadow:0 0 0 7px rgba(59,232,168,0)}}
-.arc-redes-menu{flex:0 0 auto;
-  display:flex;
-  align-items:center; gap:6px!important;
-  overflow-x:auto;
-  scrollbar-width:thin; padding:8px 12px!important;
-  background:color-mix(in srgb, var(--surface) 55%, transparent)!important; border-bottom:1px solid var(--m-edge)!important;scroll-padding-inline:12px;
-  position:relative;
-  backdrop-filter:blur(10px);
-}
-.arc-redes-menu-link{
-  display:inline-flex;
-  align-items:center;
-  gap:7px;
-  white-space:nowrap; border-radius:10px!important; padding:9px 14px!important; color:var(--muted)!important;
-  text-decoration:none; font-size:12px!important;
-  font-weight:600;
-  transition:color .25s,transform .25s var(--m-ease)!important;flex:0 0 auto;min-height:36px;border:1px solid transparent;
-  position:relative; z-index:1;
-  letter-spacing:.2px; background:transparent!important;
-}
-.arc-redes-menu-link i{width:15px;text-align:center;flex-shrink:0;transition:transform .35s var(--m-ease),color .25s}
-.arc-redes-menu-link:hover{color:var(--text)!important;background:var(--surface-alt);transform:translateY(-1px)}
-.arc-redes-menu-link:hover i{transform:scale(1.25) rotate(-6deg);color:var(--m-cyan)}
-.arc-redes-menu-link.active{background:transparent!important;color:var(--text)!important;border-color:#3ba9e1;box-shadow:inset 0 -2px 0 #75d7ff;font-weight:700}
-.arc-redes-menu-link[aria-current="page"]{background:transparent!important;color:var(--text)!important}
-.arc-menu-indicator{
-  position:absolute; z-index:0; top:50%; left:0; height:34px; width:0; border-radius:10px; pointer-events:none;
-  transform:translate(0,-50%); opacity:0;
-  background:linear-gradient(135deg,#25c2ff,#6a5cff);
-  box-shadow:0 8px 24px -8px rgba(37,194,255,.75),inset 0 1px 0 rgba(255,255,255,.25);
-  transition:transform .45s var(--m-ease),width .45s var(--m-ease),opacity .3s;
-}
+.arc-redes-menu{flex:0 0 auto;display:flex;align-items:stretch;gap:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:4px 8px;background:var(--surface);border-bottom:1px solid var(--border);scroll-padding-inline:8px;overscroll-behavior-x:contain;scroll-snap-type:x proximity;touch-action:pan-x}
+.arc-redes-menu-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex:1 0 84px;min-height:54px;padding:6px 10px;color:var(--muted);text-decoration:none;font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid transparent;scroll-snap-align:nearest;position:relative}
+.arc-redes-menu-link+.arc-redes-menu-link{border-left:1px solid var(--border)}
+.arc-redes-menu-link i{font-size:17px;line-height:20px;text-align:center}
+.arc-redes-menu-link:hover{background:var(--surface-alt);color:var(--text)}
+.arc-redes-menu-link.active{color:var(--primary);border-bottom-color:var(--primary);background:var(--surface-alt)}
+
 .arc-redes-page :where(.asc-metric,.asc-ops-panel,.asc-chart-panel,.card,.cc-surface,.cc-kpi,.cc-board,.arc-hist){
   position:relative; background:var(--m-glass)!important; border:1px solid var(--border);
   border-radius:14px!important; backdrop-filter:blur(10px) saturate(130%); -webkit-backdrop-filter:blur(10px) saturate(130%);
@@ -611,7 +586,7 @@
 }
 @media(max-width:760px){.arc-redes-page .arc-redes-identidade{max-width:28%;min-width:85px}.arc-redes-identity-bar .arc-redes-identidade strong{font-size:11px}.arc-agent-select-wrap{flex-basis:100px}.arc-redes-header-controls{gap:4px}.arc-agent-state{flex-basis:24px;width:24px}.arc-agent-running{flex-basis:24px;width:24px}.arc-redes-header-controls .arc-identity-icon{width:30px;height:32px;flex-basis:30px}}
 @media(max-width:700px){.arc-redes-conteudo{padding:9px}.arc-network-manager{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.arc-manager-body{padding:9px}.arc-manager-panel .card{padding:11px}.arc-manager-panel .form-field{grid-template-columns:1fr}.arc-manager-panel .form-field>label.span2{grid-column:auto}.arc-manager-footer span{display:none}.asc-ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-ops-event{grid-template-columns:1fr 1fr}.asc-ops-event small{display:none}.asc-ops{padding:10px}.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{padding:5px}.arc-redes-page .asc-monitor{padding:5px}.asc-monitor-summary{flex-wrap:wrap}.arc-redes-page .asc-monitor .asc-chart-wrap{min-height:0!important}#arc-network-manager{width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important}#arc-network-manager .arc-manager-body{max-height:calc(100dvh - 190px)}.arc-device-facts {grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:680px){.arc-redes-menu{padding:7px}.arc-redes-menu-link{min-height:40px;padding:8px 10px}}
+@media(max-width:680px){.arc-redes-menu{padding:3px 4px}.arc-redes-menu-link{flex:0 0 76px;min-height:50px;padding:5px 7px;font-size:10px}}
 @media(max-width:650px){.arc-report-dialog .arc-report-form{grid-template-columns:1fr}.arc-report-preview-dialog .arc-report-body{padding:4px}.arc-report-sheet{padding:12px;font-size:9px}.arc-report-sheet .rkpis{gap:4px}.arc-network-brand-editor{grid-template-columns:80px minmax(0,1fr)}.arc-network-logo-pick{height:80px}}
 @media(max-width:600px){.arc-redes-header-left{gap:4px}.arc-redes-header-right{gap:4px}.arc-redes-header-controls .arc-agent-select-wrap{flex:1 1 auto;width:auto;min-width:85px;padding:0 5px}.arc-redes-header-controls .arc-agent-select-wrap>i{display:none}.arc-redes-header-controls .arc-agent-state{display:grid}.arc-redes-header-controls .arc-agent-running{flex:0 0 28px;width:28px}.arc-redes-header-controls .arc-identity-icon{width:30px;flex-basis:30px}.arc-cmd-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.arc-cmd-card{min-height:145px;padding:12px}.arc-cmd-icon{width:42px;height:42px;flex-basis:42px;font-size:20px}.arc-cmd-toolbar{flex-wrap:wrap}
  .arc-commands-page .arc-cmd-grid{grid-template-columns:repeat(auto-fill,minmax(95px,108px));gap:7px}

@@ -18,7 +18,7 @@ except Exception:
  QUICK_COMMANDS={}; run_quick_command=None
 
 APP_NAME='Arcoll Speed Connection'
-AGENT_VERSION='3.1.0'
+AGENT_VERSION='3.2.0'
 ROOT=Path(__file__).resolve().parent
 CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.json'
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'
@@ -813,15 +813,16 @@ class ArcollApp:
    row=json.loads(marker.read_text(encoding='utf-8'))
    ident=int(row.get('command_id') or 0)
    if ident<=0:return
-   if row.get('version')!=AGENT_VERSION and row.get('version'):
-    # A versão de exibição pode não mudar durante a publicação de correções.
-    pass
+   if row.get('version') and row['version']!=AGENT_VERSION:return
    if not (ORIGIN and SITE_CODE and DOWNLOAD_KEY):return
    def confirm():
-    try:
-     result=request_json(ORIGIN+'/api/api.php?action=agent-command-ack',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident,'status':'completed','result':'Nova release instalada e agente reiniciado'},timeout=12)
-     if isinstance(result,dict) and result.get('ok'):marker.unlink(missing_ok=True)
-    except Exception:pass
+    for attempt in range(5):
+     try:
+      result=request_json(ORIGIN+'/api/api.php?action=agent-command-ack',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident,'status':'completed','result':'Versão '+AGENT_VERSION+' instalada e agente reiniciado'},timeout=12)
+      if isinstance(result,dict) and result.get('ok') and result.get('acknowledged'):
+       marker.unlink(missing_ok=True);return
+     except Exception:pass
+     time.sleep(6)
    threading.Thread(target=confirm,daemon=True).start()
   except (OSError,ValueError,TypeError):pass
 
@@ -1878,6 +1879,8 @@ class ArcollApp:
   if command:self._run_remote_command(command)
  def _run_remote_command(self,command):
   ident=int(command.get('id',0));name=str(command.get('command_name',''))
+  if name in ('power_shutdown','power_restart','power_cancel'):
+   self._request_power_action(ident,name,headless=bool(int(command.get('headless_mode') or 0)),role=str(command.get('requester_role') or ''));return
   if name=='agent_update':
    self.update_agent(remote_command_id=ident);return
   if name=='remote_assistance':
@@ -1920,6 +1923,25 @@ class ArcollApp:
    if status=='failed' and name=='speed_test':self._remote_speed_command=None
    if status=='failed' and name in ('scan_devices','scan_map'):self._remote_scan_command=None
    self._ack_remote_command(ident,status,result)
+ def _request_power_action(self,ident,name,headless=False,role=''):
+  from arcoll_toolkit import schedule_power_action
+  if name!='power_cancel' and not (headless and role=='administrator'):
+   self.show_window()
+   label='desligar' if name=='power_shutdown' else 'reiniciar'
+   if not messagebox.askyesno('Controle de energia', 'O gestor solicitou '+label+' este computador. Salve seu trabalho. Deseja autorizar? A operação será agendada para daqui a 60 segundos.',parent=self.root):
+    self._ack_remote_command(ident,'failed','Operação não autorizada no computador.');return
+  def work():
+   try:
+    authorized=request_json(ORIGIN+'/api/api.php?action=agent-power-authorize',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident},timeout=8)
+    if not authorized.get('ok') or authorized.get('command')!=name:raise RuntimeError('Autorização expirada. Solicite novamente.')
+    if headless and role=='administrator' and not authorized.get('headless'):raise RuntimeError('O modo de servidor sem monitor foi desativado. Solicite novamente.')
+    message=schedule_power_action(name)
+    self._ack_remote_command(ident,'completed',message)
+    self.root.after(0,lambda:messagebox.showinfo('Controle de energia',message,parent=self.root))
+   except Exception as exc:
+    self._ack_remote_command(ident,'failed',str(exc))
+  threading.Thread(target=work,daemon=True).start()
+
  def _ask_remote_consent(self):
   """Confirmação local compacta: controlar, somente visualizar ou recusar."""
   result={'v':None}
@@ -3280,9 +3302,6 @@ class ArcollApp:
   """Download an authenticated code-only update and delegate the swap to a separate process."""
   if platform.system()!='Windows' or not ORIGIN or not SITE_CODE or not DOWNLOAD_KEY:
    return messagebox.showerror('Atualizar','Este agente precisa estar conectado e autorizado na plataforma.',parent=self.root)
-  updater=ROOT/'arcoll_updater.py'
-  if not updater.is_file():
-   return messagebox.showerror('Atualizar','Atualizador ausente. Instale uma vez a versão nova do agente para ativar atualizações futuras.',parent=self.root)
   if getattr(self,'_update_running',False):
    if remote_command_id:self._ack_remote_command(remote_command_id,'failed','Atualização já está em execução')
    return
@@ -3332,6 +3351,7 @@ class ArcollApp:
      inventory.append(name)
      if not (ROOT/name).is_file() or hashlib.sha256((ROOT/name).read_bytes()).hexdigest()!=row['sha256']:
       changed.append({'name':name,'sha256':row['sha256']})
+    if not {'arcoll_updater.py','arcoll_toolkit.py','arcoll_desktop.py','arcoll_app.py'}.issubset(seen):raise ValueError('Pacote incompleto. Envie a atualização completa para a plataforma.')
     managed=ROOT/'.arcoll-managed-files.json'
     try:
      previous=json.loads(managed.read_text(encoding='utf-8-sig')) if managed.is_file() else []
@@ -3349,7 +3369,7 @@ class ArcollApp:
      close_progress()
      if remote_command_id is None and not messagebox.askyesno('Atualizar agente',f'{len(changed)} arquivo(s) serão instalados/alterados e {len(removed)} removidos conforme inventário. O agente será reiniciado.\n\nDeseja continuar?',parent=self.root):return
      try:
-      subprocess.Popen([sys.executable,str(updater),str(stage),str(os.getpid()),ORIGIN],cwd=str(ROOT),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+      subprocess.Popen([sys.executable,str(stage/'arcoll_updater.py'),str(stage),str(os.getpid()),ORIGIN,str(ROOT)],cwd=str(ROOT),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
       # O comando será confirmado somente após o retorno do agente atualizado.
       self.close()
      except Exception as exc:

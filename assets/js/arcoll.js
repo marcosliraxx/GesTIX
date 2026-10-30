@@ -680,29 +680,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(function () { d.remove(); }, 700);
   }, { passive: true });
 
-  /* ---------- 4. Indicador deslizante do menu ---------- */
+  /* Mantém a seção selecionada visível na faixa horizontal, inclusive pelo teclado. */
   var menu = page.querySelector('.arc-redes-menu');
   if (menu) {
-    var ind = document.createElement('span');
-    ind.className = 'arc-menu-indicator';
-    ind.setAttribute('aria-hidden', 'true');
-    menu.insertBefore(ind, menu.firstChild);
-    var moveTo = function (link, instant) {
-      if (!link) { ind.style.opacity = 0; return; }
-      var m = menu.getBoundingClientRect(), r = link.getBoundingClientRect();
-      if (instant) ind.style.transition = 'none';
-      ind.style.width = r.width + 'px';
-      ind.style.transform = 'translate(' + (r.left - m.left + menu.scrollLeft) + 'px,-50%)';
-      ind.style.opacity = 1;
-      if (instant) { void ind.offsetWidth; ind.style.transition = ''; }
-    };
-    var active = function () { return menu.querySelector('.arc-redes-menu-link.active,.arc-redes-menu-link[aria-current="page"]'); };
-    menu.addEventListener('mouseover', function (e) { var l = e.target.closest('.arc-redes-menu-link'); if (l) moveTo(l); });
-    menu.addEventListener('mouseleave', function () { moveTo(active()); });
-    window.addEventListener('resize', function () { moveTo(active(), true); });
-    requestAnimationFrame(function () { moveTo(active(), true); });
-    window.addEventListener('load', function () { moveTo(active(), true); });
-    var act = active(); if (act && act.scrollIntoView) { try { act.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
+    var active = menu.querySelector('[aria-current="page"]');
+    if (active) menu.scrollLeft = Math.max(0, active.offsetLeft - (menu.clientWidth - active.offsetWidth) / 2);
   }
 
   /* ---------- 5. Contador animado: <strong data-count="123"> ---------- */

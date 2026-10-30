@@ -80,9 +80,16 @@ function arc_billing_invoice(PDO $pdo,int $account,int $plan,string $provider): 
 }
 function arc_billing_checkout(PDO $pdo,array $invoice,string $document=''): string {
     if($invoice['status']==='paid')throw new RuntimeException('Cobrança já paga.');
-    if($invoice['checkout_url'])return (string)$invoice['checkout_url'];
+    if($invoice['checkout_url']){
+        if(!arc_billing_safe_checkout((string)$invoice['checkout_url'],(string)$invoice['provider']))throw new RuntimeException('Endereço de pagamento inválido. Solicite conferência administrativa.');
+        return (string)$invoice['checkout_url'];
+    }
     if($invoice['provider']==='pix')return '';
     $origin=arc_billing_public_origin($pdo);$provider=$invoice['provider'];
+    if($provider==='asaas'){
+        $q=$pdo->prepare('SELECT external_id FROM '.arc_table('billing_customers').' WHERE account_id=? AND provider=?');$q->execute([$invoice['account_id'],$provider]);
+        if(!$q->fetchColumn()&&!in_array(strlen(preg_replace('/\D/','',$document)),[11,14],true))throw new RuntimeException('Informe CPF/CNPJ para continuar com Asaas.');
+    }
     // A compare-and-set lease prevents parallel checkout creation; uncertain failures require reconciliation.
     $claim=$pdo->prepare("UPDATE ".arc_table('billing_invoices')." SET status='processing' WHERE id=? AND status='pending'");$claim->execute([$invoice['id']]);
     if(!$claim->rowCount())throw new RuntimeException('Cobrança em processamento. Atualize a página; se persistir, solicite conciliação administrativa.');
@@ -90,7 +97,7 @@ function arc_billing_checkout(PDO $pdo,array $invoice,string $document=''): stri
         if($provider==='mercadopago'){
             $secret=arc_platform_decrypt(arc_billing_setting($pdo,'mercadopago_hook'));
             if(strlen($secret)<16)throw new RuntimeException('Configure o segredo do webhook.');
-            $data=arc_billing_http($pdo,$provider,'POST','/checkout/preferences',['items'=>[['id'=>$invoice['reference'],'title'=>'Assinatura Arcoll · mensal','quantity'=>1,'currency_id'=>'BRL','unit_price'=>(int)$invoice['amount_cents']/100]],'external_reference'=>$invoice['reference'],'notification_url'=>$origin.'/api/billing-webhook.php?provider=mercadopago','back_urls'=>['success'=>$origin.'/pages/assinatura.php','pending'=>$origin.'/pages/assinatura.php','failure'=>$origin.'/pages/assinatura.php'],'auto_return'=>'approved'],$invoice['reference']);
+            $data=arc_billing_http($pdo,$provider,'POST','/checkout/preferences',['items'=>[['id'=>$invoice['reference'],'title'=>'Assinatura Arcoll · mensal','quantity'=>1,'currency_id'=>'BRL','unit_price'=>(int)$invoice['amount_cents']/100]],'external_reference'=>$invoice['reference'],'notification_url'=>$origin.'/api/billing-webhook.php?provider=mercadopago','back_urls'=>['success'=>$origin.'/pages/checkout.php?invoice='.(int)$invoice['id'],'pending'=>$origin.'/pages/checkout.php?invoice='.(int)$invoice['id'],'failure'=>$origin.'/pages/checkout.php?invoice='.(int)$invoice['id']],'auto_return'=>'approved'],$invoice['reference']);
             $url=arc_billing_setting($pdo,'mercadopago_mode','sandbox')==='production'?($data['init_point']??''):($data['sandbox_init_point']??'');$external=(string)($data['id']??'');
         }else{
             $q=$pdo->prepare('SELECT external_id FROM '.arc_table('billing_customers').' WHERE account_id=? AND provider=?');$q->execute([$invoice['account_id'],$provider]);$customer=(string)$q->fetchColumn();
@@ -142,4 +149,32 @@ function arc_billing_apply(PDO $pdo,int $id,string $state,string $eventKey,strin
         $pdo->commit();
         if($actor)arc_user_audit($pdo,'billing_'.$state,'Cobrança #'.$id.' conferida pelo administrador #'.$actor,(int)$i['account_id']);
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+}
+
+/** Plain Portuguese payment states, shared by checkout and history. */
+function arc_billing_status_label(string $status): string {
+    return ['pending'=>'Aguardando pagamento','processing'=>'Preparando pagamento','review'=>'Em conferência','paid'=>'Pago','reversed'=>'Estornado ou contestado','cancelled'=>'Cancelado'][$status]??'Em análise';
+}
+function arc_pix_field(string $id,string $value): string {
+    if(strlen($value)>99)throw new RuntimeException('Dados Pix excedem o tamanho permitido.');
+    return $id.str_pad((string)strlen($value),2,'0',STR_PAD_LEFT).$value;
+}
+function arc_pix_name(string $value,int $limit): string {
+    $value=iconv('UTF-8','ASCII//TRANSLIT//IGNORE',$value);
+    return substr(trim(preg_replace('/[^A-Z0-9 ]/','',strtoupper((string)$value))),0,$limit);
+}
+/** EMV BR Code Pix estático com valor e txid. Nenhum serviço externo recebe a chave. */
+function arc_billing_pix_payload(string $key,string $name,string $city,int $cents,string $txid): string {
+    $key=trim($key);$name=arc_pix_name($name,25);$city=arc_pix_name($city,15);
+    if($key===''||strlen($key)>77||preg_match('/[\x00-\x20\x7f]/',$key)||$name===''||$city===''||$cents<100||!preg_match('/^[A-Za-z0-9]{1,25}$/D',$txid))throw new RuntimeException('Configure chave, beneficiário e cidade válidos para o Pix.');
+    $data=arc_pix_field('00','01').arc_pix_field('26',arc_pix_field('00','br.gov.bcb.pix').arc_pix_field('01',$key)).arc_pix_field('52','0000').arc_pix_field('53','986').arc_pix_field('54',number_format($cents/100,2,'.','')).arc_pix_field('58','BR').arc_pix_field('59',$name).arc_pix_field('60',$city).arc_pix_field('62',arc_pix_field('05',$txid)).'6304';
+    $crc=0xFFFF;for($i=0;$i<strlen($data);$i++){$crc^=ord($data[$i])<<8;for($b=0;$b<8;$b++)$crc=(($crc<<1)^(($crc&0x8000)?0x1021:0))&0xFFFF;}
+    return $data.strtoupper(str_pad(dechex($crc),4,'0',STR_PAD_LEFT));
+}
+function arc_billing_pix_snapshot(PDO $pdo,array $invoice): string {
+    if(!empty($invoice['payment_payload']))return (string)$invoice['payment_payload'];
+    if($invoice['provider']!=='pix'||$invoice['status']!=='pending')return '';
+    $payload=arc_billing_pix_payload(arc_billing_setting($pdo,'pix_key'),arc_billing_setting($pdo,'pix_name','ARCOLL'),arc_billing_setting($pdo,'pix_city','BELEM'),(int)$invoice['amount_cents'],'ARC'.$invoice['id']);
+    $pdo->prepare("UPDATE ".arc_table('billing_invoices')." SET payment_payload=? WHERE id=? AND account_id=? AND payment_payload IS NULL AND provider='pix' AND status='pending'")->execute([$payload,$invoice['id'],$invoice['account_id']]);
+    $q=$pdo->prepare('SELECT payment_payload FROM '.arc_table('billing_invoices').' WHERE id=? AND account_id=?');$q->execute([$invoice['id'],$invoice['account_id']]);return (string)$q->fetchColumn();
 }
