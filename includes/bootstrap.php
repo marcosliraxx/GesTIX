@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '2.8.1';
-const ARC_SCHEMA_VERSION = '2026.10.26-8';
+const ARC_APP_VERSION = '2.8.2';
+const ARC_SCHEMA_VERSION = '2026.10.30-1';
 
 /* Fuso horário fixo do Workspace: America/Belem (UTC-03:00). */
 const ARC_TIMEZONE = 'America/Belem';
@@ -144,7 +144,7 @@ function arc_ensure_user_schema(PDO $pdo): void
     /* Verifica/migra o schema apenas uma vez por sessão (evita dezenas de queries a cada página). */
     if (isset($_SESSION['arc_schema_ok']) && $_SESSION['arc_schema_ok'] === ARC_SCHEMA_VERSION) {
         // Session can outlive a fresh database or a restore: verify required tables.
-        $required = ['user_accounts','managed_networks','account_login_attempts','network_agents'];
+        $required = ['user_accounts','managed_networks','account_login_attempts','network_agents','network_team_members','network_team_invitations'];
         $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
         $valid = true;
         foreach ($required as $tableName) {
@@ -373,6 +373,30 @@ function arc_ensure_user_schema(PDO $pdo): void
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id,pref_key)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('network_team_members') . ' (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `account_id` bigint(20) unsigned NOT NULL,
+  `network_id` bigint(20) unsigned NOT NULL,
+  `member_user_id` bigint(20) unsigned NOT NULL,
+  `role` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT \'viewer\',
+  `enabled` tinyint(1) NOT NULL DEFAULT \'1\',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_team_member` (`network_id`,`member_user_id`),
+  KEY `idx_team_network_owner` (`account_id`,`network_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('network_team_invitations') . ' (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `account_id` bigint(20) unsigned NOT NULL,
+  `network_id` bigint(20) unsigned NOT NULL,
+  `email_hash` char(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(254) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `role` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT \'viewer\',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_invitation` (`network_id`,`email_hash`),
+  KEY `idx_invitation_email` (`email_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
     $_SESSION['arc_schema_ok'] = ARC_SCHEMA_VERSION;
 }
 

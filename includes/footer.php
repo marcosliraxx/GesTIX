@@ -1,7 +1,7 @@
 <?php
+/* Caminho: includes/footer.php */
 declare(strict_types=1);
 
-/* ARQUIVO: /includes/footer.php */
 
 /* ============================================================
    includes/footer.php — RODAPÉ PADRÃO + JS COMPARTILHADO
@@ -29,7 +29,7 @@ declare(strict_types=1);
     'use strict';
 
     /* Navegação mobile */
-    var mobileMenu=document.getElementById('arc-mobile-menu');
+    var mobileMenu=document.querySelector('[data-mobile-menu]');
     var backdrop=document.getElementById('arc-sidebar-backdrop');
     var sidebar=document.getElementById('app-sidebar');
     function setMobileMenu(open){
@@ -41,7 +41,6 @@ declare(strict_types=1);
         if(open&&sidebar){var first=sidebar.querySelector('.side-nav a');if(first)first.focus({preventScroll:true});}
         else if(mobileMenu)mobileMenu.focus({preventScroll:true});
     }
-    if(mobileMenu)mobileMenu.addEventListener('click',function(){setMobileMenu(!document.body.classList.contains('arc-menu-open'));});
     document.querySelectorAll('[data-mobile-menu]').forEach(function(button){button.addEventListener('click',function(){setMobileMenu(!document.body.classList.contains('arc-menu-open'));});});
     if(backdrop)backdrop.addEventListener('click',function(){setMobileMenu(false);});
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.body.classList.contains('arc-menu-open'))setMobileMenu(false);});

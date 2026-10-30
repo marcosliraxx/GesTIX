@@ -1,3 +1,4 @@
+/* Caminho: tests/platform_appearance.cjs */
 /* Run on a development copy with synthetic user/admin accounts. No screenshots. */
 const {chromium}=require('playwright');
 (async()=>{
@@ -10,14 +11,26 @@ const {chromium}=require('playwright');
   await page.goto(new URL('index.php',base).href);
   await page.locator('[name=email]').fill(role==='admin'?admin.adminEmail:fixture.email);await page.locator('[name=password]').fill(role==='admin'?(process.env.GESTI_UI_ADMIN_PASSWORD||fixture.password):fixture.password);
   await Promise.all([page.waitForURL('**/pages/painel.php'),page.locator('form button[type=submit]').click()]);
-  const routes=role==='admin'?['pages/painel.php','pages/clientes.php','pages/usuarios.php','pages/permissoes.php','pages/menus.php','pages/configuracoes.php','pages/perfil.php','pages/renovar-senha.php']:['pages/painel.php','pages/perfil.php','pages/renovar-senha.php',...['servidor','velocidade','dispositivos','mapa','conexao'].map(p=>'redes/'+p+'.php?network='+admin.networkId)];
-  for(const [width,height] of [[360,640],[844,390],[1440,900]]){
+  const routes=role==='admin'?['pages/painel.php','pages/clientes.php','pages/usuarios.php','pages/permissoes.php','pages/menus.php','pages/configuracoes.php','pages/perfil.php','pages/renovar-senha.php']:['pages/painel.php','pages/perfil.php','pages/renovar-senha.php',...['servidor','velocidade','dispositivos','mapa','conexao','suporte','relatorios'].map(p=>'redes/'+p+'.php?network='+admin.networkId)];
+  for(const [width,height] of [[320,568],[360,640],[844,390],[1440,900]]){
    await page.setViewportSize({width,height});
    for(const theme of ['light','dark']){
     await page.evaluate(theme=>window.arcTheme.set(theme),theme);
     for(const route of routes){
      errors=[];const response=await page.goto(new URL(route,base).href,{waitUntil:'domcontentloaded'});await page.waitForTimeout(120);
      const data=await page.evaluate(()=>({theme:document.documentElement.dataset.theme,w:document.body.scrollWidth,main:document.querySelector('.app-main')?{w:document.querySelector('.app-main').clientWidth,sw:document.querySelector('.app-main').scrollWidth}:null,fatal:document.body.innerText.includes('Fatal error'),select:!!document.querySelector('[data-arc-appearance]'),bg:getComputedStyle(document.body).backgroundColor}));
+     if(route.startsWith('pages/painel.php')) {
+      const header=await page.locator('.app-header').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
+      context.panelHeader=header;
+     }
+     if(route.startsWith('redes/') && !route.startsWith('redes/relatorios') && data.main) {
+      const header=await page.locator('.app-header').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
+      const controls=await page.locator('.arc-redes-header-controls').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,bounds:el.getBoundingClientRect().right,scroll:el.scrollWidth>el.clientWidth+1}));
+      if(JSON.stringify(header)!==JSON.stringify(context.panelHeader)||controls.bg!=='rgba(0, 0, 0, 0)'||controls.scroll||controls.bounds>width)failures.push({route,width,error:'Header styles or controls overflow',header,controls});
+     }
+     if(data.main && width<=860) {
+      if(await page.locator('#arc-mobile-menu').count() || !await page.locator('.arc-mobile-brand img').isVisible())failures.push({route,width,error:'Mobile brand missing or duplicate hamburger'});
+     }
      total++;
      if(response.status()!==200||data.fatal||errors.length||data.w>width+1||data.theme!==theme||!data.select||data.main&&data.main.sw>data.main.w+1)failures.push({role,route,width,height,status:response.status(),...data,errors});
     }

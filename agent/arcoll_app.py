@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Caminho: agent/arcoll_app.py
 """Caminho: agent/arcoll_app.py
 Arcoll Speed Connection - aplicativo desktop nativo integrado ao agente local."""
 import os, sys, json, time, socket, platform, threading, subprocess, urllib.request, urllib.error, csv, ipaddress, re, shutil, hashlib, html, webbrowser
@@ -17,7 +18,7 @@ except Exception:
  QUICK_COMMANDS={}; run_quick_command=None
 
 APP_NAME='Arcoll Speed Connection'
-AGENT_VERSION='2.8.1'
+AGENT_VERSION='2.8.2'
 ROOT=Path(__file__).resolve().parent
 CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.json'
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'

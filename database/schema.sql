@@ -1,3 +1,4 @@
+-- Caminho: database/schema.sql
 SET FOREIGN_KEY_CHECKS=0;
 SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS `arc_account_audit` (
@@ -432,3 +433,16 @@ CREATE TABLE IF NOT EXISTS `arc_user_preferences` (
   PRIMARY KEY (`user_id`,`pref_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 SET FOREIGN_KEY_CHECKS=1;
+
+CREATE TABLE IF NOT EXISTS `arc_network_team_invitations` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `account_id` bigint(20) unsigned NOT NULL,
+  `network_id` bigint(20) unsigned NOT NULL,
+  `email_hash` char(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(254) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `role` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'viewer',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_invitation` (`network_id`,`email_hash`),
+  KEY `idx_invitation_email` (`email_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

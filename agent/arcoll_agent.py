@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Caminho: agent/arcoll_agent.py
 """Arcoll Network Agent 7.1 - companion local para o PWA.
 
 Uso:
@@ -14,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.8.1"
+VERSION = "2.8.2"
 LISTEN_HOST = "127.0.0.1"
 PORT = int(os.environ.get("ARCOLL_PORT", "8787"))
 WIN = platform.system().lower() == "windows"

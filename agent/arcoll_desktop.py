@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+# Caminho: agent/arcoll_desktop.py
 """Arcoll Speed Connection Desktop Agent: registration and approval gate."""
 import argparse, hashlib, json, os, platform, socket, subprocess, sys, threading, time, urllib.error, urllib.request, shutil
 import tkinter as tk
 from tkinter import messagebox
 from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
 
-VERSION = '2.8.1'
+VERSION = '2.8.2'
 parser = argparse.ArgumentParser()
 parser.add_argument('--origin', default=os.environ.get('ARCOLL_ORIGIN', '').strip())
 parser.add_argument('--site-code', default=os.environ.get('ARCOLL_SITE_CODE', '').strip().upper())

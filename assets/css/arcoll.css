@@ -1,3 +1,4 @@
+/* Caminho: assets/css/arcoll.css */
 * {
   box-sizing: border-box;
 }
@@ -476,15 +477,9 @@ textarea:focus {
   padding: 8px;
 }
 
-.arc-mobile-menu {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: inherit;
-  border: 0;
-  padding: 8px;
-}
+.arc-mobile-brand {display:none;flex:none;width:30px;height:36px;align-items:center;justify-content:center}
+.arc-mobile-brand img{display:block;width:100%;height:30px;object-fit:contain}
+
 
 .arc-nav-entry {
   display: flex;
@@ -1743,7 +1738,7 @@ body.sidebar-collapsed { --sidebar-w: 66px; }
 .arc-header-network-logo{display:grid;place-items:center;width:38px;height:38px;flex:none;overflow:hidden;border:1px solid var(--border,#dce5ee);border-radius:9px;background:var(--surface-alt,#f2f6fa);color:var(--primary)}
 .arc-header-network-logo img{width:100%;height:100%;object-fit:contain}
 .arc-header-network-info{display:flex;flex-direction:column;min-width:0;gap:3px}
-.arc-header-network-info strong{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-header-network-info small{font-size:11px;color:var(--muted,#64748b)}
+.arc-header-network-info strong{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-header-network-info small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--muted,#64748b)}
 body:has(.arc-account) .app-main{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:16px 22px}
 .arc-account{width:100%;margin:0 auto;min-height:0;flex:1;display:flex;flex-direction:column;overflow:hidden;gap:0;color:var(--text);box-sizing:border-box}
 .arc-account *{box-sizing:border-box}
@@ -2258,7 +2253,7 @@ textarea::placeholder{color:var(--muted);opacity:.8}
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;background:var(--surface-alt)!important;color:var(--text)!important;border-color:var(--border)!important}
-.arc-redes-operational-header{background:var(--surface-alt)!important;color:var(--text)!important;border-color:var(--border)!important}
+
 .arc-redes-identity-bar{background:var(--surface-alt)!important;color:var(--text)!important;border-color:var(--border)!important}
 .arc-workspace .app-main{min-width:0;min-height:0}
 .arc-redes-page{--redes-bg:var(--bg);--redes-surface:var(--surface);--redes-panel:var(--surface-alt);--redes-line:var(--border);--redes-text:var(--text);--redes-muted:var(--muted);--redes-cyan:var(--primary);--m-glass:var(--surface);--m-glass-2:var(--surface-alt);--m-edge:var(--border);background:var(--bg)!important;color:var(--text);min-width:0;max-width:100%;box-sizing:border-box}
@@ -2278,7 +2273,7 @@ h3{overflow-wrap:anywhere}
 @media(max-width:1120px){.arc-network-commandbar{flex-wrap:wrap}.arc-network-commandbar .arc-network-search{flex:1 1 220px}.arc-network-quickstats{flex:1 1 auto;justify-content:flex-end}.arc-network-commandbar .arc-network-new{margin-left:auto}}
 
 @media (min-width: 861px) {
-  .arc-mobile-menu {
+  .arc-mobile-brand {
     display: none;
   }
 }
@@ -2377,7 +2372,7 @@ h3{overflow-wrap:anywhere}
   .form-grid {
     grid-template-columns: 1fr;
   }
-  .arc-mobile-menu {
+  .arc-mobile-brand {
     display: inline-flex;
   }body {height:100dvh;overflow:hidden}.management-toolbar{flex-wrap:wrap}.management-toolbar .search-field{max-width:none;flex-basis:100%}.app-footer{
     margin-left: 0;
@@ -2388,7 +2383,7 @@ h3{overflow-wrap:anywhere}
  .arc-workspace{height:100dvh;min-height:0;--header-h:58px;--footer-h:64px}
  .arc-workspace .app-header{height:calc(var(--header-h) + env(safe-area-inset-top,0px))!important;min-height:calc(var(--header-h) + env(safe-area-inset-top,0px))!important;padding:env(safe-area-inset-top,0px) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));box-shadow:none}
  .arc-workspace .app-header .page-context{min-width:0;flex:1}.arc-workspace .app-header .top-title{font-size:17px;line-height:1.25}.arc-workspace .app-header .crumb{font-size:10px;max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
- .arc-workspace .app-header .arc-mobile-menu{min-width:44px;min-height:44px}
+ .arc-workspace .app-header .arc-mobile-brand{width:30px;min-height:40px}
  .arc-workspace .app-header .erp-user-button{min-width:44px;min-height:44px}
  .arc-workspace .app-header .arc-notify-button{min-width:44px;min-height:44px}
  .arc-workspace .app-footer{height:calc(64px + env(safe-area-inset-bottom,0px));min-height:calc(64px + env(safe-area-inset-bottom,0px));padding:0 max(8px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(8px,env(safe-area-inset-left,0px));background:var(--surface,#fff);border-color:var(--border);box-shadow:0 -4px 20px #12304b08;z-index:35}

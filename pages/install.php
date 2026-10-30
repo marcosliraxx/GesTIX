@@ -1,11 +1,12 @@
 <?php
+/* Caminho: pages/install.php */
 declare(strict_types=1);
 
 $privateDir = __DIR__ . '/../includes';
 $configPath = $privateDir . '/config.php';
 if (is_file($configPath)) {
     http_response_code(409);
-    ?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalação concluída</title><link rel="stylesheet" href="assets/css/arcoll.css"><script src="assets/js/arcoll.js?v=2.8.1" defer></script><body class="arc-page-install"><main class="admin-shell auth-shell"><section class="auth-card"><span class="eyebrow">INSTALAÇÃO PROTEGIDA</span><h1>O sistema já está instalado</h1><p class="text-muted">Por segurança, este instalador não pode ser executado novamente. Acesse o sistema ou a administração.</p><a class="button primary" href="pages/painel.php">Abrir administração</a> <a class="button secondary" href="index.php">Abrir portal</a></section></main></body></html><?php
+    ?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalação concluída</title><link rel="stylesheet" href="assets/css/arcoll.css"><script src="assets/js/arcoll.js?v=2.8.2" defer></script><body class="arc-page-install"><main class="admin-shell auth-shell"><section class="auth-card"><span class="eyebrow">INSTALAÇÃO PROTEGIDA</span><h1>O sistema já está instalado</h1><p class="text-muted">Por segurança, este instalador não pode ser executado novamente. Acesse o sistema ou a administração.</p><a class="button primary" href="pages/painel.php">Abrir administração</a> <a class="button secondary" href="index.php">Abrir portal</a></section></main></body></html><?php
     exit;
 }
 
@@ -258,7 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="icon" type="image/svg+xml" href="assets/img/app-mark.svg?v=20261025"><link rel="shortcut icon" href="assets/img/app-mark.svg?v=20261025"><link rel="apple-touch-icon" href="assets/img/app-mark.svg?v=20261025">
   <meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark"><title>Instalação · Arcoll Speed Connection</title>
-  <link rel="stylesheet" href="assets/css/arcoll.css"><script src="assets/js/arcoll.js?v=2.8.1" defer></script>
+  <link rel="stylesheet" href="assets/css/arcoll.css"><script src="assets/js/arcoll.js?v=2.8.2" defer></script>
   
 <script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
 <body><label class="arc-appearance-control arc-appearance-public"><i class="fa fa-adjust" aria-hidden="true"></i><select data-arc-appearance aria-label="Tema do aplicativo"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label>

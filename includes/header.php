@@ -1,7 +1,7 @@
 <?php
+/* Caminho: includes/header.php */
 declare(strict_types=1);
 
-/* ARQUIVO: /includes/header.php */
 
 /* ============================================================
    includes/header.php — CABEÇALHO PADRÃO DO WORKSPACE
@@ -84,7 +84,7 @@ unset($_SESSION['arc_flash']);
 .arc-toast{background:color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 12%,rgba(255,255,255,.78))!important;border:1px solid color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 35%,transparent)!important;backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 12px 35px #152a4830}
 .flash.arc-toast{background:color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 12%,rgba(255,255,255,.78))!important;border:1px solid color-mix(in srgb,var(--arc-brand-accent,#ed7d23) 35%,transparent)!important;backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 12px 35px #152a4830}
 .erp-user-button .erp-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
-</style><script src="assets/js/arcoll.js?v=2.8.1" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
+</style><script src="assets/js/arcoll.js?v=2.8.2" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
 <body class="<?= arc_h(trim($arcBodyClass . ' ' . ($ARCPageBodyClass ?? ''))) ?>" style="<?php
 $vars=['accent_color'=>'--arc-brand-accent','platform_sidebar_color'=>'--arc-sidebar-bg','platform_header_color'=>'--arc-header-bg','platform_footer_color'=>'--arc-footer-bg'];
 foreach($vars as $key=>$var){$v=$arcThemeSettings[$key]??'';if(preg_match('/^#[0-9a-fA-F]{6}$/',$v))echo $var.':'.arc_h($v).';';}
@@ -102,7 +102,7 @@ if ($arcFlashText !== ''): ?>
 <?php if ($ARCMode === 'app'): ?>
 <header class="app-header">
 <button class="arc-header-sidebar-toggle" type="button" id="sidebar-collapse" aria-controls="app-sidebar" aria-expanded="true" aria-label="Recolher menu lateral" title="Recolher / expandir menu lateral"><i class="fa fa-angle-double-left" aria-hidden="true" data-sidebar-toggle-icon></i></button>
-<button class="arc-mobile-menu" type="button" id="arc-mobile-menu" aria-controls="app-sidebar" aria-expanded="false" aria-label="Abrir menu"><i class="fa fa-bars" aria-hidden="true"></i></button>
+<a class="arc-mobile-brand" href="pages/painel.php" aria-label="<?=arc_h($arcSiteName)?> — painel"><img src="<?=arc_h($arcLogo)?>" alt="<?=arc_h($arcSiteName)?>"></a>
     <?php $arcNetworkHeader = ($ARCPageBodyClass ?? '') === 'arc-page-redes' && isset($network,$networkId) && is_array($network) && (int)($network['id']??0)===(int)$networkId; ?>
     <?php if ($arcNetworkHeader): ?>
     <div class="page-context arc-header-network">
@@ -115,7 +115,7 @@ if ($arcFlashText !== ''): ?>
 
     <div class="header-actions">
 <?php if ($arcNetworkHeader): ?>
-<form class="arc-redes-header-controls arc-redes-operational-header" id="arc-agent-form" method="get" action="" aria-label="Controle do agente">
+<form class="arc-redes-header-controls" id="arc-agent-form" method="get" action="" aria-label="Controle do agente">
   <input type="hidden" name="network" value="<?= (int)$networkId ?>">
   <div class="arc-redes-header-left">
    <?php
@@ -138,8 +138,8 @@ if ($arcFlashText !== ''): ?>
    </div>
   </div>
   <div class="arc-redes-header-right">
-   <span id="arc-agent-version-info" style="font-size:11px;color:#a7c8dc;white-space:nowrap" title="Versão instalada do agente">v. --</span>
-   <button type="button" id="arc-agent-update-remote" class="arc-identity-icon" data-arc-command="agent_update" disabled style="color:#35e9bd" title="Reinstalar arquivos do agente Windows (inclusive na mesma versão)" aria-label="Atualizar agente Windows remotamente"><i class="fa fa-refresh" aria-hidden="true"></i></button>
+   <span id="arc-agent-version-info" class="arc-agent-version" title="Versão instalada do agente">v. --</span>
+   <button type="button" id="arc-agent-update-remote" class="arc-identity-icon" data-arc-command="agent_update" disabled title="Reinstalar arquivos do agente Windows (inclusive na mesma versão)" aria-label="Atualizar agente Windows remotamente"><i class="fa fa-refresh" aria-hidden="true"></i></button>
    <?php if ($isNetworkOwner): ?><button type="button" class="arc-identity-icon arc-identity-manage" data-network-modal-open aria-label="Gerenciar redes" title="Gerenciar redes"><i class="fa fa-sliders" aria-hidden="true"></i><?php if ($pendingAgentCount): ?><span class="arc-identity-count"><?= (int)$pendingAgentCount ?></span><?php endif; ?></button><?php endif; ?>
   </div>
  </form>
@@ -232,6 +232,7 @@ if ($arcFlashText !== ''): ?>
                     <?php foreach(arc_v15_menu_items($pdo,'user') as $arcHeaderLink): ?>
                     <a href="<?=arc_h($arcHeaderLink['url'])?>"><span class="arc-db-icon" data-icon="<?=arc_h($arcHeaderLink['icon'])?>" aria-hidden="true"><i class="fa fa-circle-o" aria-hidden="true"></i></span><?=arc_h($arcHeaderLink['label'])?></a>
                     <?php endforeach; ?>
+                    <label class="arc-appearance-control"><i class="fa fa-adjust" aria-hidden="true"></i><select data-arc-appearance aria-label="Tema do aplicativo"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label>
                     <div class="erp-menu-sep"></div>
                     <form method="post" action="<?='pages/painel.php'?>"><input type="hidden" name="_csrf" value="<?= arc_h(arc_csrf_token()) ?>"><input type="hidden" name="action" value="logout"><button class="erp-menu-danger" type="submit">Sair da conta</button></form>
                 </div>

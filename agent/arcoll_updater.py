@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Caminho: agent/arcoll_updater.py
 """Apply an authenticated, preverified Arcoll update after the desktop exits."""
 import hashlib
 import json
@@ -13,7 +14,7 @@ import tkinter as tk
 from tkinter import ttk
 from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
 
-VERSION = '2.8.1'
+VERSION = '2.8.2'
 
 # Caminho: agent/arcoll_updater.py
 import re
