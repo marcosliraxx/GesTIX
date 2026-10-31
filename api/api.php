@@ -209,6 +209,7 @@ try {
             $id=(int)($body['command_id']??0);
             $q=$pdo->prepare("SELECT c.command_name,a.headless_mode FROM ".arc_table('agent_commands')." c JOIN ".arc_table('network_agents')." a ON a.id=c.agent_id AND a.account_id=c.account_id JOIN ".arc_table('managed_networks')." n ON n.id=c.network_id AND n.account_id=c.account_id JOIN ".arc_table('user_accounts')." u ON u.id=c.account_id WHERE c.id=? AND c.agent_id=? AND c.account_id=? AND c.network_id=? AND c.status='running' AND c.command_name IN ('power_shutdown','power_restart','power_cancel') AND c.dispatched_at>=DATE_SUB(NOW(),INTERVAL 3 MINUTE) AND u.account_status='active'");
             $q->execute([$id,$agentId,$agent['account_id'],$agent['network_id']]);$power=$q->fetch();
+            if($power){$q=$pdo->prepare('SELECT s.enabled FROM '.arc_table('support_schedule_runs').' r JOIN '.arc_table('support_schedules').' s ON s.id=r.schedule_id WHERE r.command_id=?');$q->execute([$id]);$enabled=$q->fetchColumn();if($enabled!==false&&!(int)$enabled)$power=false;arc_billing_assert_active($pdo,(int)$agent['account_id']);}
             if(!$power)arc_json(['ok'=>false,'error'=>'Autorização expirada. Solicite novamente.'],403);
             arc_json(['ok'=>true,'command'=>$power['command_name'],'headless'=>(bool)$power['headless_mode']]);
         }
@@ -288,6 +289,7 @@ try {
         }
         $expireRunningAgentCommands($pdo, $agentId);
         $pdo->prepare('UPDATE '.arc_table('agent_commands').' SET status=\'expired\' WHERE agent_id=? AND status=\'pending\' AND created_at < DATE_SUB(NOW(), INTERVAL 3 MINUTE)')->execute([$agentId]);
+        arc_support_schedules_dispatch($pdo,$agent);
         // DDL provoca commit implícito em MySQL 5.7/8.x.
         // Garanta a tabela antes de iniciar a transação de retirada da fila.
         $pdo->beginTransaction();

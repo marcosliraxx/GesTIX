@@ -185,3 +185,80 @@ function arc_support_file_api(PDO $pdo,string $action): void {
     }elseif($action==='file-receive')$id=arc_support_file_create($pdo,$network,$agent,(int)arc_user_id(),'from_agent');
     else throw new RuntimeException('Operação indisponível.');arc_json(['ok'=>true,'id'=>$id]);
 }
+
+/** Predefined scheduled maintenance uses the existing authenticated command queue. */
+function arc_support_schedule_actions(): array {
+ return ['power_shutdown'=>'Desligar computador','power_restart'=>'Reiniciar computador','scan_devices'=>'Atualizar dispositivos','quick_health'=>'Verificar conexão','storage_health'=>'Verificar discos','service_health'=>'Verificar serviços','system_snapshot'=>'Verificar recursos','restart_readiness'=>'Verificar reinicialização'];
+}
+function arc_support_schedule_date(string $value): DateTimeImmutable {
+ $date=DateTimeImmutable::createFromFormat('!Y-m-d\TH:i',$value,new DateTimeZone(ARC_TIMEZONE));
+ if(!$date||$date->format('Y-m-d\TH:i')!==$value)throw new RuntimeException('Informe uma data e um horário válidos.');return $date;
+}
+/** Next occurrence strictly after $after; anchored intervals never drift or backfill. */
+function arc_support_schedule_next(array $s,DateTimeImmutable $after): ?string {
+ $zone=new DateTimeZone(ARC_TIMEZONE);$start=new DateTimeImmutable($s['starts_at'],$zone);$end=empty($s['ends_at'])?null:new DateTimeImmutable($s['ends_at'],$zone);$next=null;
+ if($s['recurrence']==='once')$next=$start>$after?$start:null;
+ elseif($s['recurrence']==='interval'){
+  $step=max(15,(int)$s['interval_minutes'])*60;$n=max(0,(int)floor(($after->getTimestamp()-$start->getTimestamp())/$step)+1);$next=$start->modify('+'.($n*$step).' seconds');
+ }elseif($s['recurrence']==='weekdays'){
+  $days=explode(',',(string)$s['weekdays']);$day=($after>$start?$after:$start)->setTime((int)$start->format('H'),(int)$start->format('i'));
+  for($i=0;$i<8;$i++,$day=$day->modify('+1 day'))if($day>$after&&$day>=$start&&in_array($day->format('N'),$days,true)){$next=$day;break;}
+ }
+ return $next&&(!$end||$next<=$end)?$next->format('Y-m-d H:i:s'):null;
+}
+function arc_support_schedule_owner(PDO $pdo,int $network,int $user): array {
+ $access=arc_support_access($pdo,$network,$user,true);if($access['role']!=='owner')throw new RuntimeException('Somente o gestor da rede pode gerenciar agendamentos.');return $access;
+}
+function arc_support_schedule_api(PDO $pdo,string $action,array $v,int $user): never {
+ $network=(int)($v['network_id']??0);$access=arc_support_schedule_owner($pdo,$network,$user);$account=(int)$access['account_id'];$agent=(int)($v['agent_id']??0);
+ $q=$pdo->prepare('SELECT id,agent_version FROM '.arc_table('network_agents')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");$q->execute([$agent,$network,$account]);$target=$q->fetch();if(!$target)throw new RuntimeException('Selecione um computador aprovado.');
+ if($action==='schedule-list'){
+  $q=$pdo->prepare('SELECT * FROM '.arc_table('support_schedules').' WHERE account_id=? AND network_id=? AND agent_id=? ORDER BY id DESC LIMIT 100');$q->execute([$account,$network,$agent]);$rows=$q->fetchAll();
+  $q=$pdo->prepare('SELECT r.scheduled_for,r.outcome,r.message,c.status AS task_status,c.result_text,s.command_name FROM '.arc_table('support_schedule_runs').' r JOIN '.arc_table('support_schedules').' s ON s.id=r.schedule_id LEFT JOIN '.arc_table('agent_commands').' c ON c.id=r.command_id WHERE s.account_id=? AND s.network_id=? AND s.agent_id=? ORDER BY r.id DESC LIMIT 30');$q->execute([$account,$network,$agent]);arc_json(['ok'=>true,'schedules'=>$rows,'runs'=>$q->fetchAll(),'timezone'=>ARC_TIMEZONE]);
+ }
+ if($action==='schedule-cancel'){
+  $id=(int)($v['id']??0);$pdo->beginTransaction();try{
+   $q=$pdo->prepare('SELECT id FROM '.arc_table('support_schedules').' WHERE id=? AND account_id=? AND network_id=? AND agent_id=? FOR UPDATE');$q->execute([$id,$account,$network,$agent]);if(!$q->fetchColumn())throw new RuntimeException('Agendamento não encontrado.');
+   $pdo->prepare('UPDATE '.arc_table('support_schedules').' SET enabled=0,next_run_at=NULL WHERE id=?')->execute([$id]);
+   $pdo->prepare('UPDATE '.arc_table('agent_commands')." c JOIN ".arc_table('support_schedule_runs')." r ON r.command_id=c.id SET c.status='expired',c.result_text='Agendamento cancelado pelo gestor',c.completed_at=NOW() WHERE r.schedule_id=? AND c.status IN ('pending','running')")->execute([$id]);$pdo->commit();
+  }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+  arc_user_audit($pdo,'support_schedule_cancelled','Agendamento #'.$id.' cancelado',$user);arc_json(['ok'=>true]);
+ }
+ if($action!=='schedule-save')throw new RuntimeException('Ação inválida.');
+ arc_billing_assert_active($pdo,$account);$command=(string)($v['command']??'');if(!isset(arc_support_schedule_actions()[$command]))throw new RuntimeException('Escolha um serviço da lista.');
+ if(version_compare((string)$target['agent_version'],'3.4.0','<'))throw new RuntimeException('Atualize o agente para 3.4.0 ou superior antes de agendar serviços.');
+ if(str_starts_with($command,'power_')){
+  $q=$pdo->prepare('SELECT password_hash FROM '.arc_table('user_accounts').' WHERE id=?');$q->execute([$user]);if(($v['confirmed']??false)!==true||!password_verify((string)($v['password']??''),(string)$q->fetchColumn()))throw new RuntimeException('Confirme a ação e informe a senha da sua conta.');
+ }
+ $now=new DateTimeImmutable('now',new DateTimeZone(ARC_TIMEZONE));$start=arc_support_schedule_date((string)($v['starts_at']??''));$end=empty($v['ends_at'])?null:arc_support_schedule_date((string)$v['ends_at']);
+ if($start<=$now||$start>$now->modify('+1 year')||($end&&($end<$start||$end>$start->modify('+1 year'))))throw new RuntimeException('Escolha um início futuro e um período de até um ano.');
+ $recurrence=(string)($v['recurrence']??'once');if(!in_array($recurrence,['once','weekdays','interval'],true))throw new RuntimeException('Escolha uma repetição válida.');
+ $days=$v['weekdays']??[];if(!is_array($days))throw new RuntimeException('Escolha os dias da semana.');$days=array_unique(array_map('intval',$days));sort($days);if($recurrence==='weekdays'&&(!$days||min($days)<1||max($days)>7))throw new RuntimeException('Escolha ao menos um dia da semana.');
+ $interval=filter_var($v['interval_minutes']??60,FILTER_VALIDATE_INT,['options'=>['min_range'=>15,'max_range'=>10080]]);if($interval===false)throw new RuntimeException('O intervalo deve ser de 15 minutos a 7 dias.');
+ $s=['starts_at'=>$start->format('Y-m-d H:i:s'),'ends_at'=>$end?->format('Y-m-d H:i:s'),'recurrence'=>$recurrence,'weekdays'=>implode(',',$days),'interval_minutes'=>$interval];$next=arc_support_schedule_next($s,$now);if(!$next)throw new RuntimeException('Nenhuma execução neste período. Confira as datas e os dias.');
+ $pdo->beginTransaction();try{
+  $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');$q->execute([$account]);
+  $q=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('support_schedules').' WHERE account_id=? AND enabled=1 AND next_run_at IS NOT NULL');$q->execute([$account]);if((int)$q->fetchColumn()>=50)throw new RuntimeException('Limite de 50 agendamentos ativos. Cancele um antes de criar outro.');
+  $pdo->prepare('INSERT INTO '.arc_table('support_schedules').' (account_id,network_id,agent_id,command_name,recurrence,starts_at,ends_at,weekdays,interval_minutes,next_run_at) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute([$account,$network,$agent,$command,$recurrence,$s['starts_at'],$s['ends_at'],$s['weekdays'],$interval,$next]);$id=(int)$pdo->lastInsertId();$pdo->commit();
+ }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+ arc_user_audit($pdo,'support_schedule_created','Agendamento #'.$id.' · '.arc_support_schedule_actions()[$command],$user);arc_json(['ok'=>true,'id'=>$id]);
+}
+/** Called by the approved agent's normal poll. No cron or additional Windows worker. */
+function arc_support_schedules_dispatch(PDO $pdo,array $agent): void {
+ $pdo->beginTransaction();try{
+  $q=$pdo->prepare('SELECT s.*,a.agent_version,u.account_status FROM '.arc_table('support_schedules').' s JOIN '.arc_table('network_agents').' a ON a.id=s.agent_id AND a.account_id=s.account_id AND a.network_id=s.network_id JOIN '.arc_table('user_accounts').' u ON u.id=s.account_id WHERE s.agent_id=? AND s.account_id=? AND s.network_id=? AND s.enabled=1 AND s.next_run_at<=NOW() ORDER BY s.next_run_at,s.id LIMIT 20 FOR UPDATE');$q->execute([$agent['id'],$agent['account_id'],$agent['network_id']]);$rows=$q->fetchAll();$now=new DateTimeImmutable('now',new DateTimeZone(ARC_TIMEZONE));
+  foreach($rows as $s){
+   $slot=$s['next_run_at'];$outcome='skipped';$message='Horário perdido: o computador não respondeu a tempo.';$command=null;
+   if(strtotime($slot)>=$now->getTimestamp()-180){
+    $message='Computador ocupado; serviço não executado.';
+    $q=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands')." WHERE agent_id=? AND status IN ('pending','running')");$q->execute([$agent['id']]);$busy=(int)$q->fetchColumn()>0;
+    $valid=$s['account_status']==='active'&&isset(arc_support_schedule_actions()[$s['command_name']])&&version_compare((string)$s['agent_version'],'3.4.0','>=');
+    try{arc_billing_assert_active($pdo,(int)$s['account_id']);}catch(PDOException $e){throw $e;}catch(RuntimeException $e){$valid=false;}
+    if(!$valid)$message='Autorização ou versão do agente indisponível.';
+    if(!$busy&&$valid){$pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([$s['account_id'],$s['network_id'],$s['agent_id'],$s['command_name']]);$command=(int)$pdo->lastInsertId();$outcome='queued';$message='Enviado ao computador.';}
+   }
+   $pdo->prepare('INSERT INTO '.arc_table('support_schedule_runs').' (schedule_id,scheduled_for,command_id,outcome,message) VALUES (?,?,?,?,?)')->execute([$s['id'],$slot,$command,$outcome,$message]);
+   $pdo->prepare('UPDATE '.arc_table('support_schedules').' SET next_run_at=? WHERE id=?')->execute([arc_support_schedule_next($s,$now),$s['id']]);
+  }$pdo->commit();
+ }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+}

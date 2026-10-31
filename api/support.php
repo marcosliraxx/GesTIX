@@ -15,6 +15,7 @@ try{
  }
  if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Entre na plataforma.'],401);
  arc_verify_csrf();$user=(int)arc_user_id();
+ if(str_starts_with($action,'schedule-'))arc_support_schedule_api($pdo,$action,$v,$user);
  if(($_GET['action']??'')==='launch'){
   $command=(int)($v['command_id']??0);
   if(!$command)$command=arc_support_request_remote($pdo,(int)($v['network_id']??0),(int)($v['agent_id']??0),$user,(int)($v['ticket_id']??0));

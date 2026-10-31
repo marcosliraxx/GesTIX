@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from PIL import Image, ImageTk
 from arcoll_toolkit import AppearanceManager, bind_theme, theme_color, friendly_error
 
-VERSION = '3.3.4'
+VERSION = '3.4.0'
 
 class RemoteAPI:
     def __init__(self, origin):

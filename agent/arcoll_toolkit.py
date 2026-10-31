@@ -2,7 +2,7 @@
 """Medições locais e operações Windows limitadas para o agente Arcoll."""
 import os, platform, socket, subprocess, time, re, ipaddress, json, locale
 
-VERSION = '3.3.4'
+VERSION = '3.4.0'
 
 def _decode_bytes(value):
     if not value:return ''

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '3.3.4';
-const ARC_SCHEMA_VERSION = '2026.10.30-5';
+const ARC_APP_VERSION = '3.4.0';
+const ARC_SCHEMA_VERSION = '2026.10.30-6';
 
 require_once __DIR__.'/billing.php';
 require_once __DIR__.'/support.php';
@@ -94,7 +94,7 @@ function arc_table(string $name): string
         'admins', 'settings', 'pages', 'page_fields', 'sessions', 'preferences',
         'samples', 'devices', 'alerts', 'releases', 'login_attempts', 'audit_logs',
         'field_values', 'user_accounts', 'managed_networks', 'network_sessions', 'account_login_attempts', 'account_audit', 'pwa_installations',
-        'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations', 'billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers',
+        'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations', 'billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers','support_schedules','support_schedule_runs',
     ];
     if (!in_array($name, $allowed, true)) {
         throw new InvalidArgumentException('Tabela não permitida.');
@@ -172,7 +172,7 @@ function arc_verify_csrf(): void
 function arc_ensure_user_schema(PDO $pdo): void
 {
     // Native clients and webhooks have no browser cookie: a database marker avoids DDL per frame.
-    $required=['agent_terminal_jobs','user_accounts','managed_networks','account_login_attempts','network_agents','network_team_members','network_team_invitations','billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers'];
+    $required=['agent_terminal_jobs','user_accounts','managed_networks','account_login_attempts','network_agents','network_team_members','network_team_invitations','billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers','support_schedules','support_schedule_runs'];
     try{
         $version=arc_platform_setting($pdo,'platform_schema_version');
         if($version===ARC_SCHEMA_VERSION){
@@ -425,7 +425,7 @@ function arc_ensure_user_schema(PDO $pdo): void
   UNIQUE KEY `uq_invitation` (`network_id`,`email_hash`),
   KEY `idx_invitation_email` (`email_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
-    foreach(['3.0.0','3.2.0','3.3.0'] as $release){
+    foreach(['3.0.0','3.2.0','3.3.0','3.4.0'] as $release){
         $migration=file_get_contents(dirname(__DIR__).'/database/migrations/'.$release.'.sql');
         if($migration===false)throw new RuntimeException('Migração '.$release.' ausente.');
         $migration=str_replace(['`arc_',"'arc_"],['`'.arc_prefix(),"'".arc_prefix()],$migration);
