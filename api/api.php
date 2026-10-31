@@ -187,7 +187,7 @@ try {
     };
 
     /* Canal de comandos: ações limitadas, agente aprovado, token da instalação. */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-file-transfer'],true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-file-transfer','agent-support-code'],true)) {
         $raw = file_get_contents('php://input');
         if (!is_string($raw) || strlen($raw)>8192) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
         $body=json_decode($raw,true);
@@ -200,6 +200,7 @@ try {
         $q->execute([$fp,$code,hash('sha256',$key),$fp]);$agent=$q->fetch();
         if (!$agent) arc_json(['ok'=>false,'error'=>'Agente sem autorização'],403);
         $agentId=(int)$agent['id'];
+        if($action==='agent-support-code')arc_json(['ok'=>true,'code'=>arc_support_guest_code($pdo,$agentId),'expires_in'=>180]);
         if($action==='agent-file-transfer'){
             $q=$pdo->prepare('SELECT id FROM '.arc_table('support_file_transfers').' WHERE command_id=? AND agent_id=? AND account_id=? AND network_id=?');$q->execute([(int)($body['command_id']??0),$agentId,$agent['account_id'],$agent['network_id']]);$transfer=$q->fetchColumn();
             if(!$transfer)arc_json(['ok'=>false,'error'=>'Transferência não encontrada.'],404);
@@ -209,6 +210,7 @@ try {
             $id=(int)($body['command_id']??0);
             $q=$pdo->prepare("SELECT c.command_name,a.headless_mode FROM ".arc_table('agent_commands')." c JOIN ".arc_table('network_agents')." a ON a.id=c.agent_id AND a.account_id=c.account_id JOIN ".arc_table('managed_networks')." n ON n.id=c.network_id AND n.account_id=c.account_id JOIN ".arc_table('user_accounts')." u ON u.id=c.account_id WHERE c.id=? AND c.agent_id=? AND c.account_id=? AND c.network_id=? AND c.status='running' AND c.command_name IN ('power_shutdown','power_restart','power_cancel') AND c.dispatched_at>=DATE_SUB(NOW(),INTERVAL 3 MINUTE) AND u.account_status='active'");
             $q->execute([$id,$agentId,$agent['account_id'],$agent['network_id']]);$power=$q->fetch();
+            if($power&&!arc_support_command_request_allowed($pdo,$id,(int)$agent['network_id'],(int)$agent['account_id']))$power=false;
             if($power){$q=$pdo->prepare('SELECT s.enabled FROM '.arc_table('support_schedule_runs').' r JOIN '.arc_table('support_schedules').' s ON s.id=r.schedule_id WHERE r.command_id=?');$q->execute([$id]);$enabled=$q->fetchColumn();if($enabled!==false&&!(int)$enabled)$power=false;arc_billing_assert_active($pdo,(int)$agent['account_id']);}
             if(!$power)arc_json(['ok'=>false,'error'=>'Autorização expirada. Solicite novamente.'],403);
             arc_json(['ok'=>true,'command'=>$power['command_name'],'headless'=>(bool)$power['headless_mode']]);
@@ -238,7 +240,7 @@ try {
                 $lastConnection=['public_ip'=>$publicIp,'provider'=>$provider,'interface'=>is_array($diag['interface']??null)?$diag['interface']:[], 'machine'=>(string)($diag['machine']??''),'os'=>(string)($diag['os']??''),'route'=>is_array($diag['route']??null)?array_slice($diag['route'],0,16):[],'captured_at'=>(int)($diag['captured_at']??$diagRow['collected_at']),'source'=>'platform_saved_diagnostic'];
                 break;
             }
-            arc_json(['ok'=>true,'allowed_tabs'=>$tabs,'latest_release'=>$release?:null,'poll_interval_seconds'=>30,'monitor_interval_seconds'=>$interval,'alert_latency_ms'=>$latency,'last_connection'=>$lastConnection,'device_overrides'=>arc_inventory_overrides($pdo,(int)$agent['account_id'],(int)$agent['network_id'],$agentId)]);
+            arc_json(['ok'=>true,'design'=>arc_support_design($pdo,'agent'),'allowed_tabs'=>$tabs,'latest_release'=>$release?:null,'poll_interval_seconds'=>30,'monitor_interval_seconds'=>$interval,'alert_latency_ms'=>$latency,'last_connection'=>$lastConnection,'device_overrides'=>arc_inventory_overrides($pdo,(int)$agent['account_id'],(int)$agent['network_id'],$agentId)]);
         }
         if ($action==='agent-terminal-local-start') {
             $rawCommand=trim((string)($body['request_text']??''));
@@ -294,8 +296,11 @@ try {
         // Garanta a tabela antes de iniciar a transação de retirada da fila.
         $pdo->beginTransaction();
         try {
-            $q=$pdo->prepare('SELECT c.id,c.account_id,c.network_id,c.command_name,COALESCE(t.request_text,\'\') AS request_text,COALESCE(a.headless_mode,0) AS headless_mode,COALESCE(rs.technician_id,c.account_id) AS requester_user_id,CASE WHEN COALESCE(rs.technician_id,c.account_id)=a.account_id THEN \'administrator\' ELSE COALESCE(tm.role,\'unverified\') END AS requester_role,COALESCE(u.display_name,\'\') AS requester_name FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs').' t ON t.command_id=c.id LEFT JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id LEFT JOIN '.arc_table('support_remote_sessions').' rs ON rs.command_id=c.id LEFT JOIN '.arc_table('network_team_members').' tm ON tm.network_id=c.network_id AND tm.account_id=c.account_id AND tm.member_user_id=rs.technician_id AND tm.enabled=1 LEFT JOIN '.arc_table('user_accounts').' u ON u.id=COALESCE(rs.technician_id,c.account_id) WHERE c.agent_id=? AND c.status=\'pending\' ORDER BY c.id ASC LIMIT 1 FOR UPDATE');
+            $q=$pdo->prepare('SELECT c.id,c.account_id,c.network_id,c.command_name,COALESCE(t.request_text,\'\') AS request_text,COALESCE(a.headless_mode,0) AS headless_mode,COALESCE(rs.technician_id,cr.user_id,c.account_id) AS requester_user_id,CASE WHEN COALESCE(rs.technician_id,cr.user_id,c.account_id)=a.account_id THEN \'administrator\' ELSE COALESCE(tm.role,\'unverified\') END AS requester_role,COALESCE(u.display_name,\'\') AS requester_name FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs').' t ON t.command_id=c.id LEFT JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id LEFT JOIN '.arc_table('support_remote_sessions').' rs ON rs.command_id=c.id LEFT JOIN '.arc_table('support_command_requests').' cr ON cr.command_id=c.id LEFT JOIN '.arc_table('network_team_members').' tm ON tm.network_id=c.network_id AND tm.account_id=c.account_id AND tm.member_user_id=COALESCE(rs.technician_id,cr.user_id) AND tm.enabled=1 LEFT JOIN '.arc_table('user_accounts').' u ON u.id=COALESCE(rs.technician_id,cr.user_id,c.account_id) WHERE c.agent_id=? AND c.status=\'pending\' ORDER BY c.id ASC LIMIT 1 FOR UPDATE');
             $q->execute([$agentId]);$cmd=$q->fetch();
+            if($cmd&&in_array($cmd['command_name'],['power_shutdown','power_restart','power_cancel'],true)&&!arc_support_command_request_allowed($pdo,(int)$cmd['id'],(int)$cmd['network_id'],(int)$cmd['account_id'])){$pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='failed',result_text='Autorização administrativa revogada',completed_at=NOW() WHERE id=?")->execute([$cmd['id']]);$cmd=false;}
+            if($cmd&&!in_array($cmd['requester_role'],['administrator','owner'],true))$cmd['headless_mode']=0;
+            if($cmd){$q=$pdo->prepare('SELECT id FROM '.arc_table('support_guest_codes').' WHERE command_id=?');$q->execute([$cmd['id']]);if($q->fetchColumn()){$cmd['headless_mode']=0;$cmd['requester_role']='operator';$cmd['requester_name']='Visitante com código de uso único';}}
             if ($cmd && $cmd['command_name']==='remote_assistance' && !arc_support_remote_allowed($pdo,$cmd,(int)$cmd['requester_user_id'])) {
                 $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='failed',result_text='Autorização revogada',completed_at=NOW() WHERE id=?")->execute([$cmd['id']]);$cmd=false;
             }
@@ -336,13 +341,14 @@ try {
             catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e instanceof PDOException?'Serviço indisponível.':$e->getMessage()],403);}
             arc_json(['ok'=>true,'command_id'=>$id,'status'=>'pending']);
         }
+        $commandAccount=(int)arc_user_id();if(in_array($command,['power_shutdown','power_restart','power_cancel','restart_readiness'],true)){try{$access=arc_support_access($pdo,$networkId,(int)arc_user_id(),true);}catch(PDOException $e){throw $e;}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);}if(!in_array($access['role'],['owner','administrator'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);$commandAccount=(int)$access['account_id'];}
         $terminalInput=trim((string)($body['terminal_input']??''));
         if ($command==='terminal_diagnostic' && !$validTerminalRequest($terminalInput)) arc_json(['ok'=>false,'error'=>'Comando de diagnóstico inválido. Digite ajuda para ver os comandos autorizados.'],422);
         $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1 AND monitoring_enabled=1');
-        $q->execute([$networkId,arc_user_id()]);if (!$q->fetchColumn()) arc_json(['ok'=>false,'error'=>'Rede indisponível'],403);
+        $q->execute([$networkId,$commandAccount]);if (!$q->fetchColumn()) arc_json(['ok'=>false,'error'=>'Rede indisponível'],403);
         $agentId=(int)($body['agent_id']??0);
         $q=$pdo->prepare('SELECT id,machine_name,headless_mode FROM '.arc_table('network_agents').' WHERE id=? AND network_id=? AND account_id=? AND status=\'approved\'');
-        $q->execute([$agentId,$networkId,arc_user_id()]);$targetAgent=$q->fetch();
+        $q->execute([$agentId,$networkId,$commandAccount]);$targetAgent=$q->fetch();
         if (!$targetAgent) arc_json(['ok'=>false,'error'=>'Selecione um agente aprovado'],403);
         if($command==='agent_update'){
             try{arc_require_aligned_agent_release();}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e->getMessage(),'error_code'=>'agent_release_incomplete','release'=>arc_agent_release_status()],503);}
@@ -351,7 +357,7 @@ try {
             if (($body['confirmed']??false)!==true) arc_json(['ok'=>false,'error'=>'Confirme a operação no computador selecionado.'],422);
             if($command!=='power_cancel'){
                 $q=$pdo->prepare('SELECT password_hash FROM '.arc_table('user_accounts').' WHERE id=?');$q->execute([arc_user_id()]);
-                if(!password_verify((string)($body['password']??''),(string)$q->fetchColumn()))arc_json(['ok'=>false,'error'=>'Senha da sua conta incorreta.'],403);
+                $passwordHash=(string)$q->fetchColumn();$password=(string)($body['password']??'');if(!(password_verify($password,$passwordHash)||password_verify(base64_encode(hash('sha384',$password,true)),$passwordHash)))arc_json(['ok'=>false,'error'=>'Senha da sua conta incorreta.'],403);
             }
             $q=$pdo->prepare('SELECT agent_version,last_seen_at FROM '.arc_table('network_agents').' WHERE id=?');$q->execute([$agentId]);$powerTarget=$q->fetch();
             if(version_compare((string)$powerTarget['agent_version'],'3.2.0','<'))arc_json(['ok'=>false,'error'=>'Atualize o agente deste computador antes de usar o controle de energia.'],409);
@@ -363,8 +369,8 @@ try {
         $q->execute([$agentId]);if ((int)$q->fetchColumn()>=3) arc_json(['ok'=>false,'error'=>'Aguarde os comandos anteriores'],429);
         $pdo->beginTransaction();
         try {
-            $pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([arc_user_id(),$networkId,$agentId,$command]);
-            $insertedId=(int)$pdo->lastInsertId();
+            $pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([$commandAccount,$networkId,$agentId,$command]);
+            $insertedId=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id) VALUES (?,?)')->execute([$insertedId,(int)arc_user_id()]);
             if($command==='terminal_diagnostic'){
                 $pdo->prepare('INSERT INTO '.arc_table('agent_terminal_jobs').' (command_id,agent_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$insertedId,$agentId,$networkId,$terminalInput]);
             }

@@ -10,6 +10,7 @@ require __DIR__ . '/../includes/bootstrap.php';
 try {
     $name = trim((string)(arc_setting_values(arc_db())['logo_path'] ?? ''));
     if ($name === '' || basename($name) !== $name || !preg_match('/^[a-f0-9]{32,40}\.(png|jpg|webp)$/', $name)) {
+        if(in_array((int)($_GET['icon']??0),[192,512],true)){header('Content-Type: image/png');readfile(__DIR__.'/../assets/img/app-icon-'.(int)$_GET['icon'].'.png');exit;}
         header('Content-Type: image/svg+xml; charset=utf-8');
         header('Cache-Control: public, max-age=300');
         readfile(__DIR__ . '/../assets/img/app-mark.svg');
@@ -17,6 +18,7 @@ try {
     }
     $path = arc_upload_dir('brand') . '/' . $name;
     if (!is_file($path)) {
+        if(in_array((int)($_GET['icon']??0),[192,512],true)){header('Content-Type: image/png');readfile(__DIR__.'/../assets/img/app-icon-'.(int)$_GET['icon'].'.png');exit;}
         header('Content-Type: image/svg+xml; charset=utf-8');
         header('Cache-Control: public, max-age=300');
         readfile(__DIR__ . '/../assets/img/app-mark.svg');

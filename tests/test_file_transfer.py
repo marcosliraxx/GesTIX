@@ -40,7 +40,7 @@ class FileTransportTests(unittest.TestCase):
             build.assert_not_called()
 
 class AgentFileFlowTests(unittest.TestCase):
-    def run_flow(self,direction,selected,data=b'file contents',digest=None,consent=True):
+    def run_flow(self,direction,selected,data=b'file contents',digest=None,consent=True,headless=False):
         source=ast.parse((ROOT/'agent/arcoll_app.py').read_text());cls=next(n for n in source.body if isinstance(n,ast.ClassDef) and n.name=='ArcollApp');method=next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name=='_request_file_transfer')
         class ImmediateThread:
             def __init__(self,target,**kwargs):self.target=target
@@ -49,7 +49,7 @@ class AgentFileFlowTests(unittest.TestCase):
         app=types.SimpleNamespace(root=root,show_window=MagicMock(),_ack_remote_command=MagicMock(),_operation_message=MagicMock())
         file_dialog=types.SimpleNamespace(asksaveasfilename=MagicMock(return_value=str(selected)),askopenfilename=MagicMock(return_value=str(selected)))
         message=types.SimpleNamespace(askyesno=MagicMock(return_value=consent),showerror=MagicMock())
-        row={'direction':direction,'filename':'test.txt','file_size':len(data),'sha256':digest or hashlib.sha256(data).hexdigest(),'requester':'Synthetic support'}
+        row={'headless':headless,'direction':direction,'filename':'test.txt','file_size':len(data),'sha256':digest or hashlib.sha256(data).hexdigest(),'requester':'Synthetic support'}
         calls=[]
         def request(origin,action,auth,ident,payload=None,**kwargs):
             calls.append((action,payload,kwargs))
@@ -72,6 +72,17 @@ class AgentFileFlowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             target=Path(folder)/'chosen.txt';target.write_bytes(b'selected only');calls,_,_=self.run_flow('from_agent',target)
             upload=next(c for c in calls if c[0]=='file-agent-upload');self.assertEqual(upload[1],b'selected only');self.assertEqual(upload[2]['filename'],'chosen.txt')
+    def test_headless_receive_uses_managed_inbox_without_prompt(self):
+        with tempfile.TemporaryDirectory() as folder,patch.object(Path,'home',return_value=Path(folder)):
+            calls,message,dialog=self.run_flow('to_agent','',headless=True)
+            saved=list((Path(folder)/'Downloads/ArcollRecebidos').glob('*'))
+            self.assertEqual(len(saved),1);self.assertEqual(saved[0].read_bytes(),b'file contents');message.askyesno.assert_not_called();dialog.asksaveasfilename.assert_not_called()
+    def test_headless_send_reads_only_explicit_shared_file(self):
+        with tempfile.TemporaryDirectory() as folder,patch.object(Path,'home',return_value=Path(folder)):
+            share=Path(folder)/'Documents/ArcollCompartilhados';share.mkdir(parents=True);(share/'shared.txt').write_bytes(b'explicitly shared')
+            (Path(folder)/'private.txt').write_bytes(b'never read')
+            calls,message,dialog=self.run_flow('from_agent','',headless=True)
+            upload=next(c for c in calls if c[0]=='file-agent-upload');self.assertEqual(upload[1],b'explicitly shared');message.askyesno.assert_not_called();dialog.askopenfilename.assert_not_called()
     def test_declining_never_downloads_or_uploads(self):
         calls,_,dialog=self.run_flow('to_agent','',consent=False)
         self.assertFalse(any(c[0] in ('file-agent-upload','file-agent-download') for c in calls));self.assertIn(('file-agent-finish',{'status':'declined'},{}),calls);dialog.asksaveasfilename.assert_not_called()

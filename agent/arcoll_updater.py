@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter import ttk
 from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
 
-VERSION = '3.4.0'
+VERSION = '3.5.0'
 
 import re
 

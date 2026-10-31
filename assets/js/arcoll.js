@@ -867,22 +867,6 @@ document.addEventListener('DOMContentLoaded', () => {
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
 })();
 
-/* Sessões nativas compartilham a autorização e a fila de comandos do navegador. */
-(() => {
- const button=document.querySelector('[data-native-network]');if(!button)return;
- const dialog=document.getElementById('arc-native-launch'),code=document.getElementById('arc-native-code'),message=document.querySelector('[data-native-message]');
- button.addEventListener('click',async()=>{
-  const agent=document.getElementById('arc-agent-target');if(!agent?.value){message.textContent='Selecione um computador online.';return;}
-  button.disabled=true;message.textContent='Solicitando sessão autorizada…';
-  try{
-   const csrf=document.querySelector('meta[name=arc-csrf]')?.content||document.querySelector('input[name=_csrf]')?.value||'';
-   const response=await fetch(new URL('api/support.php?action=launch',document.baseURI),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:Number(button.dataset.nativeNetwork),agent_id:Number(agent.value),ticket_id:Number(button.dataset.nativeTicket||0)})});
-   const value=await response.json();if(!response.ok||!value.ok)throw Error(value.error||'Não foi possível solicitar a sessão.');code.value=value.code;dialog.showModal();message.textContent='Solicitação #'+value.command_id+' criada. Aguardando conexão pelo aplicativo Windows.';
-  }catch(error){message.textContent=error.message;}finally{button.disabled=false;}
- });
- document.getElementById('arc-native-copy')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(code.value);message.textContent='Código copiado.';}catch{code.focus();code.select();}});
-})();
-
 /* Diálogos declarados nos componentes: detalhes sob demanda e retorno de foco. */
 (()=>{const openers=new WeakMap();document.addEventListener('click',event=>{const opener=event.target.closest('[data-open-dialog]');if(opener){const dialog=document.getElementById(opener.dataset.openDialog);if(dialog instanceof HTMLDialogElement){openers.set(dialog,opener);dialog.showModal();}return;}const closer=event.target.closest('[data-close-dialog]');if(closer)closer.closest('dialog')?.close();});document.querySelectorAll('dialog').forEach(dialog=>{dialog.addEventListener('close',()=>openers.get(dialog)?.focus({preventScroll:true}));dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();});});})();
 

@@ -5,10 +5,11 @@ require dirname(__DIR__).'/includes/bootstrap.php';
 header('Cache-Control: no-store, private');
 try{
  $pdo=arc_db();arc_ensure_user_schema($pdo);
- $action=(string)($_GET['action']??'');if(str_starts_with($action,'file-')){arc_support_file_api($pdo,$action);exit;}
+ $action=(string)($_GET['action']??'');if($action==='design'&&$_SERVER['REQUEST_METHOD']==='GET')arc_json(['ok'=>true,'design'=>arc_support_design($pdo,(string)($_GET['component']??'support'))]);if(str_starts_with($action,'file-')){arc_support_file_api($pdo,$action);exit;}
  if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
  $raw=file_get_contents('php://input',false,null,0,8193);if(!is_string($raw)||strlen($raw)>8192)arc_json(['ok'=>false,'error'=>'Dados inválidos'],413);
  $v=json_decode($raw,true);if(!is_array($v))arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
+ if(str_starts_with($action,'native-')||$action==='guest-connect')arc_support_native_api($pdo,$action,$v);
  if(($_GET['action']??'')==='redeem'){
   // Codes contain 80 random bits, expire in two minutes and are consumed atomically.
   arc_json(['ok'=>true]+arc_support_redeem($pdo,strtoupper(trim((string)($v['code']??'')))));

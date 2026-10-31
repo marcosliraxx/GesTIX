@@ -2,7 +2,7 @@
 """Medições locais e operações Windows limitadas para o agente Arcoll."""
 import os, platform, socket, subprocess, time, re, ipaddress, json, locale
 
-VERSION = '3.4.0'
+VERSION = '3.5.0'
 
 def _decode_bytes(value):
     if not value:return ''
@@ -495,3 +495,53 @@ def transfer_request(origin, action, auth, transfer_id, payload=None, binary=Fal
         try:message=json.loads(exc.read(4096).decode('utf-8')).get('error')
         except Exception:message=None
         raise RuntimeError(message or 'A plataforma não autorizou a transferência.') from None
+
+
+def apply_platform_design(design):
+    """Apply validated public designer metadata to the original native theme roles."""
+    global _CURRENT_PALETTE
+    if not isinstance(design,dict):return
+    accents={'azul':'#087eac','violeta':'#8b5cf6','verde':'#14836b','laranja':'#c36512'}
+    accent=design.get('accent') if design.get('palette')=='personalizada' else accents.get(design.get('palette'),'#087eac')
+    if not isinstance(accent,str) or not re.fullmatch(r'#[a-fA-F0-9]{6}',accent):return
+    rgb=tuple(int(accent[i:i+2],16) for i in (1,3,5))
+    def tint(base,weight):return '#'+''.join(f'{round(base*(1-weight)+v*weight):02x}' for v in rgb)
+    for mode in ('light','dark'):
+        p=dict(AppearanceManager.PALETTES[mode]);p.update(accent=accent,onaccent='#ffffff' if sum(rgb)<410 else '#071521',bg=tint(248,.04) if mode=='light' else tint(12,.12),surface=tint(255,.02) if mode=='light' else tint(20,.15),alt=tint(245,.05) if mode=='light' else tint(28,.2));AppearanceManager.PALETTES[mode]=p
+    _CURRENT_PALETTE=None
+
+def apply_platform_icon(root, origin, design):
+    """Fetch only a bounded public icon with verified HTTPS; never send credentials."""
+    import io,threading
+    import urllib.request
+    from urllib.parse import urlsplit
+    from PIL import Image,ImageTk
+    icon=design.get('icon') if isinstance(design,dict) else ''
+    url=icon or origin.rstrip('/')+'/api/brand-logo.php?icon=192'
+    parts=urlsplit(url)
+    if parts.scheme!='https' or not parts.hostname or parts.username or parts.password or parts.port not in (None,443):return
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,*args,**kwargs):return None
+    def work():
+        try:
+            with urllib.request.build_opener(NoRedirect()).open(url,timeout=8) as response:data=response.read(1572865)
+            if len(data)>1572864:return
+            image=Image.open(io.BytesIO(data));image.thumbnail((192,192));image.load()
+            def show():
+                try:
+                    root._arc_brand_icon=ImageTk.PhotoImage(image);root.iconphoto(True,root._arc_brand_icon)
+                    from pathlib import Path
+                    try:image.save(Path(__file__).with_name('favicon.ico'),format='ICO',sizes=[(32,32),(64,64)])
+                    except OSError:pass
+                except Exception:pass
+            root.after(0,show)
+        except Exception:pass
+    threading.Thread(target=work,daemon=True).start()
+
+try:
+    from pathlib import Path
+    for _design_file in ('platform.json','agent-config.json'):
+        _design_path=Path(__file__).with_name(_design_file)
+        if _design_path.is_file():
+            apply_platform_design(json.loads(_design_path.read_text(encoding='utf-8')).get('design',{}));break
+except (OSError,ValueError,AttributeError):pass

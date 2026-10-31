@@ -113,35 +113,7 @@ BAT;
     }
     $zip->addFromString('Arcoll_Agente/.dados/.arcoll-installer-marker', 'ARCOLL-INSTALL-V14');
 
-    // Gera o mesmo ícone configurado em pages/identidade.php para o Windows.
-    $brandName = trim((string)(arc_setting_values($pdo)['logo_path'] ?? ''));
-    $brandPath = ($brandName !== '' && basename($brandName) === $brandName && preg_match('/^[a-f0-9]{32,40}\.(png|jpg|webp)$/', $brandName)) ? arc_upload_dir('brand') . '/' . $brandName : '';
-    $iconPng = '';
-    if (function_exists('imagecreatetruecolor')) {
-        $im = ($brandPath !== '' && is_file($brandPath)) ? @imagecreatefromstring((string)file_get_contents($brandPath)) : false;
-        $canvas = imagecreatetruecolor(64, 64);
-        imagealphablending($canvas, false); imagesavealpha($canvas, true);
-        $clear = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
-        imagefilledrectangle($canvas, 0, 0, 63, 63, $clear);
-        if ($im !== false) {
-            $w=imagesx($im); $h=imagesy($im); $scale=min(58/max(1,$w),58/max(1,$h));
-            $dw=max(1,(int)round($w*$scale)); $dh=max(1,(int)round($h*$scale));
-            imagecopyresampled($canvas,$im,(int)((64-$dw)/2),(int)((64-$dh)/2),0,0,$dw,$dh,$w,$h);
-            imagedestroy($im);
-        } else {
-            $bg=imagecolorallocate($canvas,15,36,54);$fg=imagecolorallocate($canvas,34,211,238);
-            imagefilledellipse($canvas,32,32,58,58,$bg);imageellipse($canvas,32,32,57,57,$fg);
-        }
-        ob_start(); imagepng($canvas); $iconPng=(string)ob_get_clean(); imagedestroy($canvas);
-    }
-    if ($iconPng !== '') {
-        $ico = pack('vvv',0,1,1).pack('CCCCvvVV',64,64,0,0,1,32,strlen($iconPng),22).$iconPng;
-        $zip->addFromString('Arcoll_Agente/.dados/favicon.ico',$ico);
-    } elseif (is_file($source . '/favicon.ico')) {
-        $zip->addFile($source . '/favicon.ico','Arcoll_Agente/.dados/favicon.ico');
-    } else {
-        throw new RuntimeException('É necessário habilitar a extensão GD do PHP para gerar o ícone da identidade.');
-    }
+    $zip->addFromString('Arcoll_Agente/.dados/favicon.ico',arc_support_icon($pdo,'agent'));
     // Nome da rede: duas primeiras palavras, sem caracteres proibidos pelo Windows.
     $networkWords = preg_split('/\s+/u', trim((string)$networkRow['name']), -1, PREG_SPLIT_NO_EMPTY);
     $networkLabel = implode(' ', array_slice($networkWords ?: [], 0, 2));
@@ -164,6 +136,7 @@ exit /b
 CMD;
     $zip->addFromString('Arcoll_Agente/' . $installerName, $installer);
     $zip->addFromString('Arcoll_Agente/.dados/agent-config.json', json_encode([
+        'design'=>arc_support_design($pdo,'agent'),
         'origin' => $origin,
         'network_id' => $networkId,
         'site_code' => $siteCode,

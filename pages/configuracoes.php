@@ -5,8 +5,15 @@ require dirname(__DIR__).'/includes/admin-actions.php';
 if(!arc_is_admin()){header('Location: '.arc_workspace_base_url().'index.php',true,302);exit;}
 $pdo=arc_db();
 $notice='';$error='';
-$tabs=['dados'=>'Dados do sistema','login'=>'Login e acesso','smtp'=>'E-mail SMTP','apis'=>'Integrações','log'=>'Auditoria e logs','manutencao'=>'Manutenção'];
+$tabs=['designer'=>'Designer','dados'=>'Dados do sistema','login'=>'Login e acesso','smtp'=>'E-mail SMTP','apis'=>'Integrações','log'=>'Auditoria e logs','manutencao'=>'Manutenção'];
 $schema=[
+ 'designer'=>[
+ 'platform_agent_palette'=>['Paleta do agente','select:azul|violeta|verde|laranja|personalizada','azul'],
+ 'platform_support_palette'=>['Paleta do suporte','select:azul|violeta|verde|laranja|personalizada','violeta'],
+ 'platform_agent_accent'=>['Cor personalizada do agente','color','#087eac'],
+ 'platform_support_accent'=>['Cor personalizada do suporte','color','#8b5cf6'],
+ 'platform_agent_icon'=>['Ícone do agente (URL HTTPS; vazio usa a logo do sistema)','url',''],
+ 'platform_support_icon'=>['Ícone do suporte (URL HTTPS; vazio usa a logo do sistema)','url','']],
  'dados'=>[],
 
  'smtp'=>[
@@ -78,6 +85,12 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     try{foreach($changes as $key=>$value)arc_platform_save_setting($pdo,$key,$value);$pdo->commit();}catch(Throwable $e){$pdo->rollBack();throw $e;}
     foreach($changes as $key=>$value)$values[$key]=$value;
     $notice='Configurações salvas e aplicadas.';
+   }elseif($action==='upload_designer_icon'){
+    $component=(string)($_POST['component']??'');if(!in_array($component,['agent','support'],true))throw new RuntimeException('Aplicativo inválido.');
+    $file=$_FILES['designer_icon']??null;if(!$file||(int)$file['error']!==UPLOAD_ERR_OK||(int)$file['size']>1572864)throw new RuntimeException('Envie uma imagem de até 1,5 MB.');
+    $mime=(new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);$ext=['image/png'=>'png','image/jpeg'=>'jpg','image/webp'=>'webp'][$mime]??null;$info=getimagesize($file['tmp_name']);if(!$ext||!$info||$info[0]>2048||$info[1]>2048)throw new RuntimeException('Use PNG, JPG ou WebP de até 2048 pixels.');
+    $name=bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($file['tmp_name'],arc_upload_dir('brand').'/'.$name))throw new RuntimeException('Não foi possível salvar o ícone.');
+    $url='https://'.(string)$_SERVER['HTTP_HOST'].arc_workspace_base_url().'uploads/brand/'.$name;arc_platform_save_setting($pdo,'platform_'.$component.'_icon',$url);$values['platform_'.$component.'_icon']=$url;$notice='Ícone salvo.';
    }elseif($action==='smtp_test'){
     $to=trim((string)($_POST['test_email']??''));
     if(!filter_var($to,FILTER_VALIDATE_EMAIL))throw new RuntimeException('Informe um e-mail válido.');
@@ -230,6 +243,8 @@ $groups=[
 <?php endif;?>
 <?php if($key==='dados'):?>
 
+<?php elseif($key==='designer'):?>
+<div class="arc-config-extra"><?php foreach(['agent'=>'Agente Windows','support'=>'Aplicativo de suporte'] as $component=>$name):?><form method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="tab" value="designer"><input type="hidden" name="action" value="upload_designer_icon"><input type="hidden" name="component" value="<?=$component?>"><label>Ícone · <?=$name?><input type="file" name="designer_icon" accept="image/png,image/jpeg,image/webp" required></label><button class="button" type="submit">Enviar ícone</button></form><?php endforeach;?></div>
 <?php elseif($key==='apis'):?>
 <div class="arc-config-extra"><h3>Google OAuth 2.0</h3><p>Crie as credenciais em <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener noreferrer">Google Cloud Console</a>. Configure a URI de retorno autorizada:</p><code><?=arc_h($redirect)?></code><span class="arc-page-help"><button type="button" class="arc-icon-action" data-open-dialog="page-help-1" aria-label="Saiba mais sobre esta área" title="Saiba mais"><i class="fa fa-info" aria-hidden="true"></i></button></span><dialog id="page-help-1" class="arc-service-dialog"><header class="arc-service-heading"><h2>Saiba mais</h2><button type="button" class="arc-icon-action" data-close-dialog aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><p>O segredo é armazenado criptografado. Integrações externas só devem ser ativadas após a implementação dos respectivos endpoints.</p></dialog></div>
 <?php elseif($key==='smtp'):?>

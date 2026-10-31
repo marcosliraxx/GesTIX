@@ -1,0 +1,29 @@
+<?php
+/* Caminho: tests/support_native_integration.php */
+declare(strict_types=1);
+$root=getenv('GESTI_TEST_ROOT');$path=getenv('GESTI_TEST_FIXTURE_PATH');if(!$root||!$path)throw new RuntimeException('Isolated paths required.');require $root.'/includes/bootstrap.php';$pdo=arc_db();if(!str_ends_with((string)$pdo->query('SELECT DATABASE()')->fetchColumn(),'_services_test'))throw new RuntimeException('Synthetic database required.');arc_ensure_user_schema($pdo);$f=json_decode(file_get_contents($path),true);$checks=0;
+function ntCheck(bool $v,string $s):void{global $checks;if(!$v)throw new RuntimeException($s);$checks++;}
+function ntCall(string $route,array $v=[],string $token=''):array{$headers="Content-Type: application/json\r\n".($token!==''?'Authorization: Bearer '.$token."\r\n":'');$ctx=stream_context_create(['http'=>['method'=>'POST','header'=>$headers,'content'=>json_encode($v),'ignore_errors'=>true,'timeout'=>10]]);return json_decode((string)file_get_contents('http://127.0.0.1/api/'.$route,false,$ctx),true)??[];}
+$pdo->exec('DELETE FROM '.arc_table('account_login_attempts'));$q=$pdo->prepare('SELECT headless_mode FROM '.arc_table('network_agents').' WHERE id=?');$q->execute([$f['agent']]);$original=$q->fetchColumn();$pdo->prepare('UPDATE '.arc_table('network_agents').' SET headless_mode=1,agent_version=?,last_seen_at=NOW() WHERE id=?')->execute([ARC_APP_VERSION,$f['agent']]);$auth=['fingerprint'=>$f['fingerprint'],'site_code'=>$f['site_code'],'download_key'=>$f['download_key']];
+function ntEnd(PDO $pdo,int $agent):void{$pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE agent_id=? AND status IN ('pending','running')")->execute([$agent]);}
+try{
+ ntEnd($pdo,(int)$f['agent']);$code=ntCall('api.php?action=agent-support-code',$auth);ntCheck(preg_match('/^[A-Z2-9]{5}$/D',$code['code']??'')===1,'Agent generates exactly five characters');
+ $session=ntCall('support.php?action=guest-connect',['code'=>$code['code']]);ntCheck(($session['ok']??false)&&strlen($session['token'])===64,'Guest exchanges one-time code for scoped strong token');
+ $again=ntCall('support.php?action=guest-connect',['code'=>$code['code']]);ntCheck(!($again['ok']??false),'Short code cannot be replayed');
+ $poll=ntCall('api.php?action=agent-command-poll',$auth);$command=$poll['command'];ntCheck((int)$command['headless_mode']===0&&$command['requester_role']==='operator','Guest always requires local consent even on headless agent');
+ $state=ntCall('remote-screen.php?action=status&command_id='.$session['command_id'],[],$session['token']);ntCheck(($state['ok']??false)&&!$state['control'],'Guest cannot control before local authorization');
+ $input=ntCall('remote-screen.php?action=input&command_id='.$session['command_id'],['events'=>[['t'=>'c','n'=>'win']]],$session['token']);ntCheck(!($input['ok']??false),'Input rejected before consent');
+ ntEnd($pdo,(int)$f['agent']);
+ foreach(['owner'=>1,'operator'=>0,'administrator'=>1] as $role=>$automatic){
+  if($role==='administrator')$pdo->prepare("UPDATE ".arc_table('network_team_members')." SET role='administrator' WHERE network_id=? AND member_user_id=?")->execute([$f['network'],$f['operator']]);
+  $login=ntCall('support.php?action=native-login',['email'=>$f['users'][$role==='administrator'?'operator':$role],'password'=>$f['password']]);ntCheck(($login['ok']??false),'Native account authenticates '.$role);$token=$login['token'];
+  $list=ntCall('support.php?action=native-networks',[],$token);ntCheck(count(array_filter($list['computers'],fn($r)=>(int)$r['agent_id']===(int)$f['agent']))===1,'Authorized computer listed');
+  $session=ntCall('support.php?action=native-connect',['network_id'=>$f['network'],'agent_id'=>$f['agent']],$token);ntCheck(($session['ok']??false),'Account opens remote session');
+  $poll=ntCall('api.php?action=agent-command-poll',$auth);ntCheck((int)$poll['command']['headless_mode']===$automatic,'Headless bypass matches role '.$role);if($role==='administrator'){$pdo->prepare("UPDATE ".arc_table('network_team_members')." SET role='operator' WHERE network_id=? AND member_user_id=?")->execute([$f['network'],$f['operator']]);$state=ntCall('remote-screen.php?action=status&command_id='.$session['command_id'],[],$session['token']);ntCheck(!($state['ok']??false),'Demotion revokes an unattended session immediately');}ntEnd($pdo,(int)$f['agent']);
+  ntCall('support.php?action=native-logout',[],$token);$list=ntCall('support.php?action=native-networks',[],$token);ntCheck(!($list['ok']??false),'Logout revokes account token');
+ }
+ $login=ntCall('support.php?action=native-login',['email'=>$f['users']['other'],'password'=>$f['password']]);$list=ntCall('support.php?action=native-networks',[],$login['token']);ntCheck(!array_filter($list['computers'],fn($r)=>(int)$r['agent_id']===(int)$f['agent']),'Other account cannot enumerate target');$bad=ntCall('support.php?action=native-connect',['network_id'=>$f['network'],'agent_id'=>$f['agent']],$login['token']);ntCheck(!($bad['ok']??false),'Cross-account connection rejected');
+ $before=(int)$pdo->query('SELECT COUNT(*) FROM '.arc_table('support_guest_codes'))->fetchColumn();$sql=str_replace('`arc_','`'.arc_prefix(),file_get_contents($root.'/database/migrations/3.5.0.sql'));$pdo->exec($sql);$pdo->exec($sql);ntCheck((int)$pdo->query('SELECT COUNT(*) FROM '.arc_table('support_guest_codes'))->fetchColumn()===$before,'Migration reapplies preserving data');
+ ntCheck(strlen(arc_support_icon($pdo,'support'))>100,'Support icon generated from system identity');
+}finally{$pdo->prepare("UPDATE ".arc_table('network_team_members')." SET role='operator' WHERE network_id=? AND member_user_id=?")->execute([$f['network'],$f['operator']]);ntEnd($pdo,(int)$f['agent']);$pdo->prepare('UPDATE '.arc_table('network_agents').' SET headless_mode=? WHERE id=?')->execute([$original,$f['agent']]);}
+echo $checks." native login, guest consent, isolation and migration checks passed.\n";

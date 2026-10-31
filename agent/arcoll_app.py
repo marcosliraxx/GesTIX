@@ -18,7 +18,7 @@ except Exception:
  QUICK_COMMANDS={}; run_quick_command=None
 
 APP_NAME='Arcoll Speed Connection'
-AGENT_VERSION='3.4.0'
+AGENT_VERSION='3.5.0'
 ROOT=Path(__file__).resolve().parent
 CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.json'
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'
@@ -1029,10 +1029,12 @@ class ArcollApp:
  def _setup_settings_button(self):
   # The gear is overlaid at the right edge of the notebook; it is not a tab.
   self._settings_gear=bind_theme(tk.Button(self.root, text='⚙', font=('Segoe UI Symbol', 15), bg=theme_color('alt'), fg=theme_color('text'), activebackground=theme_color('accent'), activeforeground=theme_color('text'), relief='flat', bd=0, width=3, cursor='hand2', command=self._open_agent_settings), background='alt', foreground='text', activebackground='accent', activeforeground='text')
+  self._support_code_button=bind_theme(tk.Button(self.root,text='↔',font=('Segoe UI Symbol',15),relief='flat',bd=0,width=3,cursor='hand2',command=self._show_support_code),background='alt',foreground='accent')
   def place_gear(_event=None):
    try:
     self._settings_gear.place(in_=self.nb,relx=1,x=-5,y=4,anchor='ne',height=33)
     self._settings_gear.lift()
+    self._support_code_button.place(in_=self.nb,relx=1,x=-50,y=4,anchor='ne',height=33);self._support_code_button.lift()
    except tk.TclError:pass
   self.nb.bind('<Configure>',place_gear,add='+')
   self.root.after(250,place_gear)
@@ -1769,7 +1771,21 @@ class ArcollApp:
      self.root.after(0,lambda err=str(exc):self.log('Configuração remota indisponível: '+err[:110]))
    threading.Thread(target=work,daemon=True).start()
   self.root.after(60000,self._refresh_platform_config)
+ def _show_support_code(self):
+  win=tk.Toplevel(self.root);win.title('Código de acesso remoto');win.geometry('540x340');code=tk.StringVar(value='Gerando…');tk.Label(win,textvariable=code,font=('Segoe UI',36,'bold')).pack(expand=True);tk.Label(win,text='Uso único · válido por 3 minutos\nCompartilhe apenas com o técnico. Confirme o acesso neste computador.\nSem monitor: recebidos em Downloads/ArcollRecebidos.\nPara enviar, coloque um arquivo em Documentos/ArcollCompartilhados.').pack(pady=12)
+  def work():
+   try:
+    result=request_json(ORIGIN+'/api/api.php?action=agent-support-code',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY},timeout=10);value=result.get('code') or result.get('error','Indisponível')
+   except Exception:value='Sem conexão'
+   self.root.after(0,lambda:code.set(value) if win.winfo_exists() else None)
+  threading.Thread(target=work,daemon=True).start()
+
  def _apply_platform_config(self,data):
+  from arcoll_toolkit import apply_platform_design,apply_platform_icon
+  if data.get('design')!=getattr(self,'_platform_design',None):
+   self._platform_design=data.get('design',{});apply_platform_design(self._platform_design)
+   if hasattr(self,'appearance'):self.appearance.apply()
+   apply_platform_icon(self.root,ORIGIN,self._platform_design)
   # Parâmetros administrados por rede na plataforma, sem preferências locais.
   try:
    seconds=data.get('monitor_interval_seconds',data.get('monitor_refresh'))
@@ -1950,12 +1966,22 @@ class ArcollApp:
     incoming=row['direction']=='to_agent'
     prompt=(requester+' quer enviar o arquivo '+str(row['filename'])+'. Deseja escolher onde salvar?') if incoming else (requester+' pediu um arquivo deste computador. Deseja selecionar um arquivo para enviar?')
     path=''
-    if messagebox.askyesno('Transferência de arquivos',prompt,parent=self.root):
+    if row.get('headless'):
+     import uuid
+     base=(Path.home()/('Downloads' if incoming else 'Documents')).resolve();folder=base/('ArcollRecebidos' if incoming else 'ArcollCompartilhados');folder.mkdir(parents=True,exist_ok=True)
+     if folder.is_symlink() or folder.resolve()!=folder:raise RuntimeError('A pasta de transferência não pode ser um atalho.')
+     if incoming:path=str(folder/(uuid.uuid4().hex[:8]+'-'+row['filename']))
+     else:
+      files=[p for p in folder.iterdir() if p.is_file() and not p.is_symlink() and p.resolve().parent==folder.resolve()]
+      if len(files)!=1:raise RuntimeError('Coloque um único arquivo na pasta ArcollCompartilhados em Documentos e solicite novamente.')
+      path=str(files[0])
+    elif messagebox.askyesno('Transferência de arquivos',prompt,parent=self.root):
      path=filedialog.asksaveasfilename(parent=self.root,title='Salvar arquivo recebido do suporte',initialfile=row['filename'],confirmoverwrite=True) if incoming else filedialog.askopenfilename(parent=self.root,title='Selecionar arquivo para enviar ao suporte')
     def work():
      try:
       if not path:
        transfer_request(ORIGIN,'file-agent-finish',auth,transfer_id,{'status':'declined'});return
+      if row.get('headless') and not transfer_request(ORIGIN,'file-agent-details',auth,transfer_id)['transfer'].get('headless'):raise RuntimeError('A autorização sem monitor foi revogada.')
       target=Path(path)
       if incoming:
        data=transfer_request(ORIGIN,'file-agent-download',auth,transfer_id,binary=True)

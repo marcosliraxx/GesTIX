@@ -9,7 +9,7 @@ import struct
 from datetime import datetime
 from zoneinfo import ZoneInfo
 ROOT=Path(__file__).resolve().parents[1]
-RETIRED_PATHS=['redes/ferramentas.php','_manifest.json','api/network-report.php','redes/_relatorio_modal.php','assets/css/appearance.css','assets/css/arcoll-modern.css','assets/css/mobile-app.css','assets/css/network-agent-states.css','assets/css/panel.css','assets/css/platform-mobile.css','assets/js/appearance.js','assets/js/arcoll-modern.js','assets/js/network-agent-states.js','assets/js/panel.js','pwa/legacy-dashboard.html']
+RETIRED_PATHS=['support/Instalar_Suporte.cmd','redes/ferramentas.php','_manifest.json','api/network-report.php','redes/_relatorio_modal.php','assets/css/appearance.css','assets/css/arcoll-modern.css','assets/css/mobile-app.css','assets/css/network-agent-states.css','assets/css/panel.css','assets/css/platform-mobile.css','assets/js/appearance.js','assets/js/arcoll-modern.js','assets/js/network-agent-states.js','assets/js/panel.js','pwa/legacy-dashboard.html']
 def git(*args):return subprocess.check_output(['git',*args],cwd=ROOT)
 def allowed(name):
     if name in {'README.md','AGENTS.md','.gitignore','includes/config.php','_manifest.json','error_log','LEIA-ME-ATUALIZACAO.txt'} or name.startswith(('docs/','tests/','scripts/','pacotes/','uploads/','includes/storage/','_sql/')):return False
@@ -40,7 +40,7 @@ def main():
             previous=set(original.namelist())
             for n in names:
                 if n not in previous or original.read(n)!=(ROOT/n).read_bytes():files.add(n)
-                elif Path(n).suffix in {'.php','.css','.js','.py','.ps1','.cmd'} and original.getinfo(n).date_time!=timestamp.timetuple()[:6]:
+                elif Path(n).suffix in {'.php','.css','.js','.py','.ps1','.cmd','.bat'} and original.getinfo(n).date_time!=timestamp.timetuple()[:6]:
                     files.add(n);refresh.append(n)
         files.add('VERSION')
     else:

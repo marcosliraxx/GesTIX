@@ -12,9 +12,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from urllib.parse import urlsplit
 from PIL import Image, ImageTk
-from arcoll_toolkit import AppearanceManager, bind_theme, theme_color, friendly_error
+from arcoll_toolkit import AppearanceManager, bind_theme, theme_color, friendly_error, apply_platform_design, apply_platform_icon
 
-VERSION = '3.4.0'
+VERSION = '3.5.0'
 
 class RemoteAPI:
     def __init__(self, origin):
@@ -54,30 +54,48 @@ class RemoteAPI:
 
 class SupportApp:
     def __init__(self, root):
+        self.account_api=None;self.selected_computer=None;self.zoom=1.0;self.design={}
+        try:
+            from pathlib import Path
+            self.design=json.loads(Path(__file__).with_name('platform.json').read_text(encoding='utf-8')).get('design',{})
+        except (OSError,ValueError,AttributeError):pass
+        apply_platform_design(self.design)
         self.root=root;self.api=None;self.stop=threading.Event();self.results=queue.Queue(maxsize=3);self.input_queue=queue.Queue(maxsize=150)
         self.control=False;self.frame=None;self.photo=None;self.image_box=(0,0,1,1);self.pending_move=None;self.closed=False;self.pressed=set();self.buttons=set()
         root.title('Arcoll Suporte · '+VERSION);root.geometry('1100x740');root.minsize(820,520)
         bind_theme(root,background='bg').configure(bg=theme_color('bg'))
         top=bind_theme(tk.Frame(root,bg=theme_color('surface')),background='surface');top.pack(fill='x',padx=10,pady=8)
-        self.origin=tk.StringVar();self.code=tk.StringVar();self.status=tk.StringVar(value='Abra Suporte na plataforma, solicite uma sessão Windows e cole o código de uso único.')
+        self.origin=tk.StringVar();self.code=tk.StringVar();self.status=tk.StringVar(value='Use o código de 5 caracteres mostrado pelo agente, ou entre para acessar suas redes.')
         try:
             from pathlib import Path
             config=json.loads(Path(__file__).with_name('platform.json').read_text(encoding='utf-8'));self.origin.set(config.get('origin',''))
         except (OSError,ValueError,AttributeError):pass
-        for text,var,width in [('Plataforma HTTPS',self.origin,42),('Código da sessão',self.code,22)]:
+        for text,var,width in [('Plataforma HTTPS',self.origin,42),('Código do agente',self.code,10)]:
             block=tk.Frame(top);block.pack(side='left',fill='x',expand=True,padx=5,pady=5)
             bind_theme(block,background='surface').configure(bg=theme_color('surface'))
             bind_theme(tk.Label(block,text=text,bg=theme_color('surface'),fg=theme_color('muted')),background='surface',foreground='muted').pack(anchor='w')
             ttk.Entry(block,textvariable=var,width=width).pack(fill='x')
+        self.code.trace_add('write',lambda *_:setattr(self,'selected_computer',None) if self.code.get() else None)
         self.connect=ttk.Button(top,text='Conectar',command=self.start);self.connect.pack(side='left',padx=6)
         ttk.Button(top,text='Encerrar',command=self.disconnect).pack(side='left',padx=6)
+        account=ttk.Frame(root);account.pack(fill='x',padx=15,pady=3);self.account_button=ttk.Button(account,text='Entrar na conta (opcional)',command=self.account_login);self.account_button.pack(side='left');ttk.Button(account,text='Redes e computadores',command=self.account_computers).pack(side='left',padx=8);ttk.Button(account,text='Sair da conta',command=self.account_logout).pack(side='left')
+        apply_platform_icon(root,self.origin.get(),self.design)
         bar=ttk.Frame(root);bar.pack(fill='x',padx=10,pady=3)
         self.quality=tk.StringVar(value='balanced');quality=ttk.Combobox(bar,textvariable=self.quality,values=['low','balanced','high'],state='readonly',width=11);quality.pack(side='left');quality.bind('<<ComboboxSelected>>',lambda e:self.preference())
         self.monitor=tk.StringVar();self.monitors=ttk.Combobox(bar,textvariable=self.monitor,state='readonly',width=24);self.monitors.pack(side='left',padx=7);self.monitors.bind('<<ComboboxSelected>>',self.select_monitor);self.monitor_ids=[]
         self.theme=tk.StringVar(value='auto');themes=ttk.Combobox(bar,textvariable=self.theme,values=['auto','light','dark'],state='readonly',width=9);themes.pack(side='right')
         self.appearance=AppearanceManager(root,VERSION);self.theme.set(self.appearance.read_choice());themes.bind('<<ComboboxSelected>>',lambda e:self.appearance.set_choice(self.theme.get()))
         ttk.Button(bar,text='Tela inteira',command=self.fullscreen).pack(side='right',padx=7)
+        shortcuts=ttk.Frame(root);shortcuts.pack(fill='x',padx=10,pady=3)
+        combos=[('Iniciar','win'),('Executar','win_r'),('Área de trabalho','win_d'),('Explorador','win_e'),('Alternar','alt_tab'),('Gerenciador','ctrl_shift_esc'),('Fechar janela','alt_f4'),('Copiar','ctrl_c'),('Colar','ctrl_v'),('Selecionar tudo','ctrl_a'),('Desfazer','ctrl_z'),('Atualizar','f5'),('Esc','esc')]
+        for i,(label,combo) in enumerate(combos):ttk.Button(shortcuts,text=label,command=lambda c=combo:self.emit({'t':'c','n':c})).grid(row=i//7,column=i%7,sticky='ew',padx=2,pady=2)
+        for i in range(7):shortcuts.columnconfigure(i,weight=1)
+        for label,factor in [('−',-.2),('Ajustar',0),('+',.2)]:ttk.Button(bar,text=label,width=7,command=lambda f=factor:self.change_zoom(f)).pack(side='left',padx=2)
         self.canvas=bind_theme(tk.Canvas(root,bg=theme_color('bg'),highlightthickness=0,takefocus=True),background='bg');self.canvas.pack(fill='both',expand=True,padx=10,pady=5)
+        ttk.Scrollbar(root,orient='horizontal',command=self.canvas.xview).pack(fill='x',padx=10)
+        self.canvas.bind('<Shift-MouseWheel>',lambda e:self.canvas.xview_scroll(-int(e.delta/120),'units'))
+        self.canvas.bind('<Control-MouseWheel>',lambda e:self.canvas.yview_scroll(-int(e.delta/120),'units'))
+        self.canvas.bind('<<Paste>>',self.paste_text)
         self.canvas.bind('<Configure>',lambda e:self.draw());self.canvas.bind('<Motion>',self.motion)
         for n in (1,2,3):
             self.canvas.bind('<ButtonPress-'+str(n)+'>',lambda e,n=n:self.mouse(e,'d',n));self.canvas.bind('<ButtonRelease-'+str(n)+'>',lambda e,n=n:self.mouse(e,'u',n))
@@ -86,7 +104,67 @@ class SupportApp:
         self.text=tk.StringVar();bottom=ttk.Frame(root);bottom.pack(fill='x',padx=10,pady=5);ttk.Entry(bottom,textvariable=self.text).pack(side='left',fill='x',expand=True);ttk.Button(bottom,text='Enviar texto',command=self.send_text).pack(side='left',padx=6)
         ttk.Button(bottom,text='Ctrl+Alt não disponível; Gerenciador',command=lambda:self.emit({'t':'c','n':'ctrl_shift_esc'})).pack(side='left')
         bind_theme(tk.Label(root,textvariable=self.status,wraplength=1000,anchor='w',bg=theme_color('bg'),fg=theme_color('muted')),background='bg',foreground='muted').pack(fill='x',padx=10,pady=5)
+        self.appearance.apply()
+        design_origin=self.origin.get()
+        if design_origin:
+            def refresh_design():
+                try:
+                    result,_=RemoteAPI(design_origin).request('/api/support.php?action=design&component=support')
+                    def apply():
+                        self.design=result['design'];apply_platform_design(self.design);self.appearance.apply();apply_platform_icon(self.root,self.origin.get(),self.design)
+                    self.notify('ui',apply)
+                except Exception:pass
+            threading.Thread(target=refresh_design,daemon=True).start()
         root.protocol('WM_DELETE_WINDOW',self.close);root.bind('<Escape>',lambda e:root.attributes('-fullscreen',False));root.after(50,self.tick)
+    def change_zoom(self,delta):
+        self.zoom=1.0 if delta==0 else max(.5,min(3,self.zoom+delta));self.draw()
+    def paste_text(self,_event=None):
+        try:self.emit({'t':'x','s':self.root.clipboard_get()[:400]})
+        except tk.TclError:pass
+        return 'break'
+    def background(self,work):
+        def run():
+            try:work()
+            except Exception as exc:self.notify('error',str(exc))
+        threading.Thread(target=run,daemon=True).start()
+    def account_login(self):
+        if self.api:return
+        window=tk.Toplevel(self.root);window.title('Entrar na conta');window.geometry('380x250');email=tk.StringVar();password=tk.StringVar()
+        ttk.Label(window,text='E-mail').pack();ttk.Entry(window,textvariable=email).pack(fill='x',padx=20);ttk.Label(window,text='Senha').pack();entry=ttk.Entry(window,textvariable=password,show='•');entry.pack(fill='x',padx=20)
+        def submit():
+            try:api=RemoteAPI(self.origin.get())
+            except ValueError as exc:messagebox.showerror('Conta',str(exc));return
+            values={'email':email.get(),'password':password.get()};password.set('');button.configure(state='disabled')
+            def work():
+                try:
+                    result,_=api.request('/api/support.php?action=native-login',values);api.token=result['token'];self.account_api=api
+                    self.notify('ui',lambda:(window.destroy(),self.account_button.configure(text='Conta conectada'),self.account_computers()))
+                except Exception as exc:
+                    self.notify('error',str(exc));self.notify('ui',lambda:button.configure(state='normal') if window.winfo_exists() else None)
+                finally:values['password']=''
+            self.background(work)
+        button=ttk.Button(window,text='Entrar',command=submit);button.pack(pady=12)
+    def account_logout(self):
+        self.disconnect();api=self.account_api;self.account_api=None;self.selected_computer=None;self.account_button.configure(text='Entrar na conta (opcional)')
+        if api:self.background(lambda:api.request('/api/support.php?action=native-logout',{}))
+    def account_computers(self):
+        if not self.account_api:self.account_login();return
+        if self.api:return
+        api=self.account_api
+        def work():
+            result,_=api.request('/api/support.php?action=native-networks',{})
+            self.notify('ui',lambda:self.show_computers(result['computers']))
+        self.background(work)
+    def show_computers(self,rows):
+        window=tk.Toplevel(self.root);window.title('Redes e computadores');window.geometry('700x400');tree=ttk.Treeview(window,columns=('network','machine','role','online'),show='headings',selectmode='browse')
+        for col,label in [('network','Rede'),('machine','Computador'),('role','Permissão'),('online','Última conexão')]:tree.heading(col,text=label);tree.column(col,width=160)
+        tree.pack(fill='both',expand=True,padx=8,pady=8)
+        for i,row in enumerate(rows):tree.insert('',tk.END,iid=str(i),values=(row['name'],row['machine_name'],{'owner':'Proprietário','administrator':'Administrador','operator':'Técnico'}.get(row['role'],row['role']),row.get('last_seen_at') or 'Sem conexão'))
+        def connect():
+            selection=tree.selection()
+            if not selection:return
+            self.selected_computer=rows[int(selection[0])];window.destroy();self.start()
+        ttk.Button(window,text='Acessar computador selecionado',command=connect).pack(pady=8)
     def notify(self, kind, data):
         try:self.results.put_nowait((kind,data))
         except queue.Full:
@@ -101,7 +179,11 @@ class SupportApp:
         self.api=api;self.stop=threading.Event();stop=self.stop;self.connect.configure(state='disabled');self.status.set('Validando código de sessão…')
         def run():
             try:
-                result,_=api.request('/api/support.php?action=redeem',{'code':code});api.token=result['token'];api.command=int(result['command_id']);self.notify('connected',None)
+                if self.selected_computer and self.account_api:
+                    result,_=self.account_api.request('/api/support.php?action=native-connect',{'network_id':self.selected_computer['id'],'agent_id':self.selected_computer['agent_id']})
+                elif len(code)==5:result,_=api.request('/api/support.php?action=guest-connect',{'code':code})
+                else:result,_=api.request('/api/support.php?action=redeem',{'code':code})
+                api.token=result['token'];api.command=int(result['command_id']);self.notify('connected',None)
                 etag='';last_status=0;errors=0
                 while not stop.is_set():
                     start=time.monotonic()
@@ -145,7 +227,10 @@ class SupportApp:
         while True:
             try:kind,data=self.results.get_nowait()
             except queue.Empty:break
-            if kind=='frame':latest=data
+            if kind=='ui':
+                try:data()
+                except tk.TclError:pass
+            elif kind=='frame':latest=data
             elif kind=='connected':self.code.set('');self.preference()
             elif kind=='status':
                 self.control=bool(data.get('control'));self.status.set('Controle autorizado · sessão visível no computador remoto' if self.control else 'Somente visualização / aguardando autorização local · '+data['status'])
@@ -162,7 +247,7 @@ class SupportApp:
                 while not self.input_queue.empty():
                     try:self.input_queue.get_nowait()
                     except queue.Empty:break
-                self.connect.configure(state='normal');self.status.set('Sessão encerrada. Gere outro código na plataforma para reconectar.');self.pressed.clear()
+                self.connect.configure(state='normal');self.status.set('Sessão encerrada. Use um novo código do agente ou selecione um computador da sua conta.');self.pressed.clear()
         if latest:
             try:
                 image=Image.open(io.BytesIO(latest));image.load();self.frame=image.copy();self.draw()
@@ -171,19 +256,20 @@ class SupportApp:
         self.root.after(40,self.tick)
     def draw(self):
         if self.frame is None:return
-        w=max(1,self.canvas.winfo_width());h=max(1,self.canvas.winfo_height());image=self.frame.copy();image.thumbnail((w,h),Image.Resampling.BILINEAR)
-        x=(w-image.width)//2;y=(h-image.height)//2;self.image_box=(x,y,image.width,image.height);self.photo=ImageTk.PhotoImage(image);self.canvas.delete('screen');self.canvas.create_image(x,y,image=self.photo,anchor='nw',tags='screen')
+        w=max(1,self.canvas.winfo_width());h=max(1,self.canvas.winfo_height());scale=min(w/self.frame.width,h/self.frame.height)*self.zoom;image=self.frame.resize((max(1,round(self.frame.width*scale)),max(1,round(self.frame.height*scale))),Image.Resampling.BILINEAR)
+        x=max(0,(w-image.width)//2);y=max(0,(h-image.height)//2);self.image_box=(x,y,image.width,image.height);self.photo=ImageTk.PhotoImage(image);self.canvas.configure(scrollregion=(0,0,max(w,image.width),max(h,image.height)));self.canvas.delete('screen');self.canvas.create_image(x,y,image=self.photo,anchor='nw',tags='screen')
     def coordinates(self,e):
         x,y,w,h=self.image_box
-        if not(x<=e.x<=x+w and y<=e.y<=y+h):return None
-        return {'x':min(1,max(0,(e.x-x)/w)),'y':min(1,max(0,(e.y-y)/h))}
+        px=self.canvas.canvasx(e.x);py=self.canvas.canvasy(e.y)
+        if not(x<=px<=x+w and y<=py<=y+h):return None
+        return {'x':min(1,max(0,(self.canvas.canvasx(e.x)-x)/w)),'y':min(1,max(0,(self.canvas.canvasy(e.y)-y)/h))}
     def motion(self,e):
         point=self.coordinates(e)
         if point:self.pending_move={'t':'m',**point}
     def mouse(self,e,kind,button):
         self.canvas.focus_set();point=self.coordinates(e)
         if point is None and kind=='u':
-            x,y,w,h=self.image_box;point={'x':min(1,max(0,(e.x-x)/w)),'y':min(1,max(0,(e.y-y)/h))}
+            x,y,w,h=self.image_box;point={'x':min(1,max(0,(self.canvas.canvasx(e.x)-x)/w)),'y':min(1,max(0,(self.canvas.canvasy(e.y)-y)/h))}
         if point:
             b={1:0,2:1,3:2}[button]
             if kind=='d':self.buttons.add(b)

@@ -2,7 +2,7 @@
 /* Caminho: includes/billing.php */
 declare(strict_types=1);
 
-const ARC_BILLING_VERSION = '3.4.0';
+const ARC_BILLING_VERSION = '3.5.0';
 
 function arc_billing_seed_plans(PDO $pdo): void {
     if ((int)$pdo->query('SELECT COUNT(*) FROM '.arc_table('billing_plans'))->fetchColumn()) return;
