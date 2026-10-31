@@ -7,7 +7,7 @@ import sys
 ROOT=Path(__file__).resolve().parents[1]
 TARGETS={
     'agent/arcoll_toolkit.py':r"(VERSION = ')[^']+(')",
-    'redes/ferramentas.php':r"(const ARC_TOOLS_VERSION = ')[^']+(')",
+    'redes/suporte.php':r"(const ARC_TOOLS_VERSION = ')[^']+(')",
     'includes/billing.php':r"(const ARC_BILLING_VERSION = ')[^']+(')",
     'support/arcoll_support.py':r"(VERSION = ')[^']+(')",
     'includes/bootstrap.php':r"(const ARC_APP_VERSION = ')[^']+(')",

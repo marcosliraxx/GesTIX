@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '3.3.2';
+const ARC_APP_VERSION = '3.3.3';
 const ARC_SCHEMA_VERSION = '2026.10.30-5';
 
 require_once __DIR__.'/billing.php';
@@ -60,7 +60,7 @@ function arc_agent_release_status(): array
         $aligned=$version===ARC_APP_VERSION;$ready=$ready&&$aligned;
         $components[]=['name'=>$label,'file'=>'agent/'.$file,'version'=>$version,'aligned'=>$aligned];
     }
-    $tools=@file_get_contents(dirname(__DIR__).'/redes/ferramentas.php',false,null,0,4096);
+    $tools=@file_get_contents(dirname(__DIR__).'/redes/suporte.php',false,null,0,4096);
     $toolsVersion=is_string($tools)&&preg_match("/const ARC_TOOLS_VERSION = '([^']+)'/",$tools,$match)?$match[1]:null;
     return ['platform_version'=>ARC_APP_VERSION,'ready'=>$ready,'components'=>$components,'tools_version'=>$toolsVersion,'tools_aligned'=>$toolsVersion===ARC_APP_VERSION];
 }
