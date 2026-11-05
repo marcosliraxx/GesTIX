@@ -46,9 +46,9 @@ function arc_admin_redirect(string $anchor = ''): never
     $currentScript = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? ''));
     if ($currentScript === 'configuracoes.php') {
         $tab = (string)($_POST['tab'] ?? 'dados');
-        $allowedTabs = ['dados','designer','seguranca','smtp','apis','login','log','manutencao'];
+        $allowedTabs = ['dados','designer','seguranca','smtp','apis','nuvem','login','log','manutencao'];
         if (!in_array($tab, $allowedTabs, true)) $tab = 'dados';
-        header('Location: '.arc_workspace_base_url().'pages/configuracoes.php?tab='.rawurlencode($tab).'#'.rawurlencode($tab), true, 303);
+        header('Location: '.arc_workspace_base_url().'admin/configuracoes.php?tab='.rawurlencode($tab).'#'.rawurlencode($tab), true, 303);
         exit;
     }
     $view = in_array($anchor, $views, true) ? $anchor : ($actionViews[$action] ?? 'overview');
@@ -88,7 +88,11 @@ if (!arc_is_admin() && ($_SERVER['REQUEST_METHOD'] !== 'POST' || (string)($_POST
 // A página Configurações trata seus próprios comandos locais; este módulo trata apenas save_settings.
 $arcConfigLocalPost = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) === 'configuracoes.php'
     && in_array((string)($_POST['action'] ?? 'save'), ['save','smtp_test','clear_logs','clear_cache','upload_maintenance_image'], true);
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost) {
+// admin/clean.php processa seus proprios comandos com verificacao CSRF e JSON.
+// Nao deixar o roteador geral interceptar esses POSTs e emitir HTML/redirect.
+$arcCleanLocalPost = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) === 'clean.php'
+    && in_array((string)($_POST['action'] ?? ''), ['backup', 'logs_purge', 'retention_run', 'cache'], true);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanLocalPost) {
     arc_admin_csrf();
     $action = (string)($_POST['action'] ?? '');
     if ($action === 'login' && !arc_is_admin()) {
@@ -200,13 +204,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost) {
                     if(!$ext || !@getimagesize($tmp))throw new RuntimeException('Imagem inválida. Utilize PNG, JPG ou WebP.');
                     $name=bin2hex(random_bytes(20)).'.'.$ext;
                     if(!is_uploaded_file($tmp)||!move_uploaded_file($tmp,arc_upload_dir('brand').'/'.$name))throw new RuntimeException('Não foi possível gravar a logo.');
+                    require_once __DIR__.'/media-optimizer.php';arc_optimize_uploaded_image(arc_upload_dir('brand').'/'.$name,1200);
                     $stmt->execute(['logo_path',$name,'text']);
                 }
             }
             arc_audit($pdo,'settings.updated','Configurações da aba '.$tab.' atualizadas.');
             arc_admin_flash('Configurações salvas.','success');
             if (isset($groups[$tab])) {
-                header('Location: '.arc_workspace_base_url().'pages/configuracoes.php#'.$tab,true,303);
+                header('Location: '.arc_workspace_base_url().'admin/configuracoes.php#'.$tab,true,303);
                 exit;
             }
             arc_admin_redirect('identity');
@@ -322,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost) {
         }
 
         if ($action === 'upload_release') {
-            $version = arc_admin_post('version', 32);
+            $version = arc_app_version();
             $platform = arc_admin_post('platform', 24);
             $file = $_FILES['release_file'] ?? null;
             $platforms = ['web', 'windows', 'android', 'macos', 'linux'];

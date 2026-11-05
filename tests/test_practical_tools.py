@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'agent'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'agentes/windows'))
 import arcoll_toolkit as toolkit
 class PracticalToolTests(unittest.TestCase):
     def test_disk_space_warns_without_claiming_hardware_failure(self):

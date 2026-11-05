@@ -1,12 +1,13 @@
 <?php
 /* Caminho: pages/install.php */
 declare(strict_types=1);
+require_once dirname(__DIR__).'/includes/releases.php';
 
 $privateDir = __DIR__ . '/../includes';
 $configPath = $privateDir . '/config.php';
 if (is_file($configPath)) {
     http_response_code(409);
-    ?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalação concluída</title><link rel="stylesheet" href="assets/css/arcoll.css"><script src="assets/js/arcoll.js?v=3.5.0" defer></script><body class="arc-page-install"><main class="admin-shell auth-shell"><section class="auth-card"><span class="eyebrow">INSTALAÇÃO PROTEGIDA</span><h1>O sistema já está instalado</h1><p class="text-muted">Por segurança, este instalador não pode ser executado novamente. Acesse o sistema ou a administração.</p><a class="button primary" href="pages/painel.php">Abrir administração</a> <a class="button secondary" href="index.php">Abrir portal</a></section></main></body></html><?php
+    ?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalação concluída</title><link rel="stylesheet" href="assets/css/arcoll.css"><script src="assets/js/arcoll.js?v=<?=htmlspecialchars(arc_app_version(),ENT_QUOTES)?>" defer></script><body class="arc-page-install"><main class="admin-shell auth-shell"><section class="auth-card"><span class="eyebrow">INSTALAÇÃO PROTEGIDA</span><h1>O sistema já está instalado</h1><p class="text-muted">Por segurança, este instalador não pode ser executado novamente. Acesse o sistema ou a administração.</p><a class="button primary" href="pages/painel.php">Abrir administração</a> <a class="button secondary" href="index.php">Abrir portal</a></section></main></body></html><?php
     exit;
 }
 
@@ -216,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $admin = $pdo->prepare('INSERT INTO `' . $prefix . 'admins` (email, password_hash) VALUES (?, ?)');
                 $admin->execute([$email, password_hash(strlen($adminPassword) > 72 ? base64_encode(hash('sha256', $adminPassword, true)) : $adminPassword, PASSWORD_DEFAULT)]);
-                $configPhp = "<?php\ndeclare(strict_types=1);\nreturn " . var_export($config, true) . ";\n";
+                $configPhp = "<?php\n/* Caminho: includes/config.php */\ndeclare(strict_types=1);\nreturn " . var_export($config, true) . ";\n";
                 $tempPath = $configPath . '.tmp-' . bin2hex(random_bytes(5));
                 if (file_put_contents($tempPath, $configPhp, LOCK_EX) === false || !rename($tempPath, $configPath)) {
                     @unlink($tempPath);
@@ -227,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // The core schema alone is not enough for the account, network and menu pages.
                 require_once $privateDir . '/bootstrap.php';
                 arc_require_platform_schema($pdo);
-                arc_v19_seed_navigation($pdo);
+                arc_ensure_user_schema($pdo);
                 $success = true;
                 $_SESSION = [];
                 session_regenerate_id(true);
@@ -259,7 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="icon" type="image/svg+xml" href="assets/img/app-mark.svg?v=20261025"><link rel="shortcut icon" href="assets/img/app-mark.svg?v=20261025"><link rel="apple-touch-icon" href="assets/img/app-mark.svg?v=20261025">
   <meta charset="utf-8"><base href="<?=htmlspecialchars((function(){ $path=(string)($_SERVER["SCRIPT_NAME"]??"/install.php"); $dir=dirname($path); if(basename($dir)==="pages")$dir=dirname($dir); return rtrim($dir,"/")."/";})(),ENT_QUOTES)?><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark"><title>Instalação · Arcoll Speed Connection</title>
-  <link rel="stylesheet" href="assets/css/arcoll.css"><script src="assets/js/arcoll.js?v=3.5.0" defer></script>
+  <link rel="stylesheet" href="assets/css/arcoll.css"><script src="assets/js/arcoll.js?v=<?=htmlspecialchars(arc_app_version(),ENT_QUOTES)?>" defer></script>
   
 <script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
 <body><label class="arc-appearance-control arc-appearance-public"><i class="fa fa-adjust" aria-hidden="true"></i><select data-arc-appearance aria-label="Tema do aplicativo"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label>

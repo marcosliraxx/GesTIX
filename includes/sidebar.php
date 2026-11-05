@@ -21,7 +21,7 @@ if(!$arcIsAdmin){
   $stmt->execute([arc_user_id()]);$arcUser=$stmt->fetch()?:[];
   if(!$arcUser){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
 }
-$arcMenu=arc_v15_menu_items($pdo,'sidebar');
+$arcMenu=arc_navigation_items($pdo,'sidebar');
 $arcCurrentPath=ltrim(str_replace('\\','/',(string)parse_url($_SERVER['SCRIPT_NAME']??'',PHP_URL_PATH)),'/');
 $arcRootPath=trim((string)parse_url(arc_workspace_base_url(),PHP_URL_PATH),'/');
 if($arcRootPath!=='' && str_starts_with($arcCurrentPath,$arcRootPath.'/'))$arcCurrentPath=substr($arcCurrentPath,strlen($arcRootPath)+1);
@@ -38,9 +38,9 @@ $arcMenuIds=array_column($arcMenu,'id');
 ?>
 <aside class="app-sidebar" id="app-sidebar">
     <div class="side-top">
-        <a class="side-brand" href="pages/painel.php" title="Página inicial">
+        <a class="side-brand" href="<?=arc_h(arc_navigation_home($pdo))?>" title="Página inicial">
             <img src="<?= arc_h($arcLogo) ?>" alt="">
-            <span class="side-brand-copy"><b><?= arc_h($arcSiteName) ?></b><small>GESTÃO DE REDES</small></span>
+            <span class="side-brand-copy"><b><?= arc_h($arcSiteName) ?></b><small><?= arc_h($arcSiteDesc) ?></small></span>
         </a>
     </div>
 
@@ -53,25 +53,13 @@ $arcMenuIds=array_column($arcMenu,'id');
             $arcExpanded=false;
             foreach($arcSub as $sub){if(($ARCActiveNav??'')===$sub['key']){$arcExpanded=true;break;}}
         ?>
-        <div class="arc-nav-group">
+        <div class="arc-nav-group <?=arc_h($arcItem['device_class'])?>">
           <div class="arc-nav-entry">
             <?php if($arcSub):?><button type="button" class="arc-nav-parent <?= $arcExpanded?'active':'' ?>" data-nav-parent="arc-submenu-<?=(int)$arcItem['id']?>" aria-expanded="<?=$arcExpanded?'true':'false'?>" aria-controls="arc-submenu-<?=(int)$arcItem['id']?>" title="<?=arc_h($arcItem['label'])?>"><?php else:?><a href="<?=arc_h($arcItem['url']!==''?$arcItem['url']:'#')?>" class="<?=($ARCActiveNav??'')===$arcItem['key']?'active':''?>" title="<?=arc_h($arcItem['label'])?>"><?php endif;?><span class="arc-db-icon" data-icon="<?=arc_h($arcItem['icon'])?>" aria-hidden="true"></span><span class="side-label"><?=arc_h($arcItem['label'])?></span><?php if($arcSub):?><i class="fa fa-chevron-down arc-nav-chevron" aria-hidden="true"></i></button><?php else:?></a><?php endif;?>
           </div>
-          <?php if($arcSub):?><div class="arc-nav-children" id="arc-submenu-<?=(int)$arcItem['id']?>" <?=$arcExpanded?'':'hidden'?>><?php foreach($arcSub as $sub):?><a href="<?=arc_h($sub['url'])?>" class="<?=($ARCActiveNav??'')===$sub['key']?'active':''?>"><span class="arc-db-icon" data-icon="<?=arc_h($sub['icon'])?>" aria-hidden="true"></span><span><?=arc_h($sub['label'])?></span></a><?php endforeach;?></div><?php endif;?>
+          <?php if($arcSub):?><div class="arc-nav-children" id="arc-submenu-<?=(int)$arcItem['id']?>" <?=$arcExpanded?'':'hidden'?>><?php foreach($arcSub as $sub):?><a href="<?=arc_h($sub['url'])?>" class="<?=arc_h($sub['device_class'])?> <?=($ARCActiveNav??'')===$sub['key']?'active':''?>"><span class="arc-db-icon" data-icon="<?=arc_h($sub['icon'])?>" aria-hidden="true"></span><span><?=arc_h($sub['label'])?></span></a><?php endforeach;?></div><?php endif;?>
         </div>
         <?php endforeach; ?>
-      <div class="arc-nav-group" aria-label="Central de relatórios">
-        <div class="arc-nav-entry"><a href="redes/relatorios.php" class="<?=($ARCActiveNav??'')==='reports_center'?'active':''?>" title="Central de relatórios"><i class="fa fa-bar-chart" aria-hidden="true"></i><span class="side-label">Relatórios</span></a></div>
-      </div>
-      <div class="arc-nav-group" aria-label="Suporte e assinaturas">
-        <div class="arc-nav-entry"><a href="pages/atendimentos.php" class="<?=($ARCActiveNav??'')==='support_center'?'active':''?>"><i class="fa fa-life-ring" aria-hidden="true"></i><span class="side-label">Atendimentos e equipe</span></a></div>
-        <?php if($arcIsAdmin):?><div class="arc-nav-entry"><a href="pages/comercial.php" class="<?=($ARCActiveNav??'')==='commercial'?'active':''?>"><i class="fa fa-credit-card" aria-hidden="true"></i><span class="side-label">Gestão comercial</span></a></div><?php else:?><div class="arc-nav-entry"><a href="pages/assinatura.php" class="<?=($ARCActiveNav??'')==='billing'?'active':''?>"><i class="fa fa-credit-card" aria-hidden="true"></i><span class="side-label">Planos e cobrança</span></a></div><div class="arc-nav-entry"><a href="pages/cobrancas.php" class="<?=($ARCActiveNav??'')==='billing_history'?'active':''?>"><i class="fa fa-history" aria-hidden="true"></i><span class="side-label">Cobranças</span></a></div><?php endif;?>
-      </div>
-      <div class="arc-nav-group" aria-label="Área pessoal">
-        <div class="arc-nav-entry"><a href="pages/perfil.php" class="<?=($ARCActiveNav??'')==='profile'?'active':''?>"><i class="fa fa-user-circle-o" aria-hidden="true"></i><span class="side-label">Meu perfil</span></a></div>
-        <div class="arc-nav-entry"><a href="pages/preferencias.php" class="<?=($ARCActiveNav??'')==='settings'?'active':''?>"><i class="fa fa-sliders" aria-hidden="true"></i><span class="side-label">Preferências</span></a></div>
-        <div class="arc-nav-entry"><a href="pages/atividades.php" class="<?=($ARCActiveNav??'')==='activities'?'active':''?>"><i class="fa fa-history" aria-hidden="true"></i><span class="side-label">Minhas atividades</span></a></div>
-      </div>
     </nav>
 
     <div class="side-bottom">

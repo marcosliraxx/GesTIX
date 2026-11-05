@@ -29,3 +29,9 @@ __pycache__/
 /agent/agent.json
 /agent/appearance.json
 /agent/.dados/
+
+# Configurações privadas no layout canônico do agente
+/agentes/windows/agent-config.json
+/agentes/windows/agent.json
+/agentes/windows/appearance.json
+/agentes/windows/.dados/

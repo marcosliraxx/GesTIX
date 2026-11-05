@@ -20,6 +20,19 @@ $section=(string)($_GET['section']??'redes');
 $sections=['geral'=>'Visão geral','redes'=>'Redes','agentes'=>'Computadores','equipe'=>'Equipe','medicoes'=>'Medições','acessos'=>'Acessos e atividades'];
 if(!isset($sections[$section]))$section='redes';
 $requested=max(0,(int)($_GET['network']??0));
+/* Rede selecionada: acesso à gestão exige pelo menos um agente liberado. */
+if ($requested>0 && !$isAdmin) {
+    $reportAccess=arc_network_team_access($pdo,$requested,$userId);
+    if ($reportAccess) {
+        $gate=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('network_agents')." WHERE network_id=? AND account_id=? AND status='approved'");
+        $gate->execute([$requested,(int)$reportAccess['account_id']]);
+        if(!(int)$gate->fetchColumn()) {
+            header('Location: '.arc_workspace_base_url().'redes/liberacao.php?network='.$requested,true,303);
+            exit;
+        }
+    }
+}
+
 // Escopo: administradores visualizam tudo; titulares e convidados somente redes autorizadas.
 if($isAdmin){$networks=$pdo->query('SELECT id,account_id,name,client_name,is_active,created_at,last_seen_at FROM '.arc_table('managed_networks').' ORDER BY name,id')->fetchAll(PDO::FETCH_ASSOC);}
 else{

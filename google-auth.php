@@ -127,13 +127,21 @@ try {
    }catch(Throwable $photoError){error_log('Google avatar: '.$photoError->getMessage());}
   }
   // Aceita convites somente após o Google comprovar a posse deste e-mail.
-  $invitations=$pdo->prepare('SELECT account_id,network_id,role FROM '.arc_table('network_team_invitations').' WHERE email_hash=? AND email=?');
+  $inviteProfileAvailable=false;
+  try{$chk=$pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND BINARY TABLE_NAME=BINARY ? AND BINARY COLUMN_NAME=BINARY ?');$chk->execute([arc_prefix().'network_team_invitations','profile_id']);$inviteProfileAvailable=(bool)$chk->fetchColumn();}catch(PDOException $e){}
+  $invitations=$pdo->prepare('SELECT account_id,network_id,role,'.($inviteProfileAvailable?'profile_id':'NULL AS profile_id').' FROM '.arc_table('network_team_invitations').' WHERE email_hash=? AND email=?');
   $invitations->execute([hash('sha256',$email),$email]);
   foreach($invitations->fetchAll(PDO::FETCH_ASSOC) as $invitation){
    $ownerCheck=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1');
    $ownerCheck->execute([(int)$invitation['network_id'],(int)$invitation['account_id']]);
    if(!$ownerCheck->fetchColumn())continue;
-   try{arc_team_save($pdo,(int)$invitation['account_id'],(int)$invitation['network_id'],(int)$account['id'],(string)$invitation['role']);}catch(RuntimeException $inviteError){error_log('Convite pendente: limite ou vínculo indisponível.');continue;}
+   try{arc_team_save($pdo,(int)$invitation['account_id'],(int)$invitation['network_id'],(int)$account['id'],(string)$invitation['role']);
+    if((int)($invitation['profile_id']??0)>0){
+      $qProfile=$pdo->prepare('SELECT id FROM '.arc_table('network_access_profiles').' WHERE id=? AND network_id=? AND account_id=?');
+      $qProfile->execute([(int)$invitation['profile_id'],(int)$invitation['network_id'],(int)$invitation['account_id']]);
+      if($qProfile->fetchColumn())$pdo->prepare('UPDATE '.arc_table('network_team_members').' SET profile_id=? WHERE account_id=? AND network_id=? AND member_user_id=?')->execute([(int)$invitation['profile_id'],(int)$invitation['account_id'],(int)$invitation['network_id'],(int)$account['id']]);
+    }
+   }catch(RuntimeException $inviteError){error_log('Convite pendente: limite ou vínculo indisponível.');continue;}
    $pdo->prepare('DELETE FROM '.arc_table('network_team_invitations').' WHERE network_id=? AND email_hash=?')->execute([(int)$invitation['network_id'],hash('sha256',$email)]);
   }
   session_regenerate_id(true);

@@ -3,10 +3,11 @@
 (() => {
 'use strict';
 const root=document.documentElement,media=matchMedia('(prefers-color-scheme: dark)'),allowed=['auto','light','dark'];
-let choice=root.dataset.arcTheme||'auto';try{choice=localStorage.getItem('arc_appearance')||choice}catch{}
-function apply(value,persist=false){choice=allowed.includes(value)?value:'auto';root.dataset.arcTheme=choice;root.dataset.theme=choice==='auto'?(media.matches?'dark':'light'):choice;root.style.colorScheme=root.dataset.theme;if(persist)try{localStorage.setItem('arc_appearance',choice)}catch{};document.querySelectorAll('[data-arc-appearance]').forEach(select=>select.value=choice);window.dispatchEvent(new CustomEvent('arc:theme-change',{detail:{choice,theme:root.dataset.theme}}));window.dispatchEvent(new Event('resize'));}
+const systemTheme=root.dataset.arcSystemTheme||'';
+let choice=systemTheme||root.dataset.arcTheme||'auto';if(!systemTheme)try{choice=localStorage.getItem('arc_appearance')||choice}catch{}
+function apply(value,persist=false){if(systemTheme)value=systemTheme;choice=allowed.includes(value)?value:'auto';root.dataset.arcTheme=choice;root.dataset.theme=choice==='auto'?(media.matches?'dark':'light'):choice;root.style.colorScheme=root.dataset.theme;if(persist&&!systemTheme)try{localStorage.setItem('arc_appearance',choice)}catch{};document.querySelectorAll('[data-arc-appearance]').forEach(select=>select.value=choice);window.dispatchEvent(new CustomEvent('arc:theme-change',{detail:{choice,theme:root.dataset.theme}}));window.dispatchEvent(new Event('resize'));}
 window.arcTheme={set:value=>apply(value,true),get:()=>choice,color:name=>getComputedStyle(root).getPropertyValue('--'+name).trim()};
-apply(choice);media.addEventListener('change',()=>{if(choice==='auto')apply(choice)});window.addEventListener('storage',e=>{if(e.key==='arc_appearance')apply(e.newValue||'auto')});document.querySelectorAll('[data-arc-appearance]').forEach(select=>select.addEventListener('change',e=>apply(e.target.value,true)));
+apply(choice);media.addEventListener('change',()=>{if(choice==='auto')apply(choice)});window.addEventListener('storage',e=>{if(!systemTheme&&e.key==='arc_appearance')apply(e.newValue||'auto')});document.querySelectorAll('[data-arc-appearance]').forEach(select=>select.addEventListener('change',e=>apply(e.target.value,true)));
 })();
 
 
@@ -775,10 +776,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.classList.contains('is-open') ? close() : open(); }
     else if (e.key === '/' && !typing && !pal.classList.contains('is-open')) { e.preventDefault(); open(); }
   });
-  // Em Gestão de Redes, comandos ficam exclusivamente na aba Comandos.
+  // Em Gestão de Redes, as ações operacionais ficam restritas às telas próprias da rede.
   if (!document.querySelector('.arc-redes-page')) {
   var fab = document.createElement('button');
-  fab.type = 'button'; fab.className = 'arc-fab'; fab.title = 'Comandos rápidos (Ctrl+K)'; fab.setAttribute('aria-label', 'Abrir comandos rápidos');
+  fab.type = 'button'; fab.className = 'arc-fab'; fab.title = 'Ações rápidas (Ctrl+K)'; fab.setAttribute('aria-label', 'Abrir ações rápidas');
   fab.innerHTML = '<i class="fa fa-bolt" aria-hidden="true"></i>';
   fab.addEventListener('click', open);
   document.body.appendChild(fab);

@@ -101,6 +101,7 @@ if (arc_is_admin()) {
                     if (!is_file($guard)) @file_put_contents($guard,"Options -Indexes -ExecCGI\n<FilesMatch \"\\.(php|phtml|php[0-9]?)$\">\nRequire all denied\n</FilesMatch>\n");
                     $rel='uploads/avatars/admin_'.$adminId.'_'.bin2hex(random_bytes(12)).'.'.$ext;
                     if (!move_uploaded_file((string)$file['tmp_name'],dirname(__DIR__).'/'.$rel)) throw new RuntimeException('Não foi possível salvar a foto.');
+                    require_once dirname(__DIR__).'/includes/media-optimizer.php';arc_optimize_uploaded_image(dirname(__DIR__).'/'.$rel,1024);
                     try { $adminSet($pdo,'admin_avatar_'.$adminId,$rel);arc_audit($pdo,'avatar_updated','Foto administrativa atualizada'); }
                     catch (Throwable $e) { @unlink(dirname(__DIR__).'/'.$rel);throw $e; }
                     if (preg_match('~^uploads/avatars/admin_'. $adminId .'_[a-f0-9]{24}\\.(jpg|png|webp)$~',$adminAvatar)) @unlink(dirname(__DIR__).'/'.$adminAvatar);
@@ -127,7 +128,7 @@ if (arc_is_admin()) {
     ?>
 <style>
 
-.arc-profile-v2{width:100%;max-width:none;padding:12px 16px;margin:0}.arc-profile-v2 .card{margin:0 0 12px}.arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
+.arc-profile-v2{width:100%;max-width:none;margin:0}.arc-profile-v2 .card{margin:0 0 12px}.arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button{border:1px solid var(--border)!important;background:var(--surface,#fff)!important;padding:11px 17px!important;border-radius:9px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button.active{color:var(--text)!important;background:#174e83!important;border-color:#174e83!important;box-shadow:0 3px 10px #174e8326}
 .arc-profile-v2 .arc-account-panels{padding-top:3px!important}
@@ -211,7 +212,7 @@ $csrf     = (string)($_POST['_csrf'] ?? '');
 $pepper   = (string)(arc_config()['app_secret'] ?? 'arcoll');
 $ipHash   = hash_hmac('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'), $pepper);
 
-/* Mesmo material de senha usado em pages/clientes.php (login/cadastro). */
+/* Mesmo material de senha usado em admin/clientes.php (login/cadastro). */
 $pwMaterial = static fn (string $password): string => base64_encode(hash('sha384', $password, true));
 
 
@@ -289,6 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!move_uploaded_file((string)$file['tmp_name'], dirname(__DIR__) . '/' . $rel)) {
                         $arcError = 'Falha ao salvar a imagem. Verifique as permissões da pasta uploads.';
                     } else {
+                        require_once dirname(__DIR__).'/includes/media-optimizer.php';arc_optimize_uploaded_image(dirname(__DIR__).'/'.$rel,1024);
                         $pdo->prepare('UPDATE ' . arc_table('user_accounts') . ' SET avatar_url=? WHERE id=?')->execute([$rel, $userId]);
                         if ($old !== '' && preg_match('~^uploads/avatars/u' . $userId . '-[a-f0-9]{8}\.(jpg|png|webp|gif)$~', $old)) @unlink(dirname(__DIR__) . '/' . $old);
                         arc_user_audit($pdo, 'avatar_updated', 'Foto de perfil alterada');
@@ -409,7 +411,7 @@ require dirname(__DIR__) . '/includes/sidebar.php';
 
 <style>
 
-.arc-profile-v2{width:100%;max-width:none;padding:12px 16px;margin:0}.arc-profile-v2 .card{margin:0 0 12px}.arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
+.arc-profile-v2{width:100%;max-width:none;margin:0}.arc-profile-v2 .card{margin:0 0 12px}.arc-profile-v2 .arc-account-tabs{gap:8px!important;padding:5px 0 12px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button{border:1px solid var(--border)!important;background:var(--surface,#fff)!important;padding:11px 17px!important;border-radius:9px!important}
 .arc-profile-v2 .arc-account-tabs .tab-button.active{color:var(--text)!important;background:#174e83!important;border-color:#174e83!important;box-shadow:0 3px 10px #174e8326}
 .arc-profile-v2 .arc-account-panels{padding-top:3px!important}

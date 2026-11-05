@@ -1,3 +1,4 @@
+# Caminho: tests/test_agent_security.py
 """Run with: python3 -m unittest discover -s tests -v.
 
 Exercises the shipped agent implementation without scanning any real network.
@@ -17,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_agents():
-    sources = [('package', (ROOT / 'agent/arcoll_agent.py').read_text())]
+    sources = [('package', (ROOT / 'agentes/windows/arcoll_agent.py').read_text())]
     agents = []
     for name, source in sources:
         module = types.ModuleType('agent_security_test')

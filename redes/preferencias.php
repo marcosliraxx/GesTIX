@@ -1,0 +1,30 @@
+<?php
+// Caminho: redes/preferencias.php
+declare(strict_types=1);
+$arcSectionFile='preferencias';
+require __DIR__.'/_base.php';
+require __DIR__.'/_topo_config.php';
+?>
+<style>
+.ai-page{height:100%;min-height:0;display:flex;flex-direction:column;gap:9px;overflow:hidden;color:var(--text)}
+.ai-bar{min-height:45px;display:flex;align-items:center;gap:10px;padding:7px 13px;background:var(--surface-alt);border:1px solid var(--border);border-radius:9px}
+.ai-bar strong{font-size:14px}.ai-muted{color:var(--muted);font-size:11px}.ai-push{margin-left:auto}
+.ai-area{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:9px;background:var(--surface-alt);padding:16px}
+.ai-bar input,.ai-page input:not([type=checkbox]):not([type=file]),.ai-page select,.ai-page textarea{min-width:0;max-width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:9px;font:inherit}
+.ai-page input:focus-visible,.ai-page select:focus-visible,.ai-page textarea:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.ai-search{width:min(350px,100%)}.ai-page label{display:grid;gap:6px;font-size:12px}.ai-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.ai-group{padding:15px;border:1px solid var(--border);border-radius:10px;margin-bottom:13px;background:var(--surface)}.ai-group h3{font-size:13px;margin:0 0 13px}.ai-group h3 i{color:var(--primary);margin-right:6px}
+.ai-page .ai-check{display:flex;align-items:center;gap:8px}.ai-check input{accent-color:var(--primary)}.ai-full{grid-column:1/-1}
+.ai-footer{display:flex;gap:9px;justify-content:flex-end;position:sticky;bottom:-16px;background:var(--surface-alt);border-top:1px solid var(--border);padding:12px 0}
+.ai-page .ai-table{width:100%;border-collapse:collapse;font-size:12px}.ai-table th,.ai-table td{text-align:left;border-bottom:1px solid var(--border);padding:12px 10px}.ai-table th{white-space:nowrap}.ai-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:100px;padding:5px 9px;font-size:11px}.ai-owner{color:var(--primary);font-weight:700}.ai-user-main{display:grid;gap:4px}.ai-user-main small{color:var(--muted)}.ai-actions{display:flex;justify-content:flex-end;gap:5px}.ai-page button{cursor:pointer}.ai-page button:disabled{opacity:.5;cursor:not-allowed}
+.ai-page dialog{width:min(500px,95vw);max-height:90dvh;overflow:auto;background:var(--surface-alt);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 20px 70px #0008}.ai-page dialog::backdrop{background:#010b18c9}
+.ai-logo{width:115px;height:115px;border-radius:16px;border:1px dashed var(--border);background:var(--surface-alt);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;color:var(--primary)}.ai-logo img{width:100%;height:100%;object-fit:contain}.ai-logo:hover{border-color:var(--primary)}.ai-logo .ai-camera{position:absolute;bottom:0;right:0;background:var(--surface);padding:7px}.ai-brand{display:flex;align-items:center;gap:16px}.ai-brand div{display:grid;gap:7px;min-width:0}.ai-brand small{color:var(--muted);font-size:11px}
+@media(max-width:650px){.ai-area{padding:10px}.ai-bar{flex-wrap:wrap}.ai-search{width:100%;flex:1 1 100%}.ai-grid{grid-template-columns:1fr}.ai-full{grid-column:auto}.ai-brand{align-items:flex-start}.ai-logo{flex:0 0 90px;width:90px;height:90px}.ai-footer{bottom:-10px}.ai-mobile-hide{display:none}}
+</style>
+<section class="ai-page" aria-label="Preferências da rede"><header class="ai-bar"><strong><i class="fa fa-sliders"></i> Preferências da rede</strong><span class="ai-muted ai-push">Configurações individuais desta rede</span></header>
+<div class="ai-area"><form method="post"><input type="hidden" name="_csrf" value="<?=arc_h($csrf)?>"><input type="hidden" name="action" value="network_preferences_update">
+<section class="ai-group"><h3><i class="fa fa-tachometer"></i> Monitoramento e desempenho</h3><div class="ai-grid"><label>Intervalo de atualização<select name="monitor_refresh"><?php foreach(['instant'=>'Instantâneo','1'=>'1 segundo','5'=>'5 segundos','10'=>'10 segundos','15'=>'15 segundos','30'=>'30 segundos','60'=>'60 segundos'] as $v=>$t):?><option value="<?=arc_h((string)$v)?>" <?=$networkPrefs['monitor_refresh']===(string)$v?'selected':''?>><?=arc_h($t)?></option><?php endforeach;?></select><small class="ai-muted">Intervalos muito curtos podem aumentar o número de consultas.</small></label><label>Limite para alerta de latência<select name="alert_latency"><?php foreach(['80','100','150','200','300'] as $v):?><option value="<?=$v?>" <?=$networkPrefs['alert_latency']===$v?'selected':''?>><?=$v?> ms</option><?php endforeach;?></select><small class="ai-muted">A notificação utiliza o limite escolhido para esta rede.</small></label></div></section>
+<section class="ai-group"><h3><i class="fa fa-bell-o"></i> Avisos e notificações</h3><div class="ai-grid"><label class="ai-check"><input type="checkbox" name="alert_low_speed" <?=$networkPrefs['alert_low_speed']==='1'?'checked':''?>> Alertar quando houver velocidade baixa</label><label class="ai-check"><input type="checkbox" name="email_alerts" <?=$networkPrefs['email_alerts']==='1'?'checked':''?>> Receber alertas por e-mail</label></div><p class="ai-muted">As notificações dependem da disponibilidade dos serviços de monitoramento e e-mail configurados na plataforma.</p></section>
+<section class="ai-group"><h3><i class="fa fa-info-circle"></i> Resumo da rede</h3><div class="ai-grid"><div><small class="ai-muted">Rede</small><div><?=arc_h((string)$network['name'])?></div></div><div><small class="ai-muted">Monitoramento</small><div><?=!empty($network['monitoring_enabled'])?'Ativo':'Desativado'?></div></div></div></section>
+<div class="ai-footer"><button class="button" type="submit" <?=!$isNetworkOwner?'disabled':''?>><i class="fa fa-floppy-o"></i> Salvar preferências</button></div></form></div></section>
+<?php require __DIR__.'/_rodape.php'; ?>

@@ -5,6 +5,7 @@ function arc_support_access(PDO $pdo,int $network,int $user,bool $write=false): 
     $q=$pdo->prepare('SELECT account_status FROM '.arc_table('user_accounts').' WHERE id=?');$q->execute([$user]);
     if($q->fetchColumn()!=='active')throw new RuntimeException('Conta sem autorização.');
     $access=arc_network_team_access($pdo,$network,$user);
+    if($access && $access['role']!=='owner'){ $rights=arc_network_profile_rights($pdo,$network,$user);if($rights!==null&&!in_array('suporte',$rights,true))throw new RuntimeException('Perfil sem permissão para suporte.'); }
     if(!$access||($write&&!in_array($access['role'],['owner','administrator','operator'],true)))throw new RuntimeException('Acesso de suporte negado para esta rede.');return $access;
 }
 function arc_support_event(PDO $pdo,int $ticket,int $actor,string $type,string $message,int $minutes=0): void {
@@ -97,10 +98,14 @@ function arc_support_file_path(string $key): string {
     $dir=ARC_PRIVATE_DIR.'/storage/transfers';if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('Armazenamento de arquivos indisponível.');return $dir.'/'.$key;
 }
 function arc_support_files_cleanup(PDO $pdo): void {
-    $q=$pdo->query('SELECT id,storage_key FROM '.arc_table('support_file_transfers').' WHERE expires_at<NOW() AND storage_key IS NOT NULL LIMIT 100');
-    foreach($q->fetchAll() as $row){$path=arc_support_file_path((string)$row['storage_key']);if(is_file($path)&&!unlink($path))continue;$pdo->prepare("UPDATE ".arc_table('support_file_transfers')." SET storage_key=NULL,status='expired' WHERE id=? AND expires_at<NOW()")->execute([$row['id']]);}
-    $pdo->exec("UPDATE ".arc_table('support_file_transfers')." SET status='expired' WHERE expires_at<NOW() AND storage_key IS NULL AND status IN ('pending','ready','completed')");
-    $pdo->exec("UPDATE ".arc_table('agent_commands')." c JOIN ".arc_table('support_file_transfers')." f ON f.command_id=c.id SET c.status='expired',c.completed_at=NOW() WHERE f.expires_at<NOW() AND c.status IN ('pending','running')");
+    $t=arc_table('support_file_transfers');$c=arc_table('agent_commands');
+    // Comando que o computador nunca executou (offline, tempo esgotado, cancelado) não pode ocupar a cota diária.
+    $pdo->exec("UPDATE ".$t." f JOIN ".$c." c ON c.id=f.command_id SET f.status='expired',f.message='O computador não concluiu a solicitação.' WHERE f.status IN ('pending','ready') AND c.status IN ('expired','failed')");
+    // O arquivo guardado só existe enquanto alguém ainda precisa dele: concluído, cancelado, recusado ou expirado é apagado na hora.
+    $q=$pdo->query('SELECT id,storage_key FROM '.$t." WHERE storage_key IS NOT NULL AND (expires_at<NOW() OR status IN ('completed','cancelled','declined','failed','expired')) LIMIT 100");
+    foreach($q->fetchAll() as $row){$path=arc_support_file_path((string)$row['storage_key']);if(is_file($path)&&!unlink($path))continue;$pdo->prepare("UPDATE ".$t." SET storage_key=NULL,status=IF(status IN ('pending','ready'),'expired',status) WHERE id=?")->execute([$row['id']]);}
+    $pdo->exec("UPDATE ".$t." SET status='expired' WHERE expires_at<NOW() AND storage_key IS NULL AND status IN ('pending','ready','completed')");
+    $pdo->exec("UPDATE ".$c." c JOIN ".$t." f ON f.command_id=c.id SET c.status='expired',c.completed_at=NOW() WHERE f.expires_at<NOW() AND c.status IN ('pending','running')");
 }
 function arc_support_file_agent(PDO $pdo): array {
     $fp=(string)($_SERVER['HTTP_X_ARCOLL_FINGERPRINT']??'');$site=(string)($_SERVER['HTTP_X_ARCOLL_SITE']??'');$key=(string)($_SERVER['HTTP_X_ARCOLL_KEY']??'');
@@ -108,18 +113,22 @@ function arc_support_file_agent(PDO $pdo): array {
     $q=$pdo->prepare("SELECT a.id,a.network_id,a.account_id FROM ".arc_table('network_agents')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id JOIN ".arc_table('agent_download_keys')." k ON k.network_id=a.network_id AND k.account_id=a.account_id WHERE a.fingerprint=? AND a.site_code=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1 AND k.token_hash=? AND k.fingerprint=?");
     $q->execute([$fp,$site,hash('sha256',$key),$fp]);$agent=$q->fetch();if(!$agent)throw new RuntimeException('Computador não autorizado.');return $agent;
 }
-function arc_support_file_record(PDO $pdo,int $id,?array $agent=null): array {
-    $q=$pdo->prepare('SELECT f.*,c.status AS command_status,c.dispatched_at,u.display_name AS requester FROM '.arc_table('support_file_transfers').' f JOIN '.arc_table('agent_commands').' c ON c.id=f.command_id AND c.agent_id=f.agent_id AND c.account_id=f.account_id JOIN '.arc_table('user_accounts').' u ON u.id=f.requested_by WHERE f.id=?');$q->execute([$id]);$row=$q->fetch();
+function arc_support_file_record(PDO $pdo,int $id,?array $agent=null,bool $allowReplay=false): array {
+    $q=$pdo->prepare('SELECT f.*,c.status AS command_status,c.command_name,c.dispatched_at,u.display_name AS requester FROM '.arc_table('support_file_transfers').' f JOIN '.arc_table('agent_commands').' c ON c.id=f.command_id AND c.agent_id=f.agent_id AND c.account_id=f.account_id JOIN '.arc_table('user_accounts').' u ON u.id=f.requested_by WHERE f.id=?');$q->execute([$id]);$row=$q->fetch();
     if(!$row)throw new RuntimeException('Transferência não encontrada.');
-    if($agent){if((int)$row['agent_id']!==(int)$agent['id']||(int)$row['account_id']!==(int)$agent['account_id']||(int)$row['network_id']!==(int)$agent['network_id']||$row['command_status']!=='running'||strtotime((string)$row['dispatched_at'])<time()-180)throw new RuntimeException('Solicitação expirada ou indisponível.');}
+    if($agent){if((int)$row['agent_id']!==(int)$agent['id']||(int)$row['account_id']!==(int)$agent['account_id']||(int)$row['network_id']!==(int)$agent['network_id']||(!($allowReplay&&$row['command_status']==='completed'&&in_array($row['status'],['ready','completed'],true))&&($row['command_status']!=='running'||strtotime((string)$row['dispatched_at'])<time()-180)))throw new RuntimeException('Solicitação expirada ou indisponível.');}
     elseif(!arc_is_user()||(int)$row['requested_by']!==(int)arc_user_id())throw new RuntimeException('Transferência não autorizada.');
     $access=arc_support_access($pdo,(int)$row['network_id'],(int)$row['requested_by'],true);
     if((int)$access['account_id']!==(int)$row['account_id'])throw new RuntimeException('Transferência não autorizada.');
+    if(in_array($row['command_name'],['file_operation','file_bundle','file_execute'],true)){
+        $q=$pdo->prepare('SELECT headless_mode FROM '.arc_table('network_agents').' WHERE id=?');$q->execute([$row['agent_id']]);
+        if(!(int)$q->fetchColumn()||!in_array($access['role'],['owner','administrator'],true))throw new RuntimeException('Autorização do explorador revogada.');
+    }
     arc_billing_assert_active($pdo,(int)$row['account_id']);
     $q=$pdo->prepare('SELECT a.id FROM '.arc_table('network_agents')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1");$q->execute([$row['agent_id'],$row['network_id'],$row['account_id']]);
     if(!$q->fetchColumn()||strtotime($row['expires_at'])<=time())throw new RuntimeException('Transferência expirada ou sem autorização.');return $row;
 }
-function arc_support_file_create(PDO $pdo,int $network,int $agent,int $user,string $direction,string $name='',string $data=''): int {
+function arc_support_file_create(PDO $pdo,int $network,int $agent,int $user,string $direction,string $name='',string $data='',string $destination='',?string $clientToken=null): int {
     if(!in_array($direction,['to_agent','from_agent'],true))throw new RuntimeException('Operação inválida.');
     $access=arc_support_access($pdo,$network,$user,true);arc_billing_assert_active($pdo,(int)$access['account_id']);
     if(strlen($data)>ARC_FILE_MAX_BYTES)throw new RuntimeException('O arquivo excede o limite de 8 MB.');
@@ -127,72 +136,280 @@ function arc_support_file_create(PDO $pdo,int $network,int $agent,int $user,stri
     arc_support_files_cleanup($pdo);$key=null;
     $pdo->beginTransaction();try{
         $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');$q->execute([$access['account_id']]);
-        $q=$pdo->prepare("SELECT a.id,a.agent_version,a.last_seen_at FROM ".arc_table('network_agents')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1 FOR UPDATE");$q->execute([$agent,$network,$access['account_id']]);$a=$q->fetch();
+        if($clientToken!==null){
+            if(!preg_match('/^[a-f0-9]{32}$/D',$clientToken))throw new RuntimeException('Identificador inválido.');
+            $q=$pdo->prepare('SELECT id,network_id,agent_id FROM '.arc_table('support_file_transfers').' WHERE requested_by=? AND client_token=?');$q->execute([$user,$clientToken]);$existing=$q->fetch();
+            if($existing){if((int)$existing['network_id']!==$network||(int)$existing['agent_id']!==$agent)throw new RuntimeException('Identificador inválido.');$pdo->commit();return (int)$existing['id'];}
+        }
+
+        $q=$pdo->prepare("SELECT a.id,a.agent_version,a.last_seen_at,a.headless_mode FROM ".arc_table('network_agents')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1 FOR UPDATE");$q->execute([$agent,$network,$access['account_id']]);$a=$q->fetch();
         if(!$a||strtotime((string)$a['last_seen_at'])<time()-120)throw new RuntimeException('Selecione um computador aprovado e conectado.');
         if(version_compare((string)$a['agent_version'],'3.3.0','<'))throw new RuntimeException('Atualize o agente para usar a transferência de arquivos.');
+        if(str_starts_with($name,'__arcoll_folder__')&&version_compare((string)$a['agent_version'],'3.8.1','<'))throw new RuntimeException('Atualize o agente para a versão 3.8.1 ou superior para receber pastas.');
+        if($destination!==''&&((int)$a['headless_mode']!==1||!in_array($access['role'],['owner','administrator'],true)||version_compare((string)$a['agent_version'],'3.6.23','<')))throw new RuntimeException('Destino remoto exige administrador, modo sem monitor e agente atualizado.');
         // The account lock serializes the private storage quota across all its computers.
-        $q=$pdo->prepare('SELECT COUNT(*),COALESCE(SUM(file_size),0) FROM '.arc_table('support_file_transfers').' WHERE account_id=? AND expires_at>NOW()');$q->execute([$access['account_id']]);$quota=$q->fetch(PDO::FETCH_NUM);
+        $q=$pdo->prepare('SELECT COUNT(*),COALESCE(SUM(file_size),0) FROM '.arc_table('support_file_transfers')." WHERE account_id=? AND expires_at>NOW() AND status IN ('pending','ready')");$q->execute([$access['account_id']]);$quota=$q->fetch(PDO::FETCH_NUM);
         if((int)$quota[0]>=50||(int)$quota[1]+strlen($data)>67108864)throw new RuntimeException('Limite temporário de arquivos atingido. Tente novamente após a expiração.');
         $q=$pdo->prepare("SELECT COUNT(*) FROM ".arc_table('agent_commands')." WHERE agent_id=? AND status IN ('pending','running') AND created_at>DATE_SUB(NOW(),INTERVAL 4 MINUTE)");$q->execute([$agent]);if((int)$q->fetchColumn()>=3)throw new RuntimeException('Aguarde as operações anteriores.');
         $q=$pdo->prepare("SELECT id FROM ".arc_table('agent_commands')." WHERE agent_id=? AND command_name='file_transfer' AND status IN ('pending','running') AND created_at>DATE_SUB(NOW(),INTERVAL 4 MINUTE)");$q->execute([$agent]);if($q->fetchColumn())throw new RuntimeException('Aguarde a transferência anterior.');
         if($direction==='to_agent'){$key=bin2hex(random_bytes(32));$path=arc_support_file_path($key);if(file_put_contents($path,$data,LOCK_EX)!==strlen($data))throw new RuntimeException('Não foi possível guardar o arquivo.');chmod($path,0600);}
         $pdo->prepare("INSERT INTO ".arc_table('agent_commands')." (account_id,network_id,agent_id,command_name) VALUES (?,?,?,'file_transfer')")->execute([$access['account_id'],$network,$agent]);$command=(int)$pdo->lastInsertId();
-        $pdo->prepare('INSERT INTO '.arc_table('support_file_transfers').' (command_id,account_id,network_id,agent_id,requested_by,direction,filename,file_size,sha256,storage_key,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,DATE_ADD(NOW(),INTERVAL 1 DAY))')->execute([$command,$access['account_id'],$network,$agent,$user,$direction,$name,strlen($data),$key?hash('sha256',$data):null,$key]);$id=(int)$pdo->lastInsertId();$pdo->commit();
+        $pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id) VALUES (?,?)')->execute([$command,$user]);
+        if($destination!=='')$pdo->prepare('INSERT INTO '.arc_table('agent_terminal_jobs').' (command_id,agent_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$command,$agent,$network,json_encode(['destination'=>$destination])]);
+        $pdo->prepare('INSERT INTO '.arc_table('support_file_transfers').' (command_id,account_id,network_id,agent_id,requested_by,direction,filename,file_size,sha256,storage_key,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,DATE_ADD(NOW(),INTERVAL 1 DAY))')->execute([$command,$access['account_id'],$network,$agent,$user,$direction,$name,strlen($data),$key?hash('sha256',$data):null,$key]);$id=(int)$pdo->lastInsertId();if($clientToken!==null)$pdo->prepare('UPDATE '.arc_table('support_file_transfers').' SET client_token=? WHERE id=?')->execute([$clientToken,$id]);$pdo->commit();
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();if($key){$path=arc_support_file_path($key);if(is_file($path))unlink($path);}throw $e;}
     arc_user_audit($pdo,'support_file_requested','Transferência #'.$id.' · agente #'.$agent,(int)$access['account_id']);return $id;
 }
+function arc_support_file_remote_command(PDO $pdo,int $network,int $agent,int $user,string $command,array $payload=[],bool $createTransfer=false): array {
+    if(!in_array($command,['file_bundle','file_execute','file_operation'],true))throw new RuntimeException('Operação inválida.');
+    $access=arc_support_access($pdo,$network,$user,true);arc_billing_assert_active($pdo,(int)$access['account_id']);
+    if(!in_array((string)($access['role']??''),['owner','administrator'],true))throw new RuntimeException('Somente administrador ou proprietário pode usar este recurso.');
+    arc_support_files_cleanup($pdo);
+    $pdo->beginTransaction();
+    try{
+        $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');$q->execute([$access['account_id']]);
+        $q=$pdo->prepare("SELECT a.id,a.agent_version,a.last_seen_at,a.headless_mode FROM ".arc_table('network_agents')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1 FOR UPDATE");
+        $q->execute([$agent,$network,$access['account_id']]);$a=$q->fetch();
+        if(!$a||strtotime((string)$a['last_seen_at'])<time()-120)throw new RuntimeException('Selecione um computador aprovado e conectado.');
+        if((int)($a['headless_mode']??0)!==1)throw new RuntimeException('Ative o modo sem monitor no agente autorizado.');
+        if(version_compare((string)$a['agent_version'],$command==='file_operation'?'3.6.23':'3.6.0','<'))throw new RuntimeException('Atualize o agente deste computador para usar o explorador avançado.');
+        if(($payload['operation']??'')==='thumbnails'&&version_compare((string)$a['agent_version'],'3.8.6','<'))throw new RuntimeException('Atualize o agente para 3.8.6 para carregar miniaturas.');
+        $q=$pdo->prepare("SELECT COUNT(*) FROM ".arc_table('agent_commands')." WHERE agent_id=? AND status IN ('pending','running') AND created_at>DATE_SUB(NOW(),INTERVAL 4 MINUTE)");$q->execute([$agent]);if((int)$q->fetchColumn()>=3)throw new RuntimeException('Aguarde as operações anteriores.');
+        $q=$pdo->prepare("SELECT id FROM ".arc_table('agent_commands')." WHERE agent_id=? AND command_name IN ('file_bundle','file_execute','file_operation') AND status IN ('pending','running') AND created_at>DATE_SUB(NOW(),INTERVAL 4 MINUTE)");$q->execute([$agent]);if($q->fetchColumn())throw new RuntimeException('Aguarde a operação anterior deste explorador.');
+        $pdo->prepare('INSERT INTO '.arc_table('agent_commands')." (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)")->execute([(int)$access['account_id'],$network,$agent,$command]);$commandId=(int)$pdo->lastInsertId();
+        $pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id) VALUES (?,?)')->execute([$commandId,$user]);
+        $pdo->prepare('INSERT INTO '.arc_table('agent_terminal_jobs').' (command_id,agent_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$commandId,$agent,$network,json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+        $transferId=0;
+        if($createTransfer){
+            $pdo->prepare('INSERT INTO '.arc_table('support_file_transfers')." (command_id,account_id,network_id,agent_id,requested_by,direction,filename,file_size,expires_at,status,message) VALUES (?,?,?,?,?,'from_agent','',0,DATE_ADD(NOW(),INTERVAL 1 DAY),'pending','Preparando arquivo para download.')")->execute([$commandId,(int)$access['account_id'],$network,$agent,$user]);
+            $transferId=(int)$pdo->lastInsertId();
+        }
+        $pdo->commit();
+    }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    arc_user_audit($pdo,'support_file_remote_'.$command,'Explorador remoto · comando '.$command.' no agente '.$agent,(int)$access['account_id']);
+    return ['command_id'=>$commandId,'transfer_id'=>$transferId,'account_id'=>(int)$access['account_id']];
+}
+
 function arc_support_file_stream(array $row): void {
     if(!$row['storage_key'])throw new RuntimeException('Arquivo ainda não disponível.');$path=arc_support_file_path($row['storage_key']);
     if(!is_file($path)||filesize($path)!==(int)$row['file_size']||!hash_equals((string)$row['sha256'],hash_file('sha256',$path)))throw new RuntimeException('Arquivo indisponível ou incompleto.');
+    $size=(int)$row['file_size'];$start=0;$end=max(0,$size-1);$etag='"'.$row['sha256'].'"';
+    header('Cache-Control: no-store, private');header('Accept-Ranges: bytes');header('ETag: '.$etag);
+    $range=(string)($_SERVER['HTTP_RANGE']??'');
+    if($range!==''&&(!isset($_SERVER['HTTP_IF_RANGE'])||$_SERVER['HTTP_IF_RANGE']===$etag)){
+        if(!preg_match('/^bytes=(\d*)-(\d*)$/D',$range,$m)||($m[1]===''&&$m[2]==='')||$size===0){header('Content-Range: bytes */'.$size);http_response_code(416);exit;}
+        if($m[1]===''){$suffix=(int)$m[2];if($suffix===0){header('Content-Range: bytes */'.$size);http_response_code(416);exit;}$start=max(0,$size-$suffix);}
+        else{$start=(int)$m[1];$end=$m[2]===''?$size-1:min($size-1,(int)$m[2]);}
+        if($start>=$size||$start>$end){header('Content-Range: bytes */'.$size);http_response_code(416);exit;}
+        http_response_code(206);header('Content-Range: bytes '.$start.'-'.$end.'/'.$size);
+    }
+    $length=$size===0?0:$end-$start+1;
+    header('Content-Type: application/octet-stream');header('Content-Disposition: attachment; filename="arquivo"; filename*=UTF-8\'\''.rawurlencode($row['filename']));header('Content-Length: '.$length);header('X-Content-Type-Options: nosniff');header("Content-Security-Policy: default-src 'none'; sandbox");
     if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
-    header('Content-Type: application/octet-stream');header('Content-Disposition: attachment; filename="arquivo"; filename*=UTF-8\'\''.rawurlencode($row['filename']));header('Content-Length: '.(int)$row['file_size']);header('X-Content-Type-Options: nosniff');header("Content-Security-Policy: default-src 'none'; sandbox");readfile($path);exit;
+    $stream=fopen($path,'rb');if(!$stream)throw new RuntimeException('Arquivo indisponível.');
+    try{fseek($stream,$start);while($length>0&&!connection_aborted()){$chunk=fread($stream,min(65536,$length));if($chunk===false||$chunk==='')break;echo $chunk;$length-=strlen($chunk);}}finally{fclose($stream);}exit;
 }
+function arc_support_upload_api(PDO $pdo,string $action): void {
+    if(!in_array($action,['file-upload-begin','file-upload-chunk','file-upload-finish','file-upload-cancel'],true))throw new RuntimeException('Operação inválida.');
+    if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido.'],405);
+    arc_verify_csrf();$user=(int)arc_user_id();
+    $network=(int)($_GET['network']??0);$agent=(int)($_GET['agent']??0);
+    if((int)($_GET['user']??0)!==$user)arc_json(['ok'=>false,'error'=>'Entre novamente na conta que iniciou o envio.'],401);
+    $access=arc_support_access($pdo,$network,$user,true);arc_billing_assert_active($pdo,(int)$access['account_id']);
+    if(!in_array($access['role'],['owner','administrator'],true))throw new RuntimeException('O explorador exige proprietário ou administrador.');
+    $q=$pdo->prepare('SELECT id,headless_mode FROM '.arc_table('network_agents')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");$q->execute([$agent,$network,$access['account_id']]);$target=$q->fetch();
+    if(!$target||!(int)$target['headless_mode'])throw new RuntimeException('Ative o modo sem monitor no computador aprovado.');
+    $token=(string)($_GET['token']??'');if(!preg_match('/^[a-f0-9]{32}$/D',$token))throw new RuntimeException('Identificador de envio inválido.');
+    // Nullable idempotency token preserves all existing transfer records.
+    $check=$pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=\'client_token\'');$check->execute([arc_prefix().'support_file_transfers']);
+    if(!(int)$check->fetchColumn()){
+        $lock='arc-upload-schema-'.substr(hash('sha256',arc_prefix()),0,24);$q=$pdo->prepare('SELECT GET_LOCK(?,10)');$q->execute([$lock]);if(!(int)$q->fetchColumn())throw new RuntimeException('Migração ocupada. Tente novamente.');
+        try{$check->execute([arc_prefix().'support_file_transfers']);if(!(int)$check->fetchColumn())$pdo->exec('ALTER TABLE '.arc_table('support_file_transfers').' ADD COLUMN client_token CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL, ADD UNIQUE KEY uq_file_client_token (requested_by,client_token)');}
+        finally{$pdo->prepare('SELECT RELEASE_LOCK(?)')->execute([$lock]);}
+    }
+    $prefix=dirname(arc_support_file_path(hash('sha256',$token))).'/upload-'.hash('sha256',$user.':'.$token);
+    if(!is_file($prefix.'.json')&&$action==='file-upload-cancel')arc_json(['ok'=>true]);
+    if(!is_file($prefix.'.json')&&$action!=='file-upload-begin')throw new RuntimeException('Inicie o envio antes de transferir os dados.');
+    $fh=fopen($prefix.'.json','c+');if(!$fh||!flock($fh,LOCK_EX))throw new RuntimeException('Envio ocupado.');chmod($prefix.'.json',0600);
+    try{
+        $raw=stream_get_contents($fh);$state=$raw!==''?json_decode($raw,true):null;
+        if($raw!==''&&!is_array($state))throw new RuntimeException('Registro de envio inválido.');
+        $save=static function(array $value)use($fh):void{rewind($fh);ftruncate($fh,0);$json=json_encode($value,JSON_THROW_ON_ERROR);if(fwrite($fh,$json)!==strlen($json)||!fflush($fh))throw new RuntimeException('Não foi possível salvar o progresso.');};
+        $q=$pdo->prepare('SELECT id,network_id,agent_id FROM '.arc_table('support_file_transfers').' WHERE requested_by=? AND client_token=?');$q->execute([$user,$token]);$existing=$q->fetch();
+        if($existing){if((int)$existing['network_id']!==$network||(int)$existing['agent_id']!==$agent)throw new RuntimeException('Identificador já utilizado em outro computador.');arc_json(['ok'=>true,'id'=>(int)$existing['id'],'completed'=>true]);}
+        if($state&&((int)$state['network']!==$network||(int)$state['agent']!==$agent))throw new RuntimeException('O computador do envio não corresponde ao pedido.');
+        if($action==='file-upload-cancel'){
+            if($state){foreach(array_keys($state['files']) as $i){$path=$prefix.'.'.$i;if(is_file($path))unlink($path);}$state['cancelled']=true;$save($state);}
+            arc_json(['ok'=>true]);
+        }
+        if($state&&(!empty($state['cancelled'])||time()-(int)$state['created']>86400))throw new RuntimeException('Envio cancelado ou expirado.');
+        if($action==='file-upload-begin'){
+            $body=json_decode((string)file_get_contents('php://input',false,null,0,131073),true);
+            if(!is_array($body)||!is_array($body['files']??null)||count($body['files'])<1||count($body['files'])>300)throw new RuntimeException('Escolha entre 1 e 300 arquivos.');
+            $folder=!empty($body['folder']);if(!$folder&&count($body['files'])!==1)throw new RuntimeException('Escolha um arquivo ou uma pasta.');
+            $files=[];$seen=[];$total=0;$root='';
+            foreach($body['files'] as $file){
+                if(!is_array($file)||!is_int($file['size']??null)||$file['size']<0||!preg_match('/^[a-f0-9]{64}$/D',(string)($file['sha256']??'')))throw new RuntimeException('Arquivo inválido.');
+                $parts=explode('/',str_replace('\\','/',(string)($file['name']??'')));$safe=[];foreach($parts as $part)$safe[]=arc_support_file_name($part);
+                if(!$folder&&count($safe)!==1)throw new RuntimeException('Nome de arquivo inválido.');
+                if($folder){if(count($safe)<2)throw new RuntimeException('Caminho de pasta inválido.');if($root==='')$root=$safe[0];elseif($root!==$safe[0])throw new RuntimeException('Selecione uma única pasta.');}
+                $name=implode('/',$safe);$folded=mb_strtolower($name,'UTF-8');if(isset($seen[$folded]))throw new RuntimeException('Há arquivos com caminhos duplicados.');$seen[$folded]=true;
+                $total+=$file['size'];if($total>ARC_FILE_MAX_BYTES)throw new RuntimeException('A seleção ultrapassa 8 MB.');
+                $files[]=['name'=>$name,'size'=>$file['size'],'sha256'=>$file['sha256']];
+            }
+            $destination=(string)($body['destination']??'');if(strlen($destination)>1024||!preg_match('~^[A-Za-z]:[\\\\/]~',$destination)||preg_match('/[\x00-\x1f]/',$destination))throw new RuntimeException('Abra a pasta de destino antes de enviar.');
+            if($state){if($state['files']!==$files||$state['destination']!==$destination||$state['folder']!==$folder)throw new RuntimeException('O conteúdo do envio foi alterado.');}
+            else{
+                // Bound disk use even for abandoned browser uploads.
+                $directory=dirname($prefix);$staged=0;$active=0;
+                foreach(glob($directory.'/upload-*.json')?:[] as $manifest){
+                    if($manifest===$prefix.'.json')continue;
+                    $old=json_decode((string)@file_get_contents($manifest),true);
+                    if(!is_array($old))continue;
+                    if(time()-(int)($old['created']??0)>86400){$handle=@fopen($manifest,'r+');if($handle&&flock($handle,LOCK_EX|LOCK_NB)){foreach(array_keys($old['files']??[]) as $i){$part=substr($manifest,0,-5).'.'.$i;if(is_file($part))@unlink($part);}@unlink($manifest);flock($handle,LOCK_UN);}if($handle)fclose($handle);continue;}
+                    if((int)($old['account']??0)===(int)$access['account_id']&&empty($old['cancelled'])&&empty($old['id'])){$active++;foreach($old['files']??[] as $f)$staged+=(int)$f['size'];}
+                }
+                if($active>=8||$staged+$total>67108864)throw new RuntimeException('Limite de envios em preparação atingido.');
+                $state=['user'=>$user,'account'=>(int)$access['account_id'],'network'=>$network,'agent'=>$agent,'created'=>time(),'folder'=>$folder,'destination'=>$destination,'files'=>$files];$save($state);
+            }
+            $offsets=[];foreach($files as $i=>$file){clearstatcache(true,$prefix.'.'.$i);$offsets[]=is_file($prefix.'.'.$i)?filesize($prefix.'.'.$i):0;}
+            arc_json(['ok'=>true,'offsets'=>$offsets]);
+        }
+        if(!$state)throw new RuntimeException('Inicie o envio antes de transferir os dados.');
+        if($action==='file-upload-chunk'){
+            $index=(int)($_GET['index']??-1);$offset=(int)($_GET['offset']??-1);$file=$state['files'][$index]??null;
+            $data=file_get_contents('php://input',false,null,0,262145);
+            if(!$file||$offset<0||!is_string($data)||strlen($data)>262144||$offset+strlen($data)>$file['size'])throw new RuntimeException('Bloco de envio inválido.');
+            $path=$prefix.'.'.$index;$part=fopen($path,'c+b');if(!$part)throw new RuntimeException('Não foi possível guardar o arquivo.');chmod($path,0600);
+            try{$size=fstat($part)['size'];if($offset!==$size)arc_json(['ok'=>true,'offset'=>$size]);fseek($part,0,SEEK_END);if(fwrite($part,$data)!==strlen($data)||!fflush($part))throw new RuntimeException('Bloco incompleto.');$size+=strlen($data);}finally{fclose($part);}
+            arc_json(['ok'=>true,'offset'=>$size]);
+        }
+        if($action!=='file-upload-finish')throw new RuntimeException('Operação inválida.');
+        foreach($state['files'] as $i=>$file){$path=$prefix.'.'.$i;if(!is_file($path)&&$file['size']===0){file_put_contents($path,'');chmod($path,0600);}if(!is_file($path)||filesize($path)!==$file['size']||!hash_equals($file['sha256'],hash_file('sha256',$path)))throw new RuntimeException('Envio incompleto ou integridade inválida.');}
+        if($state['folder']){
+            if(!class_exists('ZipArchive'))throw new RuntimeException('Ative a extensão ZIP da hospedagem.');
+            $temp=$prefix.'.zip';$zip=new ZipArchive();if($zip->open($temp,ZipArchive::CREATE|ZipArchive::OVERWRITE)!==true)throw new RuntimeException('Não foi possível preparar a pasta.');
+            try{foreach($state['files'] as $i=>$file){$parts=explode('/',$file['name']);$root=array_shift($parts);if(!$zip->addFile($prefix.'.'.$i,implode('/',$parts)))throw new RuntimeException('Falha ao preparar a pasta.');}}finally{$zip->close();}
+            try{$data=file_get_contents($temp);$name='__arcoll_folder__'.$root.'.zip';}finally{if(is_file($temp))unlink($temp);}
+        }else{$data=file_get_contents($prefix.'.0');$name=$state['files'][0]['name'];}
+        if(!is_string($data)||strlen($data)>ARC_FILE_MAX_BYTES)throw new RuntimeException('O pacote ultrapassa 8 MB.');
+        $id=arc_support_file_create($pdo,$network,$agent,$user,'to_agent',$name,$data,$state['destination'],$token);$state['id']=$id;$save($state);
+        foreach(array_keys($state['files']) as $i){$path=$prefix.'.'.$i;if(is_file($path))unlink($path);}
+        arc_json(['ok'=>true,'id'=>$id,'completed'=>true]);
+    }finally{$empty=fstat($fh)['size']===0;flock($fh,LOCK_UN);fclose($fh);if($empty&&is_file($prefix.'.json'))@unlink($prefix.'.json');}
+}
+
+
 function arc_support_file_api(PDO $pdo,string $action): void {
     $method=$_SERVER['REQUEST_METHOD'];$isAgent=str_starts_with($action,'file-agent-');
     if($isAgent){
         if($method!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido.'],405);
-        $agent=arc_support_file_agent($pdo);$row=arc_support_file_record($pdo,(int)($_GET['id']??0),$agent);
-        if($row['status']!=='pending')throw new RuntimeException('Transferência já finalizada.');
-        if($action==='file-agent-details'){$access=arc_support_access($pdo,(int)$row['network_id'],(int)$row['requested_by'],true);$q=$pdo->prepare('SELECT headless_mode FROM '.arc_table('network_agents').' WHERE id=?');$q->execute([$row['agent_id']]);$row['headless']=(bool)$q->fetchColumn()&&in_array($access['role'],['owner','administrator'],true);}
-        if($action==='file-agent-details')arc_json(['ok'=>true,'transfer'=>array_intersect_key($row,array_flip(['id','command_id','direction','filename','file_size','sha256','requester','headless'])),'max_bytes'=>ARC_FILE_MAX_BYTES]);
+        $agent=arc_support_file_agent($pdo);$row=arc_support_file_record($pdo,(int)($_GET['id']??0),$agent,in_array($action,['file-agent-upload','file-agent-finish'],true));
+        if($row['status']!=='pending'){
+            if($action==='file-agent-upload'&&$row['direction']==='from_agent'&&$row['status']==='ready'){
+                $data=file_get_contents('php://input',false,null,0,ARC_FILE_MAX_BYTES+1);$hash=(string)($_SERVER['HTTP_X_FILE_SHA256']??'');
+                if(is_string($data)&&strlen($data)===(int)$row['file_size']&&hash_equals((string)$row['sha256'],$hash)&&hash_equals($hash,hash('sha256',$data)))arc_json(['ok'=>true,'replayed'=>true]);
+            }
+            if($action==='file-agent-finish'&&$row['direction']==='to_agent'&&$row['status']==='completed'){
+                $body=json_decode((string)file_get_contents('php://input',false,null,0,1025),true);if(($body['status']??'')==='completed')arc_json(['ok'=>true,'replayed'=>true]);
+            }
+            throw new RuntimeException('Transferência já finalizada.');
+        }
+        if($action==='file-agent-details'){$access=arc_support_access($pdo,(int)$row['network_id'],(int)$row['requested_by'],true);$q=$pdo->prepare('SELECT headless_mode FROM '.arc_table('network_agents').' WHERE id=?');$q->execute([$row['agent_id']]);$row['headless']=(bool)$q->fetchColumn()&&in_array($access['role'],['owner','administrator'],true);$q=$pdo->prepare('SELECT request_text FROM '.arc_table('agent_terminal_jobs').' WHERE command_id=?');$q->execute([$row['command_id']]);$payload=json_decode((string)$q->fetchColumn(),true);$row['destination']=(string)($payload['destination']??'');}
+        if($action==='file-agent-details')arc_json(['ok'=>true,'transfer'=>array_intersect_key($row,array_flip(['id','command_id','direction','filename','file_size','sha256','requester','headless','destination'])),'max_bytes'=>ARC_FILE_MAX_BYTES]);
         if($action==='file-agent-download'&&$row['direction']==='to_agent')arc_support_file_stream($row);
         if($action==='file-agent-upload'&&$row['direction']==='from_agent'){
             $name=arc_support_file_name(rawurldecode((string)($_SERVER['HTTP_X_FILE_NAME']??'')));$data=file_get_contents('php://input',false,null,0,ARC_FILE_MAX_BYTES+1);
             $hash=(string)($_SERVER['HTTP_X_FILE_SHA256']??'');if(!is_string($data)||strlen($data)>ARC_FILE_MAX_BYTES||!preg_match('/^[a-f0-9]{64}$/D',$hash)||!hash_equals(hash('sha256',$data),$hash))throw new RuntimeException('Arquivo inválido, incompleto ou maior que 8 MB.');
             $key=bin2hex(random_bytes(32));$path=arc_support_file_path($key);$pdo->beginTransaction();try{
                 $pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE')->execute([$row['account_id']]);
-                $q=$pdo->prepare('SELECT COALESCE(SUM(file_size),0) FROM '.arc_table('support_file_transfers').' WHERE account_id=? AND expires_at>NOW()');$q->execute([$row['account_id']]);if((int)$q->fetchColumn()+strlen($data)>67108864)throw new RuntimeException('Limite temporário de arquivos atingido.');
+                $q=$pdo->prepare('SELECT COALESCE(SUM(file_size),0) FROM '.arc_table('support_file_transfers').' WHERE account_id=? AND expires_at>NOW() AND status IN (\'pending\',\'ready\')');$q->execute([$row['account_id']]);if((int)$q->fetchColumn()+strlen($data)>67108864)throw new RuntimeException('Limite temporário de arquivos atingido.');
                 if(file_put_contents($path,$data,LOCK_EX)!==strlen($data))throw new RuntimeException('Não foi possível guardar o arquivo.');chmod($path,0600);
-                $q=$pdo->prepare("UPDATE ".arc_table('support_file_transfers')." SET filename=?,file_size=?,sha256=?,storage_key=?,status='ready',message='Arquivo disponível para baixar.' WHERE id=? AND status='pending'");$q->execute([$name,strlen($data),$hash,$key,$row['id']]);if(!$q->rowCount())throw new RuntimeException('Transferência já finalizada.');
+                $q=$pdo->prepare("UPDATE ".arc_table('support_file_transfers')." SET filename=?,file_size=?,sha256=?,storage_key=?,status='ready',expires_at=DATE_ADD(NOW(),INTERVAL 30 MINUTE),message='Arquivo disponível para baixar.' WHERE id=? AND status='pending'");$q->execute([$name,strlen($data),$hash,$key,$row['id']]);if(!$q->rowCount())throw new RuntimeException('Transferência já finalizada.');
                 $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='completed',result_text='Arquivo recebido na plataforma.',completed_at=NOW() WHERE id=? AND status='running'")->execute([$row['command_id']]);$pdo->commit();
             }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();if(is_file($path))unlink($path);throw $e;}arc_json(['ok'=>true]);
         }
         if($action==='file-agent-finish'){
             $v=json_decode((string)file_get_contents('php://input',false,null,0,1025),true);$state=(string)($v['status']??'');if(!in_array($state,['completed','declined','failed'],true)||($state==='completed'&&$row['direction']!=='to_agent'))throw new RuntimeException('Resultado inválido.');
-            $message=['completed'=>'Arquivo salvo no computador.','declined'=>'A pessoa no computador cancelou.','failed'=>'Não foi possível concluir a transferência.'][$state];
-            $pdo->prepare('UPDATE '.arc_table('support_file_transfers')." SET status=?,message=? WHERE id=? AND status='pending'")->execute([$state,$message,$row['id']]);
+            $message=['completed'=>'Arquivo salvo no computador.','declined'=>'A pessoa no computador cancelou.','failed'=>'Não foi possível concluir a transferência.'][$state];if($state==='failed'){$reason=trim(preg_replace('/[\x00-\x1f\x7f]/u',' ',(string)($v['message']??'')));if($reason!=='')$message=mb_substr($reason,0,160);}
+            $pdo->prepare('UPDATE '.arc_table('support_file_transfers')." SET status=?,message=? WHERE id=? AND status='pending'")->execute([$state,$message,$row['id']]);arc_support_files_cleanup($pdo);
             $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status=?,result_text=?,completed_at=NOW() WHERE id=? AND status='running'")->execute([$state==='completed'?'completed':'failed',$message,$row['command_id']]);arc_json(['ok'=>true]);
         }
         throw new RuntimeException('Operação indisponível.');
     }
     if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Entre na plataforma.'],401);
+    if(str_starts_with($action,'file-upload-')){arc_support_upload_api($pdo,$action);exit;}
     if($action==='file-download'&&$method==='GET'){$row=arc_support_file_record($pdo,(int)($_GET['id']??0));if($row['direction']!=='from_agent'||$row['status']!=='ready')throw new RuntimeException('Arquivo ainda não disponível.');arc_support_file_stream($row);}
+    if($action==='file-status'&&$method==='GET'){
+        $q=$pdo->prepare('SELECT f.id,f.network_id,f.direction,f.filename,f.file_size,f.status,f.message,c.status AS task_status,c.result_text FROM '.arc_table('support_file_transfers').' f JOIN '.arc_table('agent_commands').' c ON c.id=f.command_id WHERE f.id=? AND f.requested_by=?');$q->execute([(int)($_GET['id']??0),(int)arc_user_id()]);$row=$q->fetch();
+        if(!$row)throw new RuntimeException('Transferência não encontrada.');arc_support_access($pdo,(int)$row['network_id'],(int)arc_user_id(),true);unset($row['network_id']);
+        if(in_array($row['status'],['pending','ready'],true)&&in_array($row['task_status'],['failed','expired'],true))$row['status']='failed';
+        if($row['status']==='failed'&&trim((string)$row['result_text'])!=='')$row['message']=(string)$row['result_text'];
+        unset($row['result_text']);arc_json(['ok'=>true,'transfer'=>$row]);
+    }
     if($action==='file-list'&&$method==='GET'){
         $network=(int)($_GET['network']??0);$agent=(int)($_GET['agent']??0);arc_support_access($pdo,$network,(int)arc_user_id(),true);arc_support_files_cleanup($pdo);
         $q=$pdo->prepare('SELECT f.id,f.direction,f.filename,f.file_size,f.status,f.message,f.expires_at,c.status AS task_status FROM '.arc_table('support_file_transfers').' f JOIN '.arc_table('agent_commands').' c ON c.id=f.command_id WHERE f.requested_by=? AND f.network_id=? AND f.agent_id=? ORDER BY f.id DESC LIMIT 20');$q->execute([arc_user_id(),$network,$agent]);arc_json(['ok'=>true,'transfers'=>$q->fetchAll(),'max_bytes'=>arc_support_file_limit()]);
     }
     if($method!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido.'],405);arc_verify_csrf();
     $network=(int)($_POST['network']??0);$agent=(int)($_POST['agent']??0);
+    if($action==='file-operation-request'){
+        $operation=(string)($_POST['operation']??'');
+        if(!in_array($operation,['rename','delete','copy','move','extract','open','execute','download','preview','thumbnails'],true))throw new RuntimeException('Operação inválida.');
+        $paths=json_decode((string)($_POST['paths']??'[]'),true);
+        if(!is_array($paths)||count($paths)<1||count($paths)>($operation==='thumbnails'?24:25))throw new RuntimeException('Selecione entre 1 e 25 itens.');
+        foreach($paths as $path)if(!is_string($path)||strlen($path)>1024||!preg_match('~^[A-Za-z]:[\\\\/]~',$path)||preg_match('/[\x00-\x1f]/',$path))throw new RuntimeException('Caminho inválido.');
+        if(in_array($operation,['delete','execute'],true)&&($_POST['confirmed']??'')!=='1')throw new RuntimeException('Confirme a operação.');
+        $payload=['operation'=>$operation,'paths'=>$paths,'destination'=>mb_substr((string)($_POST['destination']??''),0,1024),'name'=>mb_substr((string)($_POST['name']??''),0,180)];
+        $result=arc_support_file_remote_command($pdo,$network,$agent,(int)arc_user_id(),'file_operation',$payload,in_array($operation,['preview','download','thumbnails'],true));
+        arc_json(['ok'=>true,'command_id'=>$result['command_id'],'id'=>$result['transfer_id']]);
+    }
+    if($action==='file-bundle-request'){
+        $items=json_decode((string)($_POST['items']??'[]'),true);
+        if(!is_array($items)||!$items)throw new RuntimeException('Marque pelo menos um arquivo ou pasta para baixar.');
+        $paths=[];
+        foreach(array_slice($items,0,25) as $value){$value=trim((string)$value);if($value!==''&&strlen($value)<=1024)$paths[]=$value;}
+        if(!$paths)throw new RuntimeException('Os caminhos selecionados são inválidos.');
+        $payload=['paths'=>$paths,'current_path'=>mb_substr((string)($_POST['current_path']??''),0,1024)];
+        $result=arc_support_file_remote_command($pdo,$network,$agent,(int)arc_user_id(),'file_bundle',$payload,true);
+        arc_json(['ok'=>true,'id'=>$result['transfer_id'],'command_id'=>$result['command_id']]);
+    }
+    if($action==='file-execute-request'){
+        $path=trim((string)($_POST['path']??''));
+        if($path===''||strlen($path)>1024)throw new RuntimeException('Selecione um executável válido.');
+        $result=arc_support_file_remote_command($pdo,$network,$agent,(int)arc_user_id(),'file_execute',['path'=>$path],false);
+        arc_json(['ok'=>true,'command_id'=>$result['command_id']]);
+    }
+    if($action==='file-cancel'){
+        $id=(int)($_POST['id']??0);if($id<1)throw new RuntimeException('Transferência inválida.');$access=arc_support_access($pdo,$network,(int)arc_user_id(),true);
+        $q=$pdo->prepare('SELECT f.id,f.command_id,f.storage_key FROM '.arc_table('support_file_transfers').' f WHERE f.id=? AND f.requested_by=? AND f.network_id=? AND f.agent_id=? AND f.account_id=? AND f.status IN (\'pending\',\'ready\')');
+        $q->execute([$id,(int)arc_user_id(),$network,$agent,(int)$access['account_id']]);$row=$q->fetch(PDO::FETCH_ASSOC);if(!$row)throw new RuntimeException('Transferência concluída ou não encontrada.');
+        $pdo->beginTransaction();try{$q=$pdo->prepare('UPDATE '.arc_table('support_file_transfers')." SET status='cancelled',file_size=0,storage_key=NULL,sha256=NULL,message='Cancelada pelo usuário' WHERE id=? AND requested_by=? AND status IN ('pending','ready')");$q->execute([$id,(int)arc_user_id()]);if(!$q->rowCount())throw new RuntimeException('A transferência já foi concluída ou cancelada.');$pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Transferência cancelada pelo usuário',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([(int)$row['command_id']]);$pdo->commit();}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+        if($row['storage_key']){$path=arc_support_file_path((string)$row['storage_key']);if(is_file($path))@unlink($path);}
+        arc_user_audit($pdo,'support_file_cancelled','Transferência #'.$id.' cancelada',(int)arc_user_id());arc_json(['ok'=>true,'cancelled'=>true]);
+    }
+    if($action==='file-send-folder'){
+        $paths=json_decode((string)($_POST['relative_paths']??''),true);$files=$_FILES['files']??null;$maxFiles=min(300,max(1,(int)ini_get('max_file_uploads')));
+        if(!class_exists('ZipArchive')||!is_array($paths)||!is_array($files)||!isset($files['tmp_name'])||count($paths)<1||count($paths)>$maxFiles||count($files['tmp_name'])!==count($paths))throw new RuntimeException('Selecione uma pasta com até '.$maxFiles.' arquivos; este é o limite configurado no servidor.');
+        $root='';$total=0;$seen=[];$temp=tempnam(sys_get_temp_dir(),'arc-folder-');if($temp===false)throw new RuntimeException('Não foi possível preparar a pasta.');$zip=new ZipArchive();
+        try{
+            if($zip->open($temp,ZipArchive::OVERWRITE)!==true)throw new RuntimeException('Não foi possível criar o pacote da pasta.');
+            foreach($paths as $i=>$rel){if(!is_string($rel)||strlen($rel)>1024||str_contains($rel,"\0"))throw new RuntimeException('Caminho relativo inválido.');$parts=explode('/',str_replace('\\','/',$rel));$parts=array_values(array_filter($parts,static fn($v)=>$v!==''));if(count($parts)<2)throw new RuntimeException('Escolha uma pasta, não apenas arquivos avulsos.');$safe=[];foreach($parts as $part)$safe[]=arc_support_file_name($part);if($root==='' )$root=$safe[0];elseif($root!==$safe[0])throw new RuntimeException('Os arquivos selecionados não pertencem à mesma pasta.');$name=implode('/',array_slice($safe,1));$folded=mb_strtolower($name,'UTF-8');if(isset($seen[$folded]))throw new RuntimeException('A pasta contém nomes duplicados.');$seen[$folded]=true;if((int)($files['error'][$i]??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file((string)$files['tmp_name'][$i]))throw new RuntimeException('Um arquivo da pasta não foi recebido corretamente.');$size=(int)($files['size'][$i]??0);$total+=$size;if($total>ARC_FILE_MAX_BYTES)throw new RuntimeException('Pasta acima do limite de 8 MB descompactados.');if(!$zip->addFile((string)$files['tmp_name'][$i],$name))throw new RuntimeException('Não foi possível empacotar um arquivo.');}
+            if(!$zip->close())throw new RuntimeException('Falha ao concluir o pacote da pasta.');$bytes=file_get_contents($temp);if(!is_string($bytes)||strlen($bytes)>ARC_FILE_MAX_BYTES)throw new RuntimeException('Pasta compactada acima do limite de 8 MB.');
+            $safeRoot=arc_support_file_name($root);$id=arc_support_file_create($pdo,$network,$agent,(int)arc_user_id(),'to_agent','__arcoll_folder__'.$safeRoot.'.zip',$bytes,mb_substr((string)($_POST['destination']??''),0,1024));
+        }finally{if(is_file($temp))@unlink($temp);}
+        arc_json(['ok'=>true,'id'=>$id]);
+    }
     if($action==='file-send'){
         $file=$_FILES['file']??null;if(!$file||$file['error']!==UPLOAD_ERR_OK||(int)$file['size']>arc_support_file_limit()||!is_uploaded_file($file['tmp_name']))throw new RuntimeException('Escolha um arquivo dentro do limite permitido pela hospedagem.');
-        $data=file_get_contents($file['tmp_name'],false,null,0,ARC_FILE_MAX_BYTES+1);if(!is_string($data))throw new RuntimeException('Arquivo indisponível.');$id=arc_support_file_create($pdo,$network,$agent,(int)arc_user_id(),'to_agent',(string)$file['name'],$data);
+        $data=file_get_contents($file['tmp_name'],false,null,0,ARC_FILE_MAX_BYTES+1);if(!is_string($data))throw new RuntimeException('Arquivo indisponível.');$id=arc_support_file_create($pdo,$network,$agent,(int)arc_user_id(),'to_agent',(string)$file['name'],$data,mb_substr((string)($_POST['destination']??''),0,1024));
     }elseif($action==='file-receive')$id=arc_support_file_create($pdo,$network,$agent,(int)arc_user_id(),'from_agent');
     else throw new RuntimeException('Operação indisponível.');arc_json(['ok'=>true,'id'=>$id]);
 }
 
 /** Predefined scheduled maintenance uses the existing authenticated command queue. */
 function arc_support_schedule_actions(): array {
- return ['power_shutdown'=>'Desligar computador','power_restart'=>'Reiniciar computador','scan_devices'=>'Atualizar dispositivos','quick_health'=>'Verificar conexão','storage_health'=>'Verificar discos','service_health'=>'Verificar serviços','system_snapshot'=>'Verificar recursos','restart_readiness'=>'Verificar reinicialização'];
+ return ['agent_update'=>'Atualizar agente','power_restart'=>'Reiniciar PC','screen_lock'=>'Bloquear PC','windows_update'=>'Verificar atualizações do Windows','power_shutdown'=>'Desligar PC'];
 }
 function arc_support_schedule_date(string $value): DateTimeImmutable {
  $date=DateTimeImmutable::createFromFormat('!Y-m-d\TH:i',$value,new DateTimeZone(ARC_TIMEZONE));
@@ -218,7 +435,7 @@ function arc_support_schedule_api(PDO $pdo,string $action,array $v,int $user): n
  $q=$pdo->prepare('SELECT id,agent_version FROM '.arc_table('network_agents')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");$q->execute([$agent,$network,$account]);$target=$q->fetch();if(!$target)throw new RuntimeException('Selecione um computador aprovado.');
  if($action==='schedule-list'){
   $q=$pdo->prepare('SELECT * FROM '.arc_table('support_schedules').' WHERE account_id=? AND network_id=? AND agent_id=? ORDER BY id DESC LIMIT 100');$q->execute([$account,$network,$agent]);$rows=$q->fetchAll();
-  $q=$pdo->prepare('SELECT r.scheduled_for,r.outcome,r.message,c.status AS task_status,c.result_text,s.command_name FROM '.arc_table('support_schedule_runs').' r JOIN '.arc_table('support_schedules').' s ON s.id=r.schedule_id LEFT JOIN '.arc_table('agent_commands').' c ON c.id=r.command_id WHERE s.account_id=? AND s.network_id=? AND s.agent_id=? ORDER BY r.id DESC LIMIT 30');$q->execute([$account,$network,$agent]);arc_json(['ok'=>true,'schedules'=>$rows,'runs'=>$q->fetchAll(),'timezone'=>ARC_TIMEZONE]);
+  $q=$pdo->prepare('SELECT r.schedule_id,r.scheduled_for,r.outcome,r.message,c.status AS task_status,c.result_text,s.command_name FROM '.arc_table('support_schedule_runs').' r JOIN '.arc_table('support_schedules').' s ON s.id=r.schedule_id LEFT JOIN '.arc_table('agent_commands').' c ON c.id=r.command_id WHERE s.account_id=? AND s.network_id=? AND s.agent_id=? ORDER BY r.id DESC LIMIT 300');$q->execute([$account,$network,$agent]);arc_json(['ok'=>true,'schedules'=>$rows,'runs'=>$q->fetchAll(),'timezone'=>ARC_TIMEZONE]);
  }
  if($action==='schedule-cancel'){
   $id=(int)($v['id']??0);$pdo->beginTransaction();try{
@@ -231,6 +448,7 @@ function arc_support_schedule_api(PDO $pdo,string $action,array $v,int $user): n
  if($action!=='schedule-save')throw new RuntimeException('Ação inválida.');
  arc_billing_assert_active($pdo,$account);$command=(string)($v['command']??'');if(!isset(arc_support_schedule_actions()[$command]))throw new RuntimeException('Escolha um serviço da lista.');
  if(version_compare((string)$target['agent_version'],'3.4.0','<'))throw new RuntimeException('Atualize o agente para 3.4.0 ou superior antes de agendar serviços.');
+ if($command==='windows_update'&&version_compare((string)$target['agent_version'],'3.7.1','<'))throw new RuntimeException('Atualize o agente antes de agendar a verificação detalhada do Windows.');
  if(str_starts_with($command,'power_')){
   $q=$pdo->prepare('SELECT password_hash FROM '.arc_table('user_accounts').' WHERE id=?');$q->execute([$user]);if(($v['confirmed']??false)!==true||!((($hash=(string)$q->fetchColumn())!=='' )&&(password_verify((string)($v['password']??''),$hash)||password_verify(base64_encode(hash('sha384',(string)($v['password']??''),true)),$hash))))throw new RuntimeException('Confirme a ação e informe a senha da sua conta.');
  }
@@ -258,8 +476,9 @@ function arc_support_schedules_dispatch(PDO $pdo,array $agent): void {
     $q=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands')." WHERE agent_id=? AND status IN ('pending','running')");$q->execute([$agent['id']]);$busy=(int)$q->fetchColumn()>0;
     $valid=$s['account_status']==='active'&&isset(arc_support_schedule_actions()[$s['command_name']])&&version_compare((string)$s['agent_version'],'3.4.0','>=');
     try{$manager=arc_support_schedule_owner($pdo,(int)$s['network_id'],(int)$s['requested_by']);if((int)$manager['account_id']!==(int)$s['account_id'])$valid=false;arc_billing_assert_active($pdo,(int)$s['account_id']);}catch(PDOException $e){throw $e;}catch(RuntimeException $e){$valid=false;}
+    if($s['command_name']==='windows_update'&&version_compare((string)$s['agent_version'],'3.7.1','<'))$valid=false;
     if(!$valid)$message='Autorização ou versão do agente indisponível.';
-    if(!$busy&&$valid){$pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([$s['account_id'],$s['network_id'],$s['agent_id'],$s['command_name']]);$command=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id) VALUES (?,?)')->execute([$command,$s['requested_by']]);$outcome='queued';$message='Enviado ao computador.';}
+    if(!$busy&&$valid){$pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([$s['account_id'],$s['network_id'],$s['agent_id'],$s['command_name']]);$command=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id) VALUES (?,?)')->execute([$command,$s['requested_by']]);if($s['command_name']==='windows_update')$pdo->prepare('INSERT INTO '.arc_table('agent_terminal_jobs').' (command_id,agent_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$command,$s['agent_id'],$s['network_id'],json_encode(['mode'=>'scan'])]);$outcome='queued';$message='Enviado ao computador.';}
    }
    $pdo->prepare('INSERT INTO '.arc_table('support_schedule_runs').' (schedule_id,scheduled_for,command_id,outcome,message) VALUES (?,?,?,?,?)')->execute([$s['id'],$slot,$command,$outcome,$message]);
    $pdo->prepare('UPDATE '.arc_table('support_schedules').' SET next_run_at=? WHERE id=?')->execute([arc_support_schedule_next($s,$now),$s['id']]);
@@ -320,4 +539,20 @@ function arc_support_icon(PDO $pdo,string $component): string {
 function arc_support_command_request_allowed(PDO $pdo,int $command,int $network,int $account): bool {
  $q=$pdo->prepare('SELECT user_id FROM '.arc_table('support_command_requests').' WHERE command_id=?');$q->execute([$command]);$user=(int)($q->fetchColumn()?:$account);
  try{$a=arc_support_schedule_owner($pdo,$network,$user);return (int)$a['account_id']===$account;}catch(RuntimeException $e){return false;}
+}
+
+/** One machine-scoped revalidation for all unattended support operations. */
+function arc_support_unattended_command(PDO $pdo,array $agent,int $id): ?array {
+    $q=$pdo->prepare('SELECT c.*,a.headless_mode,t.request_text FROM '.arc_table('agent_commands')." c JOIN ".arc_table('network_agents')." a ON a.id=c.agent_id AND a.account_id=c.account_id AND a.network_id=c.network_id LEFT JOIN ".arc_table('agent_terminal_jobs')." t ON t.command_id=c.id WHERE c.id=? AND c.agent_id=? AND c.account_id=? AND c.network_id=? AND a.status='approved' AND a.headless_mode=1 AND c.status='running' AND ((c.command_name='screen_lock' AND c.dispatched_at>DATE_SUB(NOW(),INTERVAL 65 MINUTE)) OR (c.command_name<>'screen_lock' AND c.dispatched_at>DATE_SUB(NOW(),INTERVAL 3 MINUTE)))");
+    $q->execute([$id,$agent['id'],$agent['account_id'],$agent['network_id']]);$row=$q->fetch();
+    if(!$row||!arc_support_command_request_allowed($pdo,$id,(int)$agent['network_id'],(int)$agent['account_id']))return null;
+    arc_billing_assert_active($pdo,(int)$agent['account_id']);return $row;
+}
+
+/** Unlock is available only inside an explicitly unattended administrative remote session. */
+function arc_support_unlock_allowed(PDO $pdo,array $command,int $user): bool {
+    try{$access=arc_support_access($pdo,(int)$command['network_id'],$user,true);}catch(RuntimeException $e){return false;}
+    if(!in_array($access['role'],['owner','administrator'],true)||(int)$access['account_id']!==(int)$command['account_id']||!arc_support_remote_allowed($pdo,$command,$user))return false;
+    $q=$pdo->prepare('SELECT s.unattended,a.headless_mode FROM '.arc_table('support_remote_sessions').' s JOIN '.arc_table('network_agents').' a ON a.id=? AND a.network_id=s.network_id AND a.account_id=s.account_id WHERE s.command_id=?');$q->execute([$command['agent_id'],$command['id']]);$row=$q->fetch();
+    return $row&&(int)$row['unattended']===1&&(int)$row['headless_mode']===1;
 }

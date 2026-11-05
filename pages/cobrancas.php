@@ -5,7 +5,7 @@ require dirname(__DIR__).'/includes/bootstrap.php';
 $pdo=arc_db();arc_ensure_user_schema($pdo);
 if(!arc_is_user()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
 header('Cache-Control: no-store, private');
-header('X-Arcoll-Release: '.ARC_APP_VERSION);
+header('X-Arcoll-Release: '.arc_app_version());
 $uid=(int)arc_user_id();$status=(string)($_GET['status']??'');
 $search=mb_substr(trim((string)($_GET['q']??'')),0,100);
 $page=max(1,min(100000,(int)($_GET['page']??1)));

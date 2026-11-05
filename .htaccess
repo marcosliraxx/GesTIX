@@ -1,9 +1,3 @@
-# Caminho: .htaccess
-# 99BKP-DOMAIN-BLOCK
-# Domínio: app.digital.log.br
-# URL: https://app.digital.log.br
-# Gerado automaticamente pelo 99BKP em 2026-10-26 20:32:34
-# END-99BKP-DOMAIN-BLOCK
 
 <IfModule mod_headers.c>
  Header always set Content-Security-Policy "frame-ancestors https://99bkp.arcoll.com.br"

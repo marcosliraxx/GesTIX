@@ -1,0 +1,2 @@
+# Caminho: agentes/suporte/requirements.txt
+Pillow>=12.0,<13

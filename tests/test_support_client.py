@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import unittest
 ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'agent'));sys.path.insert(0,str(ROOT/'support'))
+sys.path.insert(0,str(ROOT/'agentes/windows'));sys.path.insert(0,str(ROOT/'agentes/suporte'))
 try:
     from arcoll_support import RemoteAPI, SupportApp, VERSION
     import tkinter as tk
@@ -27,7 +27,9 @@ class SupportClientTests(unittest.TestCase):
             event=type('Event',(),{'x':500,'y':250})();self.assertEqual(app.coordinates(event),{'x':.5,'y':.5})
             event.x=10;self.assertIsNone(app.coordinates(event));self.assertFalse(app.control)
             app.emit({'t':'m','x':0,'y':0});self.assertTrue(app.input_queue.empty())
-            app.appearance.set_choice('dark');app.appearance.set_choice('light');app.close()
+            app.appearance.set_choice('dark');app.appearance.set_choice('light')
+            for callback in root.tk.call('after', 'info'):root.tk.call('after', 'cancel', callback)
+            app.close()
         finally:
             try:root.destroy()
             except tk.TclError:pass

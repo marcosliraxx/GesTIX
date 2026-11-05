@@ -1,2 +1,0 @@
-# Caminho: support/requirements.txt
-Pillow>=12.0,<13

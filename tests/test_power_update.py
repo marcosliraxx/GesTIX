@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'agent'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'agentes/windows'))
 import arcoll_toolkit as toolkit
 import arcoll_updater as updater
 

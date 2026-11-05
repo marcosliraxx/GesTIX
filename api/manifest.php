@@ -32,7 +32,7 @@ header('Cache-Control: no-cache');
 echo json_encode([
     'id' => arc_url('pwa/app.php'),
     'name' => $name,
-    'version' => ARC_APP_VERSION,
+    'version' => arc_app_version(),
     'short_name' => mb_substr($name, 0, 16),
     'description' => (string)($settings['tagline'] ?? ''),
     'lang' => 'pt-BR',

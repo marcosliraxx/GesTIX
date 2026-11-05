@@ -1,3 +1,4 @@
+# Caminho: tests/test_agent_appearance.py
 """Run under a graphical display: python3 -m unittest discover -s tests -p test_agent_appearance.py -v."""
 import importlib.util
 import os
@@ -12,8 +13,14 @@ import unittest
 from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'agent'))
+sys.path.insert(0,str(ROOT/'agentes/windows'))
 from arcoll_toolkit import AppearanceManager, theme_color, bind_theme, bind_canvas
+
+def destroy_test_root(root):
+    # Callbacks Tk pertencem ao teste; não podem vazar para o próximo interpretador.
+    for callback in root.tk.call('after', 'info'):
+        root.tk.call('after', 'cancel', callback)
+    root.destroy()
 
 @unittest.skipUnless(tk is not None and (os.environ.get('DISPLAY') or sys.platform in ('win32','darwin')), 'A graphical display and Tkinter are required')
 class AppearanceTests(unittest.TestCase):
@@ -21,7 +28,7 @@ class AppearanceTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.env=patch.dict(os.environ,{'APPDATA':self.temp.name,'LOCALAPPDATA':self.temp.name});self.env.start()
         self.root=tk.Tk();self.root.withdraw()
     def tearDown(self):
-        self.root.destroy();self.env.stop();self.temp.cleanup()
+        destroy_test_root(self.root);self.env.stop();self.temp.cleanup()
     def test_light_dark_and_dynamic_canvas_share_semantic_colors(self):
         label=bind_theme(tk.Label(self.root,bg=theme_color('surface'),fg=theme_color('text')),background='surface',foreground='text');label.pack()
         canvas=bind_theme(tk.Canvas(self.root,bg=theme_color('bg')),background='bg');canvas.pack();text=bind_canvas(canvas,canvas.create_text(10,10,text='test',fill=theme_color('text')),fill='text')
@@ -55,7 +62,7 @@ class AppearanceTests(unittest.TestCase):
         for choice in ['light','dark']:
             manager.set_choice(choice);self.assertEqual(button.cget('foreground'),manager.PALETTES[choice]['onaccent'])
     def test_agent_windows_build_with_unified_version(self):
-        self.root.destroy();self.root=tk.Tk();self.root.withdraw()
+        destroy_test_root(self.root);self.root=tk.Tk();self.root.withdraw()
         import arcoll_app
         with patch.object(tk.Tk,'mainloop',lambda root:root.update_idletasks()),patch.object(arcoll_app.ArcollApp,'_start_focus_server'),patch.object(arcoll_app.ArcollApp,'_start_tray'),patch.object(arcoll_app.ArcollApp,'_start_realtime'),patch.object(arcoll_app.urllib.request,'urlopen',side_effect=RuntimeError('Network disabled during GUI test')):
             app=arcoll_app.ArcollApp()
@@ -65,7 +72,7 @@ class AppearanceTests(unittest.TestCase):
                     app.appearance.set_choice(theme);app.root.geometry('800x600');app.root.update_idletasks()
                     self.assertEqual(app.appearance.resolved,theme)
                     self.assertLessEqual(app.nb.winfo_width(),app.root.winfo_width())
-            finally:app.stop_event.set();app.root.destroy()
+            finally:app.stop_event.set();destroy_test_root(app.root)
         with patch('sys.argv',['arcoll_desktop.py']),patch.object(tk.Tk,'mainloop',lambda root:root.update_idletasks()):
             import arcoll_desktop
             agent=arcoll_desktop.DesktopAgent()
@@ -73,6 +80,6 @@ class AppearanceTests(unittest.TestCase):
                 self.assertEqual(arcoll_desktop.VERSION,arcoll_app.AGENT_VERSION)
                 agent.root.geometry('380x430');agent.root.deiconify();agent.root.update_idletasks();agent._fit_registration();agent.appearance.set_choice('light');agent.root.update_idletasks()
                 self.assertLessEqual(agent.status.winfo_width(),agent.root.winfo_width())
-            finally:agent.closed=True;agent.root.destroy()
+            finally:agent.closed=True;destroy_test_root(agent.root)
 
 if __name__=='__main__':unittest.main()

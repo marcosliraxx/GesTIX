@@ -2,7 +2,6 @@
 /* Caminho: includes/billing.php */
 declare(strict_types=1);
 
-const ARC_BILLING_VERSION = '3.5.0';
 
 function arc_billing_seed_plans(PDO $pdo): void {
     if ((int)$pdo->query('SELECT COUNT(*) FROM '.arc_table('billing_plans'))->fetchColumn()) return;
@@ -42,7 +41,7 @@ function arc_billing_http(PDO $pdo,string $provider,string $method,string $path,
     $key=arc_platform_decrypt(arc_billing_setting($pdo,$provider.'_key'));
     if($key==='')throw new RuntimeException('Configure a chave do gateway na administração.');
     $base=$provider==='mercadopago'?'https://api.mercadopago.com':(arc_billing_setting($pdo,'asaas_mode','sandbox')==='production'?'https://api.asaas.com/v3':'https://api-sandbox.asaas.com/v3');
-    $headers=['Content-Type: application/json','Accept: application/json','User-Agent: Arcoll/'.ARC_APP_VERSION];
+    $headers=['Content-Type: application/json','Accept: application/json','User-Agent: Arcoll/'.arc_app_version()];
     $headers[]=$provider==='mercadopago'?'Authorization: Bearer '.$key:'access_token: '.$key;
     if($idempotency!=='' && $provider==='mercadopago')$headers[]='X-Idempotency-Key: '.$idempotency;
     $ch=curl_init($base.$path);curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT=>8,CURLOPT_TIMEOUT=>25,CURLOPT_CUSTOMREQUEST=>$method,CURLOPT_HTTPHEADER=>$headers,CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS]);

@@ -10,7 +10,7 @@ import types
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'agent'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'agentes/windows'))
 import arcoll_toolkit as toolkit
 
 class FileTransportTests(unittest.TestCase):
@@ -41,7 +41,7 @@ class FileTransportTests(unittest.TestCase):
 
 class AgentFileFlowTests(unittest.TestCase):
     def run_flow(self,direction,selected,data=b'file contents',digest=None,consent=True,headless=False):
-        source=ast.parse((ROOT/'agent/arcoll_app.py').read_text());cls=next(n for n in source.body if isinstance(n,ast.ClassDef) and n.name=='ArcollApp');method=next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name=='_request_file_transfer')
+        source=ast.parse((ROOT/'agentes/windows/arcoll_app.py').read_text());cls=next(n for n in source.body if isinstance(n,ast.ClassDef) and n.name=='ArcollApp');method=next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name=='_request_file_transfer')
         class ImmediateThread:
             def __init__(self,target,**kwargs):self.target=target
             def start(self):self.target()
@@ -67,7 +67,7 @@ class AgentFileFlowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             target=Path(folder)/'chosen.txt';target.write_bytes(b'original')
             calls,message,_=self.run_flow('to_agent',target,digest='0'*64)
-            self.assertEqual(target.read_bytes(),b'original');self.assertIn(('file-agent-finish',{'status':'failed'},{}),calls);message.showerror.assert_called_once()
+            self.assertEqual(target.read_bytes(),b'original');self.assertIn(('file-agent-finish',{'status':'failed','message':'O arquivo recebido está incompleto.'},{}),calls);message.showerror.assert_called_once()
     def test_send_reads_only_the_file_selected_locally(self):
         with tempfile.TemporaryDirectory() as folder:
             target=Path(folder)/'chosen.txt';target.write_bytes(b'selected only');calls,_,_=self.run_flow('from_agent',target)

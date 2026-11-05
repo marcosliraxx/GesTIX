@@ -20,11 +20,10 @@ $labels=['account_login'=>'Login realizado','account_logout'=>'Saída da conta',
 $ARCMode='app';$ARCPageTitle='Minhas atividades';$ARCActiveNav='activities';$ARCHeaderActions='';require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';
 ?>
 <style>
-.account-module{width:100%;max-width:none;margin:0;padding:12px 16px;box-sizing:border-box}
+.account-module{width:100%;max-width:none;margin:0;box-sizing:border-box}
 .account-log{border:1px solid var(--border);border-radius:10px;padding:12px 15px;margin-bottom:8px;background:var(--surface)}
 .account-log small{display:block;margin-top:4px;opacity:.8}
 .account-pages{display:flex;gap:8px;margin-top:12px}
-@media(max-width:600px){.account-module{padding:10px}}
 </style>
 <main class="app-main"><div class="account-module">
 <?php if($error!==''):?><div class="arc-account-error" role="alert"><?=arc_h($error)?></div><?php endif;?>

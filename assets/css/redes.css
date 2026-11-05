@@ -10,7 +10,7 @@
   overflow-y:auto;
   overflow-x:hidden;
   overscroll-behavior:contain;
-  padding:12px 14px 24px;
+  padding:8px 0px;
   scrollbar-color:#355e81 #0c1b2f;
   scrollbar-width:thin;
 }
@@ -41,7 +41,7 @@
 .arc-manager-dismiss{border:1px solid var(--border);background:var(--surface-alt);color:var(--text);border-radius:6px;cursor:pointer;padding:9px 12px}
 .arc-manager-close:hover{background:#2a5379}
 .arc-manager-dismiss:hover{background:#2a5379}
-.arc-manager-tabs{display:flex;gap:3px;padding:8px 12px 0;background:var(--surface-alt);border-bottom:1px solid var(--border);flex:0 0 auto;overflow-x:auto}
+.arc-manager-tabs{display:flex;gap:3px; 0;background:var(--surface-alt);border-bottom:1px solid var(--border);flex:0 0 auto;overflow-x:auto}
 .arc-manager-tab{display:inline-flex;gap:8px;align-items:center;white-space:nowrap;padding:11px 15px;background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;font-size:12px;font-weight:700;cursor:pointer}
 .arc-manager-tab:hover{color:var(--text);background:var(--surface-alt)}
 .arc-manager-tab-count{padding:2px 6px;border-radius:8px;background:var(--surface-alt);color:var(--text);font-size:10px}
@@ -120,7 +120,7 @@
 .asc-ops-node{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;background:var(--surface-alt);border:1px solid #315c81;border-radius:6px;padding:12px;min-width:120px;max-width:220px}
 .asc-ops-node i{font-size:22px;color:var(--primary)}.asc-ops-node strong{font-size:12px;overflow-wrap:anywhere}.asc-ops-node small{font-size:10px;color:var(--ops-muted)}
 .asc-ops-node.root{margin:0 auto 20px;background:var(--surface-alt)}.asc-ops-nodes{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-.asc-monitor *{box-sizing:border-box}.asc-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.asc-kicker{color:var(--asc-cyan);font-size:10px;font-weight:700;letter-spacing:1.1px}.asc-heading h1{font-size:23px;line-height:1.25;color:var(--asc-fg);margin:5px 0}.asc-heading p{font-size:12px;color:var(--asc-muted);margin:0}.asc-agent-state{font-size:12px;color:#ffca78;border:1px solid var(--border);border-radius:6px;padding:8px 12px;white-space:nowrap}.asc-agent-state.online{color:#6ee7b7;border-color:var(--border)}
+.asc-monitor *{box-sizing:border-box}.asc-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.asc-kicker{color:var(--asc-cyan);font-size:10px;font-weight:700;letter-spacing:1.1px}.asc-heading h1{font-size:23px;line-height:1.25;color:var(--asc-fg);margin:5px 0}.asc-heading p{font-size:12px;color:var(--asc-muted);margin:0}.asc-agent-state{font-size:12px;color:#ffca78;border:1px solid var(--border);border-radius:6px;;white-space:nowrap}.asc-agent-state.online{color:#6ee7b7;border-color:var(--border)}
 .asc-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.asc-metric{background:var(--asc-panel);border:1px solid var(--asc-line);border-radius:5px;padding:13px 15px;display:grid;gap:5px;min-width:0;transition:transform .2s,border-color .2s}.asc-metric:hover{transform:translateY(-2px);border-color:var(--asc-cyan)}.asc-metric span{font-size:12px;color:var(--asc-muted)}.asc-metric small{font-size:12px;color:var(--asc-muted)}.asc-metric strong{font-size:25px;line-height:1.2;color:var(--asc-cyan);overflow-wrap:anywhere}
 .asc-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.asc-live{font-size:11px;font-weight:700;background:var(--surface-alt);color:#58dfaa;padding:10px 12px;border-radius:4px;margin-right:6px}.asc-live.paused{color:#ffca78;background:var(--surface-alt)}.asc-live i{font-size:9px;margin-right:5px}.asc-monitor .asc-btn{appearance:none;display:inline-flex;align-items:center;gap:6px;text-decoration:none!important;font-size:12px;font-weight:600;line-height:1.25;color:var(--asc-fg)!important;background:var(--surface-alt);border:1px solid var(--border);border-radius:4px;padding:9px 12px;cursor:pointer;transition:background .18s,transform .18s}.asc-monitor .asc-btn:hover{background:var(--surface-alt);transform:translateY(-1px)}.asc-monitor .asc-primary{background:#16a9e1;color:var(--text)!important;border-color:#16a9e1}
 .asc-chart-panel{background:var(--asc-panel);border:1px solid var(--asc-line);border-radius:5px;padding:12px 14px;min-width:0}.asc-chart-title{font-size:14px;font-weight:700;display:flex;justify-content:space-between;gap:12px}.asc-chart-title small{font-size:11px;font-weight:400;color:var(--asc-muted)}.asc-chart-wrap{height:270px;position:relative;margin-top:10px}.asc-chart-wrap svg{display:block;width:100%;height:100%}.asc-tooltip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid #38bdf8;border-radius:4px;padding:6px 9px;color:var(--text);font-size:11px;z-index:3;white-space:nowrap}.asc-chart-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--asc-muted)}.asc-console{background:var(--surface-alt);border:1px solid var(--border);border-radius:5px;padding:10px 12px;min-height:82px;max-height:120px;overflow:auto;white-space:pre-wrap;color:var(--text);font:11px/1.5 Consolas,monospace}
@@ -154,14 +154,14 @@
 .asc-monitor-summary .asc-metric span{font-size:10px;white-space:nowrap}
 .asc-monitor-summary .asc-metric strong{font-size:14px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .asc-monitor .asc-chart-panel{padding:10px 12px}
-.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;padding:8px 12px;}
+.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;;}
 .arc-redes-page .asc-monitor{flex:1 1 auto;min-height:0;max-height:100%;display:flex;flex-direction:column;gap:8px;padding:9px;overflow:hidden;}
 .arc-redes-page .asc-monitor-summary{flex:0 0 auto;}
 .arc-redes-page .asc-monitor .asc-chart-panel{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:8px;}
 .arc-redes-page .asc-monitor .asc-chart-wrap{height:auto!important;min-height:0!important;max-height:none!important;flex:1 1 0;margin-top:4px;overflow:hidden;}
 .arc-redes-page .asc-monitor .asc-chart-title{flex-shrink:0;}
 .arc-redes-page .asc-monitor .asc-chart-foot{flex-shrink:0;}
-.arc-redes-page:has(.arc-speed-view) .arc-redes-conteudo{display:flex;overflow:hidden;padding:8px 12px}
+.arc-redes-page:has(.arc-speed-view) .arc-redes-conteudo{display:flex;overflow:hidden;}
 .arc-speed-view{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:clamp(8px,2vh,20px);color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;overflow:hidden}
 .arc-speed-start{position:relative;isolation:isolate;width:clamp(142px,27vh,228px);height:clamp(142px,27vh,228px);border-radius:50%;border:2px solid #20baf2;background:var(--surface-alt);box-shadow:0 0 0 11px #071b2e,0 0 0 12px #175b74,0 0 0 23px #071b2e,0 0 0 24px #14445b;color:var(--primary);font-weight:750;font-size:clamp(23px,4vh,37px);font-style:italic;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;transition:transform .2s,box-shadow .2s}
 .arc-speed-start:hover:not(:disabled){transform:scale(1.035);box-shadow:0 0 0 11px #071b2e,0 0 0 12px #20baf2,0 0 0 23px #071b2e,0 0 0 24px #20baf2,0 0 40px #178ab433}
@@ -195,9 +195,9 @@
 .arc-device-formgrid select{height:36px;background:var(--surface-alt);color:var(--text);border:1px solid var(--border);border-radius:7px;min-width:0;min-height:36px;padding:6px 8px}
 .arc-device-formgrid .arc-device-check{display:flex;align-items:center;flex-direction:row;gap:8px;align-self:center}.arc-device-check input{accent-color:#38bdf8}
 .arc-device-facts{margin-top:17px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.arc-device-facts>div{background:var(--surface-alt);border:1px solid var(--border);border-radius:7px;padding:9px;min-width:0}.arc-device-facts small{display:block;color:var(--muted);font-size:10px;margin-bottom:5px}.arc-device-facts strong{display:block;overflow-wrap:anywhere;font-size:11px}
-.arc-device-modalfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface-alt);border-bottom:0;border-top:1px solid var(--border);flex-shrink:0;padding:8px 12px}.arc-device-modalfoot>div{display:flex;gap:8px}.arc-device-danger{color:var(--text);background:transparent;border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:11px;cursor:pointer}
-.arc-redes-page:has(.arc-inventory) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;min-height:0;padding:8px 12px}
-.arc-redes-page:has(.arc-inventory-map) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;min-height:0;padding:8px 12px}
+.arc-device-modalfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface-alt);border-bottom:0;border-top:1px solid var(--border);flex-shrink:0;}.arc-device-modalfoot>div{display:flex;gap:8px}.arc-device-danger{color:var(--text);background:transparent;border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:11px;cursor:pointer}
+.arc-redes-page:has(.arc-inventory) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+.arc-redes-page:has(.arc-inventory-map) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;min-height:0;}
 .arc-inventory-map{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .arc-inventory-map .arc-inventory-toolbar strong{font-size:14px}
 .arc-map-scroll{flex:1;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:16px;background:var(--surface-alt)}
@@ -298,7 +298,7 @@
 #arc-network-manager .arc-network-manager-shell{ color:var(--text)!important; color-scheme:inherit;height:auto!important;max-height:min(680px,calc(100dvh - 28px))!important}
 #arc-network-manager .arc-manager-body{padding:10px 12px;flex:0 1 auto!important;min-height:0;max-height:calc(100dvh - 215px);overflow:auto!important}
 #arc-network-manager .arc-manager-footer{flex-shrink:0}
-.arc-redes-page:has(.arc-commands-page) .arc-redes-conteudo{display:flex;min-height:0;overflow:hidden;padding:8px 12px}
+.arc-redes-page:has(.arc-commands-page) .arc-redes-conteudo{display:flex;min-height:0;overflow:hidden;}
 .arc-commands-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:12px;color:var(--text);background:var(--surface-alt);border:1px solid var(--border);border-radius:10px}
 .arc-cmd-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .arc-cmd-toolbar label{max-width:440px;width:100%;display:flex;align-items:center;gap:9px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt)}
@@ -360,7 +360,7 @@
 .arc-commands-page .arc-cmd-copy small{display:none}
 .arc-commands-page .arc-cmd-action{display:none}
 .asc-traffic-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;font-weight:600;margin-top:8px}.asc-monitor .asc-chart-foot{gap:8px;flex-wrap:wrap}.asc-monitor #asc-peak{text-align:right}.asc-monitor .asc-chart-wrap{min-height:190px;flex:1 1 auto}
-.arc-trade-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:var(--surface-alt);border-block:1px solid var(--border);color:var(--text);font-size:11px}
+.arc-trade-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;;background:var(--surface-alt);border-block:1px solid var(--border);color:var(--text);font-size:11px}
 .arc-trade-controls label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer}
 .arc-trade-controls input{accent-color:#32bdf1}
 .arc-trade-controls select{border:1px solid var(--border);background:var(--surface-alt);color:var(--text);border-radius:5px;padding:5px 8px;font:inherit}
@@ -372,7 +372,7 @@
 .arc-trade-dialog label{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}
 .arc-trade-dialog input{background:var(--surface-alt);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px}
 .arc-trade-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
-.arc-trade-dialog-actions button{background:#22547c;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:8px 12px;cursor:pointer}
+.arc-trade-dialog-actions button{background:#22547c;border:1px solid var(--border);color:var(--text);border-radius:5px;;cursor:pointer}
 .arc-redes-page{
   --redes-bg:var(--bg);
   --redes-surface:var(--surface);
@@ -438,8 +438,8 @@
 .arc-agent-select-wrap.is-online{box-shadow:0 0 0 1px rgba(59,232,168,.35),0 0 24px -6px rgba(59,232,168,.55)}
 .arc-agent-state.is-online{color:#4ee3a5;animation:mBeat 2.2s ease-in-out infinite}
 @keyframes mBeat{0%,100%{box-shadow:0 0 0 0 rgba(59,232,168,.55)}50%{box-shadow:0 0 0 7px rgba(59,232,168,0)}}
-.arc-redes-menu{flex:0 0 auto;display:flex;align-items:stretch;gap:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:4px 8px;background:var(--surface);border-bottom:1px solid var(--border);scroll-padding-inline:8px;overscroll-behavior-x:contain;scroll-snap-type:x proximity;touch-action:pan-x}
-.arc-redes-menu-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex:1 0 84px;min-height:54px;padding:6px 10px;color:var(--muted);text-decoration:none;font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid transparent;scroll-snap-align:nearest;position:relative}
+.arc-redes-menu{flex:0 0 auto;display:flex;align-items:stretch;gap:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;border-bottom:1px solid var(--border);scroll-padding-inline:8px;overscroll-behavior-x:contain;scroll-snap-type:x proximity;touch-action:pan-x}
+.arc-redes-menu-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1 0 84px;min-height:54px;padding:6px 10px;color:var(--muted);text-decoration:none;font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid transparent;scroll-snap-align:nearest;position:relative}
 .arc-redes-menu-link+.arc-redes-menu-link{border-left:1px solid var(--border)}
 .arc-redes-menu-link i{font-size:17px;line-height:20px;text-align:center}
 .arc-redes-menu-link:hover{background:var(--surface-alt);color:var(--text)}
@@ -586,7 +586,7 @@
 }
 @media(max-width:760px){.arc-redes-page .arc-redes-identidade{max-width:28%;min-width:85px}.arc-redes-identity-bar .arc-redes-identidade strong{font-size:11px}.arc-agent-select-wrap{flex-basis:100px}.arc-redes-header-controls{gap:4px}.arc-agent-state{flex-basis:24px;width:24px}.arc-agent-running{flex-basis:24px;width:24px}.arc-redes-header-controls .arc-identity-icon{width:30px;height:32px;flex-basis:30px}}
 @media(max-width:700px){.arc-redes-conteudo{padding:9px}.arc-network-manager{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.arc-manager-body{padding:9px}.arc-manager-panel .card{padding:11px}.arc-manager-panel .form-field{grid-template-columns:1fr}.arc-manager-panel .form-field>label.span2{grid-column:auto}.arc-manager-footer span{display:none}.asc-ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-ops-event{grid-template-columns:1fr 1fr}.asc-ops-event small{display:none}.asc-ops{padding:10px}.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{padding:5px}.arc-redes-page .asc-monitor{padding:5px}.asc-monitor-summary{flex-wrap:wrap}.arc-redes-page .asc-monitor .asc-chart-wrap{min-height:0!important}#arc-network-manager{width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important}#arc-network-manager .arc-manager-body{max-height:calc(100dvh - 190px)}.arc-device-facts {grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:680px){.arc-redes-menu{padding:3px 4px}.arc-redes-menu-link{flex:0 0 76px;min-height:50px;padding:5px 7px;font-size:10px}}
+@media(max-width:680px){.arc-redes-menu{padding:3px 4px}.arc-redes-menu-link{flex:0 0 50px;min-height:40px;padding:2px;font-size:9px}}
 @media(max-width:650px){.arc-report-dialog .arc-report-form{grid-template-columns:1fr}.arc-report-preview-dialog .arc-report-body{padding:4px}.arc-report-sheet{padding:12px;font-size:9px}.arc-report-sheet .rkpis{gap:4px}.arc-network-brand-editor{grid-template-columns:80px minmax(0,1fr)}.arc-network-logo-pick{height:80px}}
 @media(max-width:600px){.arc-redes-header-left{gap:4px}.arc-redes-header-right{gap:4px}.arc-redes-header-controls .arc-agent-select-wrap{flex:1 1 auto;width:auto;min-width:85px;padding:0 5px}.arc-redes-header-controls .arc-agent-select-wrap>i{display:none}.arc-redes-header-controls .arc-agent-state{display:grid}.arc-redes-header-controls .arc-agent-running{flex:0 0 28px;width:28px}.arc-redes-header-controls .arc-identity-icon{width:30px;flex-basis:30px}.arc-cmd-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.arc-cmd-card{min-height:145px;padding:12px}.arc-cmd-icon{width:42px;height:42px;flex-basis:42px;font-size:20px}.arc-cmd-toolbar{flex-wrap:wrap}
  .arc-commands-page .arc-cmd-grid{grid-template-columns:repeat(auto-fill,minmax(95px,108px));gap:7px}
@@ -630,10 +630,10 @@
 #arc-network-manager .arc-manage-table th{color:var(--muted);font-size:10px;font-weight:700}
 #arc-network-manager .arc-manage-table tbody tr:last-child td{border-bottom:0}
 #arc-network-manager .arc-manage-table tbody tr[hidden]{display:none}
-#arc-network-manager .arc-manage-table .arc-actions-col{width:190px;text-align:right}
-#arc-network-manager .arc-manage-table td:last-child{overflow:visible}
-#arc-network-manager .arc-manage-actions{display:flex;justify-content:flex-end;gap:4px;align-items:center;white-space:nowrap}
-#arc-network-manager .arc-manage-actions form{margin:0}
+#arc-network-manager .arc-manage-table .arc-actions-col{width:250px;min-width:250px;text-align:right}
+#arc-network-manager .arc-manage-table td:last-child{overflow:visible;width:250px;min-width:250px;max-width:none}
+#arc-network-manager .arc-manage-actions{display:flex;justify-content:flex-end;gap:4px;align-items:center;white-space:nowrap;flex-wrap:nowrap;min-width:0;width:100%}
+#arc-network-manager .arc-manage-actions form{margin:0;flex:0 0 auto}
 #arc-network-manager .arc-agent-row{cursor:pointer}
 #arc-network-manager .arc-agent-row:hover td,#arc-network-manager .arc-agent-row:focus-visible td{background:rgba(55,157,206,.10)}
 #arc-network-manager .arc-name{font-weight:700;overflow:hidden;text-overflow:ellipsis}
@@ -667,32 +667,46 @@
 /* Seletor de agentes: o indicador atualiza a situação no lugar do ícone antigo. */
 .arc-redes-header-controls .arc-agent-selector-group{display:flex;align-items:center;flex:0 1 325px;width:clamp(155px,28vw,325px);min-width:95px;max-width:325px;height:34px;border:1px solid var(--border);background:var(--surface-alt);border-radius:12px;overflow:hidden}
 .arc-redes-header-controls .arc-agent-selector-group:has(.is-online){border-color:#338b72}
-.arc-redes-header-controls .arc-agent-selector-group .arc-net-status-badge{flex:0 0 34px;min-width:34px;height:100%;padding:0;border:0;border-right:1px solid var(--border);border-radius:0;background:transparent;cursor:pointer}
+.arc-redes-header-controls .arc-agent-selector-group .arc-net-status-badge{flex:0 0 34px;min-width:34px;height:100%;padding:0;border:0;border-left:1px solid var(--border);border-radius:0;background:transparent;cursor:pointer}
 .arc-redes-header-controls .arc-agent-selector-group .arc-agent-select-wrap{flex:1 1 auto;width:auto;min-width:0;max-width:none;height:100%;margin:0;padding:0 7px;border:0;border-radius:0!important;box-shadow:none!important;background:transparent}
 .arc-redes-header-controls .arc-agent-selector-group .arc-net-status-badge:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 @media(max-width:600px){.arc-redes-header-controls .arc-agent-selector-group{flex:1 1 auto;width:auto;min-width:95px}}
 .arc-support-page{width:100%;max-width:none;flex:1;min-height:0;padding:8px;overflow:hidden;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
 .arc-tools-page{container:arc-support-area / size;gap:6px}
-.arc-support-mosaic{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:8px}
-.arc-support-mosaic>.arc-tool-card{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;min-width:0;min-height:0;padding:6px;border:1px solid var(--border);border-radius:8px;text-align:center;text-decoration:none;background:var(--surface-alt);color:var(--text);cursor:pointer;overflow-wrap:normal}
-.arc-support-mosaic>.arc-tool-card:last-child{grid-column:span 1}
-.arc-support-mosaic>.arc-tool-card>i:first-child{flex:none;width:auto;font-size:clamp(20px,5cqh,36px);color:var(--primary);line-height:1}
-.arc-support-mosaic>.arc-tool-card>strong{flex:none;font-size:clamp(12px,2.3cqh,14px);line-height:1.15;max-width:100%;font-weight:600}
-.arc-support-mosaic>.arc-tool-card:hover:not(:disabled){border-color:var(--primary)}
+/* Suporte: navegação vertical e uma única área de trabalho responsiva. */
+.arc-tools-page{display:flex;flex-direction:column;gap:6px}
+.arc-support-workspace{display:grid;grid-template-columns:200px minmax(0,1fr);gap:8px;flex:1;min-height:0;min-width:0}
+.arc-support-mosaic{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:auto;scrollbar-width:none}
+.arc-support-mosaic::-webkit-scrollbar{display:none}
+.arc-support-mosaic>.arc-tool-card{display:flex;align-items:center;gap:10px;min-height:42px;flex:none;text-align:left;padding:8px 10px;background:var(--surface-alt);border:1px solid var(--border);border-radius:7px;color:var(--text);cursor:pointer}
+.arc-support-mosaic>.arc-tool-card>i{width:20px;flex:none;text-align:center;color:var(--primary);font-size:17px}
+.arc-support-mosaic>.arc-tool-card>strong{font-size:12px;line-height:1.2;font-weight:600}
+.arc-support-mosaic>.arc-tool-card:hover:not(:disabled),.arc-support-mosaic>.arc-tool-card.is-active{border-color:var(--primary);background:var(--surface)}
+.arc-support-mosaic>.arc-tool-card:disabled{opacity:.45;cursor:not-allowed}
+.arc-support-stage{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:var(--surface-alt);border:1px solid var(--border);border-radius:8px}
+.arc-support-intro{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px;color:var(--muted)}
+.arc-support-intro>i{font-size:42px;color:var(--primary)}.arc-support-intro h2{font-size:16px;margin:0;color:var(--text)}.arc-support-intro p{margin:0;font-size:12px}
 .arc-tools-page>p[role=status]{flex:none;margin:0;max-height:2.5em;overflow:auto;font-size:12px;line-height:1.25}
 .arc-tools-page>p[role=status]:empty{display:none}
-@container arc-support-area (max-width:560px){.arc-support-mosaic{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:6px}.arc-support-mosaic>.arc-tool-card{grid-column:span 1}.arc-support-mosaic>.arc-tool-card:last-child{grid-column:span 1}}
-@container arc-support-area (min-aspect-ratio:2/1){.arc-support-mosaic{grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(1,minmax(0,1fr));gap:5px}.arc-support-mosaic>.arc-tool-card,.arc-support-mosaic>.arc-tool-card:last-child{grid-column:span 1}.arc-support-mosaic>.arc-tool-card{gap:4px;padding:4px}.arc-support-mosaic>.arc-tool-card>i:first-child{font-size:clamp(18px,10cqh,30px)}}
-
+.arc-support-stage>.arc-service-dialog,.arc-support-stage>.arc-remote-screen-modal{position:relative;inset:auto;display:flex;flex-direction:column;flex:1;width:100%;max-width:none;max-height:var(--arc-remote-visible-height,none);height:100%;min-height:0;margin:0;border:0;border-radius:0;box-shadow:none;background:var(--surface);overflow:auto}
+.arc-support-stage>.arc-service-dialog:not([open]),.arc-support-stage>.arc-remote-screen-modal:not([open]){display:none}
+.arc-support-stage>.arc-service-dialog .arc-service-list{overflow:auto;min-height:0}
+.arc-support-stage>.arc-service-dialog .arc-service-heading{flex:none}
+.arc-support-stage>.arc-service-dialog{padding:12px}
+.arc-support-stage>.arc-remote-screen-modal{overflow:hidden}
+.arc-support-stage .arc-remote-close{display:none}
+.arc-support-stage #arc-remote-screen-placeholder{gap:10px;flex-wrap:wrap}
+.arc-support-stage #arc-remote-screen-placeholder .arc-remote-download{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+@media(max-width:700px){.arc-support-workspace{grid-template-columns:48px minmax(0,1fr);gap:5px}.arc-support-mosaic>.arc-tool-card{justify-content:center;min-height:44px;padding:7px 4px}.arc-support-mosaic>.arc-tool-card>i{font-size:19px;width:auto}.arc-support-mosaic>.arc-tool-card>strong{display:none}.arc-support-stage{min-width:0}.arc-support-intro{padding:8px}.arc-support-intro .button{font-size:11px}}
 /* Controles das redes integrados ao header padrão: sem cabeçalho secundário. */
 .app-header:has(.arc-redes-header-controls){gap:8px;min-width:0}
 .app-header:has(.arc-redes-header-controls) .arc-header-network{max-width:min(300px,25vw);min-width:0}
 .app-header .header-actions:has(.arc-redes-header-controls){display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;margin-left:0}
-.app-header .arc-redes-header-controls{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;width:auto;justify-content:space-between}
-.app-header .arc-redes-header-left{flex:1 1 auto;min-width:0}
+.app-header .arc-redes-header-controls{display:flex;align-items:center;gap:5px;flex:0 0 auto;min-width:0;width:auto;justify-content:flex-end;margin:0}
+.app-header .arc-redes-header-left{flex:0 0 auto;min-width:0}
 .app-header .arc-redes-header-right{flex:0 0 auto}
-.app-header .arc-agent-selector-group{display:flex;align-items:center;gap:0;min-width:0;width:100%}
-.app-header .arc-agent-select-wrap{display:flex;align-items:center;min-width:90px;max-width:290px;flex:1 1 160px;overflow:hidden}
+.app-header .arc-agent-selector-group{display:flex;align-items:center;gap:0;flex:0 0 auto;min-width:0;max-width:168px;width:168px}
+.app-header .arc-agent-select-wrap{display:flex;align-items:center;min-width:0;max-width:none;flex:1 1 auto;overflow:hidden}
 .app-header #arc-agent-target{max-width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 .app-header .arc-redes-header-controls .arc-identity-icon{width:33px;height:33px;flex:0 0 33px}
 .app-header .arc-redes-header-controls .arc-net-status-badge{flex:0 0 33px;height:33px}
@@ -704,12 +718,270 @@
 .arc-agent-version{font-size:11px;color:var(--muted);white-space:nowrap}
 
 /* Lista nativa de suporte, com detalhes e formulários em diálogos. */
-.arc-redes-page:has(.arc-support-page) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;min-height:0;padding:8px 12px}
+.arc-redes-page:has(.arc-support-page) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;min-height:0;}
 @media(max-width:860px){.arc-redes-page:has(.arc-support-page) .arc-redes-conteudo{padding:6px}}
 .arc-tickets-page{gap:8px;padding:8px;min-height:0;flex:1;display:flex;flex-direction:column;overflow:hidden}.arc-support-toolbar h1{font-size:16px;margin:0 auto 0 0}.arc-support-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.arc-support-queue{display:flex;flex-direction:column;min-height:0;flex:1;gap:6px}.arc-support-queue>.arc-service-list{overflow:auto;min-height:0;flex:1}.arc-support-queue .arc-service-ticket{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:9px 7px;gap:8px}.arc-support-queue .arc-service-ticket strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-support-queue .arc-service-ticket p{margin:4px 0;font-size:11px}.arc-support-queue .arc-service-ticket small{font-size:10px}.arc-support-queue .arc-service-actions{margin:0;font-size:11px}.arc-support-detail{width:min(680px,calc(100vw - 24px))}.arc-support-page .arc-filter-bar input[type=search]{min-width:100px}.arc-support-page .arc-filter-bar select{min-width:110px;max-width:150px}.arc-support-page .arc-filter-bar{flex:none}.arc-support-page .arc-service-pill{font-size:10px}
 
-.arc-files-dialog{width:min(600px,calc(100vw - 24px))}.arc-files-dialog #file-list{max-height:40dvh;overflow:auto}.arc-files-dialog #file-list>article>div{min-width:0;flex:1}.arc-files-dialog #file-list strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-files-dialog input[type=file]{width:100%;max-width:100%;box-sizing:border-box;font-family:inherit}.arc-files-dialog #file-feedback{min-height:20px}
+.arc-files-dialog{width:min(600px,calc(100vw - 24px))}.arc-files-dialog #file-list{max-height:40dvh;overflow:auto}.arc-files-dialog #file-list>article>div{min-width:0;flex:1}.arc-support-stage>.arc-files-dialog #file-list>article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}.arc-files-dialog #file-list strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-files-dialog input[type=file]{width:100%;max-width:100%;box-sizing:border-box;font-family:inherit}.arc-files-dialog #file-feedback{min-height:20px}
 
 .arc-update-release-details{padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt)}.arc-update-release-details p{margin:4px 0;font-size:12px}.arc-agent-update-copy h2{font-size:18px}.arc-agent-update-actions{margin-top:12px}
 
-.arc-schedules-dialog{width:min(680px,calc(100vw - 24px))}.arc-schedule-weekdays{display:flex;flex-wrap:wrap;gap:8px}.arc-schedule-weekdays label,.arc-schedule-consent{display:flex;align-items:center;gap:5px}.arc-schedules-dialog [hidden]{display:none}.arc-schedules-dialog #schedule-list,.arc-schedules-dialog #schedule-runs{max-height:32dvh;overflow:auto}.arc-schedules-dialog .arc-service-list>article>div{min-width:0;flex:1}.arc-schedules-dialog small{display:block;font-size:12px;color:var(--muted)}
+.arc-schedules-dialog{width:min(680px,calc(100vw - 24px))}.arc-schedule-weekdays{display:flex;flex-wrap:wrap;gap:8px}.arc-schedule-weekdays label,.arc-schedule-consent{display:flex;align-items:center;gap:5px}.arc-schedules-dialog [hidden]{display:none}.arc-schedules-dialog #schedule-list,.arc-schedules-dialog #schedule-runs{max-height:32dvh;overflow:auto}.arc-schedules-dialog .arc-service-list>article>div{min-width:0;flex:1}.arc-support-stage>.arc-schedules-dialog .arc-service-list>article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}.arc-schedules-dialog small{display:block;font-size:12px;color:var(--muted)}
+
+/* Caminho: assets/css/redes.css — suporte 3.5.2 */
+.arc-support-inline-tools{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:7px 0}.arc-support-inline-tools strong{font-size:12px}.arc-support-inline-tools .button{font-size:11px;min-height:30px;padding:5px 9px}.arc-file-manager-info{display:flex;align-items:flex-start;gap:9px;padding:10px;background:var(--surface-alt);border:1px solid var(--border);border-radius:7px;font-size:12px;line-height:1.5}.arc-file-manager-info>i{color:var(--primary);margin-top:3px}.arc-support-stage>.arc-service-dialog>.arc-service-heading{position:sticky;top:0;z-index:1;background:var(--surface)}.arc-support-stage>.arc-service-dialog .arc-service-form{flex:none}.arc-support-stage>.arc-service-dialog .arc-service-list{flex:1;min-height:70px}.arc-support-stage>.arc-service-dialog .arc-service-heading h2{margin:0;font-size:15px}.arc-support-mosaic>.arc-tool-card[disabled]{cursor:not-allowed;opacity:.45}.arc-support-mosaic>.arc-tool-card:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}@media(max-width:700px){.arc-support-mosaic>.arc-tool-card{width:100%}.arc-support-mosaic>.arc-tool-card>strong{display:none}.arc-support-workspace{grid-template-columns:48px minmax(0,1fr)}.arc-support-stage{overflow:hidden}}
+
+/* Caminho: assets/css/redes.css — Suporte consolidado 3.6.1 */
+.arc-support-workspace.is-collapsed{grid-template-columns:52px minmax(0,1fr)}
+.arc-support-workspace.is-collapsed .arc-support-mosaic>.arc-tool-card{justify-content:center;padding:7px 4px}
+.arc-support-workspace.is-collapsed .arc-support-mosaic>.arc-tool-card strong,.arc-support-workspace.is-collapsed .arc-support-collapse span{display:none}
+.arc-support-collapse{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;min-height:34px;border-radius:7px;font-size:12px;text-align:center;flex:none}
+.arc-support-collapse:focus-visible{outline:2px solid var(--primary)}
+.arc-support-tickets{display:flex;flex:1;flex-direction:column;min-height:0;min-width:0;overflow:hidden;padding:8px;gap:8px}
+.arc-support-tickets[hidden]{display:none!important}
+.arc-support-tickets .arc-support-queue{display:flex;flex-direction:column;flex:1;min-height:0;gap:7px}
+.arc-support-tickets .arc-support-queue>.arc-service-list{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px;flex:1;min-height:0;overflow:auto}
+.arc-support-tickets .arc-support-queue>.arc-service-list>.arc-service-ticket{display:grid;flex:none;min-height:55px;max-height:none;align-items:center;grid-template-columns:minmax(0,1fr) auto;margin:0;padding:9px 12px;border:1px solid var(--border);border-radius:8px}
+.arc-support-stage>.arc-service-dialog:not([open]),.arc-support-stage>.arc-remote-screen-modal:not([open]){display:none!important}
+.arc-support-stage>.arc-service-dialog[open],.arc-support-stage>.arc-remote-screen-modal[open]{position:relative;inset:auto;display:flex;flex:1;flex-direction:column;width:100%;max-width:none;max-height:var(--arc-remote-visible-height,none);min-height:0;margin:0;border:0;border-radius:0;box-shadow:none;background:var(--surface)}
+@media(max-width:700px){.arc-support-collapse{display:none!important}.arc-support-workspace,.arc-support-workspace.is-collapsed{grid-template-columns:66px minmax(0,1fr)}.arc-support-mosaic{gap:5px}.arc-support-mosaic>.arc-tool-card,.arc-support-workspace.is-collapsed .arc-support-mosaic>.arc-tool-card{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;width:100%;min-width:0;min-height:58px;padding:6px 2px}.arc-support-mosaic>.arc-tool-card>i{font-size:18px;width:auto}.arc-support-mosaic>.arc-tool-card>strong,.arc-support-workspace.is-collapsed .arc-support-mosaic>.arc-tool-card strong{display:block;font-size:9px;line-height:1.15;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;font-weight:600}.arc-support-tickets{padding:6px}.arc-support-tickets .arc-support-queue>.arc-service-list>.arc-service-ticket{padding:7px;min-height:52px}}
+
+/* Suporte 3.6.2 — painel de agendamentos integrado, sem controles de janela. */
+.arc-support-stage>.arc-schedules-dialog[open]{gap:8px;padding:10px;overflow:hidden}
+.arc-schedule-toolbar{display:flex;align-items:center;gap:6px;flex:none;padding:5px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt)}
+.arc-schedule-toolbar input[type=search]{flex:1;min-width:0;width:100%;height:34px;margin:0}
+.arc-schedule-toolbar select{flex:0 1 150px;min-width:95px;height:34px;margin:0}
+.arc-schedule-toolbar .arc-icon-action{flex:0 0 34px;height:34px}
+.arc-schedule-editor[hidden],.arc-schedule-history[hidden]{display:none!important}
+.arc-schedules-dialog .arc-schedule-editor{flex:none;overflow:auto;max-height:48%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt)}
+.arc-schedule-editor-actions{display:inline-flex;margin-left:8px}
+.arc-schedule-grid{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:8px}
+.arc-schedule-table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}
+.arc-schedule-table th{position:sticky;top:0;z-index:1;background:var(--surface-alt);padding:11px 12px;white-space:nowrap;border-bottom:1px solid var(--border)}
+.arc-schedule-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.arc-schedule-table tbody tr{height:46px}
+.arc-schedule-table tbody tr:hover{background:var(--surface-alt)}
+.arc-schedule-table .arc-schedule-empty{text-align:center;padding:24px;color:var(--muted)}
+.arc-schedule-table .arc-schedule-actions{width:65px;text-align:center}
+.arc-schedule-history{max-height:35%;overflow:auto;border-top:1px solid var(--border);padding-top:8px}
+.arc-schedule-history h3{font-size:13px;margin:4px 0}
+.arc-schedules-dialog #schedule-feedback:empty{display:none}
+.arc-schedules-dialog #schedule-feedback{flex:none;margin:0;font-size:12px}
+@media(max-width:700px){.arc-schedule-toolbar{gap:3px;padding:3px}.arc-schedule-toolbar select{min-width:72px;max-width:100px}.arc-schedule-toolbar .arc-icon-action{flex-basis:29px;width:29px}.arc-schedule-table{min-width:550px}.arc-schedule-editor-actions{margin:8px 0 0}}
+
+/* ACESSO REMOTO WEB — BOTÕES DE SOLICITAÇÃO E DOWNLOAD */
+.arc-support-stage #arc-remote-screen-placeholder{display:flex;flex-direction:row;flex-wrap:wrap;gap:12px;align-content:center;align-items:center;justify-content:center}
+.arc-support-stage #arc-remote-screen-placeholder .arc-remote-download{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-width:168px;padding:22px 26px;border:1px solid var(--border);border-radius:14px;background:var(--surface-alt);color:var(--text);text-decoration:none;font:700 13px "Segoe UI",sans-serif;box-shadow:0 12px 32px #0005;transition:transform .15s,background .15s}
+.arc-support-stage #arc-remote-screen-placeholder .arc-remote-download i{font-size:30px;color:var(--primary);margin-bottom:0}
+.arc-support-stage #arc-remote-screen-placeholder .arc-remote-download:hover{transform:translateY(-2px);background:var(--surface-alt)}
+@media(max-width:520px){.arc-support-stage #arc-remote-screen-placeholder .arc-remote-request{min-width:135px;max-width:calc(50% - 8px);padding:15px 9px;min-height:108px;font-size:11px;text-align:center}}
+
+/* Caminho: assets/css/redes.css — Suporte 3.6.4, modais de agendamento */
+.arc-schedule-modal{position:fixed;inset:0;margin:auto;width:min(640px,calc(100vw - 28px));max-width:640px;max-height:min(85dvh,760px);padding:0;overflow:auto;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.5);z-index:10000}
+.arc-schedule-modal:not([open]){display:none!important}
+.arc-schedule-modal[open]{display:block}
+.arc-schedule-modal::backdrop{background:rgba(1,8,18,.76);backdrop-filter:blur(5px)}
+.arc-schedule-modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px 12px;border-bottom:1px solid var(--border)}
+.arc-schedule-modal-header h2{font-size:17px;margin:0 0 6px}.arc-schedule-modal-header p{font-size:12px;margin:0;color:var(--muted)}
+.arc-schedule-modal .arc-schedule-editor{display:block;max-height:none;overflow:visible;margin:0;padding:20px;background:transparent;border:0;border-radius:0}
+.arc-schedule-modal .arc-schedule-editor-actions{margin-left:10px}
+.arc-schedule-run-list{padding:14px 20px 20px;max-height:60dvh;overflow:auto;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.arc-schedule-run-list article{display:flex;flex-direction:column;gap:4px;padding:11px 13px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt)}
+.arc-schedule-run-list small{color:var(--muted)}
+.arc-schedule-actions{white-space:nowrap}.arc-schedule-actions .arc-icon-action+.arc-icon-action{margin-left:5px}
+@media(max-width:700px){.arc-schedule-modal{width:calc(100vw - 16px);max-height:90dvh}.arc-schedule-modal-header{padding:14px}.arc-schedule-modal .arc-schedule-editor{padding:14px}}
+
+/* Caminho: assets/css/redes.css — Interface integrada Velocidade/Conexão */
+.arc-speed-view{justify-content:center;align-items:stretch;position:relative}
+.arc-speed-launch{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;flex:1}
+.arc-speed-dashboard:not([hidden]){display:grid;grid-template-columns:minmax(235px,.8fr) minmax(0,1.6fr);gap:12px;flex:1;min-height:0;width:100%}
+.arc-speed-dashboard[hidden],.arc-speed-launch[hidden],.arc-speed-progress[hidden]{display:none!important}
+.arc-speed-measures,.arc-speed-map-pane{min-width:0;min-height:0;background:var(--surface-alt);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.arc-speed-measures{display:flex;flex-direction:column;padding:14px;gap:12px}
+.arc-speed-measures-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--primary)}
+.arc-speed-repeat{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:7px;padding:7px;font-size:11px;cursor:pointer}
+.arc-speed-dashboard .arc-speed-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:10px}
+.arc-speed-dashboard .arc-speed-result{padding:18px 7px}
+.arc-speed-dashboard .arc-speed-result strong{font-size:clamp(19px,2vw,30px);overflow-wrap:anywhere}
+.arc-speed-dashboard .arc-speed-result small{display:block}
+.arc-speed-dashboard .arc-speed-note{text-align:left;max-width:100%;line-height:1.5}
+.arc-speed-map-pane{display:flex;flex-direction:column}
+.arc-speed-map-pane .arc-connect,.arc-speed-map-pane .cc-board{flex:1;min-height:0;height:100%;width:100%}
+.arc-speed-map-pane .cc-stage{min-height:260px}
+.arc-speed-dashboard .arc-connect .cc-board{border:0}
+@media(max-width:820px){
+.arc-redes-page:has(.arc-speed-view) .arc-redes-conteudo{display:flex;min-height:0;overflow:hidden}
+.arc-speed-view{height:100%;max-height:100%;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:5px;box-sizing:border-box}
+.arc-speed-dashboard:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(175px,42%) minmax(0,1fr);gap:6px;overflow:hidden;min-height:0;height:100%}
+.arc-speed-measures{padding:7px;gap:5px;overflow:hidden}
+.arc-speed-measures-head{font-size:11px;min-height:25px}
+.arc-speed-repeat{padding:4px 6px;font-size:10px}
+.arc-speed-dashboard .arc-speed-results{gap:5px;flex:1;min-height:0;grid-template-rows:repeat(2,minmax(0,1fr))}
+.arc-speed-dashboard .arc-speed-result{padding:4px 3px;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.arc-speed-dashboard .arc-speed-result span{font-size:9px}
+.arc-speed-dashboard .arc-speed-result strong{font-size:clamp(15px,4.4vw,22px);line-height:1.1}
+.arc-speed-dashboard .arc-speed-result small{font-size:9px}
+.arc-speed-dashboard .arc-speed-note{font-size:9px;line-height:1.2;max-height:24px;overflow:hidden}
+.arc-speed-map-pane{min-height:0;height:100%;overflow:hidden}
+.arc-speed-map-pane .arc-connect,.arc-speed-map-pane .cc-board,.arc-speed-map-pane .cc-surface,.arc-speed-map-pane .cc-stage{min-height:0!important;height:100%;overflow:hidden}
+.arc-speed-map-pane .cc-head{flex:0 0 25px;min-height:25px;height:25px}
+.arc-speed-map-pane .cc-board{height:100%}
+.arc-speed-map-pane .cc-surface{flex:1;height:auto}
+.arc-speed-map-pane .cc-stage{flex:1;height:auto}
+.arc-speed-map-pane .cc-route{padding:5px 7px;width:min(192px,64%);top:5px;left:5px}
+.arc-speed-map-pane .cc-route-kicker{font-size:8px;margin-bottom:3px}
+.arc-speed-map-pane .cc-stop{gap:5px}.arc-speed-map-pane .cc-stop-ico{width:20px;height:20px;flex-basis:20px}
+.arc-speed-map-pane .cc-stop strong{font-size:11px}.arc-speed-map-pane .cc-link{margin:2px 0 2px 9px}
+.arc-speed-map-pane .cc-layers{bottom:17px}
+}
+@media(max-width:820px) and (max-height:650px){.arc-speed-dashboard:not([hidden]){grid-template-rows:minmax(145px,44%) minmax(0,1fr)}.arc-speed-dashboard .arc-speed-note{display:none}}
+
+@media(prefers-reduced-motion:reduce){.arc-speed-start{animation:none!important}}
+
+/* Página redes/rede.php: conteúdo nativo incorporado, sem diálogo de fundo. */
+.arc-rede-workspace{width:100%;min-width:0;min-height:0;display:flex;flex-direction:column}
+.arc-rede-workspace .arc-network-manager-inline{display:block;position:relative;inset:auto;margin:0;width:100%;height:auto;min-height:540px;max-width:none;max-height:none;overflow:visible;border-radius:10px;box-shadow:none;background:var(--surface-alt)}
+.arc-rede-workspace .arc-network-manager-inline .arc-network-manager-shell{height:auto;min-height:540px}
+.arc-rede-workspace .arc-network-manager-inline .arc-manager-body{flex:1 1 auto;overflow:visible;min-height:320px}
+.arc-rede-workspace .arc-network-manager-inline .arc-manager-panel:not(.active){display:none!important}
+@media(max-width:700px){.arc-rede-workspace .arc-network-manager-inline{min-height:0}.arc-rede-workspace .arc-network-manager-inline .arc-network-manager-shell{min-height:0}.arc-rede-workspace .arc-network-manager-inline .arc-manager-tabs{overflow-x:auto;max-width:100%}}
+@media(max-width:700px){.arc-rede-workspace #arc-network-manager.arc-network-manager-inline{width:100%!important;max-height:none!important;height:auto!important}.arc-rede-workspace #arc-network-manager.arc-network-manager-inline .arc-manager-body{max-height:none;overflow:visible}}
+
+
+/* MOBILE — OCULTAR PAINÉIS AUXILIARES DA CONEXÃO.
+ * Os marcadores e o enquadramento automático do mapa permanecem ativos. */
+@media screen and (max-width: 820px) {
+  .arc-speed-map-pane .arc-connect .cc-stage > .cc-ui.cc-route,
+  .arc-speed-map-pane .arc-connect .cc-stage > .cc-ui.cc-tools,
+  .arc-speed-map-pane .arc-connect .cc-stage > .cc-ui.cc-layers,
+  .arc-connect .cc-ui.cc-route,
+  .arc-connect .cc-ui.cc-tools,
+  .arc-connect .cc-ui.cc-layers {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+}
+
+/* Configuração 3.9.5 — mesma estrutura e dimensões do Suporte.
+   A altura pertence à área de trabalho; somente a seção ativa pode rolar. */
+.arc-redes-page:has(.arc-config-workspace) .arc-redes-conteudo{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.arc-config-workspace{display:flex;flex-direction:column;flex:1 1 0;min-height:0;min-width:0;height:100%;max-height:100%;overflow:hidden;box-sizing:border-box}
+.arc-config-workspace #arc-network-manager.arc-config-manager{display:flex;position:static;inset:auto;width:100%;max-width:100%;height:100%;max-height:100%!important;min-height:0;min-width:0;flex:1 1 0;overflow:hidden;margin:0;padding:0;border:0;background:transparent;box-shadow:none;box-sizing:border-box}
+.arc-config-workspace #arc-network-manager>.arc-support-workspace{width:100%;height:100%;min-height:0;min-width:0;flex:1 1 0;overflow:hidden;padding:0;border:0;background:transparent}
+.arc-config-workspace .arc-support-mosaic>.arc-tool-card{width:100%;box-sizing:border-box}
+.arc-config-workspace .arc-support-mosaic>.arc-tool-card .arc-manager-tab-count{margin-left:auto;font-size:10px;flex:none}
+.arc-config-workspace .arc-support-workspace.is-collapsed .arc-manager-tab-count{display:none}
+.arc-config-workspace .arc-support-stage.arc-config-stage{height:100%;min-height:0;min-width:0;display:flex;flex-direction:column;padding:0;overflow:hidden;max-height:100%}
+.arc-config-workspace .arc-config-panel{display:flex;flex-direction:column;flex:1 1 0;min-width:0;min-height:0;max-height:100%;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:8px;box-sizing:border-box;scrollbar-width:thin}
+.arc-config-workspace .arc-config-panel[hidden]{display:none!important}
+.arc-config-workspace .arc-config-panel .arc-manage-section{min-width:0;max-width:100%;flex:0 0 auto}
+.arc-config-workspace .arc-manage-table-scroll{min-width:0;max-width:100%}
+.arc-config-workspace .arc-config-noaccess{padding:16px}
+.arc-config-workspace .arc-config-panel :is(form,.card,.form-field,.arc-network-brand-editor,.arc-settings-grid,.arc-settings-toggles){max-width:100%;min-width:0;box-sizing:border-box}
+.arc-config-workspace .arc-config-panel :is(input,select,textarea){max-width:100%;min-width:0;box-sizing:border-box}
+@media(max-width:700px){
+ .arc-redes-page:has(.arc-config-workspace) .arc-redes-conteudo{padding:5px;min-height:0;overflow:hidden}
+ .arc-config-workspace{padding:6px;min-height:0}
+ .arc-config-workspace #arc-network-manager.arc-config-manager{width:100%!important;max-height:100%!important;height:100%!important}
+ .arc-config-workspace .arc-support-mosaic>.arc-tool-card .arc-manager-tab-count{display:none}
+ .arc-config-workspace .arc-config-panel{padding:6px;overflow-x:hidden}
+ .arc-config-workspace .arc-config-panel .arc-manage-toolbar{padding:6px;gap:5px;min-width:0}
+ .arc-config-workspace .arc-config-panel .arc-manage-search{min-width:0;flex:1}
+ .arc-config-workspace .arc-config-panel .arc-manage-search input{font-size:11px;min-width:0}
+ .arc-config-workspace .arc-config-panel .arc-manage-count{display:none}
+ .arc-config-workspace #arc-network-manager .arc-manage-table-scroll{overflow-x:auto;width:100%;max-width:100%}
+ .arc-config-workspace #arc-network-manager .arc-manage-table{min-width:0!important;width:100%;table-layout:auto;display:block}
+ .arc-config-workspace #arc-network-manager .arc-manage-table thead{display:none}
+ .arc-config-workspace #arc-network-manager .arc-manage-table tbody{display:flex;flex-direction:column;gap:6px;width:100%}
+ .arc-config-workspace #arc-network-manager .arc-manage-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:3px 8px;min-width:0;width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--surface);box-sizing:border-box}
+ .arc-config-workspace #arc-network-manager .arc-manage-table tbody tr[hidden]{display:none}
+ .arc-config-workspace #arc-network-manager .arc-manage-table td{display:flex;align-items:center;gap:4px;min-width:0;max-width:100%;overflow:hidden;padding:2px 0;border:0;white-space:nowrap;text-overflow:ellipsis;font-size:10px;box-sizing:border-box}
+ .arc-config-workspace #arc-network-manager .arc-manage-table td:first-child{grid-column:1/-1;font-size:11px}
+ .arc-config-workspace #arc-network-manager .arc-manage-table td:last-child{grid-column:1/-1;overflow:visible;padding-top:5px}
+ .arc-config-workspace #arc-network-manager .arc-manage-table .arc-manage-actions{justify-content:flex-start;flex-wrap:wrap;gap:5px;max-width:100%}
+ .arc-config-workspace #arc-network-manager .arc-manage-table .arc-name,.arc-config-workspace #arc-network-manager .arc-manage-table .arc-ellipsis{min-width:0;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ .arc-config-workspace .arc-settings-grid,.arc-config-workspace .arc-settings-toggles,.arc-config-workspace .arc-detail-grid,.arc-config-workspace .form-field{grid-template-columns:minmax(0,1fr)!important;gap:7px}
+ .arc-config-workspace .form-field>label.span2{grid-column:1/-1}
+ .arc-config-workspace .arc-network-brand-editor{display:flex;flex-wrap:wrap;gap:8px}
+ .arc-config-workspace .arc-network-brand-fields{flex:1 1 125px;min-width:0}
+ .arc-config-workspace .network-danger-actions{display:flex;flex-wrap:wrap;gap:5px}
+ .arc-config-workspace .network-danger-actions>.button,.arc-config-workspace .network-danger-actions form{max-width:100%}
+}
+/* BLOCO 29.1 — NOTIFICAÇÃO ÚNICA PARA COMANDOS E PROGRESSO */
+.arc-command-log.arc-operation-notice::after{content:none!important;animation:none!important}
+
+/* Explorador: opções explícitas e visualização privada de documentos. */
+.arc-explorer-menu,.arc-explorer-preview{position:fixed;inset:0;margin:auto;max-width:calc(100vw - 24px);max-height:85dvh;border:1px solid var(--border,#42627f);border-radius:12px;padding:0;background:var(--surface,#182940);color:var(--text,#e7f1ff);box-sizing:border-box;box-shadow:0 20px 70px #0006}
+.arc-explorer-menu:not([open]),.arc-explorer-preview:not([open]){display:none}
+.arc-explorer-menu::backdrop,.arc-explorer-preview::backdrop{background:#0008}
+.arc-explorer-menu{width:330px;overflow:auto}
+.arc-explorer-menu>header,.arc-explorer-preview>header{position:sticky;top:0;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 12px;background:inherit;border-bottom:1px solid var(--border,#42627f);z-index:1}
+.arc-explorer-menu>header strong,.arc-explorer-preview>header strong{overflow-wrap:anywhere;min-width:0}
+#arc-fs-menu-options{display:grid;grid-template-columns:1fr 1fr;padding:8px;gap:4px}
+#arc-fs-menu-options button{display:flex;align-items:center;gap:8px;padding:12px 9px;background:transparent;color:inherit;border:1px solid transparent;border-radius:7px;text-align:left;font:inherit;font-size:14px;cursor:pointer;min-height:44px}
+#arc-fs-menu-options button:hover:not(:disabled),#arc-fs-menu-options button:focus-visible{background:#679dcc25;border-color:#679dcc}
+#arc-fs-menu-options button:disabled{opacity:.4;cursor:default}
+.arc-explorer-preview{width:min(1000px,calc(100vw - 24px));height:85dvh;overflow:auto}
+#arc-file-preview-content{display:flex;flex-direction:column;gap:12px;padding:12px;min-height:0}
+#arc-file-preview-content>iframe{width:100%;height:64dvh;border:0;background:white}
+#arc-file-preview-content>img,#arc-file-preview-content>video{display:block;max-width:100%;max-height:64dvh;object-fit:contain}
+#arc-file-preview-content>pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.5 monospace;max-height:64dvh;overflow:auto}
+@media(max-width:700px){.arc-explorer-menu{width:min(330px,calc(100vw - 24px))}.arc-explorer-preview{width:calc(100vw - 18px)}.arc-explorer-menu input,.arc-explorer-preview input{font-size:16px}}
+
+/* Estado de agente desinstalado: ações seguras e alinhadas. */
+#arc-network-manager .arc-agent-uninstalled{font-size:11px;color:var(--muted);white-space:nowrap}
+@media(max-width:700px){#arc-network-manager .arc-manage-table td:last-child{width:100%;min-width:0;max-width:100%}}
+
+/* v3.3.1 | Gestão de redes: seletor imediatamente antes do botão de configuração/painel. */
+.app-header .header-actions:has(#arc-agent-form){justify-content:flex-end}
+.app-header #arc-agent-form{flex:0 0 auto!important;width:168px!important;max-width:168px;margin:0!important;justify-content:flex-end!important}
+.app-header #arc-agent-form .arc-redes-header-left{flex:0 0 auto;width:100%}
+.app-header #arc-agent-form .arc-agent-selector-group{flex:0 0 auto;width:100%;max-width:100%;min-width:0}
+.app-header #arc-agent-form .arc-agent-select-wrap{order:1;flex:1 1 auto;min-width:0;max-width:none}
+.app-header #arc-agent-form #arc-network-global-state{order:2;flex:0 0 34px;border-left:1px solid var(--border);border-right:0}
+.app-header .header-actions:has(#arc-agent-form)>.arc-header-nav{margin-right:auto}
+@media(max-width:760px){.app-header #arc-agent-form{width:114px!important;max-width:114px}.app-header #arc-agent-form #arc-network-global-state{flex-basis:28px;min-width:28px}}
+
+/* v2026.11.03 — Seletor de redes no header; cabeçalho e rodapé fixos, lista independente. */
+.app-header .arc-network-switch-wrap{position:relative;flex:0 1 300px!important;width:300px;max-width:300px;min-width:0;overflow:visible;z-index:110}
+.app-header .arc-network-switch-trigger{display:flex;align-items:center;gap:9px;width:100%;height:44px;padding:3px 9px 3px 4px;text-align:left;border:1px solid transparent;border-radius:11px;background:transparent;color:inherit;cursor:pointer;min-width:0}
+.app-header .arc-network-switch-trigger:hover,.app-header .arc-network-switch-wrap.is-open .arc-network-switch-trigger{background:var(--surface-alt);border-color:var(--border)}
+.app-header .arc-network-switch-trigger .arc-header-network-info{flex:1;min-width:0;max-width:none;overflow:hidden}
+.app-header .arc-network-switch-trigger .arc-header-network-info small{display:flex;gap:8px;align-items:center;min-width:0}
+.app-header .arc-network-switch-trigger .arc-header-network-version{padding-left:8px}
+.app-header .arc-network-switch-chevron{flex:none;font-size:11px;opacity:.65;transition:transform .2s}
+.app-header .arc-network-switch-wrap.is-open .arc-network-switch-chevron{transform:rotate(180deg)}
+.app-header .arc-network-switch-menu{position:absolute;top:calc(100% + 8px);left:0;z-index:900;width:min(355px,calc(100vw - 20px));height:min(475px,calc(100dvh - var(--header-h,60px) - 20px));min-height:210px;display:flex;flex-direction:column;overflow:hidden;padding:7px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:15px;box-shadow:0 20px 60px #0005}
+.app-header .arc-network-switch-menu[hidden]{display:none!important}
+.arc-network-switch-head,.arc-network-switch-add{flex:none;display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--text);border-radius:9px;padding:11px 12px}
+.arc-network-switch-head{border-bottom:1px solid var(--border);border-radius:8px 8px 0 0;min-height:65px}
+.arc-network-switch-head img{width:38px;height:38px;object-fit:contain;border-radius:8px;flex:none}
+.arc-network-switch-head span,.arc-network-switch-desc{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.arc-network-switch-head strong,.arc-network-switch-desc strong{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arc-network-switch-head small,.arc-network-switch-desc small{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arc-network-switch-head:hover,.arc-network-switch-add:hover,.arc-network-switch-item:hover{background:var(--surface-alt)}
+.arc-network-switch-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 2px;scrollbar-width:thin}
+.arc-network-switch-item{display:flex;align-items:center;gap:10px;min-height:57px;padding:9px 10px;text-decoration:none;color:var(--text);border-bottom:1px solid var(--border);border-radius:6px}
+.arc-network-switch-item.is-selected{background:var(--surface-alt);color:var(--primary)}
+.arc-network-switch-logo{width:34px;height:34px;flex:none;display:grid;place-items:center;overflow:hidden;border:1px solid var(--border);border-radius:9px}
+.arc-network-switch-logo img{width:100%;height:100%;object-fit:contain}
+.arc-network-switch-check{flex:none}
+.arc-network-switch-empty{padding:14px;font-size:12px;color:var(--muted)}
+.arc-network-switch-add{border-top:1px solid var(--border);border-radius:0 0 8px 8px;min-height:50px;color:var(--primary);font-weight:700;font-size:13px}
+.arc-network-switch-add i{font-size:18px}
+@media(max-width:1100px){.app-header .arc-network-switch-wrap{flex-basis:190px!important;max-width:190px;width:190px}}
+@media(max-width:760px){.app-header:has(.arc-redes-header-controls) .arc-network-switch-wrap{display:flex!important;flex:0 1 136px!important;max-width:136px;width:136px}.app-header .arc-network-switch-trigger{padding:2px;gap:4px;height:38px}.app-header .arc-network-switch-trigger .arc-header-network-logo{width:27px;height:27px}.app-header .arc-network-switch-trigger .arc-header-network-info strong{font-size:11px}.app-header .arc-network-switch-trigger .arc-header-network-info small{font-size:9px;gap:3px}.app-header .arc-network-switch-trigger .arc-header-network-version{padding-left:4px}.app-header .arc-network-switch-chevron{font-size:9px}.app-header .arc-network-switch-menu{position:fixed;top:calc(var(--header-h,56px) + 5px);left:8px;width:min(350px,calc(100vw - 16px));height:min(460px,calc(100dvh - var(--header-h,56px) - 15px))}}
+@media(max-width:390px){.app-header:has(.arc-redes-header-controls) .arc-network-switch-wrap{flex-basis:111px!important;max-width:111px;width:111px}.app-header .arc-network-switch-trigger .arc-header-network-logo{width:23px;height:23px}}
+
+/* 2026-11-03 — Seletor de redes: status e logo ativa. */
+.arc-header-network-logo.is-online,.arc-network-switch-item.is-online .arc-network-switch-logo{border-color:#16a34a!important;box-shadow:0 0 0 1px #16a34a66}
+.arc-header-network-logo.is-offline,.arc-network-switch-item.is-offline .arc-network-switch-logo{border-color:#dc2626!important;box-shadow:0 0 0 1px #dc262655}
+.arc-network-switch-logo{position:relative}
+.arc-network-switch-item.is-online .arc-network-switch-logo:after,.arc-network-switch-item.is-offline .arc-network-switch-logo:after{content:"";position:absolute;right:0;bottom:0;width:8px;height:8px;border:2px solid var(--surface);border-radius:50%;background:#dc2626}
+.arc-network-switch-item.is-online .arc-network-switch-logo:after{background:#16a34a}
+.arc-net-availability.is-online{color:#16a34a;font-weight:800}.arc-net-availability.is-offline{color:#dc2626;font-weight:800}
+.arc-network-switch-add{width:100%;background:transparent;text-align:left;font-family:inherit;cursor:pointer;border-left:0;border-right:0;border-bottom:0}
+/* Modal de registro compartilhado com o painel; não interfere no dropdown. */
+.arc-page-redes #modal-register{z-index:10000}
+.arc-page-redes #modal-register .modal{width:min(760px,calc(100vw - 22px));max-height:calc(100dvh - 24px)}

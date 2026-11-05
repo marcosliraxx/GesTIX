@@ -57,6 +57,20 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                 ]);
 
                 $networkId = (int)$pdo->lastInsertId();
+                $networkExtras = [
+                    'doc_number'=>18,'trade_name'=>160,'company_email'=>160,'zip_code'=>10,
+                    'state_code'=>2,'city_name'=>100,'street_name'=>160,'street_number'=>20,
+                    'address_extra'=>100,'district_name'=>100,'registration_status'=>100,
+                    'main_activity'=>160,'legal_nature'=>160,'opening_date'=>30,
+                ];
+                $extraSet=[]; $extraValues=[];
+                foreach($networkExtras as $field=>$limit){
+                    $extraSet[]=$field.'=?';
+                    $extraValues[]=mb_substr(trim((string)($_POST[$field]??'')),0,$limit);
+                }
+                $pdo->prepare('UPDATE '.arc_table('managed_networks').' SET '.implode(',',$extraSet).' WHERE id=? AND account_id=?')
+                    ->execute(array_merge($extraValues,[$networkId,arc_user_id()]));
+
                 $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
                 do {
                     $siteCode = '';
@@ -73,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                 arc_select_network($pdo, $networkId);
                 arc_user_audit($pdo, 'network_created', 'Rede: ' . mb_substr($name, 0, 200) . ' (' . $siteCode . ')');
                 $_SESSION['arc_flash'] = 'Rede registrada com o código ' . $siteCode . '.';
-                $go('redes/servidor.php?network=' . $networkId);
+                $go('redes/painel.php?network=' . $networkId);
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
@@ -91,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         } else {
             arc_user_audit($pdo, 'network_selected', 'Rede ID ' . $id);
             $_SESSION['arc_flash'] = 'Rede selecionada. Abrindo a gestão solicitada.';
-            $go('../index.php');
+            $go('redes/painel.php?network=' . $id);
         }
 
     } elseif ($action === 'network_delete') {
@@ -335,7 +349,7 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 @keyframes arcpnspin{to{transform:rotate(360deg)}}
 @keyframes arcpnpulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.5)}50%{box-shadow:0 0 0 4px rgba(22,163,74,0)}}
 .app-main{display:flex;overflow:hidden;padding:14px 18px}
-.arc-panel-unified{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;max-width:1440px;margin-inline:auto}
+.arc-panel-unified{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;max-width:none;margin-inline:auto}
 .arc-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none}
 .arc-panel-eyebrow{font-size:10px;font-weight:750;letter-spacing:.16em;color:var(--primary)}
 .arc-panel-heading h1{margin:5px 0 4px;font-size:clamp(18px,1.7vw,23px);line-height:1.2;letter-spacing:-.035em;color:var(--text)}
@@ -403,18 +417,77 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 }
 @media(prefers-reduced-motion:reduce){.arc-pn-tile[data-transition]{animation:none!important;outline:2px solid currentColor}.arc-pn-info[data-transition] .arc-pni-ico{animation:none!important;outline:2px solid currentColor}.arc-pn-btn.busy i{animation:none;transition:none}.arc-pn-info[data-online="1"] .arc-pni-pill i{animation:none;transition:none}.arc-pn-tile{animation:none;transition:none}.arc-panel-network-link{transition:none!important;animation:none!important}.arc-panel-network-link:hover{transform:none}.arc-panel-network-link:active{transform:none}*{scroll-behavior:auto!important;transition:none!important}}
 
+
+
+/* Painel: comandos em barra única e cartões centralizados */
+.arc-panel-topbar{display:flex;align-items:center;gap:8px;min-width:0;flex:none}
+.arc-panel-topbar .arc-panel-commandbar{display:contents}
+.arc-panel-topbar .arc-panel-search{order:0;flex:1 1 180px;width:auto;min-width:65px}
+.arc-panel-topbar .arc-panel-summary{order:1;display:flex;gap:6px;min-width:0;flex:0 1 auto}
+.arc-panel-topbar .arc-panel-metric{display:flex;align-items:center;gap:6px;padding:5px 9px;min-height:38px;min-width:0;box-shadow:none}
+.arc-panel-topbar .arc-panel-metric .arc-metric-icon,.arc-panel-topbar .arc-metric-caption{display:none}
+.arc-panel-topbar .arc-panel-metric>span:not(.arc-metric-icon):not(.arc-metric-caption){display:flex;align-items:center;gap:5px}
+.arc-panel-topbar .arc-panel-metric small{font-size:10px;white-space:nowrap}
+.arc-panel-topbar .arc-panel-metric strong{font-size:15px;margin:0}
+.arc-panel-topbar .arc-panel-new{order:2}
+.arc-panel-network-rail{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))!important;grid-template-rows:none!important;overflow-y:auto;align-content:start;flex:1}
+.arc-panel-network-link{justify-content:center;align-items:center;min-height:110px;max-height:142px;text-align:center;padding:12px 8px}
+.arc-panel-card-top{display:flex!important;justify-content:center;width:100%}
+.arc-panel-card-icon{height:46px;width:46px}.arc-panel-card-icon svg{height:31px;width:31px}
+.arc-panel-status-dot{position:absolute;right:9px;top:9px}
+.arc-panel-network-name{display:block;-webkit-line-clamp:unset;text-align:center;white-space:normal;margin:3px 0 0;font-size:12px;overflow-wrap:anywhere}
+@media(max-width:860px){
+ .arc-panel-topbar{gap:5px}
+ .arc-panel-topbar .arc-panel-search{height:36px;padding:0 7px;flex:1 1 80px}
+ .arc-panel-topbar .arc-panel-search input{font-size:16px}
+ .arc-panel-topbar .arc-panel-metric{height:36px;min-height:36px;padding:3px 5px}
+ .arc-panel-topbar .arc-panel-metric small{display:none}
+ .arc-panel-topbar .arc-panel-metric strong{font-size:12px}
+ .arc-panel-topbar .arc-panel-new{height:36px;min-height:36px;width:36px;padding:0}
+ .arc-panel-topbar .arc-panel-new>span:last-child{display:none}
+ .arc-panel-network-rail{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))!important;gap:7px}
+ .arc-panel-network-link{min-height:96px;max-height:128px;padding:8px 5px}
+ .arc-panel-network-name{font-size:11px}
+}
+
+/* Painel 3.9.1 — cartões, indicadores e paginação compactos */
+.arc-panel-network-link{min-width:0;overflow:hidden}
+.arc-panel-network-name{display:block!important;width:100%;max-width:100%;min-width:0;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;overflow-wrap:normal!important;-webkit-line-clamp:unset!important;line-height:1.4}
+.arc-panel-topbar .arc-panel-summary{gap:5px;flex:none}
+.arc-panel-topbar .arc-panel-metric{display:inline-flex;flex:none;justify-content:center;align-items:center;gap:5px;height:36px;min-height:36px;padding:4px 7px;border-radius:10px;line-height:1}
+.arc-panel-topbar .arc-panel-metric .arc-metric-icon{display:grid;place-items:center;width:20px;height:22px;font-size:15px;background:none}
+.arc-panel-topbar .arc-panel-metric>span:not(.arc-metric-icon):not(.arc-metric-caption){display:flex;align-items:center;gap:0}
+.arc-panel-topbar .arc-panel-metric small{display:none}
+.arc-panel-topbar .arc-panel-metric strong{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:18px;padding:0 4px;border:1px solid color-mix(in srgb,var(--primary) 36%,transparent);border-radius:7px;background:color-mix(in srgb,var(--primary) 13%,transparent);font-size:11px;font-weight:800;line-height:1;color:var(--primary)}
+.arc-panel-topbar .arc-panel-metric.on strong{color:#20be92;border-color:#20be9240;background:#20be9214}
+.arc-panel-topbar .arc-panel-metric.off strong{color:#e4a74d;border-color:#e4a74d40;background:#e4a74d14}
+.arc-panel-topbar .arc-panel-new{width:auto;min-width:36px;height:36px;min-height:36px;border:1px solid color-mix(in srgb,var(--primary) 55%,transparent);border-radius:10px;padding:0 10px;box-shadow:none}
+.arc-panel-topbar .arc-panel-new>span:first-child{display:grid;place-items:center;font-size:16px}
+.arc-panel-pagination:not([hidden]){min-height:30px;height:30px;gap:6px;font-size:10px}
+.arc-panel-pagination>div{gap:5px}
+.arc-panel-pagination button{width:28px;height:26px;border-radius:8px;font-size:17px}
+#arc-panel-page{min-width:31px}
+@media(max-width:860px){
+ .arc-panel-topbar{gap:5px}
+ .arc-panel-topbar .arc-panel-metric{height:34px;min-height:34px;padding:3px 4px;gap:2px;border-radius:9px}
+ .arc-panel-topbar .arc-panel-metric .arc-metric-icon{display:grid;width:17px;height:18px;font-size:13px}
+ .arc-panel-topbar .arc-panel-metric strong{min-width:15px;height:17px;padding:0 3px;font-size:10px}
+ .arc-panel-topbar .arc-panel-new{width:34px;min-width:34px;height:34px;min-height:34px;padding:0}
+ .arc-panel-topbar .arc-panel-search{min-width:40px;height:34px}
+ .arc-panel-pagination:not([hidden]){min-height:27px;height:27px}
+}
 </style>
 <main class="app-main"><div class="page-content arc-panel-unified" data-role="<?=arc_h($role)?>">
-<header class="arc-panel-heading"><div><span class="arc-panel-eyebrow">CENTRAL DE MONITORAMENTO</span><h1>Suas redes, em um só lugar.</h1><p>Acompanhe suas conexões e acesse cada ambiente.</p></div><span class="arc-panel-sync" id="arc-panel-sync"><span></span> Atualização automática</span></header>
-<div class="arc-panel-summary" role="group" aria-label="Filtrar redes por situação">
-<button type="button" class="arc-panel-metric" data-panel-filter="all" aria-pressed="true"><span class="arc-metric-icon"><i class="fa fa-sitemap" aria-hidden="true"></i></span><span><small>Redes registradas</small><strong id="arc-panel-total"><?=count($panelNetworks)?></strong></span><span class="arc-metric-caption">Todos os ambientes</span></button>
-<button type="button" class="arc-panel-metric on" data-panel-filter="online" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-signal" aria-hidden="true"></i></span><span><small>Conectadas</small><strong id="arc-panel-online"><?=$panelOnline?></strong></span><span class="arc-metric-caption">Agentes em comunicação</span></button>
-<button type="button" class="arc-panel-metric off" data-panel-filter="attention" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-bell-o" aria-hidden="true"></i></span><span><small>Sem conexão</small><strong id="arc-panel-offline"><?=$panelOffline?></strong></span><span class="arc-metric-caption">Offline ou sem agente</span></button>
+<header class="arc-panel-heading"><span class="arc-panel-sync" id="arc-panel-sync"><span></span> Atualização automática</span></header>
+<div class="arc-panel-topbar"><div class="arc-panel-summary" role="group" aria-label="Filtrar redes por situação">
+<button type="button" class="arc-panel-metric" data-panel-filter="all" title="Todas as redes" aria-pressed="true"><span class="arc-metric-icon"><i class="fa fa-sitemap" aria-hidden="true"></i></span><span><small>Redes registradas</small><strong id="arc-panel-total"><?=count($panelNetworks)?></strong></span><span class="arc-metric-caption">Todos os ambientes</span></button>
+<button type="button" class="arc-panel-metric on" data-panel-filter="online" title="Redes conectadas" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-signal" aria-hidden="true"></i></span><span><small>Conectadas</small><strong id="arc-panel-online"><?=$panelOnline?></strong></span><span class="arc-metric-caption">Agentes em comunicação</span></button>
+<button type="button" class="arc-panel-metric off" data-panel-filter="attention" title="Redes sem conexão" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-bell-o" aria-hidden="true"></i></span><span><small>Sem conexão</small><strong id="arc-panel-offline"><?=$panelOffline?></strong></span><span class="arc-metric-caption">Offline ou sem agente</span></button>
 </div>
 <div class="arc-panel-commandbar" role="search" aria-label="Buscar redes">
 <label class="arc-panel-search" for="arc-panel-search"><i class="fa fa-search" aria-hidden="true"></i><input id="arc-panel-search" type="search" placeholder="Buscar pelo nome da rede" autocomplete="off" aria-label="Buscar redes"></label>
-<button class="arc-panel-new" type="button" data-open-register aria-label="Cadastrar nova rede"><span aria-hidden="true">+</span><span>Nova rede</span></button>
-</div>
+<button class="arc-panel-new" type="button" data-open-register aria-label="Cadastrar nova rede"><span aria-hidden="true"><i class="fa fa-plus"></i></span><span>Nova rede</span></button>
+</div></div>
 <?php if($arcError!==''):?><p class="arc-panel-error" role="alert"><?=arc_h($arcError)?></p><?php endif;?>
 <section class="arc-panel-network-block" aria-labelledby="panel-networks-title">
 <div class="arc-panel-section-heading"><h2 id="panel-networks-title">Meus ambientes <span id="arc-panel-result-count"><?=count($panelNetworks)?></span></h2><span class="arc-panel-section-hint">Toque em uma rede para acompanhar</span></div>
@@ -422,14 +495,14 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 <?php else: ?>
 <div class="arc-panel-network-rail" id="arc-panel-grid" role="region" aria-label="Redes registradas">
 <?php foreach($panelNetworks as $network):$on=(int)$network['is_active']===1 && (int)$network['has_online_agent']===1;$state=['online'=>'Todos online','partial'=>'Parte dos agentes offline','offline'=>'Agentes offline','none'=>'Sem agentes'][$network['agent_state']]; if((int)$network['is_active']!==1)$state='Rede arquivada'; ?>
-<a class="arc-panel-network-link" aria-haspopup="dialog" data-panel-network="<?=(int)$network['id']?>" data-shared="<?=!empty($network['shared'])?'1':'0'?>" data-agent-state="<?=arc_h($network['agent_state'])?>" data-online="<?=$on?'1':'0'?>" data-active="<?=(int)$network['is_active']===1?'1':'0'?>" href="<?=arc_h(arc_workspace_base_url()).'redes/servidor.php?network='.(int)$network['id']?>" title="<?=arc_h((string)$network['name'].' — '.$state)?>" aria-label="<?=arc_h((string)$network['name'].' — '.$state)?>" data-name="<?=arc_h((string)$network['name'])?>">
+<a class="arc-panel-network-link" data-panel-network="<?=(int)$network['id']?>" data-shared="<?=!empty($network['shared'])?'1':'0'?>" data-agent-state="<?=arc_h($network['agent_state'])?>" data-online="<?=$on?'1':'0'?>" data-active="<?=(int)$network['is_active']===1?'1':'0'?>" href="<?=arc_h(arc_workspace_base_url()).'redes/painel.php?network='.(int)$network['id']?>" title="<?=arc_h((string)$network['name'].' — '.$state)?>" aria-label="<?=arc_h((string)$network['name'].' — '.$state)?>" data-name="<?=arc_h((string)$network['name'])?>">
 <span class="arc-panel-card-top"><span class="arc-panel-card-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="5" y="5" width="22" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 20v6m-5 0h10M10 11h5m-5 4h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="arc-panel-status-dot" aria-hidden="true"></span></span>
-<span class="arc-panel-network-name"><?=arc_h((string)$network['name'])?><?php if(!empty($network['shared'])): ?> <small class="arc-panel-shared">Compartilhada · <?=arc_h(['administrator'=>'Administrador','operator'=>'Operador','viewer'=>'Visualizador'][(string)($network['role']??'viewer')]??'Visualizador')?></small><?php endif; ?></span><span class="arc-panel-network-state"><?=arc_h($state)?></span><span class="arc-panel-card-action">Acompanhar rede <span aria-hidden="true"><i class="fa fa-angle-right"></i></span></span>
+<span class="arc-panel-network-name"><?=arc_h((string)$network['name'])?><?php if(!empty($network['shared'])): ?> <small class="arc-panel-shared">Compartilhada · <?=arc_h(['administrator'=>'Administrador','operator'=>'Operador','viewer'=>'Visualizador'][(string)($network['role']??'viewer')]??'Visualizador')?></small><?php endif; ?></span>
 </a>
 <?php endforeach; ?>
 </div>
 <div class="arc-panel-empty" id="arc-panel-search-empty" hidden><span class="arc-panel-empty-icon" aria-hidden="true">⌕</span><h3 id="arc-panel-empty-title">Nenhuma rede encontrada</h3><p id="arc-panel-empty-text">Tente outro nome ou selecione todos os ambientes.</p><button type="button" class="button" id="arc-panel-clear" aria-label="Limpar filtros" title="Limpar filtros"><i class="fa fa-eraser" aria-hidden="true"></i><span class="arc-action-label">Limpar filtros</span></button><button type="button" class="button primary" id="arc-panel-empty-create" data-open-register hidden aria-label="Registrar minha primeira rede" title="Registrar minha primeira rede"><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">Registrar minha primeira rede</span></button></div>
-<div class="arc-panel-pagination" aria-label="Páginas de redes"><span id="arc-panel-range" role="status" aria-live="polite"></span><div><button type="button" id="arc-panel-prev" aria-label="Página anterior">‹</button><span id="arc-panel-page" aria-label="Página atual">1 / 1</span><button type="button" id="arc-panel-next" aria-label="Próxima página">›</button></div></div>
+<div class="arc-panel-pagination" aria-label="Páginas de redes" hidden><span id="arc-panel-range" role="status" aria-live="polite"></span><div><button type="button" id="arc-panel-prev" aria-label="Página anterior">‹</button><span id="arc-panel-page" aria-label="Página atual">1 / 1</span><button type="button" id="arc-panel-next" aria-label="Próxima página">›</button></div></div>
 <?php endif; ?>
 </section>
 </div></main>
@@ -458,24 +531,24 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
                     </div>
                     <p class="doc-status span2" id="doc-status" role="status" aria-live="polite">CNPJ: consulta automática ao completar os 14 dígitos.</p>
                     <label class="arc-field">Razão social / cliente<input name="client_name" id="reg-client" maxlength="160" required></label>
-                    <label class="arc-field">Nome fantasia<input id="reg-fantasy" maxlength="160"></label>
+                    <label class="arc-field">Nome fantasia<input name="trade_name" id="reg-fantasy" maxlength="160"></label>
                     <label class="arc-field">Responsável<input name="contact_name" id="reg-contact" maxlength="160"></label>
                     <label class="arc-field">Telefone<input name="contact_phone" id="reg-phone" maxlength="40" inputmode="tel"></label>
-                    <label class="arc-field">E-mail da empresa<input id="reg-email" type="email" maxlength="160"></label>
-                    <label class="arc-field">CEP<input id="reg-cep" inputmode="numeric" maxlength="9"></label>
-                    <label class="arc-field">UF<input id="reg-uf" maxlength="2"></label>
-                    <label class="arc-field">Município<input id="reg-city" maxlength="100"></label>
+                    <label class="arc-field">E-mail da empresa<input name="company_email" id="reg-email" type="email" maxlength="160"></label>
+                    <label class="arc-field">CEP<input name="zip_code" id="reg-cep" inputmode="numeric" maxlength="9"></label>
+                    <label class="arc-field">UF<input name="state_code" id="reg-uf" maxlength="2"></label>
+                    <label class="arc-field">Município<input name="city_name" id="reg-city" maxlength="100"></label>
                     <label class="arc-field span2">Endereço completo<input name="address" id="reg-address" maxlength="255"></label>
                     <details class="arc-register-more span2"><summary><i class="fa fa-sliders" aria-hidden="true"></i> Mais detalhes do cadastro (opcional)</summary>
                         <div class="arc-register-more-grid">
-                            <label class="arc-field">Logradouro<input id="reg-street" maxlength="160"></label>
-                            <label class="arc-field">Número<input id="reg-number" maxlength="20"></label>
-                            <label class="arc-field">Complemento<input id="reg-complement" maxlength="100"></label>
-                            <label class="arc-field">Bairro<input id="reg-district" maxlength="100"></label>
-                            <label class="arc-field">Situação cadastral<input id="reg-status" readonly></label>
-                            <label class="arc-field">CNAE principal<input id="reg-cnae" readonly></label>
-                            <label class="arc-field">Natureza jurídica<input id="reg-legal" readonly></label>
-                            <label class="arc-field">Data de abertura<input id="reg-opening" readonly></label>
+                            <label class="arc-field">Logradouro<input name="street_name" id="reg-street" maxlength="160"></label>
+                            <label class="arc-field">Número<input name="street_number" id="reg-number" maxlength="20"></label>
+                            <label class="arc-field">Complemento<input name="address_extra" id="reg-complement" maxlength="100"></label>
+                            <label class="arc-field">Bairro<input name="district_name" id="reg-district" maxlength="100"></label>
+                            <label class="arc-field">Situação cadastral<input name="registration_status" id="reg-status" readonly></label>
+                            <label class="arc-field">CNAE principal<input name="main_activity" id="reg-cnae" readonly></label>
+                            <label class="arc-field">Natureza jurídica<input name="legal_nature" id="reg-legal" readonly></label>
+                            <label class="arc-field">Data de abertura<input name="opening_date" id="reg-opening" readonly></label>
                             <label class="arc-field span2">Observações<textarea name="notes" id="reg-notes" maxlength="5000" rows="2"></textarea></label>
                         </div>
                     </details>
@@ -487,273 +560,18 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
     </div>
 </div>
 
-<dialog class="arc-pn-dialog" id="arc-pn-dialog" aria-labelledby="arc-pn-title" data-csrf="<?= arc_h(arc_csrf_token()) ?>">
-<div class="arc-pn-head">
-<div class="arc-pn-title"><strong id="arc-pn-title">Rede</strong><div class="arc-pn-counts" aria-live="polite"><button type="button" class="all" data-status="all" aria-pressed="true" title="Exibir todos os dispositivos"><i></i><b id="arc-pn-all">0</b></button><button type="button" class="on" data-status="online" aria-pressed="false" title="Exibir somente dispositivos online"><i></i><b id="arc-pn-on">0</b></button><button type="button" class="off" data-status="offline" aria-pressed="false" title="Exibir somente dispositivos offline"><i></i><b id="arc-pn-off">0</b></button></div></div>
-<div class="arc-pn-views" role="group" aria-label="Tipo de visualização">
-<button type="button" class="arc-pn-btn" data-view="all" aria-pressed="true" title="Visão geral" aria-label="Visão geral"><i class="fa fa-th" aria-hidden="true"></i></button>
-<button type="button" class="arc-pn-btn" data-view="type" aria-pressed="false" title="Separar por tipo de dispositivo" aria-label="Separar por tipo de dispositivo"><i class="fa fa-th-list" aria-hidden="true"></i></button>
-<button type="button" class="arc-pn-btn" data-view="group" aria-pressed="false" title="Separar por grupo" aria-label="Separar por grupo"><i class="fa fa-folder-open-o" aria-hidden="true"></i></button>
-</div>
-<button type="button" class="arc-pn-btn" id="arc-pn-refresh" title="Atualizar: varrer os dispositivos da rede" aria-label="Atualizar: varrer os dispositivos da rede"><i class="fa fa-refresh" aria-hidden="true"></i></button>
-<a class="arc-pn-btn" id="arc-pn-open" href="#" title="Abrir monitoramento" aria-label="Abrir monitoramento da rede"><i class="fa fa-external-link" aria-hidden="true"></i></a>
-<button type="button" class="arc-pn-btn" id="arc-pn-close" title="Fechar" aria-label="Fechar" autofocus><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">&times;</span></button>
-</div>
-<div class="arc-pn-body" id="arc-pn-body"><div id="arc-pn-secs"></div><p class="arc-pn-msg" id="arc-pn-msg" role="status"></p></div>
-<div class="arc-pn-foot"><span id="arc-pn-upd"><i class="fa fa-clock-o" aria-hidden="true"></i> </span><div class="arc-pn-sort" role="group" aria-label="Ordem dos dispositivos"><button type="button" class="arc-pn-btn" data-sort="recent" aria-pressed="true" title="Mudanças mais recentes primeiro" aria-label="Mais recentes"><i class="fa fa-sort-amount-desc"></i></button><button type="button" class="arc-pn-btn" data-sort="oldest" aria-pressed="false" title="Mudanças mais antigas primeiro" aria-label="Mais antigos"><i class="fa fa-sort-amount-asc"></i></button><button type="button" class="arc-pn-btn" data-sort="first" aria-pressed="false" title="Ordem de primeira detecção" aria-label="Primeiros detectados"><i class="fa fa-calendar-o"></i></button></div><span id="arc-pn-run" role="status" aria-live="polite"></span></div>
-</dialog>
-<dialog class="arc-pn-info" id="arc-pn-info" aria-labelledby="arc-pni-name">
-<div class="arc-pni-head"><span class="arc-pni-ico"><i class="fa fa-laptop" id="arc-pni-icon" aria-hidden="true"></i></span><div class="arc-pni-t"><strong id="arc-pni-name">Dispositivo</strong><span id="arc-pni-sub"></span></div><button type="button" class="arc-pn-btn" id="arc-pni-close" title="Fechar" aria-label="Fechar detalhes" autofocus><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">&times;</span></button></div>
-<div class="arc-pni-status"><span class="arc-pni-pill"><i></i><b id="arc-pni-state">Offline</b></span><div class="arc-pni-dur" id="arc-pni-dur" aria-live="off">—</div><div class="arc-pni-since" id="arc-pni-since"></div><p class="arc-pni-warn" id="arc-pni-warn" hidden></p></div>
-<dl class="arc-pni-rows" id="arc-pni-rows"></dl>
-</dialog>
-
-<script>
-(function(){
-    var dlg=document.getElementById('arc-pn-dialog'),info=document.getElementById('arc-pn-info');
-    if(!dlg||typeof dlg.showModal!=='function')return; /* sem suporte: o card continua abrindo o monitoramento */
-    var $=function(id){return document.getElementById(id)};
-    var secs=$('arc-pn-secs'),msg=$('arc-pn-msg'),body=$('arc-pn-body'),head=dlg.querySelector('.arc-pn-head'),foot=dlg.querySelector('.arc-pn-foot'),
-        ttl=$('arc-pn-title'),cAll=$('arc-pn-all'),cOn=$('arc-pn-on'),cOff=$('arc-pn-off'),openLink=$('arc-pn-open'),refreshBtn=$('arc-pn-refresh'),updEl=$('arc-pn-upd'),runEl=$('arc-pn-run'),
-        csrf=dlg.dataset.csrf||'';
-    var types={computer:'desktop',phone:'mobile',tablet:'tablet',tv:'television',router:'wifi',printer:'print',server:'server',camera:'video-camera',iot:'microchip',console:'gamepad',speaker:'volume-up','switch':'sitemap',ap:'wifi',nas:'hdd-o',device:'laptop'};
-    var aliases={computador:'computer',desktop:'computer',pc:'computer',celular:'phone',mobile:'phone',smartphone:'phone',telefone:'phone',roteador:'router',impressora:'printer','smart tv':'tv',televisor:'tv',televisao:'tv',servidor:'server','câmera':'camera','access point':'ap',dispositivo:'device'};
-    var order=['computer','phone','tablet','tv','console','speaker','printer','camera','router','ap','switch','nas','server','iot','device'];
-    var plural={computer:'Computadores',phone:'Celulares',tablet:'Tablets',tv:'TVs',console:'Consoles',speaker:'Caixas de som',printer:'Impressoras',camera:'Câmeras',router:'Roteadores',ap:'Access points','switch':'Switches',nas:'NAS',server:'Servidores',iot:'IoT',device:'Outros'};
-    var single={computer:'Computador',phone:'Celular',tablet:'Tablet',tv:'TV',console:'Console',speaker:'Caixa de som',printer:'Impressora',camera:'Câmera',router:'Roteador',ap:'Access point','switch':'Switch',nas:'NAS',server:'Servidor',iot:'IoT',device:'Outro'};
-    function canon(raw){var v=String(raw||'device').toLowerCase().trim();if(types[v])return v;var a=aliases[v];return a&&types[a]?a:'device';}
-    function icon(raw){return types[canon(raw)];}
-    var GAP=4,MAXS=76,MINS=40,HDR=25;
-    var devices=[],reqId=0,ctrl=null,timer=0,tick=0,current='',clock=0,updated=0,view='all',canScan=false,scanReason='',agents=[],scanning=false,scanTimer=0,runTimer=0,infoDev=null,loaded=false,statusFilter='all',sortMode='recent';
-    // Estado somente na memória do navegador: não aumenta a telemetria no MySQL.
-    var transitions=new Map(),previousStates=new Map(),TRANSITION_MS=12000;
-    function deviceKey(d){return String(d.m||'').trim().toLowerCase() || ('ip:'+String(d.ip||'')+'|'+String(d.n||''));}
-    function transitionFor(d){var v=transitions.get(deviceKey(d));return v&&Date.now()<v.until?v.state:'';}
-    function trackDeviceTransitions(next){
-        var upcoming=new Map(),now=Date.now();
-        next.forEach(function(d){
-            var key=deviceKey(d),state=d.x?'unknown':(d.o?'online':'offline');
-            var last=previousStates.get(key);
-            // Dispositivo novo no modal não é mudança de status; sem agente não inferimos offline.
-            if(last && last!==state && state!=='unknown' && last!=='unknown')transitions.set(key,{state:state,until:now+TRANSITION_MS});
-            // Mudanças ocorridas enquanto o modal estava fechado podem ser reconhecidas pelo carimbo do agente.
-            if(!last && !d.x && Number(d.c)>0 && Math.abs(nowS()-Number(d.c))<=TRANSITION_MS){
-                transitions.set(key,{state:state,until:now+Math.max(0,TRANSITION_MS-(nowS()-Number(d.c))*1000)});
-            }
-            upcoming.set(key,state);
-        });
-        previousStates=upcoming;
-        transitions.forEach(function(v,k){if(v.until<=now||!upcoming.has(k))transitions.delete(k)});
-    }
-
-    try{var sv=localStorage.getItem('arc-pn-view');if(sv==='type'||sv==='group'||sv==='all')view=sv;}catch(e){}
-    function apiUrl(action){var u=new URL('api/api.php',document.baseURI);u.searchParams.set('action',action);return u;}
-    function endpoint(id){var u=new URL('pages/painel.php',document.baseURI);u.searchParams.set('ajax','network_devices');u.searchParams.set('network',id);u.searchParams.set('_fresh',Date.now());return u.href;}
-    function nowS(){return Date.now()/1000+clock;}
-    function fmtDate(t){return t>0?new Date(t*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',',''):'—';}
-    function fmtShort(t){return new Date(t*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',','');}
-    function fmtDur(s){s=Math.max(0,Math.floor(s));var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),x=s%60;
-        if(d>0)return d+' d '+h+' h '+m+' min';if(h>0)return h+' h '+m+' min '+x+' s';if(m>0)return m+' min '+x+' s';return x+' s';}
-    function ago(s){s=Math.max(0,Math.floor(s));if(s<60)return 'há '+s+' s';if(s<3600)return 'há '+Math.floor(s/60)+' min';if(s<86400)return 'há '+Math.floor(s/3600)+' h';return 'há '+Math.floor(s/86400)+' d';}
-    function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
-
-    /* ---------- agrupamento por visualização ---------- */
-    function buildGroups(){
-        var visible=devices.filter(function(d){return statusFilter==='all'||(statusFilter==='online'?!!d.o:!d.o)});
-        var field=sortMode==='first'?'f':'s';
-        visible.sort(function(a,b){return (sortMode==='oldest'?1:-1)*(Number(a[field]||0)-Number(b[field]||0)) || String(a.n).localeCompare(String(b.n),'pt-BR')});
-        if(view==='type'){
-            var by={};visible.forEach(function(d){var k=canon(d.t);(by[k]=by[k]||[]).push(d)});
-            return order.filter(function(k){return by[k]}).map(function(k){return{label:plural[k],items:by[k]}});
-        }
-        if(view==='group'){
-            var g={},none=[];visible.forEach(function(d){if(d.g){(g[d.g]=g[d.g]||[]).push(d)}else none.push(d)});
-            var out=Object.keys(g).sort(function(a,b){return a.localeCompare(b,'pt-BR',{sensitivity:'base'})}).map(function(k){return{label:k,items:g[k]}});
-            if(none.length)out.push({label:'Sem grupo',items:none});
-            return out;
-        }
-        return[{label:'',items:visible}];
-    }
-    var layout=[];
-    function render(){
-        var on=0;secs.replaceChildren();layout=[];
-        devices.forEach(function(d){if(d.o)on++});
-        cAll.textContent=devices.length;cOn.textContent=on;cOff.textContent=devices.length-on;
-        dlg.querySelectorAll('[data-status]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.status===statusFilter?'true':'false')});
-        dlg.querySelectorAll('[data-sort]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.sort===sortMode?'true':'false')});
-        var rank=Object.fromEntries(devices.slice().sort(function(a,b){return Number(a.s||0)-Number(b.s||0)||String(a.n).localeCompare(String(b.n),'pt-BR')}).map(function(d,i){return [String(d.m||d.ip||d.n),i+1]}));
-        var displayed=0;buildGroups().forEach(function(grp){
-            if(!grp.items.length)return;
-            var sec=el('div','arc-pn-sec');
-            if(grp.label){var h=el('div','arc-pn-sechead'),n=0;grp.items.forEach(function(d){if(d.o)n++});h.append(el('span',null,grp.label),el('small',null,n+'/'+grp.items.length));sec.append(h);}
-            var grid=el('div','arc-pn-grid');
-            grp.items.forEach(function(d){
-                var t=el('button','arc-pn-tile');t.type='button';t.dataset.online=d.o?'1':'0';var flash=transitionFor(d);if(flash)t.dataset.transition=flash;t._d=d;
-                var state=d.o?'Online':'Offline';t.title=d.n+(d.ip?' · '+d.ip:'')+' — '+state;t.setAttribute('aria-label',d.n+' — '+state+'. Ver detalhes');
-                var i=el('i','fa fa-'+icon(d.t));i.setAttribute('aria-hidden','true');var rankId=rank[String(d.m||d.ip||d.n)];if(rankId){var badge=el('small','arc-pn-rank','#'+rankId);badge.title='Ordem cronológica da última mudança de estado';t.append(badge);}t.append(i,el('span',null,d.n));grid.append(t);displayed++;
-            });
-            sec.append(grid);secs.append(sec);layout.push({grid:grid,n:grp.items.length,head:!!grp.label});
-        });
-        msg.textContent=!devices.length?'Nenhum dispositivo inventariado nesta rede.':!displayed?'Nenhum dispositivo neste filtro.':'';msg.hidden=displayed>0;
-        document.querySelectorAll('.arc-pn-views [data-view]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.view===view?'true':'false')});
-        fit();
-    }
-    /* Escolhe colunas/tamanho para que todos os dispositivos (e as linhas de divisão) caibam sem rolar. */
-    function fit(){
-        if(!layout.length)return;
-        var cs=getComputedStyle(body),padX=parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight),padY=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
-        var vh=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
-        var heads=layout.filter(function(l){return l.head}).length;
-        var W=body.clientWidth-padX,H=vh*0.94-head.offsetHeight-foot.offsetHeight-padY-4-heads*HDR;
-        if(W<=0)return;
-        var maxN=0;layout.forEach(function(l){if(l.n>maxN)maxN=l.n});
-        var bestC=1,bestS=0;
-        for(var c=1;c<=maxN;c++){
-            var rows=0;layout.forEach(function(l){rows+=Math.ceil(l.n/c)});
-            var s=Math.min((W-(c-1)*GAP)/c,(H+GAP)/rows-GAP,MAXS);
-            if(s>=bestS){bestS=s;bestC=c;}
-        }
-        var s2=Math.floor(bestS),c2=bestC;
-        if(s2<MINS){s2=MINS;c2=Math.max(1,Math.floor((W+GAP)/(MINS+GAP)));} /* excesso: rola dentro do modal */
-        secs.style.setProperty('--s',s2+'px');secs.style.setProperty('--fs',Math.max(7,Math.min(11,Math.round(s2*0.16)))+'px');
-        layout.forEach(function(l){l.grid.style.gridTemplateColumns='repeat('+c2+','+s2+'px)';l.grid.style.gridAutoRows=s2+'px';});
-    }
-
-    /* ---------- carga dos dispositivos ---------- */
-    function setRun(text,kind,keep){
-        clearTimeout(runTimer);runEl.textContent=text||'';if(kind)runEl.dataset.k=kind;else delete runEl.dataset.k;
-        if(text&&kind==='ok'&&!keep)runTimer=setTimeout(function(){runEl.textContent='';delete runEl.dataset.k;},7000);
-    }
-    function paintFoot(){
-        updEl.replaceChildren();var i=el('i','fa fa-refresh');i.setAttribute('aria-hidden','true');updEl.append(i,document.createTextNode(' '));
-        updEl.append(document.createTextNode(updated>0?' '+fmtShort(updated)+' · '+ago(nowS()-updated):' sem registro'));
-    }
-    function paintScanBtn(){
-        var online=agents.some(function(a){return a.online});
-        var blocked=!canScan||!online;
-        refreshBtn.disabled=blocked&&!scanning;
-        refreshBtn.classList.toggle('busy',scanning);
-        refreshBtn.title=scanning?'Varredura em andamento…':(!canScan?(scanReason||'Varredura indisponível.'):(!online?'Agente offline: não é possível varrer agora.':'Atualizar: varrer os dispositivos da rede'));
-        refreshBtn.setAttribute('aria-label',refreshBtn.title);
-    }
-    async function load(id,silent){
-        var my=++reqId;if(ctrl)ctrl.abort();ctrl=new AbortController();
-        if(!silent){secs.replaceChildren();layout=[];msg.hidden=false;msg.textContent='Carregando…';cAll.textContent='–';cOn.textContent='–';cOff.textContent='–';}
-        try{
-            var r=await fetch(endpoint(id),{credentials:'same-origin',cache:'no-store',signal:ctrl.signal,headers:{Accept:'application/json'}});
-            if(!(r.headers.get('content-type')||'').includes('application/json'))throw new Error('resposta inválida');
-            var j=await r.json();if(my!==reqId)return;
-            if(!r.ok||!j.ok)throw new Error(j.error||'falha');
-            clock=Number(j.now||0)-Date.now()/1000;updated=Number(j.updated||0);canScan=!!j.can_scan;scanReason=j.scan_reason||'';agents=j.agents||[];var nextDevices=j.devices||[];trackDeviceTransitions(nextDevices);devices=nextDevices;loaded=true;
-            if(infoDev&&infoDev.m){var nd=devices.filter(function(x){return x.m===infoDev.m})[0];if(nd)infoDev=nd;}
-            render();paintFoot();paintScanBtn();
-            if(info.open)paintInfo();
-        }catch(e){
-            if(e.name==='AbortError'||my!==reqId)return;
-            if(!silent){secs.replaceChildren();layout=[];cAll.textContent='–';cOn.textContent='–';cOff.textContent='–';msg.hidden=false;msg.textContent='Não foi possível carregar os dispositivos. Tente novamente.';}
-        }
-    }
-
-    /* ---------- varredura (comando scan_devices ao agente) ---------- */
-    function endScan(text,kind){scanning=false;clearTimeout(scanTimer);paintScanBtn();setRun(text,kind);}
-    async function scan(){
-        if(scanning||!canScan||!current)return;
-        var online=agents.filter(function(a){return a.online});
-        if(!online.length){setRun('Agente offline: não é possível varrer agora.','err');return;}
-        scanning=true;paintScanBtn();setRun('Enviando varredura ao agente…','busy');
-        var ids=[],netId=current;
-        try{
-            for(var k=0;k<online.length;k++){
-                var r=await fetch(apiUrl('network-command').href,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:Number(netId),agent_id:online[k].id,command:'scan_devices',_csrf:csrf})});
-                var j=await r.json().catch(function(){return{}});
-                if(!r.ok||!j.ok)throw new Error(j.error||'Falha ao enviar a varredura.');
-                ids.push(Number(j.command_id));
-            }
-        }catch(e){endScan(e.message||'Falha ao enviar a varredura.','err');return;}
-        setRun('Varredura em andamento…','busy');pollScan(netId,ids,0);
-    }
-    async function pollScan(netId,ids,n){
-        if(!scanning||netId!==current||!dlg.open)return;
-        if(n>60){endScan('A varredura demorou demais. Tente novamente.','err');return;}
-        try{
-            var u=apiUrl('network-command-status');u.searchParams.set('network_id',netId);
-            var r=await fetch(u.href,{credentials:'same-origin',cache:'no-store'}),j=await r.json();
-            if(!r.ok||!j.ok)throw new Error(j.error||'Não foi possível consultar a varredura.');
-            var mine=(j.commands||[]).filter(function(c){return ids.indexOf(Number(c.id))>-1});
-            var bad=mine.filter(function(c){return c.status==='failed'||c.status==='expired'})[0];
-            if(bad){endScan(bad.status==='expired'?'A varredura expirou sem resposta do agente.':'Varredura não concluída'+(bad.result_text?': '+bad.result_text:'.'),'err');load(netId,true);return;}
-            if(mine.length&&mine.every(function(c){return c.status==='completed'})){
-                endScan('Varredura concluída.','ok');
-                await load(netId,true);
-                setTimeout(function(){if(dlg.open&&current===netId)load(netId,true)},4000); /* dados finais do agente podem chegar logo após */
-                return;
-            }
-        }catch(e){if(n>3){endScan(e.message||'Falha ao acompanhar a varredura.','err');return;}}
-        scanTimer=setTimeout(function(){pollScan(netId,ids,n+1)},3000);
-    }
-
-    /* ---------- mini modal do dispositivo ---------- */
-    function paintInfo(){
-        var d=infoDev;if(!d)return;
-        info.dataset.online=d.o?'1':'0';var flash=transitionFor(d);if(flash)info.dataset.transition=flash;else delete info.dataset.transition;
-        $('arc-pni-icon').className='fa fa-'+icon(d.t);
-        $('arc-pni-name').textContent=d.n;$('arc-pni-sub').textContent=single[canon(d.t)]+(d.g?' · '+d.g:'');
-        $('arc-pni-state').textContent=flash==='online'?'Acabou de ficar online':(flash==='offline'?'Acabou de ficar offline':(d.x?'Sem confirmação (agente offline)':(d.o?'Online':'Offline')));
-        $('arc-pni-dur').textContent=d.s>0?(d.o?'Online há ':'Offline há ')+fmtDur(nowS()-d.s):'Sem registro de tempo';
-        $('arc-pni-since').textContent=d.s>0?(d.o?'Ficou online em ':'Ficou offline em ')+fmtDate(d.s):'';
-        var w=$('arc-pni-warn');
-        if(d.x){w.hidden=false;w.textContent='O agente está sem comunicação; o tempo conta desde o último contato com este dispositivo.';}else w.hidden=true;
-        var rows=$('arc-pni-rows');rows.replaceChildren();
-        [['Ordem da mudança','#'+(devices.slice().sort(function(a,b){return Number(a.s||0)-Number(b.s||0)}).findIndex(function(x){return x===d|| (!!d.m&&x.m===d.m)})+1)],['Última mudança',fmtDate(d.c||d.s)],['Visto por último',fmtDate(d.l)],['Primeira detecção',fmtDate(d.f)],['IP',d.ip],['MAC',d.m],['Tipo',single[canon(d.t)]],['Grupo',d.g||'Sem grupo']].forEach(function(p){
-            if(!p[1]||p[1]==='—')return;var r=el('div');r.append(el('dt',null,p[0]),el('dd',null,p[1]));rows.append(r);
-        });
-    }
-    function openInfo(d){infoDev=d;paintInfo();if(!info.open)info.showModal();}
-
-    /* ---------- relógio: contagens ao vivo enquanto algo estiver aberto ---------- */
-    function startTick(){clearInterval(tick);tick=setInterval(function(){if(document.hidden)return;if(loaded){paintFoot();if(transitions.size){var expired=false;transitions.forEach(function(v,k){if(Date.now()>=v.until){transitions.delete(k);expired=true;}});if(expired)render();}}if(info.open)paintInfo();},1000);}
-    function stop(){clearInterval(timer);clearInterval(tick);timer=0;tick=0;if(ctrl)ctrl.abort();reqId++;scanning=false;clearTimeout(scanTimer);clearTimeout(runTimer);runEl.textContent='';delete runEl.dataset.k;if(info.open)info.close();}
-    function open(link){
-        current=link.dataset.panelNetwork;ttl.textContent=link.dataset.name||'Rede';openLink.href=link.href;openLink.hidden=false;
-        devices=[];layout=[];updated=0;agents=[];canScan=false;loaded=false;infoDev=null;previousStates.clear();transitions.clear();
-        secs.replaceChildren();msg.hidden=false;paintFoot();paintScanBtn();refreshBtn.disabled=true;
-        dlg.showModal();load(current,false);startTick();
-        clearInterval(timer);timer=setInterval(function(){if(!document.hidden&&dlg.open&&!scanning)load(current,true);},2000);
-    }
-    document.addEventListener('click',function(e){
-        if(e.defaultPrevented||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;
-        var link=e.target.closest&&e.target.closest('a[data-panel-network]');if(!link)return;
-        e.preventDefault();open(link);
-    });
-    secs.addEventListener('click',function(e){var t=e.target.closest('.arc-pn-tile');if(t&&t._d)openInfo(t._d);});
-    dlg.querySelector('.arc-pn-views').addEventListener('click',function(e){
-        var b=e.target.closest('[data-view]');if(!b||b.dataset.view===view)return;
-        view=b.dataset.view;try{localStorage.setItem('arc-pn-view',view)}catch(x){}
-        render();
-    });
-    dlg.querySelector('.arc-pn-counts').addEventListener('click',function(e){var b=e.target.closest('[data-status]');if(!b)return;statusFilter=b.dataset.status;render();});
-    dlg.querySelector('.arc-pn-sort').addEventListener('click',function(e){var b=e.target.closest('[data-sort]');if(!b)return;sortMode=b.dataset.sort;render();});
-    refreshBtn.addEventListener('click',scan);
-    $('arc-pn-close').addEventListener('click',function(){dlg.close();});
-    $('arc-pni-close').addEventListener('click',function(){info.close();});
-    dlg.addEventListener('click',function(e){if(e.target===dlg)dlg.close();});
-    info.addEventListener('click',function(e){if(e.target===info)info.close();});
-    dlg.addEventListener('close',stop);
-    window.addEventListener('resize',function(){if(dlg.open)fit();});
-    if(window.visualViewport)window.visualViewport.addEventListener('resize',function(){if(dlg.open)fit();});
-})();
-</script>
-
 <script>
 (function(){
 'use strict';
 var modal=document.getElementById('modal-register');
 if(!modal)return;
-var triggers=document.querySelectorAll('[data-open-register]');
+/* Delegação: o botão do footer é renderizado depois deste script. */
 var previousFocus=null;
 function open(){previousFocus=document.activeElement;modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('arc-modal-active');document.getElementById('doc-number')?.focus();}
 function close(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.classList.remove('arc-modal-active');previousFocus?.focus();}
-triggers.forEach(function(trigger){trigger.addEventListener('click',open);});
+document.addEventListener('click',function(e){
+    if(e.target.closest('[data-open-register]')) { e.preventDefault(); open(); }
+});
 modal.querySelector('[data-close-modal]')?.addEventListener('click',close);
 modal.addEventListener('click',e=>{if(e.target===modal)close();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))close();});
@@ -858,6 +676,7 @@ if(new URLSearchParams(location.search).get('nova_rede')==='1')open();
 (() => {
   'use strict';
   const grid = document.getElementById('arc-panel-grid');
+  const pagination = document.querySelector('.arc-panel-pagination');
   if (!grid) return;
   const cards = Array.from(grid.querySelectorAll('[data-panel-network]'));
   const search = document.getElementById('arc-panel-search');
@@ -884,7 +703,8 @@ if(new URLSearchParams(location.search).get('nova_rede')==='1')open();
     const short = window.innerHeight <= 460;
     const gap = parseFloat(getComputedStyle(grid).columnGap) || 10;
     const width = Math.max(1, block.clientWidth - 4);
-    const availableHeight = Math.max(1, block.clientHeight - block.querySelector('.arc-panel-section-heading').offsetHeight - block.querySelector('.arc-panel-pagination').offsetHeight - 2 * (parseFloat(blockStyle.rowGap) || 8) - 4);
+    const paginationHeight = pagination.hidden ? 0 : pagination.offsetHeight;
+    const availableHeight = Math.max(1, block.clientHeight - block.querySelector('.arc-panel-section-heading').offsetHeight - paginationHeight - 2 * (parseFloat(blockStyle.rowGap) || 8) - 4);
     grid.dataset.compact = String(availableHeight < 150);
     const minCardWidth = window.innerWidth <= 860 ? 124 : 152;
     const minCardHeight = short ? 82 : 132;
@@ -892,6 +712,7 @@ if(new URLSearchParams(location.search).get('nova_rede')==='1')open();
     const rows = Math.max(1, Math.floor((availableHeight + gap) / (minCardHeight + gap)));
     capacity = columns * rows;
     const pages = Math.max(1, Math.ceil(matching.length / capacity));
+    pagination.hidden = pages <= 1;
     page = Math.max(0, Math.min(page, pages - 1));
     const shown = matching.slice(page * capacity, (page + 1) * capacity);
     const visible = new Set(shown);

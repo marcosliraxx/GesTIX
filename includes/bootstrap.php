@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 const ARC_PRIVATE_DIR = __DIR__;
 const ARC_PUBLIC_DIR = __DIR__ . '/../';
-const ARC_APP_VERSION = '3.5.0';
-const ARC_SCHEMA_VERSION = '2026.10.30-9';
+require_once __DIR__.'/releases.php';
+const ARC_SCHEMA_VERSION = '2026.11.05-41';
 
 require_once __DIR__.'/billing.php';
 require_once __DIR__.'/support.php';
+require_once __DIR__.'/network-clean.php';
+require_once __DIR__.'/cloud-backup.php';
 
 /* Fuso horário fixo do Workspace: America/Belem (UTC-03:00). */
 const ARC_TIMEZONE = 'America/Belem';
@@ -32,41 +34,69 @@ function arc_config(): array
 }
 
 require_once __DIR__ . '/login-security.php';
+require_once __DIR__.'/navigation.php';
 
 /** Validate the loaded billing component before rendering or issuing a payment. */
 function arc_require_billing_release(): void
 {
     $required=['arc_billing_status_label','arc_billing_pix_snapshot','arc_billing_pix_payload'];
-    if(!defined('ARC_BILLING_VERSION') || ARC_BILLING_VERSION!==ARC_APP_VERSION || array_filter($required,static fn($name)=>!function_exists($name))){
+    if(array_filter($required,static fn($name)=>!function_exists($name))){
         error_log('Arcoll: componente includes/billing.php ausente ou com versão diferente da plataforma.');
         throw new RuntimeException('A atualização da área de pagamentos está incompleta. Avise o administrador para concluir a atualização do sistema.',503);
     }
 }
 
-/** Inspect only shipped code metadata. Never read installation credentials or user files. */
-function arc_agent_release_status(): array
+/** Canonical code inventory shared by installation and authenticated remote updates. */
+function arc_agent_release_sources(?string $directory=null): array
 {
-    $patterns=[
-        'arcoll_app.py'=>['Aplicativo do agente',"/AGENT_VERSION\\s*=\\s*'([^']+)'/"],
-        'arcoll_desktop.py'=>['Inicializador Windows',"/VERSION\\s*=\\s*'([^']+)'/"],
-        'arcoll_agent.py'=>['Serviço do agente','/VERSION\\s*=\\s*"([^"]+)"/'],
-        'arcoll_updater.py'=>['Atualizador Windows',"/VERSION\\s*=\\s*'([^']+)'/"],
-        'arcoll_toolkit.py'=>['Ferramentas do agente',"/VERSION\\s*=\\s*'([^']+)'/"],
-    ];
-    $components=[];$ready=true;
-    foreach($patterns as $file=>[$label,$pattern]){
-        $source=@file_get_contents(dirname(__DIR__).'/agent/'.$file,false,null,0,8192);
-        $version=is_string($source)&&preg_match($pattern,$source,$match)?$match[1]:null;
-        $aligned=$version===ARC_APP_VERSION;$ready=$ready&&$aligned;
-        $components[]=['name'=>$label,'file'=>'agent/'.$file,'version'=>$version,'aligned'=>$aligned];
+    $directory=$directory??dirname(__DIR__).'/agentes/windows';
+    $required=['arcoll_release.py','arcoll_agent.py','arcoll_desktop.py','arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py','arcoll_updater.py','arcoll_remote.py','arcoll_secure_helper.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
+    $retired=['Instalar_Arcoll.py','arcoll_session.py'];$files=[];
+    $paths=glob($directory.'/*');
+    if($paths===false)throw new RuntimeException('Inventário do agente indisponível.');
+    foreach($paths as $path){
+        $name=basename($path);
+        if(in_array($name,$retired,true)||!preg_match('/^[A-Za-z][A-Za-z0-9_-]*\\.(?:py|ps1)$/D',$name)||!is_file($path))continue;
+        if(!is_readable($path))throw new RuntimeException('Arquivo do agente sem leitura: '.$name);
+        $contents=file_get_contents($path);
+        if(!is_string($contents)||strlen($contents)>1500000)throw new RuntimeException('Arquivo do agente indisponível: '.$name);
+        if($contents===''){
+            if(in_array($name,$required,true))throw new RuntimeException('Arquivo essencial do agente vazio: '.$name);
+            continue; // Empty optional files are deletion markers, never executable release content.
+        }
+        $files[$name]=$contents;
     }
-    $tools=@file_get_contents(dirname(__DIR__).'/redes/suporte.php',false,null,0,4096);
-    $toolsVersion=is_string($tools)&&preg_match("/const ARC_TOOLS_VERSION = '([^']+)'/",$tools,$match)?$match[1]:null;
-    return ['platform_version'=>ARC_APP_VERSION,'ready'=>$ready,'components'=>$components,'tools_version'=>$toolsVersion,'tools_aligned'=>$toolsVersion===ARC_APP_VERSION];
+    foreach($required as $name)if(!isset($files[$name]))throw new RuntimeException('Arquivo essencial do agente ausente: '.$name);
+    if(count($files)>80)throw new RuntimeException('Inventário do agente excede o limite.');
+    $files['arcoll_release.py']=arc_release_metadata_source();
+    ksort($files,SORT_STRING);return $files;
+}
+
+/** Inspect only shipped code metadata. Never read installation credentials or user files. */
+function arc_agent_release_status(): array {
+    try{$sources=arc_agent_release_sources();$ready=true;}catch(RuntimeException $e){$sources=[];$ready=false;}
+    $version=arc_app_version();$components=[];foreach($sources as $name=>$data)$components[]=['name'=>$name,'file'=>'agentes/windows/'.$name,'version'=>$version,'aligned'=>true];
+    return ['platform_version'=>$version,'ready'=>$ready,'components'=>$components,'tools_version'=>$version,'tools_aligned'=>$ready];
 }
 /** The installed old agent can update only after its server-side package is complete. */
+/** One timeout policy for agent polling and platform command status. */
+function arc_expire_running_commands(PDO $pdo,?int $agentId=null,?int $networkId=null,?int $accountId=null): void {
+    if($agentId!==null){$where='agent_id=?';$params=[$agentId];}
+    elseif($networkId!==null&&$accountId!==null){$where='network_id=? AND account_id=?';$params=[$networkId,$accountId];}
+    else throw new InvalidArgumentException('Escopo do comando ausente.');
+    /* Política única de tempo limite (minutos, contados do despacho). Comandos fora da tabela usam 4 minutos.
+       Programas e Clean têm prazos próprios em includes/network-clean.php: uma desinstalação ou limpeza
+       longa não pode ser marcada como falha enquanto o agente ainda trabalha. */
+    $limits=['windows_update'=>120,'agent_update'=>15,'screen_lock'=>65]+arc_network_operation_timeouts();
+    $names="'remote_assistance'";$rules=[];
+    foreach($limits as $name=>$minutes){$names.=",'".$name."'";$rules[]="(command_name='".$name."' AND dispatched_at<DATE_SUB(NOW(),INTERVAL ".(int)$minutes." MINUTE))";}
+    $sql="UPDATE ".arc_table('agent_commands')." SET status='failed',result_text='Tempo limite do agente',completed_at=NOW() WHERE ".$where." AND status='running' AND ((command_name NOT IN (".$names.") AND dispatched_at<DATE_SUB(NOW(),INTERVAL 4 MINUTE)) OR ".implode(' OR ',$rules)." OR (command_name='remote_assistance' AND created_at<DATE_SUB(NOW(),INTERVAL 30 MINUTE)))";
+    $pdo->prepare($sql)->execute($params);
+}
+
 function arc_require_aligned_agent_release(): void
 {
+    arc_agent_release_sources();
     if(!arc_agent_release_status()['ready'])throw new RuntimeException('O pacote do agente no servidor está incompleto ou tem versões diferentes. Reenvie a pasta agent do pacote completo antes de atualizar o computador.',503);
 }
 
@@ -74,6 +104,7 @@ function arc_workspace_base_url(): string
 {
     $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/pages/index.php'));
     $dir = rtrim(str_replace('\\', '/', dirname($script)), '/');
+    if (str_ends_with($dir, '/admin')) $dir=substr($dir,0,-6);
     if (str_ends_with($dir, '/pages')) $dir = substr($dir, 0, -6);
     if (str_ends_with($dir, '/api')) $dir = substr($dir, 0, -4);
     // Páginas modulares em /redes/ compartilham a mesma raiz do Workspace.
@@ -94,7 +125,9 @@ function arc_table(string $name): string
         'admins', 'settings', 'pages', 'page_fields', 'sessions', 'preferences',
         'samples', 'devices', 'alerts', 'releases', 'login_attempts', 'audit_logs',
         'field_values', 'user_accounts', 'managed_networks', 'network_sessions', 'account_login_attempts', 'account_audit', 'pwa_installations',
-        'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations', 'billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers','support_schedules','support_schedule_runs','support_guest_codes','support_native_accounts','support_command_requests','support_schedule_managers',
+        'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'file_browser_requests', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations', 'network_access_profiles', 'billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers','support_schedules','support_schedule_runs','support_guest_codes','support_native_accounts','support_command_requests','support_schedule_managers','platform_release_history','platform_release_state','navigation_backup',
+        'cloud_connections','cloud_backup_jobs','cloud_backup_status','cloud_backup_uploads','cloud_backup_folders',
+        'agent_removal_queue', 'agent_software_inventory', 'agent_clean_inventory', 'clean_history', 'clean_settings',
     ];
     if (!in_array($name, $allowed, true)) {
         throw new InvalidArgumentException('Tabela não permitida.');
@@ -108,6 +141,21 @@ function arc_schema_column(PDO $pdo, string $table, string $column, string $defi
     $check = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
     $check->execute([arc_prefix() . $table, $column]);
     if ((int)$check->fetchColumn() === 0) $pdo->exec('ALTER TABLE ' . arc_table($table) . ' ADD COLUMN `' . $column . '` ' . $definition);
+}
+
+/** Fila mínima de desinstalação: sobrevive à exclusão da rede só para o agente saber que deve se remover.
+    Guarda apenas impressão digital, código do local e hash da chave; nenhum dado da rede. */
+function arc_ensure_removal_queue(PDO $pdo): void
+{
+    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('agent_removal_queue') . ' (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        fingerprint CHAR(64) NOT NULL,
+        site_code CHAR(5) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_agent_removal (fingerprint,token_hash),
+        KEY idx_agent_removal_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
 }
 
 function arc_db(): PDO
@@ -136,7 +184,7 @@ function arc_db(): PDO
 function arc_require_platform_schema(PDO $pdo): void
 {
     arc_ensure_user_schema($pdo);
-    arc_v19_navigation_schema($pdo);
+    arc_navigation_schema($pdo);
 }
 
 function arc_h(mixed $value): string
@@ -169,29 +217,49 @@ function arc_verify_csrf(): void
     }
 }
 
+/** Marcador local (versão do esquema + validade de 5 min) que dispensa reverificar o banco a cada requisição. */
+function arc_schema_stamp_file(): string
+{
+    return ARC_PRIVATE_DIR.'/storage/releases/schema-'.preg_replace('/[^0-9A-Za-z.-]/','',ARC_SCHEMA_VERSION).'-'.substr(hash('sha256',json_encode([arc_config()['db_host']??'',arc_config()['db_port']??3306,arc_config()['db_name']??'',arc_prefix()])),0,16).'.ok';
+}
+function arc_schema_stamp_fresh(): bool
+{
+    $stamp=arc_schema_stamp_file();clearstatcache(true,$stamp);
+    return is_file($stamp)&&time()-(int)@filemtime($stamp)<300;
+}
+function arc_schema_stamp_write(): void
+{
+    $directory=dirname(arc_schema_stamp_file());
+    if(!is_dir($directory)&&!@mkdir($directory,0700,true)&&!is_dir($directory))return;
+    foreach(glob($directory.'/schema-*.ok')?:[] as $old)if($old!==arc_schema_stamp_file())@unlink($old);
+    @file_put_contents(arc_schema_stamp_file(),(string)time(),LOCK_EX);
+}
 function arc_ensure_user_schema(PDO $pdo): void
 {
-    // Native clients and webhooks have no browser cookie: a database marker avoids DDL per frame.
-    $required=['agent_terminal_jobs','user_accounts','managed_networks','account_login_attempts','network_agents','network_team_members','network_team_invitations','billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers','support_schedules','support_schedule_runs','support_guest_codes','support_native_accounts','support_command_requests','support_schedule_managers'];
+    // Clientes nativos e webhooks não têm cookie e chegam várias vezes por segundo: o marcador evita consultar o information_schema a cada requisição.
+    if(arc_schema_stamp_fresh()){arc_release_sync($pdo);return;}
+    $required=['cloud_connections','cloud_backup_jobs','cloud_backup_status','cloud_backup_uploads','cloud_backup_folders','agent_software_inventory','agent_clean_inventory','clean_history','clean_settings','navigation_items','navigation_backup','file_browser_requests','agent_terminal_jobs','user_accounts','managed_networks','account_login_attempts','network_agents','network_team_members','network_team_invitations','billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers','support_schedules','support_schedule_runs','support_guest_codes','support_native_accounts','support_command_requests','support_schedule_managers','platform_release_history','platform_release_state'];
     try{
         $version=arc_platform_setting($pdo,'platform_schema_version');
         if($version===ARC_SCHEMA_VERSION){
             $placeholders=implode(',',array_fill(0,count($required),'?'));
             $present=$pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('.$placeholders.')');
             $present->execute(array_map(static fn($name)=>arc_prefix().$name,$required));
-            if((int)$present->fetchColumn()===count($required)){$_SESSION['arc_schema_ok']=ARC_SCHEMA_VERSION;return;}
+            if((int)$present->fetchColumn()===count($required)){
+                // Confirma a coluna introduzida depois da versão anterior do esquema.
+                arc_schema_column($pdo, 'network_agents', 'ui_locked', 'TINYINT(1) NOT NULL DEFAULT 0');
+                arc_schema_column($pdo, 'network_agents', 'uninstall_requested', 'TINYINT(1) NOT NULL DEFAULT 0');
+                arc_ensure_removal_queue($pdo);
+                $_SESSION['arc_schema_ok']=ARC_SCHEMA_VERSION;arc_schema_stamp_write();arc_release_sync($pdo);return;
+            }
         }
     }catch(PDOException $e){/* Fresh schema: settings may not exist yet. */}
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('user_accounts') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        email VARCHAR(254) NOT NULL,
-        email_hash CHAR(64) NOT NULL,
-        display_name TEXT NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_login_at TIMESTAMP NULL DEFAULT NULL,
-        UNIQUE KEY uq_account_email_hash (email_hash)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+    $schemaPath=dirname(__DIR__).'/database/schema.sql';
+    $schema=is_readable($schemaPath)?file_get_contents($schemaPath):false;
+    if (!is_string($schema) || $schema==='') throw new RuntimeException('Estrutura consolidada ausente. Envie database/schema.sql da atualização.',503);
+    $pdo->exec(str_replace(['`arc_', "'arc_"],['`'.arc_prefix(),"'".arc_prefix()],$schema));
+
+
     $accountTable = arc_table('user_accounts');
     $accountColumns = $pdo->query('SHOW COLUMNS FROM ' . $accountTable)->fetchAll(PDO::FETCH_ASSOC);
     $columnMap = [];
@@ -222,18 +290,7 @@ function arc_ensure_user_schema(PDO $pdo): void
             $pdo->exec('ALTER TABLE ' . $accountTable . ' MODIFY COLUMN display_name TEXT NOT NULL');
         }
     }
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('managed_networks') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        account_id BIGINT UNSIGNED NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        local_ip VARCHAR(45) NOT NULL DEFAULT \'\',
-        subnet VARCHAR(80) NOT NULL DEFAULT \'\',
-        gateway VARCHAR(45) NOT NULL DEFAULT \'\',
-        is_active TINYINT(1) NOT NULL DEFAULT 1,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_seen_at TIMESTAMP NULL DEFAULT NULL,
-        KEY idx_network_account (account_id,is_active)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+
     foreach ([
         'phone' => "VARCHAR(40) NOT NULL DEFAULT ''",
         'company_name' => "VARCHAR(160) NOT NULL DEFAULT ''",
@@ -261,84 +318,21 @@ function arc_ensure_user_schema(PDO $pdo): void
         'logo_file' => "VARCHAR(90) NOT NULL DEFAULT ''",
         'updated_at' => 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
     ] as $column => $definition) arc_schema_column($pdo, 'managed_networks', $column, $definition);
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('network_sessions') . ' (
-        session_id CHAR(64) NOT NULL PRIMARY KEY,
-        network_id BIGINT UNSIGNED NOT NULL,
-        client_label VARCHAR(120) NOT NULL DEFAULT \'Dispositivo conectado\',
-        first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_network_sessions (network_id,last_seen_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('network_user_preferences') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        account_id BIGINT UNSIGNED NOT NULL,
-        network_id BIGINT UNSIGNED NOT NULL,
-        preference_key VARCHAR(80) NOT NULL,
-        preference_value VARCHAR(255) NOT NULL DEFAULT \'\',
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_network_user_pref (account_id,network_id,preference_key),
-        KEY idx_network_user_pref (network_id,account_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('network_agents') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        fingerprint CHAR(64) NOT NULL,
-        account_id BIGINT UNSIGNED NOT NULL,
-        network_id BIGINT UNSIGNED NOT NULL,
-        site_code VARCHAR(80) NOT NULL,
-        machine_name VARCHAR(190) NOT NULL DEFAULT \'\',
-        platform VARCHAR(190) NOT NULL DEFAULT \'\',
-        local_ip VARCHAR(45) NOT NULL DEFAULT \'\',
-        gateway_ip VARCHAR(45) NOT NULL DEFAULT \'\',
-        agent_version VARCHAR(32) NOT NULL DEFAULT \'\',
-        status ENUM(\'pending\',\'approved\',\'rejected\',\'blocked\') NOT NULL DEFAULT \'pending\',
-        first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        approved_at TIMESTAMP NULL DEFAULT NULL,
-        notes VARCHAR(500) NOT NULL DEFAULT \'\',
-        UNIQUE KEY uq_network_agent_fingerprint (fingerprint),
-        KEY idx_network_agents_owner (account_id,network_id,status),
-        KEY idx_network_agents_seen (network_id,last_seen_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+
+
+
     /* Migração compatível com instalações existentes: a API grava o inventário resumido da máquina. */
     arc_schema_column($pdo, 'network_agents', 'machine_details', 'LONGTEXT NULL');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('agent_telemetry') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        account_id BIGINT UNSIGNED NOT NULL,
-        network_id BIGINT UNSIGNED NOT NULL,
-        agent_id BIGINT UNSIGNED NOT NULL,
-        site_code CHAR(5) NOT NULL,
-        event_type VARCHAR(60) NOT NULL DEFAULT \'telemetry\',
-        payload_json LONGTEXT NULL,
-        captured_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_agent_telemetry_network (network_id,captured_at),
-        KEY idx_agent_telemetry_agent (agent_id,captured_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('agent_commands') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        account_id BIGINT UNSIGNED NOT NULL,
-        network_id BIGINT UNSIGNED NOT NULL,
-        agent_id BIGINT UNSIGNED NOT NULL,
-        command_name VARCHAR(40) NOT NULL,
-        status ENUM(\'pending\',\'running\',\'completed\',\'failed\',\'expired\') NOT NULL DEFAULT \'pending\',
-        result_text VARCHAR(500) NOT NULL DEFAULT \'\',
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        dispatched_at TIMESTAMP NULL DEFAULT NULL,
-        completed_at TIMESTAMP NULL DEFAULT NULL,
-        KEY idx_command_queue (agent_id,status,id),
-        KEY idx_command_network (network_id,account_id,id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('agent_download_keys') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        token_hash CHAR(64) NOT NULL,
-        account_id BIGINT UNSIGNED NOT NULL,
-        network_id BIGINT UNSIGNED NOT NULL,
-        site_code CHAR(5) NOT NULL,
-        fingerprint CHAR(64) NULL,
-        used_at TIMESTAMP NULL DEFAULT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_agent_download_token (token_hash),
-        KEY idx_agent_download_network (network_id,account_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+    arc_schema_column($pdo, 'network_agents', 'ui_locked', 'TINYINT(1) NOT NULL DEFAULT 0');
+    arc_schema_column($pdo, 'network_agents', 'uninstall_requested', 'TINYINT(1) NOT NULL DEFAULT 0');
+    arc_ensure_removal_queue($pdo);
+
+    /* Um inventário por máquina; substituído integralmente a cada consulta (sem histórico acumulativo). */
+
+    /* Clean: relatórios por ferramenta, histórico e configurações (includes/network-clean.php). */
+    arc_clean_ensure_schema($pdo);
+
+
     /* Converte códigos antigos para 5 caracteres alfanuméricos maiúsculos. */
     $codeRows = $pdo->query('SELECT id,site_code FROM ' . arc_table('managed_networks') . ' ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
     $seenCodes = [];
@@ -364,76 +358,18 @@ function arc_ensure_user_schema(PDO $pdo): void
         if ((string)($idx['Column_name'] ?? '') === 'site_code' && (int)($idx['Non_unique'] ?? 1) === 0) $hasUniqueSiteCode = true;
     }
     if (!$hasUniqueSiteCode) $pdo->exec('ALTER TABLE ' . arc_table('managed_networks') . ' ADD UNIQUE KEY uq_managed_network_site_code (site_code)');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('pwa_installations') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        installation_id CHAR(36) NOT NULL,
-        account_id BIGINT UNSIGNED NOT NULL,
-        network_id BIGINT UNSIGNED NOT NULL,
-        device_label VARCHAR(160) NOT NULL DEFAULT \'Dispositivo PWA\',
-        platform VARCHAR(32) NOT NULL DEFAULT \'web\',
-        user_agent VARCHAR(500) NOT NULL DEFAULT \'\',
-        installed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_pwa_installation (installation_id),
-        KEY idx_pwa_account_network (account_id, network_id, last_seen_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('account_login_attempts') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        ip_hash CHAR(64) NOT NULL,
-        identifier_hash CHAR(64) NOT NULL,
-        attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_account_auth_ip (ip_hash,attempted_at),
-        KEY idx_account_auth_identifier (identifier_hash,attempted_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('account_audit') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        account_id BIGINT UNSIGNED NULL,
-        event_type VARCHAR(64) NOT NULL,
-        details VARCHAR(255) NOT NULL DEFAULT \'\',
-        ip_hash CHAR(64) NOT NULL DEFAULT \'\',
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_account_audit (account_id,created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('user_preferences') . ' (
-        user_id BIGINT UNSIGNED NOT NULL,
-        pref_key VARCHAR(64) NOT NULL,
-        pref_value VARCHAR(255) NOT NULL DEFAULT \'\',
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (user_id,pref_key)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('network_team_members') . ' (
-  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `account_id` bigint(20) unsigned NOT NULL,
-  `network_id` bigint(20) unsigned NOT NULL,
-  `member_user_id` bigint(20) unsigned NOT NULL,
-  `role` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT \'viewer\',
-  `enabled` tinyint(1) NOT NULL DEFAULT \'1\',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_team_member` (`network_id`,`member_user_id`),
-  KEY `idx_team_network_owner` (`account_id`,`network_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('network_team_invitations') . ' (
-  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `account_id` bigint(20) unsigned NOT NULL,
-  `network_id` bigint(20) unsigned NOT NULL,
-  `email_hash` char(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `email` varchar(254) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `role` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT \'viewer\',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_invitation` (`network_id`,`email_hash`),
-  KEY `idx_invitation_email` (`email_hash`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
-    foreach(['3.0.0','3.2.0','3.3.0','3.4.0','3.5.0'] as $release){
-        $migration=file_get_contents(dirname(__DIR__).'/database/migrations/'.$release.'.sql');
-        if($migration===false)throw new RuntimeException('Migração '.$release.' ausente.');
-        $migration=str_replace(['`arc_',"'arc_"],['`'.arc_prefix(),"'".arc_prefix()],$migration);
-        $pdo->exec($migration);
-    }
+
+
+
+
+
+
+    arc_cloud_ensure_schema($pdo);
     arc_billing_seed_plans($pdo);
     arc_platform_save_setting($pdo,'platform_schema_version',ARC_SCHEMA_VERSION);
     $_SESSION['arc_schema_ok'] = ARC_SCHEMA_VERSION;
+    arc_schema_stamp_write();
+    arc_release_sync($pdo);
 }
 
 /* ============================================================
@@ -464,7 +400,7 @@ function arc_pref_defs(): array
         'font_size'             => ['group' => 'Aparência', 'label' => 'Tamanho do texto', 'type' => 'select', 'default' => 'normal',
             'options' => ['small' => 'Pequeno', 'normal' => 'Normal', 'large' => 'Grande']],
         'sidebar_default'       => ['group' => 'Aparência', 'label' => 'Menu lateral ao abrir', 'type' => 'select', 'default' => 'expanded',
-            'options' => ['expanded' => 'Expandido', 'collapsed' => 'Recolhido (só ícones)']],
+            'options' => ['expanded' => 'Expandido', 'collapsed' => 'Recolhido (ícones e nomes)', 'hidden' => 'Ocultado (sem sidebar)']],
         'reduce_motion'         => ['group' => 'Aparência', 'label' => 'Reduzir animações', 'help' => 'Desativa transições e efeitos de movimento.', 'type' => 'bool', 'default' => '0'],
 
         'language'              => ['group' => 'Região', 'label' => 'Idioma do Workspace', 'type' => 'select', 'default' => 'pt-BR',
@@ -534,6 +470,35 @@ function arc_user_prefs_save(PDO $pdo, int $userId, array $values): void
     }
 }
 
+/** Preferências globais do sistema, comuns a clientes e administradores. */
+function arc_system_prefs(PDO $pdo): array
+{
+    $defs=arc_pref_defs();
+    $prefs=[];
+    foreach($defs as $key=>$def) $prefs[$key]=(string)$def['default'];
+    $stmt=$pdo->prepare('SELECT setting_key,setting_value FROM '.arc_table('settings').' WHERE setting_key LIKE ?');
+    $stmt->execute(['platform_system_pref_%']);
+    foreach($stmt->fetchAll(PDO::FETCH_ASSOC) as $row){
+        $key=substr((string)$row['setting_key'],strlen('platform_system_pref_'));
+        if(isset($defs[$key]))$prefs[$key]=arc_pref_sanitize($key,$row['setting_value']);
+    }
+    return $prefs;
+}
+
+/** Grava todas as preferências de forma transacional e sem afetar registros individuais legados. */
+function arc_system_prefs_save(PDO $pdo,array $values): void
+{
+    $defs=arc_pref_defs();
+    $pdo->beginTransaction();
+    try {
+        foreach($values as $key=>$value){
+            if(!isset($defs[$key]))continue;
+            arc_platform_save_setting($pdo,'platform_system_pref_'.$key,arc_pref_sanitize($key,$value));
+        }
+        $pdo->commit();
+    } catch(Throwable $e){$pdo->rollBack();throw $e;}
+}
+
 /* Data/hora amigável respeitando as preferências do usuário (formato de data e hora). */
 function arc_when(mixed $v): string
 {
@@ -564,11 +529,21 @@ function arc_team_save(PDO $pdo,int $account,int $network,int $user,string $role
         $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1');$q->execute([$network,$account]);if(!$q->fetchColumn())throw new RuntimeException('Rede indisponível.');
         $q=$pdo->prepare('SELECT id FROM '.arc_table('network_team_members').' WHERE account_id=? AND member_user_id=? AND enabled=1 LIMIT 1');$q->execute([$account,$user]);
         if(!$q->fetchColumn())arc_billing_enforce($pdo,$account,'seats');
-        $pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role,enabled) VALUES (?,?,?,?,1) ON DUPLICATE KEY UPDATE role=VALUES(role),enabled=1')->execute([$account,$network,$user,$role]);
+        $pdo->prepare('INSERT INTO '.arc_table('network_team_members').' (account_id,network_id,member_user_id,role,enabled) VALUES (?,?,?,?,1) ON DUPLICATE KEY UPDATE role=VALUES(role)')->execute([$account,$network,$user,$role]);
         if($own)$pdo->commit();
     }catch(Throwable $e){if($own&&$pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
 
+/** Perfis personalizáveis limitados à rede e aos recursos efetivamente autorizados. */
+function arc_network_profile_capabilities(): array {return [
+ 'programas'=>'Programas instalados','clean'=>'Limpeza do Windows','painel'=>'Painel da rede','servidor'=>'Servidor','velocidade'=>'Internet e velocidade','dispositivos'=>'Dispositivos',
+ 'mapa'=>'Mapa','remoto'=>'Remoto','suporte'=>'Suporte','arquivos'=>'Arquivos','chamados'=>'Chamados','agenda'=>'Agenda','relatorios'=>'Relatórios','liberacao'=>'Liberações',
+ 'usuarios'=>'Usuários','preferencias'=>'Preferências','cadastros'=>'Cadastro da rede',
+ 'permissoes'=>'Perfis de acesso','agent_local_login'=>'Entrar no agente bloqueado (tela de login do agente)'];}
+function arc_network_profile_rights(PDO $pdo,int $network,int $member): ?array {
+ try {$q=$pdo->prepare('SELECT p.permissions_json FROM '.arc_table('network_team_members').' m JOIN '.arc_table('network_access_profiles').' p ON p.id=m.profile_id AND p.network_id=m.network_id AND p.account_id=m.account_id WHERE m.network_id=? AND m.member_user_id=? AND m.enabled=1 LIMIT 1');$q->execute([$network,$member]);$raw=$q->fetchColumn();} catch(PDOException $e) {error_log('Perfis de rede: migração SQL necessária.');return null;} if($raw===false)return null;
+ $data=json_decode((string)$raw,true);return is_array($data)?array_values(array_intersect(array_keys(arc_network_profile_capabilities()),$data)):[];
+}
 function arc_network_team_access(PDO $pdo, int $networkId, int $userId): ?array
 {
     if ($networkId <= 0 || $userId <= 0) return null;
@@ -606,37 +581,108 @@ function arc_require_user_network(PDO $pdo): int
     return $networkId;
 }
 
-/* Exclui a rede e todos os dados dependentes (sessões, medições, equipamentos, alertas, instalações). */
+/* Exclui somente registros pertencentes a esta rede. Nunca apaga conta/usuário compartilhado.
+   Transactional; falha no banco interrompe a operação e reverte todas as alterações. */
 function arc_delete_network(PDO $pdo, int $networkId, int $accountId): bool
 {
-    $own = $pdo->prepare('SELECT id FROM ' . arc_table('managed_networks') . ' WHERE id=? AND account_id=?');
-    $own->execute([$networkId, $accountId]);
-    if (!$own->fetchColumn()) return false;
-
-    $ids = $pdo->prepare('SELECT session_id FROM ' . arc_table('network_sessions') . ' WHERE network_id=?');
-    $ids->execute([$networkId]);
-    $sessions = array_map('strval', $ids->fetchAll(PDO::FETCH_COLUMN));
-
+    if ($networkId <= 0 || $accountId <= 0) return false;
     $started = !$pdo->inTransaction();
     if ($started) $pdo->beginTransaction();
     try {
-        foreach (array_chunk($sessions, 100) as $chunk) {
-            $ph = implode(',', array_fill(0, count($chunk), '?'));
-            foreach (['samples', 'devices', 'alerts', 'preferences', 'field_values'] as $t) {
-                $pdo->prepare('DELETE FROM ' . arc_table($t) . ' WHERE session_id IN (' . $ph . ')')->execute($chunk);
+        $owner = $pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? FOR UPDATE');
+        $owner->execute([$networkId,$accountId]);
+        if (!$owner->fetchColumn()) { if ($started) $pdo->rollBack(); return false; }
+
+        // Optional installations from older revisions may have different table sets.
+        $tables = $pdo->query('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()')->fetchAll(PDO::FETCH_COLUMN);
+        $existing = array_fill_keys(array_map('strval',$tables),true);
+        $colsCache=[];
+        $hasCols = static function(string $table, array $wanted) use($pdo,&$colsCache,$existing): bool {
+            if (!isset($existing[$table])) return false;
+            if (!isset($colsCache[$table])) {
+                $query=$pdo->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND BINARY TABLE_NAME=BINARY ?');
+                $query->execute([$table]);
+                $colsCache[$table]=array_fill_keys($query->fetchAll(PDO::FETCH_COLUMN),true);
             }
-            $pdo->prepare('DELETE FROM ' . arc_table('sessions') . ' WHERE id IN (' . $ph . ')')->execute($chunk);
+            foreach($wanted as $col) if (!isset($colsCache[$table][$col])) return false;
+            return true;
+        };
+        $fetchIds = static function(string $logical, string $where, array $args) use($pdo,$hasCols): array {
+            $table=arc_table($logical);
+            if (!$hasCols($table,['id'])) return [];
+            $q=$pdo->prepare('SELECT id FROM '.$table.' WHERE '.$where);
+            $q->execute($args);
+            return array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));
+        };
+        $deleteForIds = static function(string $logical, string $column, array $ids) use($pdo,$hasCols): void {
+            if (!$ids) return;
+            $table=arc_table($logical);
+            if (!$hasCols($table,[$column])) return;
+            foreach(array_chunk($ids,150) as $chunk) {
+                $pdo->prepare('DELETE FROM '.$table.' WHERE '.$column.' IN ('.implode(',',array_fill(0,count($chunk),'?')).')')->execute($chunk);
+            }
+        };
+        $commandIds=$fetchIds('agent_commands','network_id=? AND account_id=?',[$networkId,$accountId]);
+        $ticketIds=$fetchIds('support_tickets','network_id=? AND account_id=?',[$networkId,$accountId]);
+        $agentIds=$fetchIds('network_agents','network_id=? AND account_id=?',[$networkId,$accountId]);
+        $scheduleIds=$fetchIds('support_schedules','network_id=? AND account_id=?',[$networkId,$accountId]);
+        // 1) Garante a desinstalação dos agentes nas máquinas: o agente consulta esta fila quando a rede deixa de existir.
+        if (isset($existing[arc_table('agent_removal_queue')]) && $hasCols(arc_table('network_agents'),['fingerprint','site_code','notes']) && $hasCols(arc_table('agent_download_keys'),['token_hash','fingerprint'])) {
+            $queue=$pdo->prepare('INSERT IGNORE INTO '.arc_table('agent_removal_queue').' (fingerprint,site_code,token_hash) '
+                .'SELECT a.fingerprint,UPPER(LEFT(a.site_code,5)),k.token_hash FROM '.arc_table('network_agents').' a '
+                .'JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id AND k.fingerprint=a.fingerprint '
+                .'WHERE a.network_id=? AND a.account_id=? AND a.notes NOT LIKE \'DESINSTALADO|%\' AND a.fingerprint REGEXP \'^[a-f0-9]{64}$\'');
+            $queue->execute([$networkId,$accountId]);
+            // Limpeza de pedidos antigos que nunca foram atendidos (máquina descartada).
+            $pdo->exec('DELETE FROM '.arc_table('agent_removal_queue').' WHERE created_at < (NOW() - INTERVAL 90 DAY)');
         }
-        $pdo->prepare('DELETE FROM ' . arc_table('network_sessions') . ' WHERE network_id=?')->execute([$networkId]);
-        $pdo->prepare('DELETE FROM ' . arc_table('pwa_installations') . ' WHERE network_id=? AND account_id=?')->execute([$networkId, $accountId]);
-        $pdo->prepare('DELETE FROM ' . arc_table('network_agents') . ' WHERE network_id=? AND account_id=?')->execute([$networkId, $accountId]);
-        $del = $pdo->prepare('DELETE FROM ' . arc_table('managed_networks') . ' WHERE id=? AND account_id=?');
-        $del->execute([$networkId, $accountId]);
-        if ($started) $pdo->commit();
-        return $del->rowCount() > 0;
-    } catch (Throwable $e) {
-        if ($started && $pdo->inTransaction()) $pdo->rollBack();
-        error_log('Arcoll delete network: ' . $e->getMessage());
+        // 2) Arquivos em disco que pertencem apenas a esta rede (removidos só depois do commit).
+        $filesToRemove=[];
+        $logoQ=$pdo->prepare('SELECT logo_file FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=?');
+        $logoQ->execute([$networkId,$accountId]);$logoFile=(string)$logoQ->fetchColumn();
+        if (preg_match('/^[a-f0-9]{40}\.(png|jpg|webp)$/',$logoFile)) $filesToRemove[]=ARC_PRIVATE_DIR.'/storage/network-logos/'.$logoFile;
+        if ($hasCols(arc_table('support_file_transfers'),['storage_key','network_id'])) {
+            $tq=$pdo->prepare('SELECT storage_key FROM '.arc_table('support_file_transfers').' WHERE network_id=? AND account_id=? AND storage_key IS NOT NULL');
+            $tq->execute([$networkId,$accountId]);
+            foreach($tq->fetchAll(PDO::FETCH_COLUMN) as $key) if (preg_match('/^[A-Za-z0-9_.-]{16,80}$/',(string)$key)) $filesToRemove[]=ARC_PRIVATE_DIR.'/storage/transfers/'.$key;
+        }
+        foreach($agentIds as $aid) $filesToRemove[]=ARC_PRIVATE_DIR.'/storage/remote-screen/agent-'.$aid.'.json';
+        foreach($commandIds as $cid) foreach(['meta-'.$cid.'.json','view-'.$cid.'.json','stop-'.$cid,'alive-'.$cid,'screen-'.$cid.'.jpg'] as $name) $filesToRemove[]=ARC_PRIVATE_DIR.'/storage/remote-screen/'.$name;
+        $sessionIds=[];
+        if ($hasCols(arc_table('network_sessions'),['network_id','session_id'])) {
+            $q=$pdo->prepare('SELECT session_id FROM '.arc_table('network_sessions').' WHERE network_id=?');
+            $q->execute([$networkId]);$sessionIds=$q->fetchAll(PDO::FETCH_COLUMN);
+        }
+        // Children referencing IDs: delete by the scoped parents, never by a shared user ID.
+        foreach(['support_command_requests','support_remote_tokens','support_guest_codes','support_schedule_runs'] as $table) $deleteForIds($table,'command_id',$commandIds);
+        $deleteForIds('support_events','ticket_id',$ticketIds);
+        $deleteForIds('support_remote_sessions','ticket_id',$ticketIds);
+        $deleteForIds('support_schedule_runs','schedule_id',$scheduleIds);
+        $deleteForIds('support_schedule_managers','schedule_id',$scheduleIds);
+        $deleteForIds('support_guest_codes','agent_id',$agentIds);
+        foreach(['agent_terminal_jobs','file_browser_requests','support_file_transfers','support_remote_sessions'] as $table) $deleteForIds($table,'command_id',$commandIds);
+        foreach(['samples','devices','alerts','preferences','field_values'] as $table) $deleteForIds($table,'session_id',$sessionIds);
+        $deleteForIds('sessions','id',$sessionIds);
+
+        // Only network-scoped tables (avoid user_accounts and audit logs shared with other networks).
+        $scoped=['support_file_transfers','support_remote_sessions','support_tickets','support_schedules','agent_terminal_jobs','file_browser_requests','agent_software_inventory','agent_clean_inventory','clean_history','clean_settings','agent_telemetry','network_device_inventory','network_geo_points','network_team_invitations','network_team_members','network_access_profiles','network_user_preferences','pwa_installations','agent_download_keys','agent_commands','network_sessions','network_agents'];
+        foreach($scoped as $logical){
+            $table=arc_table($logical);
+            if (!$hasCols($table,['network_id'])) continue;
+            $withAccount=$hasCols($table,['account_id']);
+            $sql='DELETE FROM '.$table.' WHERE network_id=?'.($withAccount?' AND account_id=?':'');
+            $pdo->prepare($sql)->execute($withAccount?[$networkId,$accountId]:[$networkId]);
+        }
+        if ($hasCols(arc_table('cloud_connections'),['network_id','account_id'])) arc_cloud_purge_network($pdo,$networkId,$accountId);
+        $del=$pdo->prepare('DELETE FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=?');
+        $del->execute([$networkId,$accountId]);
+        if($del->rowCount()!==1) throw new RuntimeException('A rede não foi excluída');
+        if($started) $pdo->commit();
+        foreach($filesToRemove as $file) { if (is_file($file)) @unlink($file); }
+        return true;
+    } catch(Throwable $e){
+        if($started && $pdo->inTransaction()) $pdo->rollBack();
+        error_log('Arcoll delete network (rollback): '.$e->getMessage());
         return false;
     }
 }
@@ -660,6 +706,11 @@ function arc_notice_copy(string $event): array {
       'network_team_removed'=>['Acesso da equipe removido','Um integrante deixou de ter acesso à rede.'],
       'network_agent_approved'=>['Computador liberado','O computador já pode enviar informações para a plataforma.'],
       'network_agent_blocked'=>['Computador bloqueado','O acesso desse computador foi interrompido.'],
+      'network_agent_locked'=>['Agente com login obrigatório','A tela do agente só abre com usuário e senha.'],
+      'network_agent_unlocked'=>['Agente liberado sem login','A tela do agente voltou a abrir sem pedir senha.'],
+      'network_agent_uninstall_requested'=>['Desinstalação solicitada','O agente será removido do computador assim que ele estiver online.'],
+      'network_agent_uninstall_cancelled'=>['Desinstalação cancelada','A solicitação de remoção do agente foi cancelada.'],
+      'network_agent_uninstalled'=>['Agente desinstalado','O agente foi removido do computador.'],
       'network_agent_rejected'=>['Cadastro não aprovado','O computador precisa de uma nova autorização.'],
       'network_agent_deleted'=>['Computador removido','O computador foi retirado da rede.'],
       'support_file_requested'=>['Transferência solicitada','O computador recebeu uma solicitação de arquivo. Acompanhe em Ferramentas.'],
@@ -680,6 +731,9 @@ function arc_notice_copy(string $event): array {
 
 function arc_user_audit(PDO $pdo, string $event, string $details = '', ?int $userId = null): void
 {
+    if (function_exists('arc_log_should_record') && !arc_log_should_record($pdo,'account_audit')) return;
+    $logPolicy=function_exists('arc_log_policy')?arc_log_policy($pdo,'account_audit'):['details'=>true,'ip'=>true];
+    if(!$logPolicy['details']) $details='';
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
     $pepper = (string)(arc_config()['app_secret'] ?? 'arcoll');
     $pdo->prepare('INSERT INTO ' . arc_table('account_audit') . ' (account_id,event_type,details,ip_hash) VALUES (?,?,?,?)')
@@ -1118,53 +1172,6 @@ function arc_v16_user_group(PDO $pdo, int $accountId): ?int {
     $q=$pdo->prepare('SELECT group_id FROM '.arc_table('permission_group_members').' WHERE account_id=?');
     $q->execute([$accountId]); $id=$q->fetchColumn(); return $id===false?null:(int)$id;
 }
-/* V15 - menus configuráveis com lista explícita de rotas autorizadas. */
-function arc_v15_menu_schema(PDO $pdo): void {
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('navigation_items') . ' (
-      id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-      label VARCHAR(80) NOT NULL,
-      route_key VARCHAR(64) NOT NULL,
-      placement VARCHAR(24) NOT NULL,
-      access_roles VARCHAR(120) NOT NULL DEFAULT \'user,manager,viewer\',
-      sort_order INT NOT NULL DEFAULT 100,
-      enabled TINYINT(1) NOT NULL DEFAULT 1,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      KEY nav_place (placement,enabled,sort_order)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-    $q=$pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=\'group_id\'');
-    $q->execute([arc_prefix().'navigation_items']);
-    if(!(int)$q->fetchColumn()) $pdo->exec('ALTER TABLE '.arc_table('navigation_items').' ADD COLUMN group_id INT UNSIGNED NULL DEFAULT NULL');
-}
-function arc_v15_routes(): array {
-    return [
-      'home'=>['Painel','pages/painel.php'],
-      'overview'=>['Painel','pages/painel.php'],
-      'networks'=>['Minhas redes','pages/painel.php'],
-      'measurements'=>['Medições','pages/medicoes.php'],
-      'activities'=>['Atividades','pages/atividades.php'],
-      'profile'=>['Meu perfil','pages/perfil.php'],
-      'settings'=>['Preferências','pages/preferencias.php'],
-      'devices'=>['Dispositivos','pages/clientes.php?view=devices'],
-      'agent'=>['Agentes','pages/agentes.php'],
-      'admin'=>['Painel','pages/painel.php'],
-      'releases'=>['Versões do agente','pages/versoes.php'],
-      'users'=>['Clientes e gestores','pages/clientes.php'],
-      'administrators'=>['Usuários administrativos','pages/usuarios.php'],
-      'menus'=>['Gerenciar menus','pages/menus.php'],
-      'groups'=>['Permissões, grupos e perfis','pages/permissoes.php'],
-      'identity'=>['Identidade','pages/configuracoes.php?tab=dados'],
-      'pages'=>['Páginas','pages/paginas.php'],
-      'fields'=>['Campos','pages/campos.php'],
-      'migration'=>['Migração','pages/migracao.php'],
-      'security'=>['Segurança','pages/configuracoes.php?tab=seguranca'],
-      'platform_settings'=>['Configurações da plataforma','pages/configuracoes.php'],
-      'help'=>['Ajuda','pages/painel.php'],
-      'network_devices'=>['Dispositivos da rede','redes/dispositivos.php'],
-      'network_speed'=>['Velocidade da rede','redes/velocidade.php'],
-      'network_topology'=>['Mapa da rede','redes/mapa.php'],
-      'network_connection'=>['Conexão','redes/conexao.php'],
-    ];
-}
 function arc_v15_user_role(PDO $pdo): string {
     if (arc_is_admin()) return 'admin';
     $id=arc_user_id();
@@ -1173,83 +1180,6 @@ function arc_v15_user_role(PDO $pdo): string {
     $q->execute([$id]);
     $role=(string)$q->fetchColumn();
     return in_array($role,['user','manager','viewer'],true)?$role:'viewer';
-}
-function arc_v15_menu_items(PDO $pdo, string $placement, ?int $networkId=null): array {
-    if (!in_array($placement,['sidebar','header','user','footer','network'],true)) return [];
-    arc_v19_navigation_schema($pdo);
-    // Instalação inicial: popular menus somente se a tabela ainda estiver vazia.
-    $navCount=(int)$pdo->query('SELECT COUNT(*) FROM '.arc_table('navigation_items'))->fetchColumn();
-    // Nunca recriar menus após exclusão deliberada pelo administrador.
-    if($navCount===0){
-        $initialized=$pdo->prepare('SELECT setting_value FROM '.arc_table('settings').' WHERE setting_key=? LIMIT 1');
-        $initialized->execute(['navigation_initialized']);
-        if((string)$initialized->fetchColumn()!=='1')arc_v19_seed_navigation($pdo);
-    } else {
-        $pdo->prepare('INSERT INTO '.arc_table('settings').' (setting_key,setting_value,value_type) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)')->execute(['navigation_initialized','1','text']);
-    }
-    $role=arc_v15_user_role($pdo);
-    $routes=arc_v15_routes();
-    $stmt=$pdo->prepare('SELECT id,label,route_key,icon,parent_id,access_roles,group_id,target_url FROM '.arc_table('navigation_items').' WHERE placement=? AND enabled=1 ORDER BY sort_order,id');
-    $stmt->execute([$placement]);
-    $result=[];
-    foreach($stmt as $item){
-        // Entradas legadas descontinuadas: nunca expor URLs de arquivos zerados.
-        $obsoleteRoutes=['network_tools','network_diagnostic','network_alerts','network_reports','network_installations','network_agents','network_preferences','network_registration'];
-        $legacyTarget=(string)parse_url((string)($item['target_url']??''),PHP_URL_PATH);
-        if(in_array((string)$item['route_key'],$obsoleteRoutes,true) || preg_match('~^(?:redes/)?(?:ferramentas|diagnostico|alertas|relatorios|agentes|cadastro|configuracoes)\.php$~i',$legacyTarget))continue;
-        $key=(string)$item['route_key'];
-        $roles=array_map('trim',explode(',',(string)$item['access_roles']));
-        $storedTarget=trim((string)($item['target_url']??''));
-        $hasFileTarget=preg_match('~^(?:pages|redes)/[a-z0-9_-]+\.php$~i',$storedTarget) && is_file(dirname(__DIR__).'/'.$storedTarget) && filesize(dirname(__DIR__).'/'.$storedTarget)>0;
-        if(($key!=='' && !isset($routes[$key]) && !$hasFileTarget)||!in_array($role,$roles,true))continue;
-        if(in_array($key,['overview','admin','releases','users','administrators','menus','groups','identity','pages','fields','migration','security'],true)&&!arc_is_admin())continue;
-        if(!empty($item['group_id']) && arc_v16_user_group($pdo,(int)(arc_user_id()??0))!==(int)$item['group_id'])continue;
-        $url=($key!=='' && isset($routes[$key]))?$routes[$key][1]:'';
-        if(in_array($key,['home','overview','admin'],true))$url='pages/painel.php';
-        $target=trim((string)($item['target_url']??''));
-        if(in_array($target,['pages/admin.php','admin.php','pages/index.php'],true))$target='pages/painel.php';
-        if($key==='platform_settings' || in_array($target,['configuracoes.php','pages/configuracoes.php','pages/configuracoes'],true))$target='pages/configuracoes.php';
-        if(in_array($target,['useredit.php','pages/useredit.php'],true))$target='pages/perfil.php';
-        if($target!==''){
-            if(preg_match('~^https://[a-z0-9.-]+(?::[0-9]{2,5})?(?:[/?#][^\s<>\"\']*)?$~i',$target)) $url=$target;
-            elseif(preg_match('~^(?:(?:pages|redes)/)?[a-z][a-z0-9_-]*\.php(?:\?[a-z0-9_=&%-]*)?(?:#[a-z0-9_-]+)?$~i',$target)) {
-                $url=preg_match('~^(?:pages|redes)/~',$target)?$target:'pages/'.$target;
-            }
-        }
-        if($key==='platform_settings')$url='pages/configuracoes.php';
-        if($key==='settings')$url='pages/preferencias.php';
-        if($key==='activities')$url='pages/atividades.php';
-        if($key==='profile')$url='pages/perfil.php';
-        if($target==='' && arc_is_admin() && in_array($key,['networks','measurements','devices','agent'],true)) $url=match($key){'networks'=>'pages/inventario.php','measurements'=>'pages/estatisticas.php','devices'=>'pages/dispositivos.php','agent'=>'pages/agentes.php'};
-        if(str_starts_with($key,'network_')) {
-            if($placement!=='network'||$networkId===null||$networkId<1)continue;
-            // Cada módulo da rede possui sua própria página. Não redirecionar todos
-            // os itens para o monitoramento nem depender de âncoras legadas.
-            $networkRoutes=[
-                'network_monitor'=>['monitoramento','monitor'],
-                'network_speed'=>['velocidade','speed_test'],
-                'network_devices'=>['dispositivos','devices'],
-                'network_topology'=>['mapa','topology'],
-                'network_connection'=>['conexao','connection'],
-            ];
-            if(isset($networkRoutes[$key])) {
-                [$section,$permission]=$networkRoutes[$key];
-                if($permission!==null && !in_array($permission,arc_v16_allowed_tabs($pdo,(int)(arc_user_id()??0)),true))continue;
-                $url='redes/'.$section.'.php?network='.$networkId;
-            } else {
-                // Entradas personalizadas só podem apontar para seções válidas.
-                $targetFile=explode('?',explode('#',$url,2)[0],2)[0];
-                if(!preg_match('~^redes/[a-z0-9_-]+\.php$~i',$targetFile) || !is_file(dirname(__DIR__).'/'.$targetFile) || filesize(dirname(__DIR__).'/'.$targetFile)===0)continue;
-                $url=$targetFile.'?network='.$networkId;
-            }
-        }
-        if (!str_starts_with($url, 'https://')) {
-            $localPath = (string)parse_url($url, PHP_URL_PATH);
-            if ($localPath === '' || !is_file(dirname(__DIR__) . '/' . $localPath) || filesize(dirname(__DIR__) . '/' . $localPath)===0) continue;
-        }
-        $result[]=['id'=>(int)$item['id'],'parent_id'=>(int)($item['parent_id']??0),'icon'=>(string)($item['icon']??'circle'),'label'=>(string)$item['label'],'url'=>$url,'key'=>$key];
-    }
-    return $result;
 }
 function arc_is_admin(): bool
 {
@@ -1293,6 +1223,9 @@ function arc_admin_id(): ?int
 
 function arc_audit(PDO $pdo, string $event, string $description = ''): void
 {
+    if (function_exists('arc_log_should_record') && !arc_log_should_record($pdo,'audit_logs')) return;
+    $logPolicy=function_exists('arc_log_policy')?arc_log_policy($pdo,'audit_logs'):['details'=>true,'ip'=>true];
+    if(!$logPolicy['details']) $description='';
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
     $pepper = (string)(arc_config()['app_secret'] ?? 'arcoll');
     $stmt = $pdo->prepare(
@@ -1300,7 +1233,7 @@ function arc_audit(PDO $pdo, string $event, string $description = ''): void
     );
     $stmt->execute([
         arc_admin_id(), mb_substr($event, 0, 80),
-        mb_substr($description, 0, 500), hash_hmac('sha256', $ip, $pepper),
+        mb_substr($description, 0, 500), ($logPolicy['ip']?($logPolicy['ip']?hash_hmac('sha256', $ip, $pepper):''):''),
     ]);
 }
 
@@ -1367,6 +1300,8 @@ function arc_save_network_logo(PDO $pdo, int $networkId, int $accountId, string 
     $filename = bin2hex(random_bytes(20)) . '.' . $allowed[$info[2]];
     if (!move_uploaded_file($tmp, $dir . '/' . $filename))
         throw new RuntimeException('Não foi possível salvar a logo.');
+    require_once __DIR__.'/media-optimizer.php';
+    arc_optimize_uploaded_image($dir.'/'.$filename,1200);
     try {
         $pdo->prepare('UPDATE ' . arc_table('managed_networks') . ' SET logo_file=? WHERE id=? AND account_id=?')
             ->execute([$filename, $networkId, $accountId]);
@@ -1396,6 +1331,11 @@ function arc_start_session(): void
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
+    /* Agentes e app de suporte nativos não guardam cookie: cada requisição criaria um arquivo de sessão vazio no servidor. */
+    if (!isset($_COOKIE['ARCOLLSESSID']) && preg_match('~^Arcoll(?:Desktop|Agent|-Suporte)/~', (string)($_SERVER['HTTP_USER_AGENT'] ?? ''))) {
+        $_SESSION = [];
+        return;
+    }
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     session_name('ARCOLLSESSID');
@@ -1413,7 +1353,7 @@ arc_start_session();
 /* Acesso privado: uma única barreira para todas as rotas PHP em /pages e /redes.
    Não interfere nas APIs do agente nem nas rotas públicas da raiz. */
 $arcEntryPath = str_replace('\\\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
-$arcPrivateRoute = (bool)preg_match('~/(?:pages|redes|pwa)/[^/]+\\.php$~i', $arcEntryPath);
+$arcPrivateRoute = (bool)preg_match('~/(?:admin|pages|redes|pwa)/[^/]+\\.php$~i', $arcEntryPath);
 $arcPublicEntry = (bool)preg_match('~/pages/(?:index|install)\\.php$~i', $arcEntryPath);
 if ($arcPrivateRoute && !$arcPublicEntry && !isset($_SESSION['arc_admin_id'])) {
     try {
@@ -1473,44 +1413,6 @@ header('X-Frame-Options: DENY');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 
-/** V19: menu metadata and hierarchy are persisted in MySQL. Safe, idempotent migration. */
-function arc_v19_navigation_schema(PDO $pdo): void {
-    arc_v15_menu_schema($pdo);
-    foreach (['icon'=>'VARCHAR(48) NOT NULL DEFAULT \'circle\'', 'parent_id'=>'INT UNSIGNED NULL DEFAULT NULL'] as $col=>$definition) {
-        $check=$pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
-        $check->execute([arc_prefix().'navigation_items',$col]);
-        if(!(int)$check->fetchColumn()) $pdo->exec('ALTER TABLE '.arc_table('navigation_items').' ADD COLUMN `'.$col.'` '.$definition);
-    }
-    // Campo de destino opcional: URL HTTPS ou arquivo PHP interno em pages/.
-    $targetCheck=$pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME='target_url'");
-    $targetCheck->execute([arc_prefix().'navigation_items']);
-    if(!(int)$targetCheck->fetchColumn()) $pdo->exec('ALTER TABLE '.arc_table('navigation_items').' ADD COLUMN target_url VARCHAR(1024) NULL DEFAULT NULL');
-}
-function arc_v19_seed_navigation(PDO $pdo): int {
-    arc_v19_navigation_schema($pdo);
-    $seeds=json_decode('[["Painel", "overview", "layout-dashboard", "sidebar", "admin", 10, null], ["Redes registradas", "networks", "network", "sidebar", "admin,manager,user,viewer", 20, null], ["Medições", "measurements", "activity", "sidebar", "admin,manager,user,viewer", 30, null], ["Dispositivos", "devices", "monitor", "sidebar", "admin,manager,user,viewer", 40, null], ["Agentes", "agent", "cpu", "sidebar", "admin,manager,user,viewer", 50, null], ["Administração", "admin", "settings-2", "sidebar", "admin", 60, null], ["Administradores", "administrators", "shield-user", "sidebar", "admin", 65, "admin"], ["Usuários", "users", "users", "sidebar", "admin", 70, "admin"], ["Grupos de acesso", "groups", "shield-check", "sidebar", "admin", 80, "admin"], ["Menus e submenus", "menus", "list-tree", "sidebar", "admin", 90, "admin"], ["Identidade visual", "identity", "palette", "sidebar", "admin", 100, "admin"], ["Páginas", "pages", "file-text", "sidebar", "admin", 110, "admin"], ["Campos", "fields", "form-input", "sidebar", "admin", 120, "admin"], ["Versões dos agentes", "releases", "package", "sidebar", "admin", 130, "admin"], ["Migração", "migration", "database", "sidebar", "admin", 140, "admin"], ["Segurança", "security", "lock", "sidebar", "admin", 150, "admin"], ["Preferências", "settings", "sliders-horizontal", "sidebar", "manager,user,viewer", 160, null], ["Início", "networks", "house", "header", "admin,manager,user,viewer", 10, null], ["Administração", "admin", "settings", "header", "admin", 20, null], ["Minha conta", "profile", "circle-user", "user", "manager,user,viewer", 10, null], ["Preferências", "settings", "sliders", "user", "manager,user,viewer", 20, null], ["Administradores", "administrators", "shield-user", "user", "admin", 25, null], ["Gerenciar usuários", "users", "users", "user", "admin", 30, null], ["Menus", "menus", "list-tree", "user", "admin", 40, null], ["Grupos", "groups", "shield", "user", "admin", 50, null], ["Suporte e ajuda", "help", "circle-help", "footer", "admin,manager,user,viewer", 10, null], ["Minhas redes", "networks", "network", "footer", "admin,manager,user,viewer", 20, null], ["Monitoramento", "network_monitor", "activity", "network", "manager,user,viewer", 10, null], ["Velocidade", "network_speed", "gauge", "network", "manager,user,viewer", 20, null], ["Dispositivos", "network_devices", "monitor", "network", "manager,user,viewer", 30, null], ["Mapa da rede", "network_topology", "waypoints", "network", "manager,user,viewer", 40, null], ["Conexão", "network_connection", "wifi", "network", "manager,user,viewer", 50, null]]',true,512,JSON_THROW_ON_ERROR);
-    $table=arc_table('navigation_items');
-    $pdo->beginTransaction();
-    try {
-        $find=$pdo->prepare('SELECT id FROM '.$table.' WHERE route_key=? AND placement=? AND label=? LIMIT 1');
-        $add=$pdo->prepare('INSERT INTO '.$table.' (label,route_key,icon,placement,access_roles,sort_order,enabled,parent_id) VALUES (?,?,?,?,?,?,1,?)');
-        $inserted=0;
-        foreach($seeds as $entry){
-            [$label,$route,$icon,$placement,$roles,$order,$parentRoute]=$entry;
-            $find->execute([$route,$placement,$label]);
-            if($find->fetchColumn()) continue;
-            $parentId=null;
-            if($parentRoute!==null){
-                $parent=$pdo->prepare('SELECT id FROM '.$table.' WHERE route_key=? AND placement=? ORDER BY id LIMIT 1');
-                $parent->execute([$parentRoute,$placement]);$parentId=$parent->fetchColumn()?:null;
-            }
-            $add->execute([$label,$route,$icon,$placement,$roles,$order,$parentId]);$inserted++;
-        }
-        $pdo->commit();return $inserted;
-    } catch(Throwable $e){$pdo->rollBack();throw $e;}
-}
-
-
 /** Configurações administrativas sem gravar segredos em texto simples. */
 function arc_platform_setting(PDO $pdo, string $key, string $default = ''): string {
     $q = $pdo->prepare('SELECT setting_value FROM ' . arc_table('settings') . ' WHERE setting_key=? LIMIT 1');
@@ -1547,7 +1449,7 @@ function arc_platform_decrypt(string $stored): string {
 }
 
 /** SMTP compartilhado: conexão autenticada STARTTLS ou TLS implícito. */
-function arc_platform_smtp_send(PDO $pdo, string $to, string $subject, string $message): void {
+function arc_platform_smtp_send(PDO $pdo, string $to, string $subject, string $message, bool $html=false): void {
     $get=static fn(string $k,string $d='')=>arc_platform_setting($pdo,'platform_smtp_'.$k,$d);
     $host=trim($get('host'));$port=(int)$get('port','587');
     $mode=$get('encryption','starttls');$user=$get('username');
@@ -1579,9 +1481,29 @@ function arc_platform_smtp_send(PDO $pdo, string $to, string $subject, string $m
         $send('AUTH LOGIN',[334]);$send(base64_encode($user),[334]);$send(base64_encode($pass),[235]);
         $send('MAIL FROM:<'.$from.'>',[250]);$send('RCPT TO:<'.$to.'>',[250,251]);$send('DATA',[354]);
         $clean=static fn(string $v)=>str_replace(["\r","\n"],' ',trim($v));
-        $body=wordwrap(str_replace(["\r\n","\r"],"\n",$message),72,"\r\n",true);
+        $body=$html ? chunk_split(base64_encode($message),76,"\r\n") : wordwrap(str_replace(["\r\n","\r"],"\n",$message),72,"\r\n",true);
         $body=preg_replace('/(?m)^\./','..',$body);
-        $payload='From: '.$clean($get('from_name','Arcoll')).' <'.$from.">\r\nTo: <".$to.">\r\nSubject: =?UTF-8?B?".base64_encode($clean($subject))."?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n".$body."\r\n.";
+        $payload='From: '.$clean($get('from_name','Arcoll')).' <'.$from.">\r\nTo: <".$to.">\r\nSubject: =?UTF-8?B?".base64_encode($clean($subject))."?=\r\nMIME-Version: 1.0\r\nContent-Type: ".($html?'text/html':'text/plain')."; charset=UTF-8\r\nContent-Transfer-Encoding: ".($html?'base64':'8bit')."\r\n\r\n".$body."\r\n.";
         $send($payload,[250]);$send('QUIT',[221]);
     }finally{fclose($socket);}
+}
+
+// Política de retenção de logs disponível para auditorias e rotinas administrativas.
+require_once __DIR__.'/log-maintenance.php';
+
+/** Credencial revogável compartilhada pelos canais originais de comandos e backup. */
+function arc_agent_authenticate(PDO $pdo, array $body): array
+{
+    $fp=strtolower(trim((string)($body['fingerprint']??'')));
+    $code=strtoupper(trim((string)($body['site_code']??'')));
+    $key=trim((string)($body['download_key']??''));
+    if (!preg_match('/^[a-f0-9]{64}$/D',$fp) || !preg_match('/^[A-Z0-9]{5}$/D',$code) || !preg_match('/^[a-f0-9]{64}$/D',$key)) throw new RuntimeException('Agente sem autorização.',403);
+        $q=$pdo->prepare('SELECT a.id,a.network_id,a.account_id FROM '.arc_table('network_agents').' a JOIN '.arc_table('managed_networks').' n ON n.id=a.network_id AND n.account_id=a.account_id JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id WHERE a.fingerprint=? AND UPPER(a.site_code)=? AND a.status=\'approved\' AND n.is_active=1 AND n.monitoring_enabled=1 AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
+        $q->execute([$fp,$code,hash('sha256',$key),$fp]);$agent=$q->fetch();
+
+    if (!$agent) throw new RuntimeException('Agente sem autorização.',403);
+    $q=$pdo->prepare('SELECT account_status FROM '.arc_table('user_accounts').' WHERE id=?');
+    $q->execute([(int)$agent['account_id']]);
+    if ($q->fetchColumn()!=='active') throw new RuntimeException('Conta sem autorização.',403);
+    return $agent;
 }

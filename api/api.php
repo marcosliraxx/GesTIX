@@ -9,6 +9,7 @@ try {
     $pdo = arc_db();
     arc_ensure_user_schema($pdo);
     $action = (string)($_GET['action'] ?? '');
+    if($_SERVER['REQUEST_METHOD']==='GET'&&$action==='release-info')arc_json(['ok'=>true,'version'=>arc_app_version()]);
     /* Validação do gestor para abrir configurações locais do agente.
        Nenhuma senha ou token de sessão é armazenado na máquina. */
     if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='agent-settings-auth') {
@@ -22,22 +23,29 @@ try {
         $email=strtolower(trim((string)($v['email']??'')));
         $password=(string)($v['password']??'');
         if (!preg_match('/^[a-f0-9]{64}$/',$fp) || !preg_match('/^[A-Z0-9]{5}$/',$code)
-            || !preg_match('/^[a-f0-9]{64}$/',$key) || !filter_var($email,FILTER_VALIDATE_EMAIL)
+            || !preg_match('/^[a-f0-9]{64}$/',$key) || ($email!=='' && !filter_var($email,FILTER_VALIDATE_EMAIL))
             || strlen($email)>254 || strlen($password)>512 || $password==='') {
             arc_json(['ok'=>false,'error'=>'Credenciais inválidas'],403);
         }
-        $loginAttemptId = arc_login_attempt_begin($pdo, $email);
+        $loginAttemptId = arc_login_attempt_begin($pdo, 'agent-owner:'.$fp);
         if ($loginAttemptId === null) {
             header('Retry-After: 900');
             arc_json(['ok'=>false,'error'=>'Muitas tentativas. Tente novamente em 15 minutos'],429);
         }
-        $q=$pdo->prepare('SELECT u.id,u.password_hash,u.account_status FROM '.arc_table('user_accounts').' u '
-            .'INNER JOIN '.arc_table('managed_networks').' n ON n.account_id=u.id AND n.is_active=1 '
-            .'INNER JOIN '.arc_table('network_agents').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\' '
-            .'INNER JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id '
-            .'WHERE u.email_hash=? AND a.fingerprint=? AND UPPER(a.site_code)=? AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
-        $q->execute([hash('sha256',$email),$fp,$code,hash('sha256',$key),$fp]);
+        $q=$pdo->prepare('SELECT u.id,u.password_hash,u.account_status,n.account_id AS owner_id,n.id AS network_id FROM '
+            .arc_table('network_agents').' a '
+            .'JOIN '.arc_table('managed_networks').' n ON n.id=a.network_id AND n.account_id=a.account_id AND n.is_active=1 '
+            .'JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id '
+            .'JOIN '.arc_table('user_accounts').' u ON (u.id=n.account_id OR EXISTS ('
+            .'SELECT 1 FROM '.arc_table('network_team_members').' m WHERE m.network_id=n.id AND m.account_id=n.account_id AND m.member_user_id=u.id AND m.enabled=1)) '
+            .'WHERE a.status=\'approved\' AND a.fingerprint=? AND UPPER(a.site_code)=? AND k.token_hash=? AND k.fingerprint=? '
+            .'AND ((?=\'\' AND u.id=n.account_id) OR (?<>\'\' AND u.email_hash=?)) LIMIT 1');
+        $q->execute([$fp,$code,hash('sha256',$key),$fp,$email,$email,$email!==''?hash('sha256',$email):'']);
         $user=$q->fetch(PDO::FETCH_ASSOC);
+        if ($user && (int)$user['id']!==(int)$user['owner_id']) {
+            $rights=arc_network_profile_rights($pdo,(int)$user['network_id'],(int)$user['id']);
+            if ($rights===null || !in_array('agent_local_login',$rights,true)) $user=false;
+        }
         $material=base64_encode(hash('sha384',$password,true));
         if (!$user || (string)$user['account_status']!=='active'
             || !(password_verify($material,(string)$user['password_hash']) || password_verify($password,(string)$user['password_hash']))) {
@@ -47,6 +55,53 @@ try {
         arc_user_audit($pdo,'agent_settings_login','Configurações locais autenticadas no agente '.$code,(int)$user['id']);
         header('Cache-Control: no-store, private');
         arc_json(['ok'=>true]);
+    }
+    // Revogação definitiva de uma instalação, autorizada pelo gestor da própria rede.
+    if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='agent-uninstall-authorize') {
+        $raw=file_get_contents('php://input');
+        if (!is_string($raw) || strlen($raw)>4096) arc_json(['ok'=>false,'error'=>'Requisição inválida'],413);
+        $v=json_decode($raw,true);
+        if (!is_array($v)) arc_json(['ok'=>false,'error'=>'Requisição inválida'],400);
+        $fp=strtolower(trim((string)($v['fingerprint']??'')));
+        $code=strtoupper(trim((string)($v['site_code']??'')));
+        $key=trim((string)($v['download_key']??''));
+        $email=strtolower(trim((string)($v['email']??'')));
+        $password=(string)($v['password']??'');
+        if (!preg_match('/^[a-f0-9]{64}$/',$fp) || !preg_match('/^[A-Z0-9]{5}$/',$code)
+            || !preg_match('/^[a-f0-9]{64}$/',$key) || ($email!=='' && !filter_var($email,FILTER_VALIDATE_EMAIL))
+            || strlen($email)>254 || $password==='' || strlen($password)>512)
+            arc_json(['ok'=>false,'error'=>'Credenciais inválidas'],403);
+        $attempt=arc_login_attempt_begin($pdo,'agent-owner:'.$fp);
+        if ($attempt===null) arc_json(['ok'=>false,'error'=>'Muitas tentativas. Tente novamente mais tarde'],429);
+        $q=$pdo->prepare('SELECT u.id,u.password_hash,u.account_status,a.id AS agent_id,a.network_id '
+            .'FROM '.arc_table('user_accounts').' u '
+            .'INNER JOIN '.arc_table('managed_networks').' n ON n.account_id=u.id AND n.is_active=1 '
+            .'INNER JOIN '.arc_table('network_agents').' a ON a.network_id=n.id AND a.account_id=u.id AND a.status=\'approved\' '
+            .'INNER JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id '
+            .'WHERE (?=0 OR u.email_hash=?) AND a.fingerprint=? AND UPPER(a.site_code)=? AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
+        $q->execute([$email===''?0:1,$email!==''?hash('sha256',$email):'', $fp,$code,hash('sha256',$key),$fp]);
+        $user=$q->fetch(PDO::FETCH_ASSOC);
+        $material=base64_encode(hash('sha384',$password,true));
+        if (!$user || (string)$user['account_status']!=='active' ||
+            !(password_verify($material,(string)$user['password_hash']) || password_verify($password,(string)$user['password_hash'])))
+            arc_json(['ok'=>false,'error'=>'Gestor não autorizado'],403);
+        arc_login_attempt_succeeded($pdo,$attempt);
+        $pdo->beginTransaction();
+        try {
+            $update=$pdo->prepare('UPDATE '.arc_table('network_agents').' SET status=\'blocked\',ui_locked=0,uninstall_requested=0,notes=? WHERE id=? AND account_id=? AND network_id=? AND status=\'approved\'');
+            $uninstallInfo='DESINSTALADO|'.date('Y-m-d H:i:s').'|'.(int)$user['id'];
+            $update->execute([$uninstallInfo,(int)$user['agent_id'],(int)$user['id'],(int)$user['network_id']]);
+            if ($update->rowCount()!==1) throw new RuntimeException('Agente não está mais autorizado');
+            $del=$pdo->prepare('DELETE FROM '.arc_table('agent_download_keys').' WHERE account_id=? AND network_id=? AND fingerprint=?');
+            $del->execute([(int)$user['id'],(int)$user['network_id'],$fp]);
+            $pdo->commit();
+        } catch(Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            arc_json(['ok'=>false,'error'=>'Não foi possível revogar o agente'],409);
+        }
+        arc_user_audit($pdo,'agent_uninstall','Agente revogado para desinstalação: '.$code.' / '.$fp,(int)$user['id']);
+        header('Cache-Control: no-store, private');
+        arc_json(['ok'=>true,'status'=>'revoked']);
     }
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'network-live') {
         if (!arc_is_user()) arc_json(['ok'=>false,'error'=>'Faça login para acessar esta rede.'],401);
@@ -66,7 +121,7 @@ try {
         ]);
     }
     /* Pacote de atualização limitado, autenticado pelo mesmo vínculo revogável do agente. */
-    if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='agent-update-package') {
+    if ($_SERVER['REQUEST_METHOD']==='POST' && in_array($action,['agent-update-package','agent-installer-package'],true)) {
         $raw=file_get_contents('php://input');
         if (!is_string($raw) || strlen($raw)>2048) arc_json(['ok'=>false,'error'=>'Requisição inválida'],413);
         $v=json_decode($raw,true);
@@ -79,31 +134,13 @@ try {
         $q->execute([$fp,$code,hash('sha256',$key),$fp]);
         if (!$q->fetchColumn()) arc_json(['ok'=>false,'error'=>'Agente não autorizado'],403);
         try{arc_require_aligned_agent_release();}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e->getMessage(),'error_code'=>'agent_release_incomplete'],503);}
-        // Inventário da release: componentes de código em vez de uma lista fixa.
-        $sourceDir=realpath(__DIR__.'/../agent');
-        if ($sourceDir===false) arc_json(['ok'=>false,'error'=>'Release indisponível'],503);
-        $paths=glob($sourceDir.'/*');
-        if ($paths===false) arc_json(['ok'=>false,'error'=>'Inventário indisponível'],503);
+        if($action==='agent-installer-package')arc_json(arc_agent_installer_package());
+        // Hash and content are generated from the same validated bytes as the installer.
+        try{$sources=arc_agent_release_sources();}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e->getMessage(),'error_code'=>'agent_release_incomplete'],503);}
         $package=[];
-        foreach ($paths as $path) {
-            $name=basename($path);
-            if (!is_file($path) || !preg_match('/^[A-Za-z][A-Za-z0-9_-]*\.(?:py|ps1)$/D',$name)) continue;
-            $contents=file_get_contents($path);
-            if (!is_string($contents) || strlen($contents)>1500000) arc_json(['ok'=>false,'error'=>'Pacote indisponível: '.$name],503);
-            $package[]=['name'=>$name,'sha256'=>hash('sha256',$contents),'content'=>base64_encode($contents)];
-        }
-        if (count($package)<6 || count($package)>80) arc_json(['ok'=>false,'error'=>'Release incompleta'],503);
-        usort($package,static fn($a,$b)=>strcmp($a['name'],$b['name']));
-        $publishedVersion = ARC_APP_VERSION;
-        $agentSource = @file_get_contents(__DIR__.'/../agent/arcoll_app.py', false, null, 0, 4096);
-        if (is_string($agentSource) && preg_match('/AGENT_VERSION\s*=\s*[\"\'](\d+\.\d+\.\d+)[\"\']/', $agentSource, $vm)) {
-            $publishedVersion = $vm[1];
-        }
-        // A mesma versão publicada na administração fornece as notas exibidas no Windows.
-        $releaseNotes='';
-        $releases=$pdo->prepare('SELECT m.notes FROM '.arc_table('releases').' r LEFT JOIN '.arc_table('agent_release_metadata')." m ON m.release_id=r.id WHERE r.platform='windows' AND r.is_active=1 AND r.version=? AND (m.channel='stable' OR m.channel IS NULL) ORDER BY r.created_at DESC LIMIT 1");
-        $releases->execute([$publishedVersion]);
-        $releaseNotes=(string)($releases->fetchColumn() ?: '');
+        foreach($sources as $name=>$contents)$package[]=['name'=>$name,'sha256'=>hash('sha256',$contents),'content'=>base64_encode($contents)];
+        $publishedVersion=arc_app_version();
+        $releases=$pdo->prepare('SELECT notes FROM '.arc_table('platform_release_history').' WHERE version=?');$releases->execute([$publishedVersion]);$releaseNotes=(string)($releases->fetchColumn()?:'');
         header('Cache-Control: no-store, private');
         arc_json(['ok'=>true,'version'=>$publishedVersion,'notes'=>mb_substr($releaseNotes,0,3000),'files'=>$package]);
     }
@@ -154,27 +191,25 @@ try {
     if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-agent-versions') {
         if (!arc_is_user()) arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);
         $networkId=(int)($_GET['network_id']??0);
-        $check=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=?');
-        $check->execute([$networkId,arc_user_id()]);if (!$check->fetchColumn()) arc_json(['ok'=>false,'error'=>'Rede não autorizada'],403);
-        $release=arc_agent_release_status();$latest=$release['components'][0]['version']??null;
+        $access=arc_network_team_access($pdo,$networkId,(int)arc_user_id());
+        if(!$access)arc_json(['ok'=>false,'error'=>'Rede não autorizada'],403);
+        $release=arc_agent_release_status();$latest=arc_app_version();
         $query=$pdo->prepare('SELECT id,machine_name,agent_version,last_seen_at,status FROM '.arc_table('network_agents').' WHERE network_id=? AND account_id=?');
-        $query->execute([$networkId,arc_user_id()]);$agents=[];
+        $query->execute([$networkId,$access['account_id']]);$agents=[];
         foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $version=(string)($row['agent_version']??'');
             $online=$row['status']==='approved' && !empty($row['last_seen_at']) && strtotime((string)$row['last_seen_at'])>=time()-15;
-            $agents[]=['id'=>(int)$row['id'],'name'=>(string)$row['machine_name'],'version'=>$version,'online'=>$online,'approved'=>$row['status']==='approved','outdated'=>$latest!==null&&preg_match('/^\d+\.\d+\.\d+$/',$version)&&version_compare($version,$latest,'<')];
+            $agents[]=['id'=>(int)$row['id'],'name'=>(string)$row['machine_name'],'version'=>$version,'online'=>$online,'approved'=>$row['status']==='approved','outdated'=>$latest!==null&&preg_match('/^\d+\.\d+\.\d+$/',(string)$latest)&&($version===''||!preg_match('/^\d+\.\d+\.\d+$/',$version)||version_compare($version,$latest,'<'))];
         }
-        arc_json(['ok'=>true,'published_version'=>$latest,'agents'=>$agents,'release'=>$release]);
+        arc_json(['ok'=>true,'published_version'=>$latest,'display_agent_version'=>arc_app_version(),'support_version'=>arc_app_version(),'access_version'=>arc_app_version(),'agents'=>$agents,'release'=>$release]);
     }
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'health') {
-        arc_json(['ok' => true, 'application' => 'Arcoll Speed Connection', 'version' => ARC_APP_VERSION]);
+        arc_json(['ok' => true, 'application' => (string)(arc_setting_values($pdo)['site_name'] ?? 'Agente de Rede'), 'version' => arc_app_version()]);
     }
 
     /* Regra única de expiração dos comandos em execução, compartilhada entre
      * a consulta do agente e o envio de comandos pela plataforma. */
-    $expireRunningAgentCommands = static function (PDO $db, int $agentId): void {
-        $db->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Tempo limite do agente',completed_at=NOW() WHERE agent_id=? AND status='running' AND ((command_name<>'remote_assistance' AND dispatched_at < DATE_SUB(NOW(), INTERVAL 4 MINUTE)) OR (command_name='remote_assistance' AND created_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)))")->execute([$agentId]);
-    };
+
 
     /* Terminal: fila existente + resultados parciais por tarefa. Sem acesso a shell irrestrito. */
     $validTerminalRequest = static function (string $raw): bool {
@@ -186,20 +221,231 @@ try {
             || preg_match('~^(?:ipconfig(?:\s+/all|\s+/flushdns)?|arp\s+-a|route\s+print|netsh\s+wlan\s+show\s+interfaces|hostname)$~iD',$raw));
     };
 
+    /* Pastas v3.6.0: mensagens autenticadas por vínculo aprovado e perfil do gestor. */
+    if($action==='network-file-browser-start' && $_SERVER['REQUEST_METHOD']==='POST'){
+        if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Autenticação necessária'],401);
+        arc_verify_csrf();$data=json_decode((string)file_get_contents('php://input'),true);
+        if(!is_array($data))arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
+        $network=(int)($data['network_id']??0);$agentId=(int)($data['agent_id']??0);$path=(string)($data['path']??'');
+        if($network<1||$agentId<1||strlen($path)>1024||preg_match('/[\x00-\x1f]/',$path))arc_json(['ok'=>false,'error'=>'Diretório inválido'],422);
+        try{$access=arc_support_access($pdo,$network,(int)arc_user_id(),true);}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Sem acesso'],403);}
+        if(!in_array($access['role'],['owner','administrator'],true)&&$path!=='')arc_json(['ok'=>false,'error'=>'Seu perfil só pode consultar discos'],403);
+        $account=(int)$access['account_id'];
+        $q=$pdo->prepare('SELECT id,headless_mode,last_seen_at FROM '.arc_table('network_agents')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");$q->execute([$agentId,$network,$account]);$a=$q->fetch(PDO::FETCH_ASSOC);
+        if(!$a||(int)$a['headless_mode']!==1)arc_json(['ok'=>false,'error'=>'Ative o modo sem monitor no agente autorizado'],403);
+        if(!$a['last_seen_at']||strtotime($a['last_seen_at'])<time()-120)arc_json(['ok'=>false,'error'=>'Agente desconectado'],409);
+        
+        $count=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands')." WHERE agent_id=? AND status IN ('pending','running')");$count->execute([$agentId]);if((int)$count->fetchColumn()>=3)arc_json(['ok'=>false,'error'=>'Há outros comandos em andamento'],429);
+        $pdo->beginTransaction();try{
+            $pdo->prepare('INSERT INTO '.arc_table('agent_commands')." (account_id,network_id,agent_id,command_name) VALUES (?,?,?,'file_browser')")->execute([$account,$network,$agentId]);$cmd=(int)$pdo->lastInsertId();
+            $pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id) VALUES (?,?)')->execute([$cmd,(int)arc_user_id()]);
+            $pdo->prepare('INSERT INTO '.arc_table('file_browser_requests').' (command_id,network_id,account_id,agent_id,requested_by,path_text) VALUES (?,?,?,?,?,?)')->execute([$cmd,$network,$account,$agentId,(int)arc_user_id(),$path]);$request=(int)$pdo->lastInsertId();$pdo->commit();
+        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+        arc_user_audit($pdo,'file_browser_start','Listagem de diretório solicitada no agente '.$agentId);
+        arc_json(['ok'=>true,'request_id'=>$request]);
+    }
+    if($action==='network-file-browser-status' && $_SERVER['REQUEST_METHOD']==='GET'){
+        if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Autenticação necessária'],401);
+        $network=(int)($_GET['network_id']??0);$id=(int)($_GET['request_id']??0);
+        try{$access=arc_support_access($pdo,$network,(int)arc_user_id(),true);}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Sem acesso'],403);}
+        // A listagem de discos para outros perfis é somente leitura; requisições de diretórios continuam restritas na criação.
+        
+        $q=$pdo->prepare('SELECT r.status,r.result_json,c.status AS command_status,c.result_text FROM '.arc_table('file_browser_requests').' r JOIN '.arc_table('agent_commands').' c ON c.id=r.command_id WHERE r.id=? AND r.network_id=? AND r.account_id=? AND r.requested_by=?');
+        $q->execute([$id,$network,(int)$access['account_id'],(int)arc_user_id()]);$row=$q->fetch(PDO::FETCH_ASSOC);if(!$row)arc_json(['ok'=>false,'error'=>'Listagem não encontrada'],404);
+        $result=json_decode((string)($row['result_json']??''),true);
+        arc_json(['ok'=>true,'status'=>$row['status']==='pending'?$row['command_status']:$row['status'],'data'=>is_array($result)?$result:null,'message'=>(string)$row['result_text']]);
+    }
+    /* Programas e Clean: consultas e solicitações pela fila autenticada. Categorias, prazos e limites
+       vêm de includes/network-clean.php (fonte única, também usada pelas telas e pelo agente). */
+    if (in_array($action,['network-program-list','network-program-start','network-program-status','network-clean-list','network-clean-start','network-clean-status','network-clean-report','network-clean-tool','network-clean-settings','network-clean-settings-save'],true)) {
+        if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Autenticação necessária'],401);
+        if($_SERVER['REQUEST_METHOD']==='POST')arc_verify_csrf();
+        $body=$_SERVER['REQUEST_METHOD']==='POST'?json_decode((string)file_get_contents('php://input'),true):$_GET;
+        if(!is_array($body))arc_json(['ok'=>false,'error'=>'Requisição inválida'],400);
+        $network=(int)($body['network_id']??0);$agentId=(int)($body['agent_id']??0);
+        $isClean=str_starts_with($action,'network-clean-');
+        $names=arc_network_operation_commands()[$isClean?'clean':'program'];
+        $access=arc_network_team_access($pdo,$network,(int)arc_user_id());
+        if(!$access||!in_array($access['role'],['owner','administrator'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária'],403);
+        $rights=arc_network_profile_rights($pdo,$network,(int)arc_user_id());
+        if($access['role']!=='owner'&&$rights!==null&&!in_array($isClean?'clean':'programas',$rights,true))arc_json(['ok'=>false,'error'=>$isClean?'Permissão Clean indisponível':'Permissão de programas indisponível'],403);
+        $account=(int)$access['account_id'];
+        $q=$pdo->prepare('SELECT id,headless_mode,last_seen_at FROM '.arc_table('network_agents')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");
+        $q->execute([$agentId,$network,$account]);$machine=$q->fetch(PDO::FETCH_ASSOC);
+        if(!$machine)arc_json(['ok'=>false,'error'=>'Agente não aprovado'],404);
+        $online=!empty($machine['last_seen_at'])&&strtotime((string)$machine['last_seen_at'])>=time()-120;
+        if($action==='network-clean-list'){
+            $row=arc_clean_report_get($pdo,$agentId,$network,$account,'clean');
+            arc_json(['ok'=>true,'report'=>$row['report']??null,'collected_at'=>$row['collected_at']??null,'online'=>$online,'headless'=>(int)$machine['headless_mode']===1,'history'=>arc_clean_history($pdo,$agentId,$network,$account),'active'=>arc_network_active_operation($pdo,$agentId,$network,$account,$names),'settings'=>arc_clean_settings_get($pdo,$agentId,$network,$account),'index'=>arc_clean_report_index($pdo,$agentId,$network,$account)]);
+        }
+        if($action==='network-clean-report'){
+            $kind=(string)($body['kind']??'');
+            if(!isset(arc_clean_tools()[$kind]))arc_json(['ok'=>false,'error'=>'Ferramenta inválida'],422);
+            $row=arc_clean_report_get($pdo,$agentId,$network,$account,$kind);
+            arc_json(['ok'=>true,'report'=>$row['report']??null,'collected_at'=>$row['collected_at']??null]);
+        }
+        if($action==='network-clean-settings'){
+            arc_json(['ok'=>true,'settings'=>arc_clean_settings_get($pdo,$agentId,$network,$account)]);
+        }
+        if($action==='network-clean-settings-save'){
+            if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
+            try{$settings=arc_clean_validate_settings($body);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+            arc_clean_settings_save($pdo,$agentId,$network,$account,$settings);
+            arc_user_audit($pdo,'clean_settings','Configurações do Clean da máquina '.$agentId.' ('.count($settings['exclusions']).' exclusões, '.count($settings['custom_folders']).' pastas)');
+            arc_json(['ok'=>true,'settings'=>$settings]);
+        }
+        if($action==='network-program-list'){
+            $q=$pdo->prepare('SELECT programs_json,collected_at FROM '.arc_table('agent_software_inventory').' WHERE agent_id=? AND network_id=? AND account_id=?');
+            $q->execute([$agentId,$network,$account]);$row=$q->fetch(PDO::FETCH_ASSOC);
+            $programs=$row?json_decode((string)$row['programs_json'],true):[];
+            arc_json(['ok'=>true,'programs'=>is_array($programs)?$programs:[],'collected_at'=>$row['collected_at']??null,'online'=>$online,'headless'=>(int)$machine['headless_mode']===1,'batch_max'=>ARC_PROGRAM_BATCH_MAX,'active'=>arc_network_active_operation($pdo,$agentId,$network,$account,$names)]);
+        }
+        if(in_array($action,['network-program-status','network-clean-status'],true)){
+            arc_expire_running_commands($pdo,$agentId);
+            $id=(int)($body['command_id']??0);
+            $q=$pdo->prepare('SELECT status,result_text,command_name FROM '.arc_table('agent_commands').' WHERE id=? AND agent_id=? AND network_id=? AND account_id=?');
+            $q->execute([$id,$agentId,$network,$account]);$cmd=$q->fetch(PDO::FETCH_ASSOC);
+            if(!$cmd||!in_array($cmd['command_name'],$names,true))arc_json(['ok'=>false,'error'=>'Solicitação inexistente'],404);
+            arc_json(['ok'=>true,'status'=>$cmd['status'],'message'=>$cmd['result_text']]);
+        }
+        if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
+        if((int)$machine['headless_mode']!==1)arc_json(['ok'=>false,'error'=>'Ative o modo sem monitor neste agente'],403);
+        if(!$online)arc_json(['ok'=>false,'error'=>'Agente desconectado'],409);
+        $mode=(string)($body['mode']??'');
+        if($action==='network-clean-tool')$mode='tool';
+        if(!in_array($mode,$isClean?['scan','execute','tool']:['refresh','uninstall'],true))arc_json(['ok'=>false,'error'=>'Operação inválida'],422);
+        $request=['ids'=>[],'categories'=>[],'age_days'=>7,'restore'=>'off','residual'=>false,'interactive'=>false];
+        try{
+            if($isClean&&$mode==='tool'){
+                $toolName=(string)($body['tool']??'');
+                $last=isset(arc_clean_tools()[$toolName])?(arc_clean_report_get($pdo,$agentId,$network,$account,$toolName)['report']??null):null;
+                $request=arc_clean_validate_tool($body,$last);
+            }elseif($isClean){
+                [$request['categories'],$request['age_days']]=arc_clean_validate_request($body['categories']??null,$body['age_days']??7);
+                $settings=arc_clean_settings_get($pdo,$agentId,$network,$account);
+                $request['exclusions']=$settings['exclusions'];$request['custom_folders']=$settings['custom_folders'];
+            }elseif($mode==='uninstall'){
+                $q=$pdo->prepare('SELECT programs_json,collected_at FROM '.arc_table('agent_software_inventory').' WHERE agent_id=? AND network_id=? AND account_id=?');
+                $q->execute([$agentId,$network,$account]);$inventory=$q->fetch(PDO::FETCH_ASSOC);
+                if(!$inventory||strtotime((string)$inventory['collected_at'])<time()-ARC_PROGRAM_INVENTORY_MAX_AGE)arc_json(['ok'=>false,'error'=>'Atualize a lista de programas antes de desinstalar'],409);
+                $rows=json_decode((string)$inventory['programs_json'],true);
+                [$request['ids'],$needsWindow]=arc_program_validate_uninstall($body['program_ids']??null,is_array($rows)?$rows:[]);
+                $request['interactive']=!empty($body['interactive']);
+                if($needsWindow&&!$request['interactive'])arc_json(['ok'=>false,'error'=>'Há programas cujo desinstalador abre janela no computador. Autorize essa opção ou desmarque-os.'],422);
+                $request['restore']=arc_program_restore_mode($body['restore']??'try');
+                $request['residual']=!empty($body['residual']);
+            }
+        }catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+        $payload=json_encode($request,JSON_UNESCAPED_UNICODE);
+        $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE agent_id=? AND status='pending' AND created_at<DATE_SUB(NOW(),INTERVAL 3 MINUTE)")->execute([$agentId]);
+        arc_expire_running_commands($pdo,$agentId);
+        $busy=arc_network_active_operation($pdo,$agentId,$network,$account,array_merge(arc_network_operation_commands()['program'],arc_network_operation_commands()['clean']));
+        if($busy)arc_json(['ok'=>false,'error'=>'Aguarde a operação em andamento neste computador','active'=>$busy],409);
+        $command=$isClean?($mode==='tool'?'clean_tool':($mode==='scan'?'clean_scan':'clean_execute')):($mode==='refresh'?'program_inventory':'program_uninstall');
+        $pdo->beginTransaction();try{
+            $pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([$account,$network,$agentId,$command]);
+            $id=(int)$pdo->lastInsertId();
+            $pdo->prepare('INSERT INTO '.arc_table('agent_terminal_jobs').' (command_id,agent_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$id,$agentId,$network,$payload]);
+            $pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id) VALUES (?,?)')->execute([$id,(int)arc_user_id()]);
+            $pdo->commit();
+        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+        arc_user_audit($pdo,($isClean?'clean_':'program_').$mode,'Solicitação '.$id.' ao agente '.$agentId.($mode==='tool'?' (ferramenta '.$request['tool'].': '.$request['action'].')':' ('.count($request['ids']).' programas, '.count($request['categories']).' categorias)'));
+        arc_json(['ok'=>true,'command_id'=>$id,'status'=>'pending']);
+    }
+    /* Cancelamento cooperativo de operação Clean/Programas: não marca êxito de exclusões já iniciadas. */
+    if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='network-clean-cancel') {
+        if (!arc_is_user()) arc_json(['ok'=>false,'error'=>'Autenticação necessária'],401);
+        arc_verify_csrf();
+        $body=json_decode((string)file_get_contents('php://input'),true);
+        if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
+        $network=(int)($body['network_id']??0);$agentId=(int)($body['agent_id']??0);$id=(int)($body['command_id']??0);
+        $access=arc_network_team_access($pdo,$network,(int)arc_user_id());
+        if (!$access || !in_array($access['role'],['owner','administrator'],true)) arc_json(['ok'=>false,'error'=>'Sem permissão'],403);
+        $rights=arc_network_profile_rights($pdo,$network,(int)arc_user_id());
+        if ($access['role']!=='owner' && $rights!==null && !array_intersect(['clean','programas'],$rights)) arc_json(['ok'=>false,'error'=>'Sem permissão'],403);
+        $q=$pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Cancelamento solicitado pelo operador',completed_at=NOW() WHERE id=? AND agent_id=? AND network_id=? AND account_id=? AND command_name IN ('clean_scan','clean_execute','clean_tool','program_inventory','program_uninstall') AND status IN ('pending','running')");
+        $q->execute([$id,$agentId,$network,(int)$access['account_id']]);
+        if ($q->rowCount())arc_user_audit($pdo,'clean_cancel','Cancelamento solicitado para operação '.$id.' no agente '.$agentId);
+        arc_json(['ok'=>true,'cancelled'=>$q->rowCount()>0]);
+    }
     /* Canal de comandos: ações limitadas, agente aprovado, token da instalação. */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-file-transfer','agent-support-code'],true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-command-authorize','agent-file-transfer','agent-file-browser-result','agent-support-code','agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-program-local-inventory'],true)) {
         $raw = file_get_contents('php://input');
-        if (!is_string($raw) || strlen($raw)>8192) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
+        if (!is_string($raw) || strlen($raw)>(in_array($action,['agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-program-local-inventory'],true)?6000000:($action==='agent-file-browser-result'?90000:($action==='agent-command-poll'?32768:8192)))) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
         $body=json_decode($raw,true);
         if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
-        $fp=strtolower(trim((string)($body['fingerprint']??'')));
-        $code=strtoupper(trim((string)($body['site_code']??'')));
-        $key=trim((string)($body['download_key']??''));
-        if (!preg_match('/^[a-f0-9]{64}$/',$fp) || !preg_match('/^[A-Z0-9]{5}$/',$code) || !preg_match('/^[a-f0-9]{64}$/',$key)) arc_json(['ok'=>false,'error'=>'Credenciais inválidas'],403);
-        $q=$pdo->prepare('SELECT a.id,a.network_id,a.account_id FROM '.arc_table('network_agents').' a JOIN '.arc_table('managed_networks').' n ON n.id=a.network_id JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id WHERE a.fingerprint=? AND UPPER(a.site_code)=? AND a.status=\'approved\' AND n.is_active=1 AND n.monitoring_enabled=1 AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
-        $q->execute([$fp,$code,hash('sha256',$key),$fp]);$agent=$q->fetch();
-        if (!$agent) arc_json(['ok'=>false,'error'=>'Agente sem autorização'],403);
+        try {$agent=arc_agent_authenticate($pdo,$body);} catch (RuntimeException $e) {if($e->getCode()===403)arc_json(['ok'=>false,'error'=>'Agente sem autorização'],403);throw $e;}
         $agentId=(int)$agent['id'];
+        if($action==='agent-command-poll'&&in_array($body['desktop_state']??'', ['locked','unlocked'],true)){
+            $users=[];foreach(array_slice(is_array($body['windows_users']??null)?$body['windows_users']:[],0,50) as $entry){
+                if(!is_array($entry))continue;$name=(string)($entry['username']??'');$label=(string)($entry['label']??'');
+                if($name!==''&&$label!==''&&strlen($name)<=768&&strlen($label)<=768&&!preg_match('/[\x00-\x1f]/',$name.$label))$users[]=['username'=>$name,'label'=>$label];
+            }
+            $directory=ARC_PRIVATE_DIR.'/storage/remote-screen';if(!is_dir($directory))@mkdir($directory,0700,true);
+            $path=$directory.'/agent-'.$agentId.'.json';$temp=tempnam($directory,'state-');
+            if($temp!==false){chmod($temp,0600);file_put_contents($temp,json_encode(['desktop_state'=>$body['desktop_state'],'windows_users'=>$users,'windows_users_error'=>!empty($body['windows_users_error']),'updated'=>time()]));rename($temp,$path);}
+        }
+
+        if($action==='agent-clean-result'){
+            $id=(int)($body['command_id']??0);$report=$body['report']??null;
+            if(!is_array($report))arc_json(['ok'=>false,'error'=>'Relatório de limpeza inválido'],422);
+            $q=$pdo->prepare('SELECT c.command_name,COALESCE(t.request_text,\'\') AS request_text FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs')." t ON t.command_id=c.id WHERE c.id=? AND c.agent_id=? AND c.network_id=? AND c.account_id=? AND c.command_name IN ('clean_scan','clean_execute','clean_tool') AND c.status='running'");
+            $q->execute([$id,$agentId,$agent['network_id'],$agent['account_id']]);$job=$q->fetch(PDO::FETCH_ASSOC);
+            if(!$job)arc_json(['ok'=>false,'error'=>'Varredura não solicitada'],403);
+            if($job['command_name']==='clean_tool'){
+                /* O tipo vem do pedido gravado pela plataforma, nunca do corpo enviado pelo agente. */
+                $requested=json_decode((string)$job['request_text'],true);
+                try{[$kind,$clean]=arc_clean_sanitize_tool_report((string)($requested['tool']??''),$report);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+                arc_clean_report_save($pdo,$agentId,(int)$agent['network_id'],(int)$agent['account_id'],$kind,$clean);
+            }else{
+                $clean=arc_clean_sanitize_report($report,$job['command_name']==='clean_execute');
+                arc_clean_report_save($pdo,$agentId,(int)$agent['network_id'],(int)$agent['account_id'],'clean',$clean);
+                arc_clean_record_history($pdo,$agentId,(int)$agent['network_id'],(int)$agent['account_id'],$clean);
+            }
+            arc_json(['ok'=>true,'saved'=>true]);
+        }
+        if($action==='agent-program-inventory'){
+            $id=(int)($body['command_id']??0);$programs=$body['programs']??null;
+            if(!is_array($programs)||count($programs)>1500)arc_json(['ok'=>false,'error'=>'Inventário inválido'],422);
+            $q=$pdo->prepare('SELECT id FROM '.arc_table('agent_commands')." WHERE id=? AND agent_id=? AND network_id=? AND account_id=? AND command_name='program_inventory' AND status='running'");
+            $q->execute([$id,$agentId,$agent['network_id'],$agent['account_id']]);if(!$q->fetchColumn())arc_json(['ok'=>false,'error'=>'Inventário não solicitado'],403);
+            $clean=arc_program_sanitize_inventory($programs);
+            $json=json_encode($clean,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+            $pdo->prepare('INSERT INTO '.arc_table('agent_software_inventory').' (agent_id,network_id,account_id,programs_json) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),programs_json=VALUES(programs_json),collected_at=CURRENT_TIMESTAMP')->execute([$agentId,$agent['network_id'],$agent['account_id'],$json]);
+            arc_json(['ok'=>true,'saved'=>count($clean)]);
+        }
+        /* Execuções feitas na própria tela do agente (abas Clean/Programas do Windows): mesmo saneamento das execuções remotas,
+           sem comando pendente. O resultado fica disponível na plataforma (sincronia nos dois sentidos). */
+        if($action==='agent-clean-local-result'){
+            $report=$body['report']??null;if(!is_array($report))arc_json(['ok'=>false,'error'=>'Relatório inválido'],422);
+            $mode=(string)($body['mode']??'tool');
+            try{
+                if($mode==='tool'){[$kind,$clean]=arc_clean_sanitize_tool_report((string)($body['tool']??''),$report);arc_clean_report_save($pdo,$agentId,(int)$agent['network_id'],(int)$agent['account_id'],$kind,$clean);}
+                else{$clean=arc_clean_sanitize_report($report,$mode==='execute');arc_clean_report_save($pdo,$agentId,(int)$agent['network_id'],(int)$agent['account_id'],'clean',$clean);arc_clean_record_history($pdo,$agentId,(int)$agent['network_id'],(int)$agent['account_id'],$clean);}
+            }catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+            arc_json(['ok'=>true,'saved'=>true]);
+        }
+        if($action==='agent-program-local-inventory'){
+            $programs=$body['programs']??null;
+            if(!is_array($programs)||count($programs)>1500)arc_json(['ok'=>false,'error'=>'Inventário inválido'],422);
+            $clean=arc_program_sanitize_inventory($programs);
+            $json=json_encode($clean,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+            $pdo->prepare('INSERT INTO '.arc_table('agent_software_inventory').' (agent_id,network_id,account_id,programs_json) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),programs_json=VALUES(programs_json),collected_at=CURRENT_TIMESTAMP')->execute([$agentId,$agent['network_id'],$agent['account_id'],$json]);
+            arc_json(['ok'=>true,'saved'=>count($clean)]);
+        }
+        if($action==='agent-command-authorize'){
+            $authorized=arc_support_unattended_command($pdo,$agent,(int)($body['command_id']??0));
+            if(!$authorized)arc_json(['ok'=>false,'error'=>'Autorização sem monitor revogada ou expirada.'],403);
+            arc_json(['ok'=>true,'command'=>$authorized['command_name'],'request_text'=>(string)($authorized['request_text']??''),'headless'=>true]);
+        }
+        if($action==='agent-file-browser-result'){
+            $id=(int)($body['command_id']??0);$entries=$body['entries']??null;$error=substr((string)($body['error']??''),0,250);
+            if($id<1||!is_array($entries)||count($entries)>180)arc_json(['ok'=>false,'error'=>'Listagem inválida'],422);
+            $clean=[];foreach($entries as $entry){if(!is_array($entry))continue;$name=mb_substr((string)($entry['name']??''),0,200);$entryPath=mb_substr((string)($entry['path']??''),0,1024);if($name===''||$entryPath==='')continue;$clean[]=['name'=>$name,'path'=>$entryPath,'directory'=>!empty($entry['directory']),'size'=>max(0,(int)($entry['size']??0)),'modified'=>max(0,(int)($entry['modified']??0)),'folder_size'=>array_key_exists('folder_size',$entry)?max(0,(int)$entry['folder_size']):null,'folder_size_complete'=>!empty($entry['folder_size_complete']),'total'=>max(0,(int)($entry['total']??0)),'free'=>max(0,(int)($entry['free']??0))];}
+            $json=json_encode(['entries'=>$clean,'truncated'=>!empty($body['truncated']),'path'=>mb_substr((string)($body['path']??''),0,1024),'error'=>$error],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+            $q=$pdo->prepare('UPDATE '.arc_table('file_browser_requests').' r JOIN '.arc_table('agent_commands')." c ON c.id=r.command_id SET r.result_json=?,r.status=?,r.updated_at=NOW() WHERE r.command_id=? AND r.agent_id=? AND r.network_id=? AND r.account_id=? AND c.status='running' AND r.status='pending'");
+            $q->execute([$json,$error!==''?'failed':'completed',$id,$agentId,(int)$agent['network_id'],(int)$agent['account_id']]);arc_json(['ok'=>true,'saved'=>$q->rowCount()>0]);
+        }
         if($action==='agent-support-code')arc_json(['ok'=>true,'code'=>arc_support_guest_code($pdo,$agentId),'expires_in'=>180]);
         if($action==='agent-file-transfer'){
             $q=$pdo->prepare('SELECT id FROM '.arc_table('support_file_transfers').' WHERE command_id=? AND agent_id=? AND account_id=? AND network_id=?');$q->execute([(int)($body['command_id']??0),$agentId,$agent['account_id'],$agent['network_id']]);$transfer=$q->fetchColumn();
@@ -218,7 +464,7 @@ try {
         if ($action==='agent-config') {
             $tabs=array_keys(arc_v16_agent_tabs());
             arc_v16_release_schema($pdo);
-            $release=$pdo->query('SELECT r.id,r.version,r.sha256,r.file_size,r.created_at,m.notes FROM '.arc_table('releases').' r LEFT JOIN '.arc_table('agent_release_metadata')." m ON m.release_id=r.id WHERE r.platform='windows' AND r.is_active=1 AND (m.channel='stable' OR m.channel IS NULL) ORDER BY r.created_at DESC LIMIT 1")->fetch();
+            $query=$pdo->prepare('SELECT id,version,fingerprint AS sha256,created_at,notes FROM '.arc_table('platform_release_history').' WHERE version=?');$query->execute([arc_app_version()]);$release=$query->fetch();
             $prefs=['monitor_refresh'=>'30','alert_latency'=>'150'];
             $prefQuery=$pdo->prepare('SELECT preference_key,preference_value FROM '.arc_table('network_user_preferences')." WHERE account_id=? AND network_id=? AND preference_key IN ('monitor_refresh','alert_latency')");
             $prefQuery->execute([(int)$agent['account_id'],(int)$agent['network_id']]);
@@ -240,12 +486,12 @@ try {
                 $lastConnection=['public_ip'=>$publicIp,'provider'=>$provider,'interface'=>is_array($diag['interface']??null)?$diag['interface']:[], 'machine'=>(string)($diag['machine']??''),'os'=>(string)($diag['os']??''),'route'=>is_array($diag['route']??null)?array_slice($diag['route'],0,16):[],'captured_at'=>(int)($diag['captured_at']??$diagRow['collected_at']),'source'=>'platform_saved_diagnostic'];
                 break;
             }
-            arc_json(['ok'=>true,'design'=>arc_support_design($pdo,'agent'),'allowed_tabs'=>$tabs,'latest_release'=>$release?:null,'poll_interval_seconds'=>30,'monitor_interval_seconds'=>$interval,'alert_latency_ms'=>$latency,'last_connection'=>$lastConnection,'device_overrides'=>arc_inventory_overrides($pdo,(int)$agent['account_id'],(int)$agent['network_id'],$agentId)]);
+            arc_json(['ok'=>true,'design'=>arc_support_design($pdo,'agent'),'system_name'=>(string)(arc_setting_values($pdo)['site_name']??'Agente de Rede'),'system_description'=>(string)(arc_setting_values($pdo)['tagline']??''),'allowed_tabs'=>$tabs,'latest_release'=>$release?:null,'poll_interval_seconds'=>30,'monitor_interval_seconds'=>$interval,'alert_latency_ms'=>$latency,'last_connection'=>$lastConnection,'device_overrides'=>arc_inventory_overrides($pdo,(int)$agent['account_id'],(int)$agent['network_id'],$agentId)]);
         }
         if ($action==='agent-terminal-local-start') {
             $rawCommand=trim((string)($body['request_text']??''));
             if (!$validTerminalRequest($rawCommand)) arc_json(['ok'=>false,'error'=>'Comando local não autorizado'],422);
-            $expireRunningAgentCommands($pdo,$agentId);
+            arc_expire_running_commands($pdo,$agentId);
             $active=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands')." WHERE agent_id=? AND status IN ('pending','running')");
             $active->execute([$agentId]);
             if((int)$active->fetchColumn()>=3) arc_json(['ok'=>false,'error'=>'Aguarde os diagnósticos anteriores'],429);
@@ -275,7 +521,7 @@ try {
             $q=$pdo->prepare($sql);
             $q->execute($params);
             $received=$q->rowCount()>0;
-            $check=$pdo->prepare('SELECT c.status,OCTET_LENGTH(COALESCE(t.output_text,\'\')) AS next_offset FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs')." t ON t.command_id=c.id WHERE c.id=? AND c.agent_id=? AND c.command_name='terminal_diagnostic' LIMIT 1");
+            $check=$pdo->prepare('SELECT c.status,OCTET_LENGTH(COALESCE(t.output_text,\'\')) AS next_offset FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs')." t ON t.command_id=c.id WHERE c.id=? AND c.agent_id=? AND c.command_name IN ('terminal_diagnostic','windows_update') LIMIT 1");
             $check->execute([$id,$agentId]);
             $task=$check->fetch(PDO::FETCH_ASSOC);
             arc_json(['ok'=>true,'received'=>$received,'next_offset'=>(int)($task['next_offset']??0),'status'=>(string)($task['status']??'unknown')]);
@@ -283,13 +529,13 @@ try {
         if ($action==='agent-command-ack') {
             $id=(int)($body['command_id']??0);
             $status=(string)($body['status']??'');
-            if ($id<1 || !in_array($status,['completed','failed'],true)) arc_json(['ok'=>false,'error'=>'Confirmação inválida'],422);
+            if ($id<1 || !in_array($status,['running','completed','failed'],true)) arc_json(['ok'=>false,'error'=>'Confirmação inválida'],422);
             $result=mb_substr((string)($body['result']??''),0,500);
-            $q=$pdo->prepare('UPDATE '.arc_table('agent_commands').' SET status=?,result_text=?,completed_at=CURRENT_TIMESTAMP WHERE id=? AND agent_id=? AND status=\'running\'');
-            $q->execute([$status,$result,$id,$agentId]);
+            $q=$pdo->prepare('UPDATE '.arc_table('agent_commands').' SET status=?,result_text=?,completed_at=IF(?=\'running\',NULL,CURRENT_TIMESTAMP) WHERE id=? AND agent_id=? AND status=\'running\'');
+            $q->execute([$status,$result,$status,$id,$agentId]);
             arc_json(['ok'=>true,'acknowledged'=>$q->rowCount()>0]);
         }
-        $expireRunningAgentCommands($pdo, $agentId);
+        arc_expire_running_commands($pdo, $agentId);
         $pdo->prepare('UPDATE '.arc_table('agent_commands').' SET status=\'expired\' WHERE agent_id=? AND status=\'pending\' AND created_at < DATE_SUB(NOW(), INTERVAL 3 MINUTE)')->execute([$agentId]);
         arc_support_schedules_dispatch($pdo,$agent);
         // DDL provoca commit implícito em MySQL 5.7/8.x.
@@ -298,7 +544,29 @@ try {
         try {
             $q=$pdo->prepare('SELECT c.id,c.account_id,c.network_id,c.command_name,COALESCE(t.request_text,\'\') AS request_text,COALESCE(a.headless_mode,0) AS headless_mode,COALESCE(rs.technician_id,cr.user_id,c.account_id) AS requester_user_id,CASE WHEN COALESCE(rs.technician_id,cr.user_id,c.account_id)=a.account_id THEN \'administrator\' ELSE COALESCE(tm.role,\'unverified\') END AS requester_role,COALESCE(u.display_name,\'\') AS requester_name FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs').' t ON t.command_id=c.id LEFT JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id LEFT JOIN '.arc_table('support_remote_sessions').' rs ON rs.command_id=c.id LEFT JOIN '.arc_table('support_command_requests').' cr ON cr.command_id=c.id LEFT JOIN '.arc_table('network_team_members').' tm ON tm.network_id=c.network_id AND tm.account_id=c.account_id AND tm.member_user_id=COALESCE(rs.technician_id,cr.user_id) AND tm.enabled=1 LEFT JOIN '.arc_table('user_accounts').' u ON u.id=COALESCE(rs.technician_id,cr.user_id,c.account_id) WHERE c.agent_id=? AND c.status=\'pending\' ORDER BY c.id ASC LIMIT 1 FOR UPDATE');
             $q->execute([$agentId]);$cmd=$q->fetch();
+            if($cmd&&in_array($cmd['command_name'],['program_inventory','program_uninstall','clean_scan','clean_execute','clean_tool'],true)){
+                $q=$pdo->prepare('SELECT user_id FROM '.arc_table('support_command_requests').' WHERE command_id=?');$q->execute([(int)$cmd['id']]);$requester=(int)$q->fetchColumn();
+                $access=$requester?arc_network_team_access($pdo,(int)$cmd['network_id'],$requester):null;
+                $rights=$requester?arc_network_profile_rights($pdo,(int)$cmd['network_id'],$requester):[];
+                if(!$access||!in_array($access['role'],['owner','administrator'],true)||($access['role']!=='owner'&&$rights!==null&&!in_array(in_array($cmd['command_name'],['clean_scan','clean_execute','clean_tool'],true)?'clean':'programas',$rights,true))||!arc_support_command_request_allowed($pdo,(int)$cmd['id'],(int)$cmd['network_id'],(int)$cmd['account_id'])){
+                    $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Permissão de programas revogada',completed_at=NOW() WHERE id=?")->execute([(int)$cmd['id']]);$cmd=false;
+                }
+            }
             if($cmd&&in_array($cmd['command_name'],['power_shutdown','power_restart','power_cancel'],true)&&!arc_support_command_request_allowed($pdo,(int)$cmd['id'],(int)$cmd['network_id'],(int)$cmd['account_id'])){$pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='failed',result_text='Autorização administrativa revogada',completed_at=NOW() WHERE id=?")->execute([$cmd['id']]);$cmd=false;}
+            if($cmd&&$cmd['command_name']==='file_browser'){
+                $verify=$pdo->prepare('SELECT r.path_text,r.requested_by,a.headless_mode FROM '.arc_table('file_browser_requests').' r JOIN '.arc_table('network_agents').' a ON a.id=r.agent_id AND a.network_id=r.network_id AND a.account_id=r.account_id WHERE r.command_id=?');
+                $verify->execute([(int)$cmd['id']]);$b=$verify->fetch(PDO::FETCH_ASSOC);
+                $browsePath=(string)($b['path_text']??'');
+                $allowRootOnly=$browsePath==='';
+                if(!$b||!(int)$b['headless_mode']||!arc_support_command_request_allowed($pdo,(int)$cmd['id'],(int)$cmd['network_id'],(int)$cmd['account_id'])||(!$allowRootOnly&&!in_array($cmd['requester_role'],['administrator','owner'],true))){
+                    $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Permissão para navegar revogada' WHERE id=?")->execute([(int)$cmd['id']]);$cmd=false;
+                }else{$cmd['request_text']=$browsePath;}
+            }
+            if($cmd&&in_array($cmd['command_name'],['file_bundle','file_execute','file_operation'],true)){
+                if(!in_array($cmd['requester_role'],['administrator','owner'],true)||!(int)$cmd['headless_mode']||!arc_support_command_request_allowed($pdo,(int)$cmd['id'],(int)$cmd['network_id'],(int)$cmd['account_id'])){
+                    $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Permissão para usar o explorador remoto revogada',completed_at=NOW() WHERE id=?")->execute([(int)$cmd['id']]);$cmd=false;
+                }
+            }
             if($cmd&&!in_array($cmd['requester_role'],['administrator','owner'],true))$cmd['headless_mode']=0;
             if($cmd){$q=$pdo->prepare('SELECT id FROM '.arc_table('support_guest_codes').' WHERE command_id=?');$q->execute([$cmd['id']]);if($q->fetchColumn()){$cmd['headless_mode']=0;$cmd['requester_role']='operator';$cmd['requester_name']='Visitante com código de uso único';}}
             if ($cmd && $cmd['command_name']==='remote_assistance' && !arc_support_remote_allowed($pdo,$cmd,(int)$cmd['requester_user_id'])) {
@@ -326,6 +594,60 @@ try {
         if ($q->rowCount()>0) arc_user_audit($pdo,'agent_terminal_cancel','Interrupção do diagnóstico '.$commandId.' no agente '.$agentId);
         arc_json(['ok'=>true,'cancelled'=>$q->rowCount()>0]);
     }
+    /* Encerramento administrativo de sessões remotas presas: só proprietário/administrador. */
+    if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='network-remote-force-stop') {
+        if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);
+        arc_verify_csrf();
+        $raw=file_get_contents('php://input',false,null,0,4097);
+        if(!is_string($raw)||strlen($raw)>4096)arc_json(['ok'=>false,'error'=>'Requisição inválida'],413);
+        $body=json_decode($raw,true);
+        if(!is_array($body))arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
+        $networkId=(int)($body['network_id']??0);$agentId=(int)($body['agent_id']??0);
+        if($networkId<1||$agentId<1)arc_json(['ok'=>false,'error'=>'Rede ou agente inválido'],422);
+        try{$access=arc_support_access($pdo,$networkId,(int)arc_user_id(),true);}
+        catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Rede não autorizada'],403);}
+        if(!in_array((string)$access['role'],['owner','administrator'],true))arc_json(['ok'=>false,'error'=>'Somente proprietário ou administrador pode encerrar outra sessão'],403);
+        $accountId=(int)$access['account_id'];$ids=[];
+        $pdo->beginTransaction();
+        try{
+            $q=$pdo->prepare('SELECT id FROM '.arc_table('network_agents')." WHERE id=? AND network_id=? AND account_id=? AND status='approved' FOR UPDATE");
+            $q->execute([$agentId,$networkId,$accountId]);
+            if(!$q->fetchColumn())throw new RuntimeException('Agente não autorizado');
+            $q=$pdo->prepare('SELECT id FROM '.arc_table('agent_commands')." WHERE agent_id=? AND network_id=? AND account_id=? AND command_name='remote_assistance' AND status IN ('pending','running') FOR UPDATE");
+            $q->execute([$agentId,$networkId,$accountId]);$ids=array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));
+            if($ids){
+                $idsSql=implode(',',array_fill(0,count($ids),'?'));
+                $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text='Sessão encerrada pelo administrador da rede',completed_at=NOW() WHERE id IN ($idsSql)")->execute($ids);
+                $pdo->prepare('DELETE FROM '.arc_table('support_remote_tokens')." WHERE command_id IN ($idsSql)")->execute($ids);
+            }
+            $pdo->commit();
+        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();if($e instanceof RuntimeException)arc_json(['ok'=>false,'error'=>$e->getMessage()],403);throw $e;}
+        $folder=__DIR__.'/../includes/storage/remote-screen';
+        foreach($ids as $id){
+            if(!is_dir($folder))continue;
+            @file_put_contents($folder.'/stop-'.$id,'1',LOCK_EX);
+            foreach(['control-','input-','screen-','meta-','view-','viewer-'] as $prefix){
+                $suffix=$prefix==='input-'?'.jsonl':($prefix==='screen-'?'.jpg':(in_array($prefix,['meta-','view-'],true)?'.json':''));
+                $path=$folder.'/'.$prefix.$id.$suffix;
+                if(is_file($path))@unlink($path);
+            }
+        }
+        arc_user_audit($pdo,'remote_access_forced_stop','Usuário #'.arc_user_id().' encerrou '.count($ids).' sessão(ões) remota(s) no agente #'.$agentId.' da rede #'.$networkId,$accountId);
+        arc_json(['ok'=>true,'closed'=>count($ids)]);
+    }
+    // BLOCO 37 — RECUPERAÇÃO DE SESSÃO REMOTA EXISTENTE (NÃO CRIA OUTRA SESSÃO).
+    if($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-remote-existing'){
+        if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);
+        $network=(int)($_GET['network_id']??0);$agent=(int)($_GET['agent_id']??0);
+        if($network<1||$agent<1)arc_json(['ok'=>false,'error'=>'Selecione um computador válido'],422);
+        try{$access=arc_support_access($pdo,$network,(int)arc_user_id(),true);}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Rede não autorizada'],403);}
+        $q=$pdo->prepare('SELECT c.id,c.agent_id,c.account_id,c.network_id,c.command_name,c.status,c.created_at FROM '.arc_table('agent_commands')." c WHERE c.network_id=? AND c.agent_id=? AND c.account_id=? AND c.command_name='remote_assistance' AND c.status IN ('pending','running') AND c.created_at>DATE_SUB(NOW(),INTERVAL 30 MINUTE) ORDER BY c.id DESC LIMIT 10");
+        $q->execute([$network,$agent,(int)$access['account_id']]);
+        foreach($q->fetchAll(PDO::FETCH_ASSOC) as $command){
+            if(arc_support_remote_allowed($pdo,$command,(int)arc_user_id()))arc_json(['ok'=>true,'command_id'=>(int)$command['id'],'agent_id'=>$agent,'status'=>$command['status']]);
+        }
+        arc_json(['ok'=>true,'command_id'=>0,'agent_id'=>$agent]);
+    }
     if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='network-command') {
         if (!arc_is_user()) arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);
         arc_verify_csrf();
@@ -334,14 +656,17 @@ try {
         $body=json_decode($raw,true);
         if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
         $networkId=(int)($body['network_id']??0);$command=(string)($body['command']??'');
-        $allowed=['monitor_start','monitor_pause','speed_test','scan_devices','scan_map','diagnostic','toolkit','toolkit_traceroute','toolkit_services','toolkit_health','toolkit_troubleshooter','quick_health','storage_health','service_health','restart_readiness','dns_test','public_ip','system_snapshot','flush_dns','wifi_info','terminal_diagnostic','agent_update','remote_assistance','power_shutdown','power_restart','power_cancel'];
+        $allowed=['monitor_start','monitor_pause','speed_test','scan_devices','scan_map','diagnostic','toolkit','toolkit_traceroute','toolkit_services','toolkit_health','toolkit_troubleshooter','quick_health','storage_health','service_health','restart_readiness','dns_test','public_ip','system_snapshot','flush_dns','wifi_info','terminal_diagnostic','agent_update','remote_assistance','power_shutdown','power_restart','power_cancel','screen_lock','windows_update'];
         if (!in_array($command,$allowed,true)) arc_json(['ok'=>false,'error'=>'Comando não permitido'],422);
         if ($command==='remote_assistance') {
             try {$id=arc_support_request_remote($pdo,$networkId,(int)($body['agent_id']??0),(int)arc_user_id(),(int)($body['ticket_id']??0));}
             catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e instanceof PDOException?'Serviço indisponível.':$e->getMessage()],403);}
             arc_json(['ok'=>true,'command_id'=>$id,'status'=>'pending']);
         }
-        $commandAccount=(int)arc_user_id();if(in_array($command,['power_shutdown','power_restart','power_cancel','restart_readiness'],true)){try{$access=arc_support_access($pdo,$networkId,(int)arc_user_id(),true);}catch(PDOException $e){throw $e;}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);}if(!in_array($access['role'],['owner','administrator'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);$commandAccount=(int)$access['account_id'];}
+        try{$commandAccess=arc_support_access($pdo,$networkId,(int)arc_user_id(),true);}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Sem permissão para este comando.'],403);}
+        if(in_array($command,['power_shutdown','power_restart','power_cancel','restart_readiness','screen_lock','windows_update','agent_update'],true)&&!in_array($commandAccess['role'],['owner','administrator'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);
+        $commandAccount=(int)$commandAccess['account_id'];
+        $delaySeconds=filter_var($body['delay_seconds']??60,FILTER_VALIDATE_INT);if(in_array($command,['power_restart','power_shutdown','screen_lock'],true)&&($delaySeconds===false||$delaySeconds<5||$delaySeconds>3600))arc_json(['ok'=>false,'error'=>'O prazo deve ser entre 5 e 3600 segundos.'],422);
         $terminalInput=trim((string)($body['terminal_input']??''));
         if ($command==='terminal_diagnostic' && !$validTerminalRequest($terminalInput)) arc_json(['ok'=>false,'error'=>'Comando de diagnóstico inválido. Digite ajuda para ver os comandos autorizados.'],422);
         $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1 AND monitoring_enabled=1');
@@ -350,20 +675,29 @@ try {
         $q=$pdo->prepare('SELECT id,machine_name,headless_mode FROM '.arc_table('network_agents').' WHERE id=? AND network_id=? AND account_id=? AND status=\'approved\'');
         $q->execute([$agentId,$networkId,$commandAccount]);$targetAgent=$q->fetch();
         if (!$targetAgent) arc_json(['ok'=>false,'error'=>'Selecione um agente aprovado'],403);
+        $windowsRequest=null;
+        if($command==='windows_update'){
+            $q=$pdo->prepare('SELECT agent_version FROM '.arc_table('network_agents').' WHERE id=?');$q->execute([$agentId]);if(version_compare((string)$q->fetchColumn(),'3.7.1','<'))arc_json(['ok'=>false,'error'=>'Atualize o agente para usar a verificação detalhada do Windows Update.'],409);
+            $mode=(string)($body['update_mode']??'scan');if(!in_array($mode,['scan','install','history','pause','resume','settings','advanced','insider','latest_on','latest_off'],true))arc_json(['ok'=>false,'error'=>'Operação inválida'],422);
+            $windowsRequest=['mode'=>$mode];
+            if($mode==='install'){
+                if(($body['confirmed']??false)!==true)arc_json(['ok'=>false,'error'=>'Confirme o download e a instalação.'],422);
+                $scan=$pdo->prepare('SELECT t.output_text FROM '.arc_table('agent_terminal_jobs').' t JOIN '.arc_table('agent_commands')." c ON c.id=t.command_id WHERE c.id=? AND c.agent_id=? AND c.network_id=? AND c.account_id=? AND c.command_name='windows_update' AND c.status='completed' AND c.completed_at>DATE_SUB(NOW(),INTERVAL 60 MINUTE)");$scan->execute([(int)($body['scan_id']??0),$agentId,$networkId,$commandAccount]);$report=json_decode((string)$scan->fetchColumn(),true);
+                if(!is_array($report)||($report['mode']??'')!=='scan'||empty($report['updates'])||count($report['updates'])>50)arc_json(['ok'=>false,'error'=>'Verifique novamente as atualizações disponíveis.'],409);
+                $windowsRequest['updates']=array_map(static fn($u)=>['id'=>$u['id'],'revision'=>$u['revision']],$report['updates']);
+            }
+            $busy=$pdo->prepare('SELECT id FROM '.arc_table('agent_commands')." WHERE agent_id=? AND command_name='windows_update' AND ((status='pending' AND created_at>DATE_SUB(NOW(),INTERVAL 3 MINUTE)) OR (status='running' AND dispatched_at>DATE_SUB(NOW(),INTERVAL 120 MINUTE))) LIMIT 1");$busy->execute([$agentId]);if($busy->fetchColumn())arc_json(['ok'=>false,'error'=>'Uma verificação ou instalação do Windows já está em andamento.'],409);
+        }
         if($command==='agent_update'){
             try{arc_require_aligned_agent_release();}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e->getMessage(),'error_code'=>'agent_release_incomplete','release'=>arc_agent_release_status()],503);}
         }
         if (in_array($command,['power_shutdown','power_restart','power_cancel'],true)) {
             if (($body['confirmed']??false)!==true) arc_json(['ok'=>false,'error'=>'Confirme a operação no computador selecionado.'],422);
-            if($command!=='power_cancel'){
-                $q=$pdo->prepare('SELECT password_hash FROM '.arc_table('user_accounts').' WHERE id=?');$q->execute([arc_user_id()]);
-                $passwordHash=(string)$q->fetchColumn();$password=(string)($body['password']??'');if(!(password_verify($password,$passwordHash)||password_verify(base64_encode(hash('sha384',$password,true)),$passwordHash)))arc_json(['ok'=>false,'error'=>'Senha da sua conta incorreta.'],403);
-            }
             $q=$pdo->prepare('SELECT agent_version,last_seen_at FROM '.arc_table('network_agents').' WHERE id=?');$q->execute([$agentId]);$powerTarget=$q->fetch();
             if(version_compare((string)$powerTarget['agent_version'],'3.2.0','<'))arc_json(['ok'=>false,'error'=>'Atualize o agente deste computador antes de usar o controle de energia.'],409);
             if(!$powerTarget['last_seen_at']||strtotime($powerTarget['last_seen_at'])<time()-120)arc_json(['ok'=>false,'error'=>'O computador precisa estar conectado.'],409);
         }
-        $expireRunningAgentCommands($pdo, $agentId);
+        arc_expire_running_commands($pdo, $agentId);
         $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE agent_id=? AND status='pending' AND created_at < DATE_SUB(NOW(), INTERVAL 3 MINUTE)")->execute([$agentId]);
         $q=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands').' WHERE agent_id=? AND status IN (\'pending\',\'running\')');
         $q->execute([$agentId]);if ((int)$q->fetchColumn()>=3) arc_json(['ok'=>false,'error'=>'Aguarde os comandos anteriores'],429);
@@ -371,6 +705,8 @@ try {
         try {
             $pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([$commandAccount,$networkId,$agentId,$command]);
             $insertedId=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id) VALUES (?,?)')->execute([$insertedId,(int)arc_user_id()]);
+            if(in_array($command,['power_restart','power_shutdown','screen_lock'],true)){$pdo->prepare('INSERT INTO '.arc_table('agent_terminal_jobs').' (command_id,agent_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$insertedId,$agentId,$networkId,json_encode(['delay_seconds'=>$delaySeconds])]);}
+            if($windowsRequest!==null)$pdo->prepare('INSERT INTO '.arc_table('agent_terminal_jobs').' (command_id,agent_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$insertedId,$agentId,$networkId,json_encode($windowsRequest)]);
             if($command==='terminal_diagnostic'){
                 $pdo->prepare('INSERT INTO '.arc_table('agent_terminal_jobs').' (command_id,agent_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$insertedId,$agentId,$networkId,$terminalInput]);
             }
@@ -413,7 +749,7 @@ try {
         $q->execute([$commandId,$agentId,$networkId,arc_user_id()]);
         $cmd=$q->fetch(PDO::FETCH_ASSOC);
         if(!$cmd) arc_json(['ok'=>false,'error'=>'Diagnóstico não encontrado ou sem autorização'],404);
-        $expireRunningAgentCommands($pdo,$agentId);
+        arc_expire_running_commands($pdo,$agentId);
         if($cmd['status']==='running'){
            $fresh=$pdo->prepare('SELECT status,result_text FROM '.arc_table('agent_commands').' WHERE id=?');
            $fresh->execute([$commandId]);$c2=$fresh->fetch(PDO::FETCH_ASSOC);
@@ -432,9 +768,9 @@ try {
         $networkId=(int)($_GET['network_id']??0);
         try{$access=arc_support_access($pdo,$networkId,(int)arc_user_id());}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Rede não autorizada'],403);}
         $account=(int)$access['account_id'];
-        $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='failed',result_text='Tempo limite do agente',completed_at=NOW() WHERE network_id=? AND account_id=? AND status='running' AND ((command_name<>'remote_assistance' AND dispatched_at<DATE_SUB(NOW(),INTERVAL 4 MINUTE)) OR (command_name='remote_assistance' AND created_at<DATE_SUB(NOW(),INTERVAL 30 MINUTE)))")->execute([$networkId,$account]);
+        arc_expire_running_commands($pdo,null,$networkId,$account);
         $sql='SELECT id,agent_id,command_name,status,result_text,created_at,completed_at FROM '.arc_table('agent_commands').' WHERE network_id=? AND account_id=?';$params=[$networkId,$account];
-        if($access['role']!=='owner'){$sql.=" AND command_name='remote_assistance' AND id IN (SELECT command_id FROM ".arc_table('support_remote_sessions').' WHERE technician_id=?)';$params[]=(int)arc_user_id();}
+        if(!in_array($access['role'],['owner','administrator'],true)){$sql.=" AND command_name='remote_assistance' AND id IN (SELECT command_id FROM ".arc_table('support_remote_sessions').' WHERE technician_id=?)';$params[]=(int)arc_user_id();}
         $q=$pdo->prepare($sql.' ORDER BY id DESC LIMIT 20');$q->execute($params);$commands=$q->fetchAll(PDO::FETCH_ASSOC);
         $agents=$pdo->prepare('SELECT id,UNIX_TIMESTAMP(last_seen_at) AS last_seen_unix,status FROM '.arc_table('network_agents').' WHERE network_id=? AND account_id=?');$agents->execute([$networkId,$account]);
         arc_json(['ok'=>true,'commands'=>$commands,'agents'=>$agents->fetchAll(PDO::FETCH_ASSOC),'server_time'=>time()]);
@@ -489,7 +825,7 @@ try {
     }
 
     /* API pública restrita do agente desktop: nenhum login web é exigido no primeiro cadastro. */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['agent-register','agent-poll','agent-data'], true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['agent-register','agent-poll','agent-data','agent-transfer','agent-uninstall-confirm'], true)) {
         $rawAgent = file_get_contents('php://input');
         if (!is_string($rawAgent) || strlen($rawAgent) > 240000) arc_json(['ok'=>false,'error'=>'Solicitação inválida.'],413);
         $agentData = json_decode($rawAgent, true);
@@ -497,6 +833,63 @@ try {
         $fingerprint = strtolower(trim((string)($agentData['fingerprint'] ?? '')));
         $siteCode = strtoupper(trim((string)($agentData['site_code'] ?? '')));
         if (!preg_match('/^[a-f0-9]{64}$/', $fingerprint) || !preg_match('/^[A-Z0-9]{5}$/', $siteCode)) arc_json(['ok'=>false,'error'=>'Informe um código de local e uma identificação válida deste computador.'],422);
+
+        if ($action === 'agent-transfer') {
+            // A troca de rede exige a senha do proprietário da rede anterior.
+            // A chave de instalação de destino ainda precisa estar válida.
+            $password=(string)($agentData['previous_owner_password'] ?? '');
+            $newKey=strtolower(trim((string)($agentData['download_key'] ?? '')));
+            if ($password==='' || strlen($password)>512 || !preg_match('/^[a-f0-9]{64}$/',$newKey)) {
+                arc_json(['ok'=>false,'error'=>'Informe a senha do proprietário anterior e use um instalador válido.'],403);
+            }
+            $attemptId=arc_login_attempt_begin($pdo,'agent-transfer:'.$fingerprint);
+            if ($attemptId===null) {
+                header('Retry-After: 900');
+                arc_json(['ok'=>false,'error'=>'Muitas tentativas. Tente novamente em 15 minutos.'],429);
+            }
+            // Autenticar antes de bloquear registros; nunca aceitar só um identificador de máquina.
+            $oldQ=$pdo->prepare('SELECT a.id,a.network_id,a.account_id,u.password_hash,u.account_status FROM '
+                .arc_table('network_agents').' a JOIN '.arc_table('user_accounts').' u ON u.id=a.account_id '
+                .'WHERE a.fingerprint=? ORDER BY a.id DESC LIMIT 1');
+            $oldQ->execute([$fingerprint]);
+            $old=$oldQ->fetch(PDO::FETCH_ASSOC);
+            $material=base64_encode(hash('sha384',$password,true));
+            if (!$old || (string)($old['account_status']??'active')!=='active' ||
+                !(password_verify($material,(string)$old['password_hash']) || password_verify($password,(string)$old['password_hash']))) {
+                arc_json(['ok'=>false,'error'=>'Senha do proprietário da rede anterior incorreta.'],403);
+            }
+            unset($password,$material);
+            $pdo->beginTransaction();
+            try {
+                $getOld=$pdo->prepare('SELECT id,network_id,account_id FROM '.arc_table('network_agents').' WHERE id=? AND fingerprint=? FOR UPDATE');
+                $getOld->execute([(int)$old['id'],$fingerprint]);
+                $previous=$getOld->fetch(PDO::FETCH_ASSOC);
+                $getNew=$pdo->prepare('SELECT k.id,k.network_id,k.account_id,k.site_code,k.fingerprint,n.is_active FROM '.arc_table('agent_download_keys').' k JOIN '.arc_table('managed_networks').' n ON n.id=k.network_id AND n.account_id=k.account_id WHERE k.token_hash=? FOR UPDATE');
+                $getNew->execute([hash('sha256',$newKey)]);
+                $target=$getNew->fetch(PDO::FETCH_ASSOC);
+                if (!$previous || !$target || (int)$target['is_active']!==1 || strtoupper((string)$target['site_code'])!==$siteCode ||
+                    ((string)($target['fingerprint']??'')!=='' && !hash_equals((string)$target['fingerprint'],$fingerprint)) ||
+                    (int)$previous['network_id']===(int)$target['network_id']) {
+                    throw new RuntimeException('Vínculo anterior ou instalador de destino inválido.');
+                }
+                // Preserva o histórico e libera o identificador único para o novo pedido.
+                $historic=hash('sha256','historico:'.$fingerprint.':'.$previous['id']);
+                $pdo->prepare('UPDATE '.arc_table('network_agents')." SET fingerprint=?,status='blocked',ui_locked=1,notes=? WHERE id=? AND fingerprint=?")
+                    ->execute([$historic,mb_substr('TRANSFERIDO|'.date('Y-m-d H:i:s').'|Novo local: '.$siteCode,0,500),(int)$previous['id'],$fingerprint]);
+                $pdo->prepare('UPDATE '.arc_table('agent_download_keys').' SET fingerprint=?,used_at=CURRENT_TIMESTAMP WHERE id=? AND (fingerprint IS NULL OR fingerprint=?)')
+                    ->execute([$fingerprint,(int)$target['id'],$fingerprint]);
+                $pdo->prepare('INSERT INTO '.arc_table('network_agents').' (fingerprint,account_id,network_id,site_code,machine_name,platform,status,notes) VALUES (?,?,?,?,?,?,?,?)')
+                    ->execute([$fingerprint,(int)$target['account_id'],(int)$target['network_id'],$siteCode,mb_substr((string)($agentData['machine_name']??'Computador'),0,190),mb_substr((string)($agentData['platform']??'Windows'),0,190),'pending','Solicitação após transferência autorizada pelo proprietário anterior']);
+                $newId=(int)$pdo->lastInsertId();
+                $pdo->commit();
+                arc_login_attempt_succeeded($pdo,$attemptId);
+                arc_user_audit($pdo,'agent_transfer_requested','Transferência autenticada do agente '.$previous['id'].'; solicitação '.$newId.' para rede '.$target['network_id'],(int)$target['account_id']);
+                arc_json(['ok'=>true,'status'=>'pending','agent_id'=>$newId,'message'=>'Transferência autorizada. Aguardando liberação na nova rede.']);
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                arc_json(['ok'=>false,'error'=>$e instanceof RuntimeException?$e->getMessage():'Não foi possível concluir a transferência.'],409);
+            }
+        }
 
         if ($action === 'agent-register') {
             $downloadKey = trim((string)($agentData['download_key'] ?? ''));
@@ -554,21 +947,72 @@ try {
             } else {
                 $agentId = (int)$agentRow['id'];
                 $agentStatus = (string)$agentRow['status'];
+                // Uma instalação revogada só volta a pendente após autenticação de uma NOVA chave de instalação.
+                $isRemoved = $agentStatus==='blocked' && (str_starts_with((string)($agentRow['notes']??''),'DESINSTALADO|') || (string)($agentRow['notes']??'')==='Instalação revogada pelo gestor');
+                if ($isRemoved) {
+                    $pdo->prepare('UPDATE '.arc_table('network_agents')." SET status='pending',ui_locked=0,uninstall_requested=0,notes='' WHERE id=? AND network_id=? AND account_id=?")->execute([$agentId,(int)$networkRow['id'],(int)$networkRow['account_id']]);
+                    $agentStatus = 'pending';
+                }
                 $pdo->prepare('UPDATE ' . arc_table('network_agents') . ' SET machine_name=?,platform=?,local_ip=?,gateway_ip=?,agent_version=?,machine_details=?,last_seen_at=CURRENT_TIMESTAMP WHERE id=?')
                     ->execute([$machine,$platform,$localIp,$gatewayIp,$version,$machineDetails,$agentId]);
             }
             arc_json(['ok'=>true,'status'=>$agentStatus,'agent_id'=>$agentId,'message'=>match($agentStatus){'approved'=>'Agente autorizado.','blocked'=>'Agente bloqueado pelo gestor.','rejected'=>'Cadastro rejeitado pelo gestor.',default=>'Solicitação enviada. Aguarde a aprovação do gestor da rede.'}]);
         }
 
+        if ($action === 'agent-uninstall-confirm') {
+            // O agente (ou o componente SYSTEM) confirma que vai se remover. Só a chave da instalação autoriza.
+            $downloadKey = trim((string)($agentData['download_key'] ?? ''));
+            if (!preg_match('/^[a-f0-9]{64}$/', $downloadKey)) arc_json(['ok'=>false,'error'=>'Chave da instalação inválida.'],403);
+            $tokenHash = hash('sha256',$downloadKey);
+            $confirmed = false;
+            $pdo->beginTransaction();
+            try {
+                $drop = $pdo->prepare('DELETE FROM '.arc_table('agent_removal_queue').' WHERE fingerprint=? AND token_hash=?');
+                $drop->execute([$fingerprint,$tokenHash]);
+                if ($drop->rowCount() > 0) $confirmed = true;
+                $find = $pdo->prepare('SELECT a.id,a.account_id,a.network_id FROM '.arc_table('network_agents').' a JOIN '.arc_table('agent_download_keys').' k ON k.network_id=a.network_id AND k.account_id=a.account_id WHERE a.fingerprint=? AND UPPER(a.site_code)=? AND a.uninstall_requested=1 AND k.token_hash=? AND k.fingerprint=? LIMIT 1 FOR UPDATE');
+                $find->execute([$fingerprint,$siteCode,$tokenHash,$fingerprint]);
+                $target = $find->fetch(PDO::FETCH_ASSOC);
+                if ($target) {
+                    $pdo->prepare('UPDATE '.arc_table('network_agents').' SET status=\'blocked\',ui_locked=0,uninstall_requested=0,notes=? WHERE id=? AND account_id=? AND network_id=?')
+                        ->execute(['DESINSTALADO|'.date('Y-m-d H:i:s').'|plataforma',(int)$target['id'],(int)$target['account_id'],(int)$target['network_id']]);
+                    $pdo->prepare('DELETE FROM '.arc_table('agent_download_keys').' WHERE account_id=? AND network_id=? AND fingerprint=?')
+                        ->execute([(int)$target['account_id'],(int)$target['network_id'],$fingerprint]);
+                    $confirmed = true;
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                arc_json(['ok'=>false,'error'=>'Não foi possível confirmar a desinstalação.'],409);
+            }
+            if (isset($target) && $target) arc_user_audit($pdo,'network_agent_uninstalled','Agente desinstalado pela plataforma: '.$siteCode.' / agente '.(int)$target['id'],(int)$target['account_id']);
+            header('Cache-Control: no-store, private');
+            arc_json(['ok'=>true,'confirmed'=>$confirmed]);
+        }
+
         if ($action === 'agent-poll') {
-        $poll = $pdo->prepare('SELECT a.status,a.id,a.network_id,n.name AS network_name,n.is_active,n.monitoring_enabled FROM ' . arc_table('network_agents') . ' a JOIN ' . arc_table('managed_networks') . ' n ON n.id=a.network_id WHERE a.fingerprint=? AND UPPER(a.site_code)=? LIMIT 1');
+        $downloadKey = trim((string)($agentData['download_key'] ?? ''));
+        if (!preg_match('/^[a-f0-9]{64}$/', $downloadKey)) arc_json(['ok'=>false,'error'=>'Chave da instalação inválida.'],403);
+        $tokenHash = hash('sha256',$downloadKey);
+        // Rede excluída pelo gestor: a máquina ainda recebe a ordem de se desinstalar.
+        try {
+            $removed = $pdo->prepare('SELECT id FROM '.arc_table('agent_removal_queue').' WHERE fingerprint=? AND token_hash=? LIMIT 1');
+            $removed->execute([$fingerprint,$tokenHash]);
+            if ($removed->fetchColumn()) arc_json(['ok'=>true,'status'=>'removed','uninstall'=>true,'ui_locked'=>false,'message'=>'Esta rede foi excluída. O agente será desinstalado.']);
+        } catch (PDOException $e) { /* fila ainda não criada: segue o fluxo normal */ }
+        $keyCheck=$pdo->prepare('SELECT id FROM '.arc_table('agent_download_keys').' WHERE token_hash=? AND UPPER(site_code)=? AND fingerprint=? LIMIT 1');
+        $keyCheck->execute([$tokenHash,$siteCode,$fingerprint]);
+        if (!$keyCheck->fetchColumn()) arc_json(['ok'=>false,'error'=>'Instalação não autorizada.'],403);
+        $poll = $pdo->prepare('SELECT a.status,a.ui_locked,a.uninstall_requested,a.id,a.network_id,n.name AS network_name,n.is_active,n.monitoring_enabled FROM ' . arc_table('network_agents') . ' a JOIN ' . arc_table('managed_networks') . ' n ON n.id=a.network_id WHERE a.fingerprint=? AND UPPER(a.site_code)=? LIMIT 1');
         $poll->execute([$fingerprint,$siteCode]);
         $agentRow = $poll->fetch();
         if (!$agentRow) arc_json(['ok'=>false,'status'=>'unregistered','error'=>'Agente ainda não cadastrado para este local.'],404);
-        if (((int)$agentRow['is_active'] !== 1 || (int)$agentRow['monitoring_enabled'] !== 1) && $agentRow['status'] === 'approved') arc_json(['ok'=>true,'status'=>'blocked','message'=>'A rede está inativa ou com monitoramento desativado.']);
         $pdo->prepare('UPDATE ' . arc_table('network_agents') . ' SET last_seen_at=CURRENT_TIMESTAMP WHERE id=?')->execute([(int)$agentRow['id']]);
         $status = (string)$agentRow['status'];
-        arc_json(['ok'=>true,'status'=>$status,'network_name'=>(string)$agentRow['network_name'],'message'=>match($status){'approved'=>'Agente autorizado.','blocked'=>'Acesso bloqueado pelo gestor.','rejected'=>'Cadastro rejeitado pelo gestor.',default=>'Aguardando aprovação do gestor da rede.'}]);
+        // Desinstalação solicitada pelo gestor: vale para qualquer situação em que o agente ainda consiga consultar.
+        if ((int)$agentRow['uninstall_requested'] === 1) arc_json(['ok'=>true,'status'=>$status,'uninstall'=>true,'ui_locked'=>false,'network_name'=>(string)$agentRow['network_name'],'message'=>'Desinstalação solicitada pelo gestor.']);
+        if (((int)$agentRow['is_active'] !== 1 || (int)$agentRow['monitoring_enabled'] !== 1) && $status === 'approved') arc_json(['ok'=>true,'status'=>'blocked','uninstall'=>false,'message'=>'A rede está inativa ou com monitoramento desativado.']);
+        arc_json(['ok'=>true,'status'=>$status,'uninstall'=>false,'network_name'=>(string)$agentRow['network_name'],'ui_locked'=>(bool)$agentRow['ui_locked'],'message'=>match($status){'approved'=>((int)$agentRow['ui_locked']===1?'Agente autorizado. Tela protegida por login.':'Agente autorizado.'),'blocked'=>'Acesso bloqueado pelo gestor.','rejected'=>'Cadastro rejeitado pelo gestor.',default=>'Aguardando aprovação do gestor da rede.'}]);
         }
     }
 
@@ -582,6 +1026,17 @@ try {
         $event = $agentData['event'] ?? [];
         if (!is_array($event)) arc_json(['ok'=>false,'error'=>'Evento inválido.'],422);
         $eventType = mb_substr(trim((string)($event['event'] ?? 'telemetry')),0,60);
+        // Evita inflar o SQL com 40-50 digitos de casas decimais de metricas.
+        // Nao modifica credenciais, eventos de seguranca, dispositivos nem resultados de comandos.
+        if (in_array($eventType,['server_metrics','telemetry','dashboard','speed_progress'],true)) {
+            $compactMetrics = static function($value, int $depth=0) use (&$compactMetrics) {
+                if (is_float($value)) return round($value,4);
+                if (!is_array($value) || $depth>=12) return $value;
+                foreach ($value as $key=>$child) $value[$key]=$compactMetrics($child,$depth+1);
+                return $value;
+            };
+            $event=$compactMetrics($event);
+        }
         $payload = json_encode(array_slice($event,0,100,true),JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
         if (!is_string($payload)) $payload='{}';
         if (strlen($payload)>210000) arc_json(['ok'=>false,'error'=>'Dados de monitoramento excedem o limite.'],413);
@@ -636,6 +1091,17 @@ try {
             arc_user_audit($pdo,'remote_access_monitor_detected',
                 'Monitor físico detectado durante acesso remoto automático no agente '.$agentId.' (comando '.(int)($event['command_id']??0).'). Verifique se alguém está no local sem autorização.',
                 (int)$authorized['account_id']);
+        } elseif ($eventType === 'server_metrics') {
+            // Quando o administrador ativa a politica de armazenamento, reduz amostras
+            // repetidas de metricas. Atualiza last_seen_at mesmo sem gravar a amostra.
+            require_once dirname(__DIR__).'/includes/storage-policy.php';
+            $storePolicy=arc_storage_policy($pdo);
+            if($storePolicy['enabled']){
+                $interval=(int)$storePolicy['metrics_interval'];
+                $recent=$pdo->prepare('SELECT id FROM '.arc_table('agent_telemetry')." WHERE agent_id=? AND event_type='server_metrics' AND captured_at >= DATE_SUB(NOW(), INTERVAL $interval SECOND) ORDER BY id DESC LIMIT 1");
+                $recent->execute([$agentId]);
+                $storeEvent=!$recent->fetchColumn();
+            }
         } elseif ($eventType === 'telemetry' || $eventType === 'dashboard') {
             // Grava até uma amostra a cada 3 minutos por agente/tipo; alertas não são limitados.
             $recent = $pdo->prepare('SELECT id FROM '.arc_table('agent_telemetry')." WHERE agent_id=? AND event_type=? AND captured_at >= (CURRENT_TIMESTAMP - INTERVAL 180 SECOND) ORDER BY id DESC LIMIT 1");
