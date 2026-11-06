@@ -335,6 +335,11 @@ body.arc-workspace > #arc-mobile-more.arc-network-more[open] nav>a{display:flex!
 })();
 </script>
 
+<?php if (function_exists('arc_is_user') && arc_is_user()): ?>
+<link rel="stylesheet" href="<?=arc_h($arcAssetBase)?>assets/css/command-queue.css?v=<?=arc_h($arcAssetVersion('assets/css/command-queue.css'))?>">
+<script>window.arcQueueConfig={base:<?=json_encode(arc_workspace_base_url())?>,csrf:<?=json_encode(arc_csrf_token())?>};</script>
+<script defer src="<?=arc_h($arcAssetBase)?>assets/js/command-queue.js?v=<?=arc_h($arcAssetVersion('assets/js/command-queue.js'))?>"></script>
+<?php endif; ?>
 <?php if (!empty($ARCPageJs)) { echo $ARCPageJs; } ?>
 </body>
 </html>

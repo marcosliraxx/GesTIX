@@ -304,7 +304,7 @@ try {
         if($action==='network-program-list'){
             /* Expire comandos abandonados antes de reabrir a tela; não bloqueie novas operações com estado pendente antigo. */
             arc_expire_running_commands($pdo,$agentId);
-            $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='expired',result_text='Agente não iniciou a operação no prazo',completed_at=NOW() WHERE agent_id=? AND network_id=? AND account_id=? AND command_name IN ('program_inventory','program_install','program_uninstall') AND status='pending' AND created_at<DATE_SUB(NOW(),INTERVAL 3 MINUTE)")->execute([$agentId,$network,$account]);
+            /* Programas aguardam a sua vez na fila persistente. */
             $q=$pdo->prepare('SELECT programs_json,collected_at FROM '.arc_table('agent_software_inventory').' WHERE agent_id=? AND network_id=? AND account_id=?');
             $q->execute([$agentId,$network,$account]);$row=$q->fetch(PDO::FETCH_ASSOC);
             $programs=$row?json_decode((string)$row['programs_json'],true):[];
@@ -354,10 +354,10 @@ try {
             }
         }catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
         $payload=json_encode($request,JSON_UNESCAPED_UNICODE);
-        $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE agent_id=? AND status='pending' AND created_at<DATE_SUB(NOW(),INTERVAL 3 MINUTE)")->execute([$agentId]);
+        /* Pendências mantidas para despacho sequencial. */
         arc_expire_running_commands($pdo,$agentId);
         $busy=arc_network_active_operation($pdo,$agentId,$network,$account,array_merge(arc_network_operation_commands()['program'],arc_network_operation_commands()['clean']));
-        if($busy)arc_json(['ok'=>false,'error'=>'Aguarde a operação em andamento neste computador','active'=>$busy],409);
+        /* Operações elegíveis são enfileiradas em vez de rejeitadas por ocupação. */
         $command=$isClean?($mode==='tool'?'clean_tool':($mode==='scan'?'clean_scan':'clean_execute')):($mode==='refresh'?'program_inventory':($mode==='install'?'program_install':'program_uninstall'));
         $pdo->beginTransaction();try{
             $pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([$account,$network,$agentId,$command]);
@@ -648,15 +648,32 @@ try {
             }
             arc_json(['ok'=>true,'acknowledged'=>$acknowledged]);
         }
-        arc_expire_running_commands($pdo, $agentId);
-        $pdo->prepare('UPDATE '.arc_table('agent_commands').' SET status=\'expired\' WHERE agent_id=? AND status=\'pending\' AND created_at < DATE_SUB(NOW(), INTERVAL 3 MINUTE)')->execute([$agentId]);
+        // Uma operação vencida em OUTRO agente da mesma conta não pode bloquear
+        // indefinidamente todo o despacho. Reaplique a política central de prazos
+        // por conta, inclusive para agentes que pararam de consultar o servidor.
+        arc_expire_running_commands($pdo,null,null,(int)$agent['account_id']);
+        /* Pendências persistem até despacho ou cancelamento explícito. */
         arc_support_schedules_dispatch($pdo,$agent);
         // DDL provoca commit implícito em MySQL 5.7/8.x.
         // Garanta a tabela antes de iniciar a transação de retirada da fila.
         $pdo->beginTransaction();
         try {
+            /* Uma linha da conta serializa a retirada da fila entre agentes distintos. */
+            $queueGuard=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');
+            $queueGuard->execute([(int)$agent['account_id']]);
             $q=$pdo->prepare('SELECT c.id,c.account_id,c.network_id,c.command_name,COALESCE(t.request_text,\'\') AS request_text,COALESCE(a.headless_mode,0) AS headless_mode,COALESCE(rs.technician_id,cr.user_id,c.account_id) AS requester_user_id,CASE WHEN COALESCE(rs.technician_id,cr.user_id,c.account_id)=a.account_id THEN \'administrator\' ELSE COALESCE(tm.role,\'unverified\') END AS requester_role,COALESCE(u.display_name,\'\') AS requester_name FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('agent_terminal_jobs').' t ON t.command_id=c.id LEFT JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id LEFT JOIN '.arc_table('support_remote_sessions').' rs ON rs.command_id=c.id LEFT JOIN '.arc_table('support_command_requests').' cr ON cr.command_id=c.id LEFT JOIN '.arc_table('network_team_members').' tm ON tm.network_id=c.network_id AND tm.account_id=c.account_id AND tm.member_user_id=COALESCE(rs.technician_id,cr.user_id) AND tm.enabled=1 LEFT JOIN '.arc_table('user_accounts').' u ON u.id=COALESCE(rs.technician_id,cr.user_id,c.account_id) WHERE c.agent_id=? AND c.status=\'pending\' ORDER BY c.id ASC LIMIT 1 FOR UPDATE');
             $q->execute([$agentId]);$cmd=$q->fetch();
+            if($cmd){
+                // Ordem FIFO para agentes conectados. Pendências pertencentes a
+                // computadores desconectados continuam armazenadas, mas não
+                // bloqueiam indefinidamente os computadores que estão online.
+                // Execuções em andamento seguem os prazos próprios acima.
+                $order=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands').' queued LEFT JOIN '.arc_table('network_agents')." target ON target.id=queued.agent_id AND target.account_id=queued.account_id WHERE queued.account_id=? AND queued.id<? AND queued.command_name NOT IN ('monitor_start','monitor_pause') AND (queued.status='running' OR (queued.status='pending' AND target.status='approved' AND target.last_seen_at>=DATE_SUB(NOW(),INTERVAL 120 SECOND)))");
+                $order->execute([(int)$cmd['account_id'],(int)$cmd['id']]);
+                $active=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands')." WHERE account_id=? AND status='running' AND command_name NOT IN ('monitor_start','monitor_pause')");
+                $active->execute([(int)$cmd['account_id']]);
+                if((int)$order->fetchColumn()>0||(int)$active->fetchColumn()>0)$cmd=false;
+            }
             if($cmd&&in_array($cmd['command_name'],['program_inventory','program_uninstall','program_install','clean_scan','clean_execute','clean_tool','cloud_folders'],true)){
                 $q=$pdo->prepare('SELECT user_id FROM '.arc_table('support_command_requests').' WHERE command_id=?');$q->execute([(int)$cmd['id']]);$requester=(int)$q->fetchColumn();
                 $access=$requester?arc_network_team_access($pdo,(int)$cmd['network_id'],$requester):null;
@@ -831,8 +848,15 @@ try {
                 arc_json(['ok'=>false,'error'=>'O agente está sem comunicação recente. A atualização remota, inclusive forçada, precisa de um componente de manutenção previamente instalado e ativo. Inicie o agente ou use o instalador local autorizado.','error_code'=>'agent_offline','requires_local_action'=>true],409);
             }
             $policy=arc_agent_upgrade_policy(trim((string)($updateAgent['agent_version']??'')),arc_app_version());
-            if($policy['requires_reinstall'])arc_json(['ok'=>false,'error'=>$policy['message'],'error_code'=>'agent_reinstall_required','requires_reinstall'=>true,'download_url'=>arc_workspace_base_url().'api/download-agent.php?network='.$networkId],409);
-            try{arc_require_aligned_agent_release();}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e->getMessage(),'error_code'=>'agent_release_incomplete','release'=>arc_agent_release_status()],503);}
+            // A reinstalação forçada pode recuperar um agente aprovado cuja versão
+            // não foi publicada corretamente; a identidade e a presença seguem obrigatórias.
+            if($policy['requires_reinstall'] && empty($body['force_update']))arc_json(['ok'=>false,'error'=>$policy['message'],'error_code'=>'agent_reinstall_required','requires_reinstall'=>true,'download_url'=>arc_workspace_base_url().'api/download-agent.php?network='.$networkId],409);
+            // O pacote legado é usado exclusivamente pelo cliente Python antigo.
+            // O WinUI 3 recebe as fontes nativas por download-agent.php.
+            $installedVersion=trim((string)($updateAgent['agent_version']??''));
+            if(preg_match('/^[34]\.\d+\.\d+$/D',$installedVersion)){
+                try{arc_require_aligned_agent_release();}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e->getMessage(),'error_code'=>'agent_release_incomplete','release'=>arc_agent_release_status()],503);}
+            }
         }
         if (in_array($command,['power_shutdown','power_restart','power_cancel'],true)) {
             if (($body['confirmed']??false)!==true) arc_json(['ok'=>false,'error'=>'Confirme a operação no computador selecionado.'],422);
@@ -841,9 +865,11 @@ try {
             if(!$powerTarget['last_seen_at']||strtotime($powerTarget['last_seen_at'])<time()-120)arc_json(['ok'=>false,'error'=>'O computador precisa estar conectado.'],409);
         }
         arc_expire_running_commands($pdo, $agentId);
-        $pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE agent_id=? AND status='pending' AND created_at < DATE_SUB(NOW(), INTERVAL 3 MINUTE)")->execute([$agentId]);
+        /* Pendências mantidas para despacho sequencial. */
+        // A fila persistente substituiu o limite legado de três operações.
+        // Um teto amplo impede abuso sem bloquear atualizações atrás de outras tarefas.
         $q=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('agent_commands').' WHERE agent_id=? AND status IN (\'pending\',\'running\')');
-        $q->execute([$agentId]);if ((int)$q->fetchColumn()>=3) arc_json(['ok'=>false,'error'=>'Aguarde os comandos anteriores'],429);
+        $q->execute([$agentId]);if ((int)$q->fetchColumn()>=100) arc_json(['ok'=>false,'error'=>'Limite de 100 comandos pendentes neste agente. Cancele operações antigas para continuar.'],429);
         $pdo->beginTransaction();
         try {
             $pdo->prepare('INSERT INTO '.arc_table('agent_commands').' (account_id,network_id,agent_id,command_name) VALUES (?,?,?,?)')->execute([$commandAccount,$networkId,$agentId,$command]);
@@ -949,6 +975,57 @@ try {
           'details'=>$detail,'created_at'=>$row['created_at'],'dispatched_at'=>$row['dispatched_at'],'completed_at'=>$row['completed_at'],
           'source'=>$saved?'agent_report':'platform_status',
         ]]);
+    }
+    /* Fila visual persistente compartilhada por todas as páginas da plataforma. */
+    if ($action==='network-queue') {
+        if (!arc_is_user()) arc_json(['ok'=>false,'error'=>'Autenticação necessária'],401);
+        if ($_SERVER['REQUEST_METHOD']==='POST') {
+            arc_verify_csrf();
+            $data=json_decode((string)file_get_contents('php://input'),true);
+            if (is_array($data) && array_key_exists('view_state',$data)) {
+                $view=(string)$data['view_state'];
+                if (!in_array($view,['open','closed'],true))arc_json(['ok'=>false,'error'=>'Preferência inválida'],422);
+                $q=$pdo->prepare('INSERT INTO '.arc_table('user_preferences').' (user_id,pref_key,pref_value) VALUES (?,?,?) ON DUPLICATE KEY UPDATE pref_value=VALUES(pref_value)');
+                $q->execute([(int)arc_user_id(),'command_queue_view',$view]);
+                arc_json(['ok'=>true,'view_state'=>$view]);
+            }
+            $id=(int)($data['command_id']??0);
+            if ($id<1) arc_json(['ok'=>false,'error'=>'Comando inválido'],422);
+            $q=$pdo->prepare('SELECT id,network_id,account_id,command_name,status FROM '.arc_table('agent_commands').' WHERE id=? LIMIT 1');
+            $q->execute([$id]);$c=$q->fetch(PDO::FETCH_ASSOC);
+            if (!$c)arc_json(['ok'=>false,'error'=>'Comando não encontrado'],404);
+            $access=arc_network_team_access($pdo,(int)$c['network_id'],(int)arc_user_id());
+            if (!$access || (int)$access['account_id']!==(int)$c['account_id'] || !in_array($access['role'],['owner','administrator'],true))arc_json(['ok'=>false,'error'=>'Sem permissão'],403);
+            // Cancelamento forçado encerra apenas o registro da fila; NÃO encerra o processo no Windows.
+            // A máquina deve confirmar separadamente a interrupção de qualquer execução iniciada.
+            $force=isset($data['force']) && $data['force']===true;
+            if(!in_array($c['status'],['pending','running'],true))
+                arc_json(['ok'=>true,'cancelled'=>false,'already_finished'=>true]);
+            if($c['status']==='running' && !$force)
+                arc_json(['ok'=>false,'error'=>'Comando iniciado. Use Forçar cancelamento para liberar a fila; a execução no Windows poderá continuar.'],409);
+            $wasRunning=$c['status']==='running';
+            $newResult=$wasRunning?'Cancelamento forçado na plataforma; interrupção no Windows não confirmada':'Cancelado antes da execução';
+            $q=$pdo->prepare('UPDATE '.arc_table('agent_commands')." SET status='failed',result_text=?,completed_at=NOW() WHERE id=? AND status=?");
+            $q->execute([$newResult,$id,$c['status']]);
+            if(!$q->rowCount())arc_json(['ok'=>false,'error'=>'Estado alterado. Atualize a fila.'],409);
+            arc_user_audit($pdo,$wasRunning?'queue_force_cancel':'queue_cancel','Comando '.$id.' encerrado na fila'.($wasRunning?' durante execução':''));
+            arc_json(['ok'=>true,'cancelled'=>true,'execution_stop_confirmed'=>!$wasRunning]);
+        }
+        if ($_SERVER['REQUEST_METHOD']!=='GET')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
+        $q=$pdo->prepare('SELECT c.id,c.network_id,c.agent_id,c.account_id,c.command_name,c.status,c.result_text,c.created_at,c.dispatched_at,c.completed_at,a.machine_name FROM '.arc_table('agent_commands').' c LEFT JOIN '.arc_table('network_agents').' a ON a.id=c.agent_id AND a.network_id=c.network_id AND a.account_id=c.account_id WHERE (c.status IN (\'pending\',\'running\') OR c.created_at>=DATE_SUB(NOW(),INTERVAL 7 DAY)) AND (c.account_id=? OR EXISTS (SELECT 1 FROM '.arc_table('network_team_members').' tm WHERE tm.network_id=c.network_id AND tm.account_id=c.account_id AND tm.member_user_id=? AND tm.enabled=1)) ORDER BY c.id DESC LIMIT 300');
+        $uid=(int)arc_user_id();$q->execute([$uid,$uid]);$out=[];$permissions=[];
+        foreach($q->fetchAll(PDO::FETCH_ASSOC) as $c){
+            $nid=(int)$c['network_id'];if(!array_key_exists($nid,$permissions)){
+                $a=arc_network_team_access($pdo,$nid,$uid);
+                $permissions[$nid]=$a&&in_array($a['role'],['owner','administrator'],true)?(int)$a['account_id']:0;
+            }
+            if(!$permissions[$nid]||(int)$c['account_id']!==$permissions[$nid])continue;
+            $out[]=['id'=>(int)$c['id'],'network_id'=>$nid,'agent_id'=>(int)$c['agent_id'],'agent'=>(string)($c['machine_name']??''),'name'=>(string)$c['command_name'],'status'=>(string)$c['status'],'message'=>mb_substr((string)$c['result_text'],0,200),'created_at'=>(string)$c['created_at'],'completed_at'=>$c['completed_at']];
+        }
+        $pref=$pdo->prepare('SELECT pref_value FROM '.arc_table('user_preferences').' WHERE user_id=? AND pref_key=? LIMIT 1');
+        $pref->execute([$uid,'command_queue_view']);
+        $view=$pref->fetchColumn();
+        arc_json(['ok'=>true,'commands'=>$out,'view_state'=>in_array($view,['open','closed'],true)?$view:null]);
     }
     if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-command-status') {
         if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);

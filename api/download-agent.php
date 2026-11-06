@@ -30,9 +30,10 @@ try {
     $pdo = arc_db();
     arc_ensure_user_schema($pdo);
     $requestedMode = (string)($_GET['mode'] ?? '');
-    // Distribuicao WinUI 3: BAT autenticado e fonte nativa, nunca o instalador Python legado.
+    // Distribuicao WinUI 3: projeto-fonte isolado em agentes/servidor; motores Python legados continuam em agentes/windows ate a migracao completa.
+    // O formato interno Arcoll.WinUI3/ do ZIP e mantido para nao quebrar instaladores e atualizadores existentes.
     // O BAT instala a interface de teste em paralelo ao servico operacional existente.
-    $nativeRoot = realpath(__DIR__ . '/../agentes/windows/Arcoll.WinUI3');
+    $nativeRoot = realpath(__DIR__ . '/../agentes/servidor/Arcoll.WinUI3');
     if ($nativeRoot === false || !is_file($nativeRoot . '/Arcoll.WinUI3.csproj') || !is_file($nativeRoot . '/INSTALAR_WINUI3.ps1')) {
         throw new RuntimeException('Projeto nativo WinUI 3 indisponivel no servidor.');
     }

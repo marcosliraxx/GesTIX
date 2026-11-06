@@ -78,7 +78,7 @@ body>.arc-command-log.arc-operation-notice[data-kind=error]{pointer-events:auto!
 
 @media(prefers-reduced-motion:reduce){.arc-operation-notice.is-working .arc-notice-fill::after{animation:none;display:none}}
 `;document.head.append(style);
-// Uma única barra de atividade e diagnóstico; nenhum segundo toast flutuante.
+// A fila global substitui a barra antiga; o modal de diagnóstico continua disponível.
 cancelCommandButton.addEventListener('click',async()=>{
  if(!window.confirm('Cancelar a operação remota em andamento?'))return;
  cancelCommandButton.disabled=true;
@@ -100,7 +100,7 @@ function showFailure(info){
  selectedError={command_id:id,command:item.command||item.command_name||'Operação remota',message:String(item.message||item.result_text||'Falha não detalhada'),time:item.completed_at||new Date().toISOString(),agent:target?.selectedOptions?.[0]?.textContent?.trim()||'Agente não identificado'};
  stickyError=true;activeProgressId=0;cancelCommandButton.hidden=true;
  notice('Erro em '+(labels[selectedError.command]||selectedError.command)+' · '+selectedError.message,'error',false,0);
- clearTimeout(toastTimer);errorButton.hidden=false;dismissButton.hidden=false;log.hidden=false;
+ clearTimeout(toastTimer);errorButton.hidden=true;dismissButton.hidden=true;log.hidden=true;
 }
 async function diagnostic(id){
  const u=new URL(base+'api/api.php',location.href);u.searchParams.set('action','network-command-diagnostic');u.searchParams.set('network_id',networkId);u.searchParams.set('command_id',id);
@@ -170,9 +170,11 @@ function tickProgress(){
 }
 function stopProgressAnimation(){estimateActive=false;if(estimateTimer!==null){clearInterval(estimateTimer);estimateTimer=null}}
 function notice(message,type='info',working=false,pct=null,stageFloor=null){
+ // A fila global é o único indicador visual: não reativar o toast legado.
+ stopProgressAnimation();log.hidden=true;log.classList.remove('arc-toast-show');return;
  clearTimeout(toastTimer);
  if(type!=='error'){stickyError=false;errorButton.hidden=true;dismissButton.hidden=true;selectedError=null;}
- cancelCommandButton.hidden=(!working||type==='error');log.dataset.kind=type;log.hidden=false;log.classList.add('arc-toast-show');
+ cancelCommandButton.hidden=(!working||type==='error');log.dataset.kind=type;log.hidden=true;log.classList.remove('arc-toast-show');
  log.classList.toggle('is-working',working);progressMessage.textContent=window.arcPlainMessage?window.arcPlainMessage(message):String(message);
  const valid=pct!==null&&pct!==undefined&&Number.isFinite(Number(pct));
  if(working){
@@ -226,7 +228,7 @@ async function refreshAgentVersions(){
    btn.title=needsInstall?'Identifique a versão do agente antes da atualização remota':outdated?'Atualização disponível: '+installed+' → '+published:'Atualizar os arquivos do agente';
    btn.dataset.updateAvailable=outdated?'1':'0';
    btn.dataset.requiresReinstall=needsInstall?'1':'0';
-   btn.disabled=!canManageAgent||needsInstall||!target.value;
+   btn.disabled=!canManageAgent||!target.value;
    const subtitle=btn.querySelector('small');
    if(needsInstall&&subtitle)subtitle.textContent='Versão não identificada';
   });
@@ -252,15 +254,15 @@ async function askRemoteUpdateConfirm(){
   const published=selectedVersion||'indisponível';
   const outdated=!!selectedAgentPolicy?.outdated;
   const selected=!!target.value;
-  const updatable=selected&&canManageAgent&&!versionLookupFailed&&!selectedAgentPolicy?.requires_reinstall;
+  const updatable=selected&&canManageAgent;
   dialog.querySelector('[data-update-agent-name]').textContent=agent;
   dialog.querySelector('[data-update-modal-version]').textContent='Versão publicada: '+published;
   dialog.querySelector('[data-update-agent-details]').textContent='Instalada: '+installed+' · Publicada: '+published+'.';
   let description;
-  if(versionLookupFailed)description='Não foi possível consultar as versões. O instalador local continua disponível; tente consultar novamente para habilitar a atualização remota.';
+  if(versionLookupFailed)description='A consulta de versões está indisponível. O servidor verificará as condições no envio; a atualização forçada exige um agente conectado.';
   else if(!selected)description='Selecione um agente para atualizar remotamente ou baixe o instalador para um novo computador.';
   else if(!canManageAgent)description='Seu perfil pode consultar a atualização. A execução remota exige permissão administrativa.';
-  else if(selectedAgentPolicy?.requires_reinstall)description=selectedAgentPolicy.update_message||'A versão instalada não foi identificada. Verifique o agente ou reinstale localmente.';
+  else if(selectedAgentPolicy?.requires_reinstall)description='Versão não identificada: a atualização normal pode exigir reinstalação; a forçada tentará recuperar o agente conectado.';
   else if(selectedAgentPolicy?.migrate_native)description='O agente antigo será migrado para WinUI 3 pelo canal remoto autorizado. Se ocorrer falha, a versão anterior permanecerá disponível para recuperação.';
   else if(outdated)description='Uma nova versão está disponível para este computador.';
   else description='Nenhuma atualização nova detectada. Você ainda pode solicitar uma atualização ou reinstalação forçada, conforme sua permissão.';
@@ -271,8 +273,8 @@ async function askRemoteUpdateConfirm(){
   const force=dialog.querySelector('[data-update-force-confirm]');
   normal.disabled=!updatable;
   force.disabled=!updatable;
-  normal.title=!canManageAgent?'Disponível apenas para administradores':!selected?'Selecione um agente':selectedAgentPolicy?.requires_reinstall?'Versão do agente não identificada':'Solicitar atualização remota';
-  force.title=!canManageAgent?'Disponível apenas para administradores':!selected?'Selecione um agente':selectedAgentPolicy?.requires_reinstall?'Versão do agente não identificada':'Solicitar reinstalação remota autorizada';
+  normal.title=!canManageAgent?'Disponível apenas para administradores':!selected?'Selecione um agente':'Solicitar atualização remota';
+  force.title=!canManageAgent?'Disponível apenas para administradores':!selected?'Selecione um agente':'Solicitar reinstalação remota autorizada';
   let finished=false;
   function cleanup(answer){if(finished)return;finished=true;normal.removeEventListener('click',onNormal);force.removeEventListener('click',onForce);cancel.removeEventListener('click',onCancel);dialog.removeEventListener('cancel',onCancel);dialog.removeEventListener('close',onClose);if(dialog.open)dialog.close();resolve(answer)}
   function onNormal(e){e.preventDefault();if(updatable)cleanup('normal')}
@@ -287,8 +289,7 @@ async function askRemoteUpdateConfirm(){
 async function queueAgentUpdate(mode){
  await refreshAgentVersions();
  if(!canManageAgent){notice('Seu perfil não tem permissão para atualizar agentes.','error');return;}
- if(versionLookupFailed){notice('Não foi possível validar a versão do agente. Consulte novamente.','error');return;}
- if(selectedAgentPolicy?.requires_reinstall){notice('O agente não informou uma versão válida. Verifique a conexão e a instalação.','error');return;}
+ // A API valida autenticação, versão e presença. Falha na consulta auxiliar não bloqueia o envio.
  if(!target.value){notice('Selecione um agente aprovado.','error');return}
  notice('Enviando pedido de atualização…','info',true,null,5);
  try{

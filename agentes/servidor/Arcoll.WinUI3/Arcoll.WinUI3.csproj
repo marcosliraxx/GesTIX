@@ -1,0 +1,43 @@
+<!-- Caminho: agentes/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>Arcoll.WinUI3</RootNamespace>
+    <AssemblyName>Arcoll.WinUI3</AssemblyName>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <!-- Aplicativo sem pacote MSIX: gera os recursos (.pri) necessarios para executar fora da Store. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- Restauracao e publicacao precisam concordar: o runtime do .NET e baixado no restore. -->
+    <SelfContained>true</SelfContained>
+    <DefaultLanguage>pt-BR</DefaultLanguage>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <LangVersion>12</LangVersion>
+    <Version>5.0.24</Version>
+    <ApplicationIcon Condition="Exists('Assets\system.ico')">Assets\system.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250228001" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+  </ItemGroup>
+  <!--
+    App.xaml (ApplicationDefinition) e MainWindow.xaml (Page) sao incluidos automaticamente
+    pelo SDK do Windows App SDK. Declara-los aqui duplica o App.xaml na entrada do
+    XamlCompiler.exe, que encerra com codigo 1 sem mensagem (MSB3073).
+  -->
+  <!-- BootWorker e um executavel independente; nao compilar seu Main no WinUI. -->
+  <ItemGroup>
+    <Compile Remove="BootWorker\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

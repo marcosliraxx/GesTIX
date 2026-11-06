@@ -437,7 +437,7 @@ function arc_cloud_default_settings(): array
 {
     return ['folders' => [], 'schedule' => 'continuous', 'interval_minutes' => 60, 'daily_time' => '02:00', 'mirror_deletes' => false,
         'exclusions' => [], 'max_file_mb' => 2048, 'bandwidth_kbps' => 0, 'remote_root' => ARC_CLOUD_DEFAULT_ROOT,
-        'vdrive' => false, 'vdrive_letter' => 'Z'];
+        'vdrive' => false, 'vdrive_letter' => 'AUTO'];
 }
 
 function arc_cloud_clean_segment(string $name, int $max = 150): string
@@ -499,8 +499,9 @@ function arc_cloud_validate_settings(array $input): array
     if ($bandwidth < 0 || $bandwidth > 1048576) throw new InvalidArgumentException('Limite de velocidade inválido.');
     $out['bandwidth_kbps'] = $bandwidth;
     $out['vdrive'] = !empty($input['vdrive']);
-    $letter = strtoupper(trim((string)($input['vdrive_letter'] ?? 'Z')));
-    if (!preg_match('/^[D-Z]$/D', $letter)) throw new InvalidArgumentException('Letra do disco virtual inválida (use de D a Z).');
+    $letter = strtoupper(trim((string)($input['vdrive_letter'] ?? 'AUTO')));
+    if ($letter === '') $letter = 'AUTO';
+    if ($letter !== 'AUTO' && !preg_match('/^[D-Z]$/D', $letter)) throw new InvalidArgumentException('Letra do disco virtual inválida (use AUTO ou de D a Z).');
     $out['vdrive_letter'] = $letter;
     $root = arc_cloud_clean_segment((string)($input['remote_root'] ?? ARC_CLOUD_DEFAULT_ROOT), 80);
     $out['remote_root'] = $root === '_' ? ARC_CLOUD_DEFAULT_ROOT : $root;

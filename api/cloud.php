@@ -175,7 +175,14 @@ try {
         if ($action==='agent-state') {
             if (isset($v['status'])&&is_array($v['status'])) arc_cloud_status_save($pdo,$agentId,$network,$account,arc_cloud_sanitize_status($v['status']));
             // Public identity only; no provider token, signed upload URL or cloud secret reaches the agent.
-            arc_json(['ok'=>true,'job'=>$job,'connection'=>$connection?arc_cloud_connection_public($connection):null,'max_file_bytes'=>arc_cloud_max_file_bytes($pdo),'vdrive'=>['available'=>!empty($job['vdrive_available']),'letter'=>(string)$job['settings']['vdrive_letter']]]);
+            $brand=arc_public_settings($pdo);
+            $label=trim((string)($brand['site_name'] ?? ''));
+            if ($label==='') $label='Arcoll Nuvem';
+            $label=preg_replace('~[\x00-\x1F\x7F\\\\/:*?"<>|]+~u',' ',$label) ?? 'Arcoll Nuvem';
+            $label=trim(preg_replace('/\s+/u',' ',$label) ?? 'Arcoll Nuvem');
+            if ($label==='') $label='Arcoll Nuvem';
+            if (mb_strlen($label,'UTF-8')>60) $label=trim(mb_substr($label,0,60,'UTF-8'));
+            arc_json(['ok'=>true,'job'=>$job,'connection'=>$connection?arc_cloud_connection_public($connection):null,'max_file_bytes'=>arc_cloud_max_file_bytes($pdo),'vdrive'=>['available'=>!empty($job['vdrive_available']),'letter'=>(string)$job['settings']['vdrive_letter'],'label'=>$label]]);
         }
         if ($action==='agent-list'||$action==='agent-download') {
             if (empty($job['vdrive_available'])||!$connection) throw new RuntimeException('O disco virtual não está liberado para este computador.',409);

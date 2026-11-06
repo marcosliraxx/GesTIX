@@ -333,6 +333,44 @@ function Install-HeadlessCore {
     Write-Log "Núcleo pré-login configurado: $taskName (LOCAL SERVICE, loopback 127.0.0.1)."
 }
 
+# BLOCO 02 - WinFsp: driver do disco virtual da nuvem (a unidade é criada pelo próprio agente, sem WebClient)
+function Test-WinFspInstalled {
+    foreach ($key in @('HKLM:\SOFTWARE\WOW6432Node\WinFsp', 'HKLM:\SOFTWARE\WinFsp')) {
+        $dir = (Get-ItemProperty -Path $key -Name InstallDir -ErrorAction SilentlyContinue).InstallDir
+        if ($dir -and (Test-Path -LiteralPath (Join-Path $dir 'bin'))) {
+            if (Get-ChildItem -LiteralPath (Join-Path $dir 'bin') -Filter 'winfsp-*.dll' -ErrorAction SilentlyContinue) { return $true }
+        }
+    }
+    return $false
+}
+
+function Install-WinFsp {
+    if (-not (Test-Elevated)) { Write-Log 'WinFsp: instalação requer administrador; o disco virtual usará a reserva WebDAV.'; return }
+    if (Test-WinFspInstalled) { return }
+    $msi = Join-Path $env:TEMP 'arcoll-winfsp.msi'
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $ProgressPreference = 'SilentlyContinue'
+        Write-Log 'WinFsp ausente. Baixando a versão estável mais recente.'
+        $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/winfsp/winfsp/releases/latest' -Headers @{ 'User-Agent' = 'ArcollSetup' } -UseBasicParsing -TimeoutSec 60
+        $asset = $release.assets | Where-Object { $_.name -match '^winfsp-.*\.msi$' } | Select-Object -First 1
+        if (-not $asset) { throw 'MSI do WinFsp não encontrado na versão publicada.' }
+        Invoke-WebRequest -Uri ([string]$asset.browser_download_url) -OutFile $msi -UseBasicParsing -TimeoutSec 300
+        if ((Get-Item -LiteralPath $msi).Length -lt 500000) { throw 'O instalador do WinFsp não foi baixado corretamente.' }
+        $signature = Get-AuthenticodeSignature -LiteralPath $msi
+        if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Navimatics') {
+            throw 'Assinatura digital do WinFsp ausente ou inválida. Instalação interrompida.'
+        }
+        $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/i', ('"' + $msi + '"'), '/qn', '/norestart', '/l*v', ('"' + (Join-Path $stateDir 'winfsp-setup.log') + '"')) -Wait -PassThru
+        Write-Log ("WinFsp: msiexec terminou com código {0}." -f $process.ExitCode)
+        if (-not (Test-WinFspInstalled)) { Write-Log 'WinFsp não ficou registrado; o disco virtual usará a reserva WebDAV.' }
+    } catch {
+        Write-Log ('WinFsp: ' + $_.Exception.Message + ' O disco virtual usará a reserva WebDAV.')
+    } finally {
+        Remove-Item -LiteralPath $msi -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Start-ArcollApp($Runtime) {
     $pythonw = [string]$Runtime.PythonW
     if (-not (Test-Path -LiteralPath $pythonw)) { throw "Interpretador Python não encontrado: $pythonw" }
@@ -442,6 +480,9 @@ try {
             }
         } catch { Write-Log ('psutil: ' + $_.Exception.Message) }
     }
+
+    # Instalações, reparos e atualizações elevadas garantem o driver do disco virtual (ignorado se já instalado).
+    try { Install-WinFsp } catch { Write-Log ('WinFsp: ' + $_.Exception.Message) }
 
     if (-not $Repair) { Start-ArcollApp $runtime }
 } catch {

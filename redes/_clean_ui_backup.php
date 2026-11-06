@@ -21,7 +21,7 @@ async function backupApi(action,data={}){
  let result;try{result=await response.json()}catch{throw Error('Não foi possível consultar o backup.')}
  if(!response.ok||!result.ok)throw Error(result.error||'Backup indisponível.');return result;
 }
-const draftFrom=d=>{const s=d.job.settings;return{connection_id:d.job.connection_id,enabled:!!d.job.enabled,folders:(s.folders||[]).map(f=>f.path),schedule:s.schedule,interval_minutes:s.interval_minutes,daily_time:s.daily_time,exclusions:(s.exclusions||[]).join('\n'),max_file_mb:s.max_file_mb,bandwidth_kbps:s.bandwidth_kbps,remote_root:s.remote_root,vdrive:!!s.vdrive,vdrive_letter:s.vdrive_letter||'Z'}};
+const draftFrom=d=>{const s=d.job.settings;return{connection_id:d.job.connection_id,enabled:!!d.job.enabled,folders:(s.folders||[]).map(f=>f.path),schedule:s.schedule,interval_minutes:s.interval_minutes,daily_time:s.daily_time,exclusions:(s.exclusions||[]).join('\n'),max_file_mb:s.max_file_mb,bandwidth_kbps:s.bandwidth_kbps,remote_root:s.remote_root,vdrive:!!s.vdrive,vdrive_letter:s.vdrive_letter||'AUTO'}};
 async function backupLoad(force=false){
  if(BK.loading||(!force&&BK.data))return;BK.loading=true;
  try{
@@ -37,7 +37,7 @@ async function bkSave(){
  const dr=BK.draft;if(BK.saving)return;BK.saving=true;render();
  try{
   await backupApi('save',{connection_id:dr.connection_id||null,enabled:dr.enabled,settings:{folders:dr.folders.map(path=>({path})),schedule:dr.schedule,interval_minutes:Number(dr.interval_minutes),daily_time:dr.daily_time,
-   exclusions:String(dr.exclusions).split(/\r?\n/).map(x=>x.trim()).filter(Boolean),max_file_mb:Number(dr.max_file_mb),bandwidth_kbps:Number(dr.bandwidth_kbps),remote_root:dr.remote_root,vdrive:!!dr.vdrive,vdrive_letter:dr.vdrive_letter||'Z',mirror_deletes:false}});
+   exclusions:String(dr.exclusions).split(/\r?\n/).map(x=>x.trim()).filter(Boolean),max_file_mb:Number(dr.max_file_mb),bandwidth_kbps:Number(dr.bandwidth_kbps),remote_root:dr.remote_root,vdrive:!!dr.vdrive,vdrive_letter:dr.vdrive_letter||'AUTO',mirror_deletes:false}});
   BK.dirty=false;BK.bconn=-1;BK.saving=false;await backupLoad(true);status('Configuração salva. O agente aplica as mudanças em até 30 segundos.');
  }catch(e){BK.saving=false;status(e.message,true);render()}
 }
@@ -204,10 +204,10 @@ function bkSetup(body,d){
   dr.schedule==='interval'?h('label',{class:'cb-inline'},'Repetir a cada ',h('select',{class:'cc-sel',onchange:e=>{dr.interval_minutes=Number(e.target.value);bkTouch(false)}},[15,30,60,180,360,720].map(n=>h('option',{value:n,selected:n===Number(dr.interval_minutes)},n<60?n+' minutos':(n/60)+' hora(s)')))):null,
   dr.schedule==='daily'?h('label',{class:'cb-inline'},'Horário (do computador) ',h('input',{class:'cc-input',type:'time',value:dr.daily_time,onchange:e=>{dr.daily_time=e.target.value;bkTouch(false)}})):null,adv));
  /* 4. disco virtual */
- if(pol.vdrive!==false){const letters='ZYXWVUTSRQPONMLKJIHGFED'.split('');
+ if(pol.vdrive!==false){const letters=[['AUTO','Automática (primeira letra livre)']].concat('ZYXWVUTSRQPONMLKJIHGFED'.split('').map(c=>[c,c+':']));
   body.append(h('section',{class:'cb-step'},h('h3',{},h('span',{},'4'),' Disco virtual no Windows'),
    h('label',{class:'cb-enable'},h('input',{type:'checkbox',checked:!!dr.vdrive,onchange:e=>{dr.vdrive=e.target.checked;bkTouch(true)}}),h('div',{},h('b',{},'Abrir os arquivos da nuvem pelo Explorador de Arquivos'),h('small',{class:'mut'},'O agente cria uma unidade (como o Google Drive para computador). Os arquivos são lidos sob demanda, sem ocupar espaço no disco. Somente leitura.'))),
-   dr.vdrive?h('label',{class:'cb-inline'},'Letra da unidade ',h('select',{class:'cc-sel',onchange:e=>{dr.vdrive_letter=e.target.value;bkTouch(false)}},letters.map(c=>h('option',{value:c,selected:c===dr.vdrive_letter},c+':')))):null,
+   dr.vdrive?h('label',{class:'cb-inline'},'Letra da unidade ',h('select',{class:'cc-sel',onchange:e=>{dr.vdrive_letter=e.target.value;bkTouch(false)}},letters.map(([c,t])=>h('option',{value:c,selected:c===(dr.vdrive_letter||'AUTO')},t)))):null,
    d.status&&d.status.vdrive?h('p',{class:'mut'},ico('hdd-o'),' '+d.status.vdrive):(dr.vdrive?h('p',{class:'mut'},'Salve e aguarde o agente montar a unidade (até 20 segundos). Requer o serviço Cliente Web do Windows (WebClient).'):null)))}
  /* 5. ativar */
  body.append(h('section',{class:'cb-step'},h('h3',{},h('span',{},pol.vdrive!==false?'5':'4'),' Ativar'),

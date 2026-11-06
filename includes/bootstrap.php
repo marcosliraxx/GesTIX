@@ -83,6 +83,7 @@ function arc_agent_release_status(): array {
 function arc_expire_running_commands(PDO $pdo,?int $agentId=null,?int $networkId=null,?int $accountId=null): void {
     if($agentId!==null){$where='agent_id=?';$params=[$agentId];}
     elseif($networkId!==null&&$accountId!==null){$where='network_id=? AND account_id=?';$params=[$networkId,$accountId];}
+    elseif($accountId!==null&&$accountId>0){$where='account_id=?';$params=[$accountId];}
     else throw new InvalidArgumentException('Escopo do comando ausente.');
     /* Política única de tempo limite (minutos, contados do despacho). Comandos fora da tabela usam 4 minutos.
        Programas e Clean têm prazos próprios em includes/network-clean.php: uma desinstalação ou limpeza
