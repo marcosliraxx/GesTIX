@@ -8,19 +8,18 @@ using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Arcoll.WinUI3.Pages;
 
-/// <summary>Mesmo catálogo, agrupamento e lote manual da plataforma. Inventário fica no Desinstalador do Clean.</summary>
+/// <summary>Mesmo catálogo, agrupamento e lote manual da plataforma. Desinstalação possui página independente.</summary>
 public sealed class ProgramsPage : UserControl
 {
     private readonly AgentRuntime _runtime;
     private readonly Func<string,string,string,Task<bool>> _confirm;
-    private readonly bool _inventoryMode;
     private readonly Grid _root = new() { RowSpacing = 6 };
     private readonly TextBox _search = new() { PlaceholderText = "Pesquisar aplicativos", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox _category = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBlock _summary = new() { TextWrapping = TextWrapping.Wrap }, _status = new() { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
     private readonly Grid _groups = new() { ColumnSpacing = 8, RowSpacing = 8 };
     private readonly Button _install = new() { Content = "Instalar e Atualizar" }, _clear = new() { Content = "Limpar" },
-        _cancel = new() { Content = "Cancelar operação", IsEnabled = false }, _refresh = new() { Content = "Atualizar inventário" };
+        _cancel = new() { Content = "Cancelar operação", IsEnabled = false };
     private readonly HashSet<string> _selected = new(StringComparer.Ordinal);
     private IReadOnlyList<CatalogApplication> _catalog = Array.Empty<CatalogApplication>();
     private IReadOnlyList<InstalledApplication> _installed = Array.Empty<InstalledApplication>();
@@ -30,12 +29,12 @@ public sealed class ProgramsPage : UserControl
     private CancellationTokenSource? _operation;
     private bool CanAct => _runtime.Allowed;
 
-    public ProgramsPage(AgentRuntime runtime, Func<string,string,string,Task<bool>> confirm, bool inventoryMode = false)
+    public ProgramsPage(AgentRuntime runtime, Func<string,string,string,Task<bool>> confirm)
     {
-        _runtime = runtime; _confirm = confirm; _inventoryMode = inventoryMode; Content = _root;
+        _runtime = runtime; _confirm = confirm; Content = _root;
         for (var row = 0; row < 5; row++) _root.RowDefinitions.Add(new() { Height = row == 3 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
-        _root.Children.Add(new TextBlock { Text = inventoryMode ? "Desinstalador" : "Programas", FontSize = 18, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
-        foreach (var button in new[] { _install, _clear, _cancel, _refresh }) { button.FontSize = 12; button.MinHeight = 30; button.Padding = new Thickness(9, 4, 9, 4); }
+        _root.Children.Add(new TextBlock { Text = "Programas", FontSize = 18, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        foreach (var button in new[] { _install, _clear, _cancel }) { button.FontSize = 12; button.MinHeight = 30; button.Padding = new Thickness(9, 4, 9, 4); }
         _search.MinHeight = _category.MinHeight = 30; _search.FontSize = _category.FontSize = 14;
         _status.FontSize = _summary.FontSize = 12;
         var controls = new Grid { ColumnSpacing = 8, RowSpacing = 6 };
@@ -43,8 +42,7 @@ public sealed class ProgramsPage : UserControl
         controls.ColumnDefinitions.Add(new() { Width = new GridLength(190) });
         controls.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         controls.Children.Add(_search); Grid.SetColumn(_category, 1); controls.Children.Add(_category);
-        var action = inventoryMode ? _refresh : _clear; Grid.SetColumn(action, 2); controls.Children.Add(action);
-        _category.Visibility = inventoryMode ? Visibility.Collapsed : Visibility.Visible;
+        var action = _clear; Grid.SetColumn(action, 2); controls.Children.Add(action);
         Grid.SetRow(controls, 1); _root.Children.Add(controls); Grid.SetRow(_status, 2); _root.Children.Add(_status);
         var list = new ScrollViewer { Content = _groups, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 4, 0) };
         Grid.SetRow(list, 3); _root.Children.Add(list);
@@ -52,17 +50,15 @@ public sealed class ProgramsPage : UserControl
         AutomationProperties.SetAutomationId(list, "program-list"); AutomationProperties.SetAutomationId(_install, "program-install");
         var footer = new StackPanel { Spacing = 6 };
         footer.Children.Add(_summary);
-        if (!inventoryMode)
-        {
+
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
             actions.Children.Add(_cancel); actions.Children.Add(_install); footer.Children.Add(actions);
-        }
+
         _footer = Ui.Card(footer, _p, 8); Grid.SetRow(_footer, 4); _root.Children.Add(_footer);
         AutomationProperties.SetName(_search, "Pesquisar aplicativos"); AutomationProperties.SetName(_category, "Filtrar categoria");
         AutomationProperties.SetLiveSetting(_status, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
         _search.TextChanged += (_, _) => Render(); _category.SelectionChanged += (_, _) => Render();
         _clear.Click += (_, _) => { _selected.Clear(); Render(); };
-        _refresh.Click += async (_, _) => await RefreshAsync();
         _install.Click += async (_, _) => await InstallAsync(); _cancel.Click += (_, _) => _operation?.Cancel();
         Loaded += async (_, _) => { if (!_loaded) await RefreshAsync(); };
         bool? compactLayout = null; var previousColumns = 0;
@@ -74,10 +70,10 @@ public sealed class ProgramsPage : UserControl
                 compactLayout = compact;
                 controls.RowDefinitions.Clear(); controls.RowDefinitions.Add(new() { Height = GridLength.Auto }); controls.RowDefinitions.Add(new() { Height = GridLength.Auto });
                 controls.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
-                controls.ColumnDefinitions[1].Width = compact || _inventoryMode ? GridLength.Auto : new GridLength(190);
-                Grid.SetColumnSpan(_search, compact || _inventoryMode ? 2 : 1);
+                controls.ColumnDefinitions[1].Width = compact ? GridLength.Auto : new GridLength(190);
+                Grid.SetColumnSpan(_search, compact ? 2 : 1);
                 Grid.SetColumn(_category, compact ? 0 : 1); Grid.SetRow(_category, compact ? 1 : 0);
-                Grid.SetColumn(action, 2); Grid.SetRow(action, compact && !_inventoryMode ? 1 : 0);
+                Grid.SetColumn(action, 2); Grid.SetRow(action, compact ? 1 : 0);
             }
             var columns = CatalogColumns(width);
             if (previousColumns != columns) { previousColumns = columns; Render(); }
@@ -87,15 +83,14 @@ public sealed class ProgramsPage : UserControl
     }
     public void CancelOperations() => _operation?.Cancel();
     public void ShowActivity(string text) { _status.Text = text; _status.Visibility = string.IsNullOrWhiteSpace(text) ? Visibility.Collapsed : Visibility.Visible; }
-    private int CatalogColumns(double width) => _inventoryMode ? 1 : width >= 1080 ? 4 : width >= 790 ? 3 : width >= 510 ? 2 : 1;
+    private int CatalogColumns(double width) => width >= 1080 ? 4 : width >= 790 ? 3 : width >= 510 ? 2 : 1;
     public void ApplyPalette(Palette p) { _p = p; Render(); }
     public async Task RefreshAsync()
     {
-        if (_busy) return; using var notice = OperationProgress.Begin(_inventoryMode ? "Atualizar inventário de programas" : "Carregar catálogo de programas"); _busy = true; Render();
+        if (_busy) return; using var notice = OperationProgress.Begin("Carregar catálogo de programas"); _busy = true; Render();
         try
         {
             _catalog = ProgramService.Catalog();
-            if (_inventoryMode) { _installed = await Task.Run(WindowsInventory.Programs); await PublishInventoryAsync(); }
             var selected = _category.SelectedItem?.ToString(); _category.Items.Clear(); _category.Items.Add("Todas as categorias");
             foreach (var group in _catalog.Select(x => x.Category).Distinct()) _category.Items.Add(group);
             _category.SelectedItem = selected is not null && _category.Items.Contains(selected) ? selected : "Todas as categorias";
@@ -122,12 +117,11 @@ public sealed class ProgramsPage : UserControl
         for (var i = 0; i < columns; i++) _groups.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         _footer.Background = _p.Surface; _footer.BorderBrush = _p.Line;
         _status.Foreground = _p.Text; _summary.Foreground = _p.Muted;
-        _clear.IsEnabled = _refresh.IsEnabled = !_busy; _install.IsEnabled = !_busy && CanAct && _selected.Count is > 0 and <= 20;
+        _clear.IsEnabled = !_busy; _install.IsEnabled = !_busy && CanAct && _selected.Count is > 0 and <= 20;
         _cancel.IsEnabled = _busy && _operation is not null; _search.IsEnabled = _category.IsEnabled = !_busy;
         bool Matches(string value) => ProgramService.Normalize(value).Contains(ProgramService.Normalize(_search.Text));
         var cards = new List<UIElement>();
-        if (!_inventoryMode)
-        {
+
             foreach (var group in _catalog.Where(x => (_category.SelectedIndex <= 0 || x.Category == _category.SelectedItem?.ToString()) && Matches(x.Name + " " + x.Category)).GroupBy(x => x.Category))
             {
                 var panel = new StackPanel { Spacing = 3 }; panel.Children.Add(Ui.Label(group.Key, _p.Text, 14, true));
@@ -149,20 +143,7 @@ public sealed class ProgramsPage : UserControl
                 cards.Add(Ui.Card(panel, _p, 8));
             }
             _summary.Text = _selected.Count + " programa(s) selecionado(s) · escolha manual";
-        }
-        else
-        {
-            foreach (var app in _installed.Where(x => Matches(x.Name + " " + x.Version + " " + x.Publisher)))
-            {
-                var row = new StackPanel { Spacing = 4 };
-                row.Children.Add(Ui.Label(app.Name, _p.Text, 14, true, true));
-                row.Children.Add(Ui.Label($"{app.Version} · {app.Publisher} · {app.InstalledOn}", _p.Muted, 12, wrap: true));
-                var remove = new Button { FontSize = 12, MinHeight = 28, Padding = new Thickness(8, 3, 8, 3), Content = "Desinstalar", IsEnabled = !_busy && CanAct && ProgramService.CanUninstall(app) };
-                AutomationProperties.SetName(remove, "Desinstalar " + app.Name); remove.Click += async (_, _) => await UninstallAsync(app); row.Children.Add(remove);
-                cards.Add(Ui.Card(row, _p));
-            }
-            _summary.Text = _installed.Count + " programas instalados";
-        }
+
         if (cards.Count == 0) cards.Add(Ui.Label(_loaded ? "Nenhum aplicativo encontrado para este filtro." : "Carregando…", _p.Muted, 14, wrap: true));
         for (var i = 0; i < cards.Count; i++)
         {
@@ -178,20 +159,7 @@ public sealed class ProgramsPage : UserControl
         else tile.Child = new TextBlock { Text = ProgramService.Initials(app.Name), Foreground = ThemeService.Brush("#ffffff"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
         return tile;
     }
-    private async Task UninstallAsync(InstalledApplication app)
-    {
-        if (_busy || !CanAct || !await _confirm("Desinstalar programa", "Desinstalar " + app.Name + " pelo desinstalador oficial?", "Desinstalar") || !CanAct) return;
-        _busy = true; Render();
-        try
-        {
-            var current = (await Task.Run(WindowsInventory.Programs)).FirstOrDefault(x => x.Id == app.Id && x.Uninstall == app.Uninstall && x.QuietUninstall == app.QuietUninstall) ?? throw new InvalidOperationException("O registro do programa mudou. Atualize o inventário.");
-            var code = await ProgramService.UninstallAsync(current, false, CancellationToken.None);
-            _status.Text = ProgramService.SuccessfulExit(code) ? "Desinstalador concluído." : "Desinstalador retornou código " + code;
-            _installed = await Task.Run(WindowsInventory.Programs); await PublishInventoryAsync();
-        }
-        catch (Exception ex) { _status.Text = ex.Message; }
-        finally { _busy = false; Render(); }
-    }
+
     private async Task InstallAsync()
     {
         if (_busy || !CanAct || _selected.Count is < 1 or > 20) return;

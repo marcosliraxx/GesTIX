@@ -34,7 +34,8 @@ def run(request):
     from arcoll_cloud import CloudBackup
     config = request['config']
     worker = CloudBackup(config['origin'], config['fingerprint'], config['site_code'], config['download_key'])
-    response = worker.request('agent-state', {'status': worker.snapshot()})
+    # Consultar configurações não deve sobrescrever o progresso de outro ciclo de backup.
+    response = worker.request('agent-state', {})
     if mode == 'backup_run':
         job = response['job']
         if not job.get('available') or not job.get('settings', {}).get('folders'):
@@ -42,7 +43,7 @@ def run(request):
         worker.run_backup(job, int(response['max_file_bytes']))
         worker.report(True)
         return {'tool': 'backup', 'status': worker.snapshot(), 'job': job, 'connection': response.get('connection')}
-    return {'tool': 'backup', 'job': response['job'], 'connection': response.get('connection'), 'status': worker.snapshot()}
+    return {'tool': 'backup', 'job': response['job'], 'connection': response.get('connection'), 'status': response.get('status') or worker.snapshot()}
 
 
 if __name__ == '__main__':

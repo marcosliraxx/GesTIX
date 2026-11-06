@@ -23,6 +23,7 @@ public sealed class WindowsUpdatePage : UserControl
     {
         _runtime = runtime;
         Content = _root;
+        SizeChanged += (_,e) => { if((e.NewSize.Width < 720)!=(e.PreviousSize.Width < 720)) Render(); };
         Render();
     }
 
@@ -30,7 +31,7 @@ public sealed class WindowsUpdatePage : UserControl
 
     private void AddAction(StackPanel bar, string label, string mode, bool enabled = true)
     {
-        var button = new Button { Content = label, IsEnabled = !_working && enabled };
+        var button = new Button { Content = label, IsEnabled = !_working && _runtime.Allowed && enabled };
         button.Click += async (_, _) => await ExecuteAsync(mode);
         bar.Children.Add(button);
     }
@@ -38,7 +39,7 @@ public sealed class WindowsUpdatePage : UserControl
     private void Render()
     {
         _root.Children.Clear();
-        var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var bar = new StackPanel { Orientation = ActualWidth < 720 ? Orientation.Vertical : Orientation.Horizontal, Spacing = 6 };
         var rows = new StackPanel { Spacing = 8 };
         var title = Ui.Label("WINDOWS UPDATE", _p.Text, 19, true);
         var subtitle = Ui.Label("Atualizações verificadas pelo serviço oficial do Windows, sem reinicialização automática.", _p.Muted, 12, false, true);
@@ -49,10 +50,10 @@ public sealed class WindowsUpdatePage : UserControl
         AddAction(bar, "Instalar selecionadas (" + _selected.Count + ")", "install", _selected.Count > 0);
         var actions = new StackPanel { Spacing = 10 };
         actions.Children.Add(bar);
-        var second = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var second = new StackPanel { Orientation = ActualWidth < 720 ? Orientation.Vertical : Orientation.Horizontal, Spacing = 6 };
         foreach (var (label, mode) in new[] { ("Pausar", "pause"), ("Retomar", "resume"), ("Avançadas", "advanced"), ("Windows Insider", "insider") })
         {
-            var button = new Button { Content = label, IsEnabled = !_working };
+            var button = new Button { Content = label, IsEnabled = !_working && _runtime.Allowed };
             button.Click += async (_, _) => await ExecuteAsync(mode);
             second.Children.Add(button);
         }
@@ -90,7 +91,7 @@ public sealed class WindowsUpdatePage : UserControl
                 (mode == "pause" ? "Pausar as atualizações segundo as políticas do Windows?" : "Retomar as atualizações segundo as políticas do Windows?");
             var confirmation = new ContentDialog { Title = "Confirmar Windows Update", Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
                 PrimaryButtonText = "Confirmar", CloseButtonText = "Cancelar", XamlRoot = XamlRoot };
-            if (await confirmation.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await confirmation.ShowAsync() != ContentDialogResult.Primary || !_runtime.Allowed) return;
         }
         _working = true; _statusText = mode == "scan" ? "Consultando o serviço Windows Update..." : "Executando " + mode + "...";
         Render();

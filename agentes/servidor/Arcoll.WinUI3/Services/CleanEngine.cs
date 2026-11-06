@@ -59,6 +59,14 @@ public static class CleanEngine
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
     }
+    public static bool HasFailures(JsonElement report)
+    {
+        if (report.ValueKind != JsonValueKind.Object) return true;
+        foreach (var key in new[] { "complete", "created" }) if (report.TryGetProperty(key, out var flag) && flag.ValueKind == JsonValueKind.False) return true;
+        if (report.TryGetProperty("truncated", out var truncated) && truncated.ValueKind == JsonValueKind.True) return true;
+        foreach (var key in new[] { "errors", "failed" }) if (report.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && number > 0) return true;
+        return report.TryGetProperty("results", out var rows) && rows.ValueKind == JsonValueKind.Array && rows.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.Object && x.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.False);
+    }
     public static async Task<JsonElement> RunAsync(string mode, object payload, AgentConfig config, IProgress<string>? progress, CancellationToken ct)
     {
         using var operation = OperationProgress.Begin(mode is "backup_run" or "backup_status" ? "Backup em Nuvem" : mode == "scan" ? "Analisar limpeza" : mode == "execute" ? "Limpar arquivos" : "Executar Clean");
@@ -91,8 +99,7 @@ public static class CleanEngine
                 await process.WaitForExitAsync(deadline.Token);
                 var stderr = await errors;
                 if (process.ExitCode != 0 || result.ValueKind == JsonValueKind.Undefined) throw new InvalidOperationException("Clean não confirmou a operação. " + (stderr.Length > 500 ? stderr[^500..] : stderr));
-                if (result.TryGetProperty("errors", out var failures) && failures.ValueKind == JsonValueKind.Number && failures.GetDouble() > 0) operation.FlagFailure("Operação encerrada com itens não alterados: " + failures);
-                if (result.TryGetProperty("failed", out failures) && failures.ValueKind == JsonValueKind.Number && failures.GetDouble() > 0) operation.FlagFailure("Operação parcial; falhas: " + failures);
+                if (HasFailures(result)) operation.FlagFailure("Operação parcial ou não confirmada; consulte o relatório da ferramenta.");
                 operation.Succeed("Operação Clean aplicada");
                 return result;
             }
