@@ -20,12 +20,35 @@ public static class UpdateService
     public static string PendingFile => Path.Combine(Root, "update-pending.json");
     public static string ResultFile => Path.Combine(Root, "update-result.json");
 
+    private static string UiResultFile => Path.Combine(Root, "update-ui-result.json");
+    private static void WriteState(string path, object state)
+    {
+        Directory.CreateDirectory(Root);
+        var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try { File.WriteAllText(temp, JsonSerializer.Serialize(state)); File.Move(temp, path, true); }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
+    }
+    private static void StartProgressWindow(string updateId)
+    {
+        if (!Environment.UserInteractive || Process.GetCurrentProcess().SessionId == 0) return;
+        var script = Path.Combine(AppContext.BaseDirectory, "ATUALIZACAO_VISUAL.ps1");
+        if (!File.Exists(script)) return; // primeira migracao: o instalador recebido abre a janela
+        var powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
+        var start = new ProcessStartInfo(powershell) { UseShellExecute = false, CreateNoWindow = true };
+        foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", script, "-UpdateId", updateId, "-StateFolder", Root }) start.ArgumentList.Add(arg);
+        try { using var process = Process.Start(start); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { RuntimeLog.Write("Janela de progresso: " + ex.Message); }
+    }
+
     public static async Task<UpdateOutcome> StageAndLaunchAsync(PlatformClient platform, long commandId, bool force, Action<int, string> progress, CancellationToken ct)
     {
+        var updateId = Guid.NewGuid().ToString("N");
         var lastReport = DateTimeOffset.MinValue;
         async Task ReportAsync(int percent, string message)
         {
             progress(percent, message);
+            try { WriteState(Path.Combine(Root, "update-progress.json"), new { update_id = updateId, percent, message }); }
+            catch (IOException) { } catch (UnauthorizedAccessException) { }
             var now = DateTimeOffset.UtcNow;
             if (commandId < 1 || (percent < 55 && now - lastReport < TimeSpan.FromSeconds(5))) return;
             lastReport = now;
@@ -33,79 +56,93 @@ public static class UpdateService
             catch (Exception ex) when (ex is HttpRequestException or PlatformException or TaskCanceledException)
             { RuntimeLog.Write("Aviso de progresso da atualização não entregue: " + ex.Message); }
         }
-        var cfg = platform.Config;
-        if (!cfg.IsComplete) throw new InvalidOperationException("Agente sem autorização para atualizar.");
-        await ReportAsync(3, force ? "Preparando reinstalação integral…" : "Verificando atualização disponível…");
-        Directory.CreateDirectory(Root);
-        var work = Path.Combine(Root, "Update");
-        if (Directory.Exists(work)) { try { Directory.Delete(work, true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
-        Directory.CreateDirectory(work);
-        var zipPath = Path.Combine(work, "pacote.zip");
-
-        using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false }) { Timeout = TimeSpan.FromMinutes(6) };
-        PlatformClient.ApplyDefaults(http);
-        using var request = new HttpRequestMessage(HttpMethod.Post, cfg.Origin + "/api/download-agent.php?mode=native-update")
-        { Content = PlatformClient.JsonBody(new { fingerprint = cfg.Fingerprint, site_code = cfg.SiteCode, download_key = cfg.DownloadKey }) };
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-        if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"O servidor recusou o pacote (HTTP {(int)response.StatusCode}).");
-        var published = response.Headers.TryGetValues("X-Agent-Version", out var v) ? v.FirstOrDefault() ?? "" : "";
-        var expected = response.Headers.TryGetValues("X-Package-SHA256", out var h) ? (h.FirstOrDefault() ?? "").ToLowerInvariant() : "";
-        if (!Version.TryParse(published, out var next)) throw new InvalidOperationException("Versão publicada inválida.");
-        if (expected.Length != 64 || expected.Any(c => !Uri.IsHexDigit(c))) throw new InvalidOperationException("O servidor não informou a integridade SHA-256 do pacote.");
-        if (response.Content.Headers.ContentLength is long advertised && advertised > 104857600) throw new InvalidOperationException("Pacote de atualização excede o limite de 100 MB.");
-        _ = Version.TryParse(AppInfo.Version, out var current);
-        if (!force && current is not null && next <= current) return new UpdateOutcome(false, $"O agente já está na versão mais recente ({AppInfo.Version}).");
-
-        var total = response.Content.Headers.ContentLength ?? 0; long done = 0;
-        await using (var net = await response.Content.ReadAsStreamAsync(ct))
-        await using (var file = File.Create(zipPath))
-        {
-            var buffer = new byte[81920]; int read;
-            while ((read = await net.ReadAsync(buffer, ct)) > 0)
-            {
-                done += read;
-                if (done > 104857600) throw new InvalidOperationException("O pacote de atualização excedeu 100 MB.");
-                await file.WriteAsync(buffer.AsMemory(0, read), ct);
-                if (total > 0) await ReportAsync(5 + (int)(35 * done / total), $"Baixando atualização {published}… {done / 1024} KB");
-            }
-        }
-        await ReportAsync(42, "Verificando integridade do pacote…");
-        string actual;
-        await using (var check = File.OpenRead(zipPath)) actual = Convert.ToHexString(await SHA256.HashDataAsync(check, ct)).ToLowerInvariant();
-        if (actual != expected) throw new InvalidOperationException("Pacote corrompido: o SHA-256 não confere.");
-
-        await ReportAsync(48, "Extraindo arquivos…");
-        var folder = Path.Combine(work, "pacote");
-        // SHA-256 valida o arquivo recebido; limites de expansão evitam ZIP bombs.
-        using (var archive = ZipFile.OpenRead(zipPath))
-        {
-            if (archive.Entries.Count > 550 || archive.Entries.Sum(e => e.Length) > 104857600L)
-                throw new InvalidOperationException("Pacote contém arquivos em excesso ou ultrapassa 100 MB descompactados.");
-            if (archive.Entries.Any(e => e.FullName.StartsWith('/') || e.FullName.Contains("..", StringComparison.Ordinal)
-                || e.FullName.Contains(':') || e.FullName.Contains('\\')))
-                throw new InvalidOperationException("Pacote contém caminhos não permitidos.");
-        }
-        ZipFile.ExtractToDirectory(zipPath, folder, true);
-        var script = Path.Combine(folder, "Arcoll.WinUI3", "INSTALAR_WINUI3.ps1");
-        if (!File.Exists(script)) throw new InvalidOperationException("O pacote não contém o instalador.");
-
-        File.WriteAllText(PendingFile, JsonSerializer.Serialize(new { command_id = commandId, version = published, force, started = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }));
-        if (File.Exists(ResultFile)) File.Delete(ResultFile);
-        await ReportAsync(55, "Iniciando a instalação da nova versão…");
-        var args = $"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{script}\" -Update -ParentPid {Environment.ProcessId}" + (force ? " -ForceRebuild" : "");
+        StartProgressWindow(updateId);
         try
         {
-            using var installer = Process.Start(new ProcessStartInfo("powershell.exe", args) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(script)! });
-            if (installer is null)
-                throw new InvalidOperationException("Não foi possível iniciar o instalador nativo.");
+            var cfg = platform.Config;
+            if (!cfg.IsComplete) throw new InvalidOperationException("Agente sem autorização para atualizar.");
+            await ReportAsync(3, force ? "Preparando reinstalação integral…" : "Verificando atualização disponível…");
+            Directory.CreateDirectory(Root);
+            var work = Path.Combine(Root, "Update");
+            if (Directory.Exists(work)) { try { Directory.Delete(work, true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+            Directory.CreateDirectory(work);
+            var zipPath = Path.Combine(work, "pacote.zip");
+
+            using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false }) { Timeout = TimeSpan.FromMinutes(6) };
+            PlatformClient.ApplyDefaults(http);
+            using var request = new HttpRequestMessage(HttpMethod.Post, cfg.Origin + "/api/download-agent.php?mode=native-update")
+            { Content = PlatformClient.JsonBody(new { fingerprint = cfg.Fingerprint, site_code = cfg.SiteCode, download_key = cfg.DownloadKey }) };
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"O servidor recusou o pacote (HTTP {(int)response.StatusCode}).");
+            var published = response.Headers.TryGetValues("X-Agent-Version", out var v) ? v.FirstOrDefault() ?? "" : "";
+            var expected = response.Headers.TryGetValues("X-Package-SHA256", out var h) ? (h.FirstOrDefault() ?? "").ToLowerInvariant() : "";
+            if (!Version.TryParse(published, out var next)) throw new InvalidOperationException("Versão publicada inválida.");
+            if (expected.Length != 64 || expected.Any(c => !Uri.IsHexDigit(c))) throw new InvalidOperationException("O servidor não informou a integridade SHA-256 do pacote.");
+            if (response.Content.Headers.ContentLength is long advertised && advertised > 104857600) throw new InvalidOperationException("Pacote de atualização excede o limite de 100 MB.");
+            _ = Version.TryParse(AppInfo.Version, out var current);
+            if (!force && current is not null && next <= current)
+            {
+                WriteState(UiResultFile, new { update_id = updateId, ok = true, unchanged = true, message = "Agente já está atualizado." });
+                return new UpdateOutcome(false, $"O agente já está na versão mais recente ({AppInfo.Version}).");
+            }
+
+            var total = response.Content.Headers.ContentLength ?? 0; long done = 0;
+            await using (var net = await response.Content.ReadAsStreamAsync(ct))
+            await using (var file = File.Create(zipPath))
+            {
+                var buffer = new byte[81920]; int read;
+                while ((read = await net.ReadAsync(buffer, ct)) > 0)
+                {
+                    done += read;
+                    if (done > 104857600) throw new InvalidOperationException("O pacote de atualização excedeu 100 MB.");
+                    await file.WriteAsync(buffer.AsMemory(0, read), ct);
+                    if (total > 0) await ReportAsync(5 + (int)(35 * done / total), $"Baixando atualização {published}… {done / 1024} KB");
+                }
+            }
+            await ReportAsync(42, "Verificando integridade do pacote…");
+            string actual;
+            await using (var check = File.OpenRead(zipPath)) actual = Convert.ToHexString(await SHA256.HashDataAsync(check, ct)).ToLowerInvariant();
+            if (actual != expected) throw new InvalidOperationException("Pacote corrompido: o SHA-256 não confere.");
+
+            await ReportAsync(48, "Extraindo arquivos…");
+            var folder = Path.Combine(work, "pacote");
+            // SHA-256 valida o arquivo recebido; limites de expansão evitam ZIP bombs.
+            using (var archive = ZipFile.OpenRead(zipPath))
+            {
+                if (archive.Entries.Count > 550 || archive.Entries.Sum(e => e.Length) > 104857600L)
+                    throw new InvalidOperationException("Pacote contém arquivos em excesso ou ultrapassa 100 MB descompactados.");
+                if (archive.Entries.Any(e => e.FullName.StartsWith('/') || e.FullName.Contains("..", StringComparison.Ordinal)
+                    || e.FullName.Contains(':') || e.FullName.Contains('\\')))
+                    throw new InvalidOperationException("Pacote contém caminhos não permitidos.");
+            }
+            ZipFile.ExtractToDirectory(zipPath, folder, true);
+            var script = Path.Combine(folder, "Arcoll.WinUI3", "INSTALAR_WINUI3.ps1");
+            if (!File.Exists(script)) throw new InvalidOperationException("O pacote não contém o instalador.");
+
+            File.WriteAllText(PendingFile, JsonSerializer.Serialize(new { update_id = updateId, command_id = commandId, version = published, force, started = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }));
+            if (File.Exists(ResultFile)) File.Delete(ResultFile);
+            await ReportAsync(55, "Iniciando a instalação da nova versão…");
+            var args = $"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{script}\" -Update -UpdateId {updateId} -ParentPid {Environment.ProcessId}" + (force ? " -ForceRebuild" : "");
+            try
+            {
+                using var installer = Process.Start(new ProcessStartInfo("powershell.exe", args) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(script)! });
+                if (installer is null)
+                    throw new InvalidOperationException("Não foi possível iniciar o instalador nativo.");
+            }
+            catch
+            {
+                try { File.Delete(PendingFile); } catch (IOException) { }
+                throw;
+            }
+            RuntimeLog.Write($"Atualização {AppInfo.Version} → {published} entregue ao instalador" + (force ? " (forçada)" : ""));
+            return new UpdateOutcome(true, "Atualização iniciada");
         }
-        catch
+        catch (Exception ex)
         {
-            try { File.Delete(PendingFile); } catch (IOException) { }
+            try { WriteState(UiResultFile, new { update_id = updateId, ok = false, message = ex.Message }); }
+            catch (IOException) { } catch (UnauthorizedAccessException) { }
             throw;
         }
-        RuntimeLog.Write($"Atualização {AppInfo.Version} → {published} entregue ao instalador" + (force ? " (forçada)" : ""));
-        return new UpdateOutcome(true, "Atualização iniciada");
     }
 
     /// <summary>Confirma na plataforma o comando agent_update pendente, depois que o agente atualizado reabriu.</summary>
