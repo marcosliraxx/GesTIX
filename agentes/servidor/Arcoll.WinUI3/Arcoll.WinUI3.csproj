@@ -20,7 +20,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <LangVersion>12</LangVersion>
-    <Version>5.0.24</Version>
+    <Version>5.0.60</Version>
     <ApplicationIcon Condition="Exists('Assets\system.ico')">Assets\system.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

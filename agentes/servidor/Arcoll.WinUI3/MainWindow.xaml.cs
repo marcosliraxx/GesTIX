@@ -1,6 +1,5 @@
 // Caminho: agentes/servidor/Arcoll.WinUI3/MainWindow.xaml.cs
 using System.Diagnostics;
-using Arcoll.WinUI3.Controls;
 using Arcoll.WinUI3.Models;
 using Arcoll.WinUI3.Pages;
 using Arcoll.WinUI3.Services;
@@ -37,11 +36,28 @@ public sealed partial class MainWindow : Window
     private DateTime _lastBrand = DateTime.MinValue;
     private bool _branding, _remoteDialog, _refreshing, _exiting;
     private string _section = "panel", _brandSite = "";
+    // Catálogo único: categoria, navegação, seleção visual e acessibilidade usam as mesmas definições.
+    private sealed record MenuItem(string Key, string Label, Symbol Icon);
+    private sealed record MenuGroup(string Key, string Label, Symbol Icon, MenuItem[] Items);
+    private static readonly MenuGroup[] Groups = {
+        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.Home), new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("speed", "Internet", Symbol.World) }),
+        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("clean", "Clean", Symbol.Delete), new MenuItem("programs", "Programas", Symbol.Library) }),
+        new("network", "Rede", Symbol.World, new[] { new MenuItem("devices", "Dispositivos", Symbol.AllApps), new MenuItem("map", "Mapa", Symbol.Map), new MenuItem("files", "Arquivos", Symbol.Folder) }),
+        new("service", "Atendimento", Symbol.Help, new[] { new MenuItem("support", "Suporte", Symbol.Help), new MenuItem("tickets", "Chamados", Symbol.Message) })
+    };
+    private readonly Dictionary<string, Button> _tabs = new(), _menus = new();
+    private readonly Dictionary<string, string> _lastSection = new();
+    private readonly List<Border> _separators = new();
+    private string _group = "home";
+    private AgentTheme? _appliedTheme;
+    private AuthState? _paletteState;
+
     private CancellationTokenSource? _pending;
 
     public MainWindow()
     {
         InitializeComponent();
+        BuildCategories();
         _serverPage = new(_hub, () => FooterText.Text); _monitorPage = new(_hub, () => _runtime.MonitorEnabled);
         _speedPage = new(_runtime); _devicesPage = new(_runtime, m => FooterText.Text = m); _mapPage = new(_runtime, m => FooterText.Text = m);
         _programsPage = new(_runtime, ConfirmAsync); _cleanPage = new(_runtime, ConfirmAsync); _filesPage = new(_runtime);
@@ -89,24 +105,74 @@ public sealed partial class MainWindow : Window
         try { using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12)); await _themes.RefreshAsync(timeout.Token); } catch { }
         ApplyTheme(_themes.Current);
     }
-    private Button[] Menus => new[] { CleanMenu, ProgramsMenu, DevicesMenu, MapMenu, FilesMenu, ServerMenu, InternetMenu, PanelMenu, SupportMenu, TicketsMenu };
+    private void BuildCategories()
+    {
+        foreach (var group in Groups)
+        {
+            var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            label.Children.Add(new SymbolIcon(group.Icon) { Width = 16, Height = 16 });
+            label.Children.Add(new TextBlock { Text = group.Label, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            var tab = new Button { Tag = group.Key, Content = label, Style = (Style)RootGrid.Resources["RibbonTab"] };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(tab, "category-" + group.Key);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(tab, group.Label);
+            tab.Click += (_, _) => SelectSection(_lastSection.GetValueOrDefault(group.Key, group.Items[0].Key));
+            _tabs.Add(group.Key, tab); CategoryTabs.Children.Add(tab);
+        }
+    }
+    private void BuildRibbon(MenuGroup group)
+    {
+        RibbonMenus.Children.Clear(); _menus.Clear(); _separators.Clear();
+        foreach (var item in group.Items)
+        {
+            var content = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
+            content.Children.Add(new SymbolIcon(item.Icon) { Width = 28, Height = 28 });
+            content.Children.Add(new TextBlock { Text = item.Label, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center });
+            var button = new Button { Tag = item.Key, Content = content, MinWidth = 84, Height = 64, Padding = new Thickness(7, 3, 7, 3), BorderThickness = new Thickness(0, 0, 0, 2), CornerRadius = new CornerRadius(3) };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(button, "nav-" + (item.Key == "speed" ? "internet" : item.Key));
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, item.Label); ToolTipService.SetToolTip(button, item.Label);
+            button.Click += Menu_Click; _menus.Add(item.Key, button);
+            var separator = new Border { BorderThickness = new Thickness(0, 0, 1, 0), Margin = new Thickness(0, 3, 5, 3), Padding = new Thickness(0, 0, 5, 0), Child = button };
+            _separators.Add(separator); RibbonMenus.Children.Add(separator);
+        }
+        RibbonScroll.ChangeView(0, null, null, true);
+    }
     private void ApplyTheme(AgentTheme t)
     {
         var p = Palette.From(t); RootGrid.Background = p.Alt; RootGrid.RequestedTheme = p.Light ? ElementTheme.Light : ElementTheme.Dark;
-        TopBar.Background = BottomBar.Background = p.Surface; TopBar.BorderBrush = BottomBar.BorderBrush = p.Line;
-        foreach (var separator in new[] { TopSeparator1, TopSeparator2, TopSeparator3, TopSeparator4, TopSeparator5, BottomSeparator1, BottomSeparator2, BottomSeparator3, BottomSeparator4 }) separator.BorderBrush = p.Line;
-        foreach (var menu in Menus) { var selected = menu.Tag?.ToString() == _section; menu.Background = selected ? p.Alt : p.Surface; menu.Foreground = selected ? p.Accent : p.Text; }
-        RemoteButton.Foreground = p.Accent; NetworkBadge.Background = p.Surface; NetworkBadge.BorderBrush = p.Accent;
+        QuickBar.Background = RibbonBar.Background = StatusBorder.Background = p.Surface; CategoryBar.Background = p.Accent;
+        QuickBar.BorderBrush = RibbonBar.BorderBrush = StatusBorder.BorderBrush = p.Line;
+        var accent = ((SolidColorBrush)p.Accent).Color;
+        var ink = ThemeService.Brush((accent.R * .299 + accent.G * .587 + accent.B * .114) > 155 ? "#152536" : "#ffffff");
+        foreach (var (key, tab) in _tabs) { tab.Background = key == _group ? p.Surface : p.Accent; tab.Foreground = key == _group ? p.Text : ink; Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(tab, key == _group ? "Categoria selecionada" : "Abrir categoria"); }
+        foreach (var (key, menu) in _menus) { var selected = key == _section; menu.Background = selected ? p.Alt : p.Surface; menu.Foreground = selected ? p.Accent : p.Text; menu.BorderBrush = selected ? p.Accent : p.Surface; Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(menu, selected ? "Página selecionada" : "Abrir página"); }
+        foreach (var separator in _separators) separator.BorderBrush = p.Line;
+        RemoteButton.Foreground = RefreshButton.Foreground = p.Accent; NetworkBadge.Background = p.Surface; NetworkBadge.BorderBrush = p.Accent;
         ConnectionLabel.Foreground = FooterText.Foreground = p.Muted;
+        if (_appliedTheme == t && _paletteState == _runtime.State) return; _appliedTheme = t; _paletteState = _runtime.State;
         _serverPage.ApplyPalette(p); _monitorPage.ApplyPalette(p); _speedPage.ApplyPalette(p); _devicesPage.ApplyPalette(p); _mapPage.ApplyPalette(p);
         _programsPage.ApplyPalette(p); _cleanPage.ApplyPalette(p); _filesPage.ApplyPalette(p); _supportPage.ApplyPalette(p); _ticketsPage.ApplyPalette(p);
     }
     private void Menu_Click(object sender, RoutedEventArgs e) { if (sender is Button menu) SelectSection(menu.Tag?.ToString() ?? "panel"); }
     private void SelectSection(string section)
     {
-        _section = section;
-        PageHost.Content = section switch { "clean" => _cleanPage, "programs" => _programsPage, "devices" => _devicesPage, "map" => _mapPage, "files" => _filesPage, "server" => _serverPage, "speed" => _speedPage, "support" => _supportPage, "tickets" => _ticketsPage, _ => _monitorPage };
-        if (_serverPage is not null) ApplyTheme(_themes.Current);
+        var group = Groups.FirstOrDefault(g => g.Items.Any(i => i.Key == section)) ?? Groups[0];
+        if (!group.Items.Any(i => i.Key == section)) section = "panel";
+        _section = section; _lastSection[group.Key] = section;
+        if (_group != group.Key || _menus.Count == 0) { _group = group.Key; BuildRibbon(group); }
+        // Programas mantém filtros e ações fixos; outras páginas conservam sua rolagem original.
+        PageHost.Content = null; CompactHost.Content = null;
+        PageScroll.Visibility = section == "programs" ? Visibility.Collapsed : Visibility.Visible;
+        CompactHost.Visibility = section == "programs" ? Visibility.Visible : Visibility.Collapsed;
+        if (section == "programs") CompactHost.Content = _programsPage;
+        else PageHost.Content = section switch { "clean" => _cleanPage, "devices" => _devicesPage, "map" => _mapPage, "files" => _filesPage, "server" => _serverPage, "speed" => _speedPage, "support" => _supportPage, "tickets" => _ticketsPage, _ => _monitorPage };
+        ApplyTheme(_themes.Current);
+    }
+    private async void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshButton.IsEnabled = false;
+        try { await _runtime.RecheckAsync(); await RefreshAsync(); await RefreshThemeAsync(); }
+        catch (Exception ex) { StatusBar.Title = "Conexão"; StatusBar.Message = ex.Message; StatusBar.Severity = InfoBarSeverity.Warning; StatusBar.IsOpen = true; }
+        finally { RefreshButton.IsEnabled = true; }
     }
     private async Task RefreshAsync()
     {
@@ -132,8 +198,8 @@ public sealed partial class MainWindow : Window
                 stream.Seek(0); var bitmap = new BitmapImage(); await bitmap.SetSourceAsync(stream);
                 NetworkBadge.Child = new Image { Source = bitmap, Stretch = Stretch.Uniform };
             }
-            else NetworkBadge.Child = new TextBlock { Text = info.GetProperty("network_name").ToString()[..Math.Min(2, info.GetProperty("network_name").ToString().Length)].ToUpperInvariant(), FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            ToolTipService.SetToolTip(PanelMenu, "Painel · " + info.GetProperty("network_name"));
+            else NetworkBadge.Child = new TextBlock { Text = string.IsNullOrWhiteSpace(info.GetProperty("network_name").ToString()) ? "REDE" : info.GetProperty("network_name").ToString()[..Math.Min(2, info.GetProperty("network_name").ToString().Length)].ToUpperInvariant(), FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            ToolTipService.SetToolTip(BrandButton, "Painel · " + info.GetProperty("network_name"));
             _lastBrand = DateTime.UtcNow;
         }
         catch (Exception ex) { RuntimeLog.Write("Logo da rede: " + ex.Message); _lastBrand = DateTime.UtcNow; }
@@ -142,6 +208,7 @@ public sealed partial class MainWindow : Window
     private void UpdateRuntimeUi()
     {
         if (!_runtime.Allowed) { _cleanPage.CancelOperations(); _programsPage.CancelOperations(); }
+        if (_paletteState != _runtime.State) ApplyTheme(_themes.Current);
         GateOverlay.Visibility = _runtime.Gated ? Visibility.Visible : Visibility.Collapsed; GateText.Text = _runtime.StateNotice;
         ConnectionLabel.Text = _runtime.State switch { AuthState.Approved or AuthState.UiLocked => "Conectado · " + _runtime.NetworkName, AuthState.Pending => "Aguardando liberação", AuthState.Checking => "Verificando…", _ => "Sem confirmação" };
         Title = _runtime.SystemName + " — Agente Windows";
