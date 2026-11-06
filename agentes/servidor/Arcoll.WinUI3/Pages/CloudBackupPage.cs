@@ -13,7 +13,11 @@ public sealed class CloudBackupPage : MaintenancePage
         Text(Yes(job,"available")?"Backup disponível":"Backup indisponível ou desativado",true);
         var connection=Part(Report,"connection");if(connection.ValueKind==System.Text.Json.JsonValueKind.Object)Text("Provedor: "+Get(connection,"provider")+" · "+Get(connection,"status"));
         Text("Estado: "+Get(status,"message"));Text("Último sucesso: "+Get(status,"last_success_at"));
-        foreach(var key in new[]{"files","bytes","failed","skipped"})if(Get(status,key).Length>0)Text(key+": "+Get(status,key));
+        Text(Get(status,"files_done")+" / "+Get(status,"files_total")+" arquivos · "+Ui.Size(Number(status,"bytes_done"))+" / "+Ui.Size(Number(status,"bytes_total")));
+        Text(Get(status,"errors")+" erros · "+Get(status,"skipped")+" somente online ignorados");
+        if(Get(status,"reported_at").Length>0)Text("Informado em "+Get(status,"reported_at")+(Yes(status,"fresh")?"":" · Estado sem atualização recente"));
+        foreach(var failure in Rows(status,"failures"))Text(Get(failure,"path")+" · "+Get(failure,"message"));
+        Text("Últimas execuções",true);foreach(var run in Rows(status,"runs"))Text(Get(run,"at")+" · "+Get(run,"result")+" · "+Get(run,"files")+" arquivos · "+Ui.Size(Number(run,"bytes"))+" · "+Get(run,"errors")+" erros · "+Get(run,"seconds")+" s");
         Text("Pastas configuradas",true);foreach(var folder in Rows(settings,"folders"))if(Matches(Get(folder,"label"),Get(folder,"path")))Text(Get(folder,"label")+" · "+Get(folder,"path"));
         if(Rows(settings,"folders").Length==0)Text("Nenhuma pasta definida. Use a configuração da plataforma.");
     }

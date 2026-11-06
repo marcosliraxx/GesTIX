@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import subprocess
 import tempfile
+import types
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -49,6 +51,17 @@ class EngineTests(unittest.TestCase):
    with patch.object(clean,'_load_cache',return_value=stored),patch.object(clean,'_recycle',return_value=True) as recycle:
     result=clean._delete_duplicates({'ids':[ids[0]],'permanent':False})
     self.assertEqual(result['removed'],1);self.assertEqual(recycle.call_count,1)
+ def test_backup_status_does_not_overwrite_server_progress(self):
+  worker_spec=importlib.util.spec_from_file_location('worker',ROOT/'agentes/servidor/Arcoll.WinUI3/Worker/clean_worker.py')
+  worker=importlib.util.module_from_spec(worker_spec);worker_spec.loader.exec_module(worker)
+  calls=[]
+  class Backup:
+   def __init__(self,*args):pass
+   def request(self,action,data):calls.append((action,data));return {'job':{'available':True},'status':{'state':'uploading','files_done':9},'connection':None}
+   def snapshot(self):return {'state':'waiting'}
+  with tempfile.TemporaryDirectory() as folder,patch.object(clean,'DATA_DIR',Path(folder)),patch.dict(sys.modules,{'arcoll_clean':clean,'arcoll_cloud':types.SimpleNamespace(CloudBackup=Backup)}):
+   result=worker.run({'mode':'backup_status','config':{'origin':'https://example.test','fingerprint':'synthetic','site_code':'TEST','download_key':'synthetic'}})
+  self.assertEqual(calls,[('agent-state',{})]);self.assertEqual(result['status']['state'],'uploading');self.assertEqual(result['status']['files_done'],9)
  def test_unknown_tool_rejected(self):
   with self.assertRaises(ValueError):clean.execute_tool({'tool':'arbitrary_shell','action':'run'})
 

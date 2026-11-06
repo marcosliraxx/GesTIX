@@ -39,4 +39,5 @@ jobs:
         run: |
           python tests/modules_engine_test.py
           php -l includes/network-clean.php
+          php -l api/cloud.php
           php tests/modules_api_test.php

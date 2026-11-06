@@ -182,7 +182,7 @@ try {
             $label=trim(preg_replace('/\s+/u',' ',$label) ?? 'Arcoll Nuvem');
             if ($label==='') $label='Arcoll Nuvem';
             if (mb_strlen($label,'UTF-8')>60) $label=trim(mb_substr($label,0,60,'UTF-8'));
-            arc_json(['ok'=>true,'job'=>$job,'connection'=>$connection?arc_cloud_connection_public($connection):null,'max_file_bytes'=>arc_cloud_max_file_bytes($pdo),'vdrive'=>['available'=>!empty($job['vdrive_available']),'letter'=>(string)$job['settings']['vdrive_letter'],'label'=>$label]]);
+            arc_json(['ok'=>true,'job'=>$job,'connection'=>$connection?arc_cloud_connection_public($connection):null,'status'=>arc_cloud_status_get($pdo,$agentId,$network,$account),'max_file_bytes'=>arc_cloud_max_file_bytes($pdo),'vdrive'=>['available'=>!empty($job['vdrive_available']),'letter'=>(string)$job['settings']['vdrive_letter'],'label'=>$label]]);
         }
         if ($action==='agent-list'||$action==='agent-download') {
             if (empty($job['vdrive_available'])||!$connection) throw new RuntimeException('O disco virtual não está liberado para este computador.',409);
