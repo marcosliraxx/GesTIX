@@ -212,7 +212,7 @@ require __DIR__.'/_topo.php';
         <div class="arc-server-title" id="arc-server-title">Servidor</div>
         <div class="arc-server-subtitle" id="arc-server-subtitle">Monitoramento passivo dos componentes detectados automaticamente.</div>
       </div>
-      <div class="arc-server-value" id="arc-server-value">Aguardando leitura</div>
+      <div style="display:flex;gap:7px;align-items:center"><button type="button" id="arc-server-refresh" class="button" title="Atualizar telemetria" style="padding:5px 9px;min-height:32px;font-size:11px"><i class="fa fa-refresh" aria-hidden="true"></i> Atualizar</button><div class="arc-server-value" id="arc-server-value">Aguardando leitura</div></div>
     </div>
     <div class="arc-server-stats">
       <div class="arc-server-stat"><span id="arc-stat-1-label">—</span><strong id="arc-stat-1-value">--</strong></div>
@@ -225,7 +225,7 @@ require __DIR__.'/_topo.php';
       <div class="arc-server-tip" id="arc-server-tip"></div>
     </div>
     <div class="arc-server-note" id="arc-server-note">Aguardando telemetria do computador instalado.</div>
-    <div class="arc-server-foot" id="arc-server-update">Coleta em tempo real pelo agente Windows · leitura passiva dos componentes</div>
+    <div class="arc-server-foot" id="arc-server-update">Telemetria salva · clique em Atualizar para consultar novamente</div>
   </div>
 </section>
 <script>
@@ -267,7 +267,7 @@ function drawGrid(maxv){ const mobile=window.matchMedia('(max-width:600px)').mat
  chart.appendChild(svg('text',{x:x0,y:H-10,fill:'#9f9f9f','font-size':mobile?8:11,'text-anchor':'start'},'60 segundos'));
  chart.appendChild(svg('text',{x:x1,y:H-10,fill:'#9f9f9f','font-size':mobile?8:11,'text-anchor':'end'},'0'));
  return {W,H,x0,y0,x1,y1}; }
-function render(){ const comp=state.components[state.selected]; if(!comp){ return; } const entries=state.histories[state.selected]||[]; $('arc-server-title').textContent=comp.title; $('arc-server-subtitle').textContent=comp.header || comp.subtitle || ''; $('arc-server-note').textContent=comp.detail || 'Aguardando medições da máquina.'; if(comp.group==='internet'){ const last=entries[entries.length-1]||{}; $('arc-server-value').textContent=fmt('ms',(last.series||{}).latency_ms); } else { $('arc-server-value').textContent=fmt(comp.unit,comp.value); } $('arc-server-value').style.color=comp.accent||'#36c5ff'; updateStats(comp,entries); state.points=[]; if(comp.group==='internet'){ renderInternet(comp,entries); } else { renderSingle(comp,entries); } $('arc-server-update').textContent='Coleta em tempo real pelo agente Windows · última atualização ' + new Date().toLocaleTimeString('pt-BR'); }
+function render(){ const comp=state.components[state.selected]; if(!comp){ return; } const entries=state.histories[state.selected]||[]; $('arc-server-title').textContent=comp.title; $('arc-server-subtitle').textContent=comp.header || comp.subtitle || ''; $('arc-server-note').textContent=comp.detail || 'Aguardando medições da máquina.'; if(comp.group==='internet'){ const last=entries[entries.length-1]||{}; $('arc-server-value').textContent=fmt('ms',(last.series||{}).latency_ms); } else { $('arc-server-value').textContent=fmt(comp.unit,comp.value); } $('arc-server-value').style.color=comp.accent||'#36c5ff'; updateStats(comp,entries); state.points=[]; if(comp.group==='internet'){ renderInternet(comp,entries); } else { renderSingle(comp,entries); } $('arc-server-update').textContent='Última consulta da telemetria · ' + new Date().toLocaleTimeString('pt-BR'); }
 function renderSingle(comp, entries){ const values=entries.map(e=>e.value); const maxv=niceMax(comp.unit,values,comp.unit==='%'?100:10); const g=drawGrid(maxv); const pts=[]; entries.forEach((e,idx)=>{ const value=e.value; if(typeof value!=='number' || !isFinite(value)) return; const x=g.x0+((g.x1-g.x0)*(idx/Math.max(1,entries.length-1))); const y=g.y1-((Math.max(0,Math.min(maxv,value))/maxv)*(g.y1-g.y0)); pts.push([x,y,e]); }); if(pts.length>1){ const poly=pts.map(([x,y])=>`${x.toFixed(1)},${y.toFixed(1)}`).join(' '); chart.appendChild(svg('polygon',{points:`${pts[0][0].toFixed(1)},${g.y1} ${poly} ${pts[pts.length-1][0].toFixed(1)},${g.y1}`,fill:'rgba(54,197,255,.16)'})); chart.appendChild(svg('polyline',{points:poly,fill:'none',stroke:comp.accent||'#36c5ff','stroke-width':2.1})); } else if(pts.length===1){ chart.appendChild(svg('circle',{cx:pts[0][0],cy:pts[0][1],r:3,fill:comp.accent||'#36c5ff'})); }
  state.points=pts.map(([x,y,e])=>({x,y,time:e.time,value:e.value,detail:e.detail})); }
 function renderInternet(comp, entries){ const g=drawGrid(100); const legend=[]; state.points=[]; Object.entries(comp.series_meta||{}).forEach(([key,meta],idx)=>{ const vals=entries.map(e=>(e.series||{})[key]); const maxv=niceMax(meta.unit,vals,meta.unit==='%'?100:10); const pts=[]; entries.forEach((e,i)=>{ const value=(e.series||{})[key]; if(typeof value!=='number' || !isFinite(value)) return; const x=g.x0+((g.x1-g.x0)*(i/Math.max(1,entries.length-1))); const y=g.y1-((Math.max(0,Math.min(maxv,value))/maxv)*(g.y1-g.y0)); pts.push([x,y,e,value]); }); if(pts.length>1){ chart.appendChild(svg('polyline',{points:pts.map(([x,y])=>`${x.toFixed(1)},${y.toFixed(1)}`).join(' '),fill:'none',stroke:meta.color||'#36c5ff','stroke-width':2})); } else if(pts.length===1){ chart.appendChild(svg('circle',{cx:pts[0][0],cy:pts[0][1],r:2.5,fill:meta.color||'#36c5ff'})); }
@@ -275,7 +275,7 @@ function renderInternet(comp, entries){ const g=drawGrid(100); const legend=[]; 
 wrap.addEventListener('mousemove',ev=>{ if(!state.points.length){ tip.style.display='none'; return; } const rect=wrap.getBoundingClientRect(); const x=ev.clientX-rect.left; const y=ev.clientY-rect.top; let best=null,bestDist=1e9; for(const point of state.points){ const dx=point.x-(x*(chart.viewBox.baseVal.width/rect.width)); const dy=point.y-(y*(chart.viewBox.baseVal.height/rect.height)); const dist=dx*dx+dy*dy; if(dist<bestDist){ bestDist=dist; best=point; } } if(!best || bestDist>1000){ tip.style.display='none'; return; } tip.textContent=`${new Date(best.time*1000).toLocaleString('pt-BR')}\n${best.detail}`; tip.style.display='block'; tip.style.left=Math.min(rect.width-260, ev.clientX-rect.left+14)+'px'; tip.style.top=Math.max(8, ev.clientY-rect.top+14)+'px'; });
 wrap.addEventListener('mouseleave',()=>{ tip.style.display='none'; });
 async function refreshFeed(){ try{ const res=await fetch(dataUrl.toString(),{cache:'no-store'}); const json=await res.json(); if(json && json.ok){ state.serverData=json; state.fetchedAt=Date.now(); rebuildState(); } }catch(_e){} }
-rebuildState(); setInterval(refreshFeed,5000);
+rebuildState();$('arc-server-refresh').addEventListener('click',refreshFeed);
 })();
 </script>
 <?php require __DIR__.'/_rodape.php'; ?>

@@ -10,7 +10,7 @@ $back=$base.'index.php';
 function arc_google_fail(string $message): never {
  if (arc_is_user()) {
   $_SESSION['arc_flash']=$message;
-  header('Location: '.arc_workspace_base_url().'pages/useredit.php',true,303);exit;
+  header('Location: '.arc_workspace_base_url().'pages/perfil.php',true,303);exit;
  }
  $_SESSION['arc_google_error']=$message;
  header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;
@@ -32,9 +32,9 @@ try {
  if(arc_platform_setting($pdo,'platform_google_enabled')!=='1')throw new RuntimeException('Login Google desativado.');
  $clientId=arc_platform_setting($pdo,'platform_google_client_id');
  $clientSecret=arc_platform_decrypt(arc_platform_setting($pdo,'platform_google_client_secret'));
- if($clientId===''||$clientSecret==='')throw new RuntimeException('Login Google não configurado.');
+ if($clientId===''||$clientSecret==='')throw new RuntimeException('Credenciais de login Google ausentes ou segredo inválido. Revise Login e acesso nas configurações administrativas.');
  $redirect='https://'.(string)($_SERVER['HTTP_HOST']??'').$base.'google-auth.php';
- if(isset($_GET['error']))throw new RuntimeException('Autorização Google cancelada.');
+ if(isset($_GET['error']))throw new RuntimeException('Google não autorizou o acesso. Confira o aplicativo OAuth e a URL de retorno no Google Cloud Console.');
  if(isset($_GET['code'])) {
   $saved=$_SESSION['arc_google_oauth']??null;
   unset($_SESSION['arc_google_oauth']);
@@ -74,7 +74,7 @@ try {
    if(strtolower((string)$account->fetchColumn())!==$email)throw new RuntimeException('O e-mail Google precisa corresponder ao e-mail da conta.');
    $pdo->prepare('INSERT INTO '.$prefs.' (user_id,pref_key,pref_value) VALUES (?,?,?) ON DUPLICATE KEY UPDATE pref_value=VALUES(pref_value)')->execute([arc_user_id(),'google_sub',$sub]);
    $_SESSION['arc_flash']='Conta Google vinculada com sucesso.';
-   header('Location: '.$base.'pages/useredit.php',true,303);exit;
+   header('Location: '.$base.'pages/perfil.php',true,303);exit;
   }
   $q=$pdo->prepare('SELECT u.id,u.email,u.account_status FROM '.$prefs.' g JOIN '.arc_table('user_accounts').' u ON u.id=g.user_id WHERE g.pref_key=? AND g.pref_value=? LIMIT 1');$q->execute(['google_sub',$sub]);$account=$q->fetch(PDO::FETCH_ASSOC);
   if(!$account){

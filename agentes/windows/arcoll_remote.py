@@ -129,12 +129,19 @@ def request_json(url, data=None, timeout=8, headers=None, keepalive=False):
         return json.loads(_exchange(url, body, h, timeout, keepalive).decode('utf-8', 'replace'))
     except urllib.error.HTTPError as exc:
         if exc.code == 409:
+            # Examinar o sinal de encerramento sem consumir o corpo do erro.
+            # Os chamadores do cadastro precisam do texto original retornado pela API
+            # para distinguir chave utilizada, vínculo com outra rede e conflito pendente.
+            raw = exc.read(4096)
             try:
-                reply = json.loads(exc.read(4096).decode('utf-8', 'replace'))
-            except (OSError, ValueError):
+                reply = json.loads(raw.decode('utf-8', 'replace'))
+            except (UnicodeError, ValueError):
                 reply = None
             if isinstance(reply, dict) and reply.get('stop'):
-                raise SessionStopped(str(reply.get('error') or 'Sessão encerrada'))
+                raise SessionStopped(str(reply.get('error') or 'Sessão encerrada')) from exc
+            # HTTPError mantém read() em cache: reconstruir é necessário para
+            # que os consumidores consigam ler a mensagem de erro inteira.
+            raise urllib.error.HTTPError(exc.url, exc.code, exc.msg, exc.hdrs, io.BytesIO(raw)) from exc
         raise
 
 

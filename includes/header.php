@@ -48,26 +48,33 @@ $arcLogo    = trim((string)($arcBrand['logo_path'] ?? '')) !== ''
 $arcAppIcon = trim((string)($arcBrand['logo_path'] ?? '')) !== '' ? 'api/brand-logo.php?icon=192' : 'assets/img/app-icon-192.png';
 $arcSiteName = (string)($arcBrand['site_name'] ?? 'Arcoll Speed Connection');
 $arcSiteDesc = (string)($arcBrand['tagline'] ?? '');
-$arcThemePref=arc_platform_setting(arc_db(),'platform_system_pref_theme',arc_platform_setting(arc_db(),'platform_theme_mode',(string)($arcBrand['default_theme'] ?? 'auto')));
-$arcDefaultTheme = in_array($arcThemePref,['auto','light','dark'],true)?$arcThemePref:'auto';
+$arcVisualTheme=arc_visual_theme(arc_db());
+$arcVisualMode=$arcVisualTheme['mode'];
+$arcDefaultTheme = $arcVisualMode==='theme'?($arcVisualTheme['light']?'light':'dark'):$arcVisualMode;
 $arcAccent = preg_match('/^#[0-9a-fA-F]{6}$/', (string)($arcBrand['accent_color'] ?? '')) ? $arcBrand['accent_color'] : '#22d3ee';
 
 $arcNotice = (string)($_SESSION['arc_flash'] ?? '');
-$arcThemeSettings = [];
+/* Caminho: includes/header.php — preferências administrativas em consulta única. */
+$arcThemeSettings=[];
 try {
- foreach(['platform_theme_mode','accent_color','platform_sidebar_color','platform_header_color','platform_footer_color','platform_border_radius','platform_font_family'] as $k)
-  $arcThemeSettings[$k]=arc_platform_setting(arc_db(),$k,'');
-} catch(Throwable $e){error_log('Tema Arcoll: '.$e->getMessage());}
+    $arcSettingKeys=['platform_theme_mode','accent_color','platform_sidebar_color','platform_header_color','platform_footer_color','platform_border_radius','platform_font_family'];
+    $arcSettingSql='SELECT setting_key,setting_value FROM '.arc_table('settings').' WHERE setting_key IN ('.implode(',',array_fill(0,count($arcSettingKeys),'?')).')';
+    $arcSettingStmt=arc_db()->prepare($arcSettingSql);
+    $arcSettingStmt->execute($arcSettingKeys);
+    foreach ($arcSettingStmt->fetchAll(PDO::FETCH_ASSOC) as $arcSettingRow) {
+        $arcThemeSettings[(string)$arcSettingRow['setting_key']]=(string)$arcSettingRow['setting_value'];
+    }
+} catch(Throwable $e) { error_log('Tema Arcoll: '.$e->getMessage()); }
 
 unset($_SESSION['arc_flash']);
 /* Caminhos estáveis e versões de assets baseadas no conteúdo real dos arquivos. */
 $arcAssetBase = rtrim(arc_workspace_base_url(), '/') . '/';
 $arcAssetVersion = static function (string $relativePath): string {
     $absolutePath = dirname(__DIR__) . '/' . ltrim($relativePath, '/');
-    return arc_app_version().'-'.(is_file($absolutePath)?substr((string)hash_file('sha256',$absolutePath),0,12):'missing');
+    return arc_app_version().'-'.(is_file($absolutePath)?(string)filemtime($absolutePath):'missing');
 };
 ?><!doctype html>
-<html lang="pt-BR" data-arc-theme="<?=arc_h($arcDefaultTheme)?>" data-arc-system-theme="<?=arc_h($arcDefaultTheme)?>">
+<html lang="pt-BR" data-arc-design="<?=arc_h($arcVisualTheme['id'])?>" data-arc-theme="<?=arc_h($arcDefaultTheme)?>" data-arc-system-theme="<?=arc_h($arcDefaultTheme)?>">
 <head>
 <meta charset="utf-8">
 <base href="<?=arc_h(arc_workspace_base_url())?>">
@@ -104,10 +111,10 @@ foreach ($arcCssPaths as $arcCssRelative) {
 .erp-user-button .erp-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 </style><script src="<?=arc_h($arcAssetBase)?>assets/js/arcoll.js?v=<?=arc_h($arcAssetVersion('assets/js/arcoll.js'))?>" defer></script><script>try{const c=document.documentElement.dataset.arcSystemTheme||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
 <body class="<?= arc_h(trim($arcBodyClass . ' ' . ($ARCPageBodyClass ?? ''))) ?>" style="<?php
-$vars=['accent_color'=>'--arc-brand-accent','platform_sidebar_color'=>'--arc-sidebar-bg','platform_header_color'=>'--arc-header-bg','platform_footer_color'=>'--arc-footer-bg'];
+$vars=[]; /* A paleta central substitui as cores locais herdadas. */
 foreach($vars as $key=>$var){$v=$arcThemeSettings[$key]??'';if(preg_match('/^#[0-9a-fA-F]{6}$/',$v))echo $var.':'.arc_h($v).';';}
 $radius=$arcThemeSettings['platform_border_radius']??'';if($radius!==''&&ctype_digit($radius))echo '--arc-card-radius:'.min(28,(int)$radius).'px;';
-?>" data-platform-theme="<?=arc_h($arcThemeSettings['platform_theme_mode']?:'auto')?>">
+?>" data-platform-theme="<?=arc_h(($arcThemeSettings['platform_theme_mode'] ?? '') ?: 'auto')?>">
 <script>window.ARC_PREFS = <?= arc_escape_json($arcPrefs ?: new stdClass()) ?>;</script>
 
 <?php
@@ -312,6 +319,7 @@ if ($arcFlashText !== ''): ?>
      <?php endforeach; ?>
     </select>
    </label>
+   <button type="button" id="arc-header-agent-update" class="arc-header-update-icon" title="Agente Windows: instalar ou atualizar" aria-label="Abrir informações e atualização do agente Windows" aria-haspopup="dialog" aria-controls="arc-agent-update-confirm" data-update-available="0"><i class="fa fa-windows" aria-hidden="true"></i></button>
    <button type="button" class="arc-net-status-badge" id="arc-network-global-state" data-network-status-id="<?= (int)$networkId ?>" data-agent-state="none" title="Atualizar situação do agente" aria-label="Atualizar situação do agente"><i class="fa fa-desktop" aria-hidden="true"></i></button>
    </div>
   </div>

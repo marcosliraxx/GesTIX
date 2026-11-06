@@ -3,6 +3,7 @@
 /** Arcoll: acesso remoto temporário e consentido ao computador do agente (tela + controle opcional). */
 declare(strict_types=1);
 require __DIR__.'/../includes/bootstrap.php';
+require_once __DIR__.'/../includes/command-diagnostics.php';
 /* A sessão só é lida; liberar o lock evita que imagem, status e entrada se bloqueiem entre si. */
 if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
 $pdo=arc_db();arc_ensure_user_schema($pdo);
@@ -13,7 +14,7 @@ $storage=__DIR__.'/../includes/storage/remote-screen';
 if(!is_dir($storage) && !@mkdir($storage,0700,true) && !is_dir($storage)) arc_json(['ok'=>false,'error'=>'Armazenamento indisponível'],503);
 $cmd=(int)($_GET['command_id']??0);
 if($cmd<1)arc_json(['ok'=>false,'error'=>'Sessão inválida'],422);
-$q=$pdo->prepare('SELECT c.id,c.status,c.agent_id,c.account_id,c.network_id,c.command_name,c.created_at FROM '.arc_table('agent_commands').' c WHERE c.id=? AND c.command_name=\'remote_assistance\' LIMIT 1');
+$q=$pdo->prepare('SELECT c.id,c.status,c.agent_id,c.account_id,c.network_id,c.command_name,c.created_at,c.result_text FROM '.arc_table('agent_commands').' c WHERE c.id=? AND c.command_name=\'remote_assistance\' LIMIT 1');
 $q->execute([$cmd]);$command=$q->fetch(PDO::FETCH_ASSOC);
 if(!$command)arc_json(['ok'=>false,'error'=>'Sessão inexistente'],404);
 if(strtotime((string)$command['created_at'])<time()-1800){
@@ -274,7 +275,7 @@ if($action==='status'){
  $monitors=is_array($meta['monitors']??null)?$meta['monitors']:[];
  $selectedMonitor=$resolveSelectedMonitor($monitors,(string)($readJsonState($viewFile,[])['selected_monitor']??($meta['selected_monitor']??'')));
  $mtime=$frameFreshness();$unlockAllowed=arc_support_unlock_allowed($pdo,$command,$viewerUser);
- arc_json(['ok'=>true,'status'=>$command['status'],'stopped'=>is_file($stop),'has_frame'=>$mtime>0&&time()-$mtime<8,'control'=>!$ended&&!is_file($stop)&&$controlActive(),'monitors'=>$monitors,'selected_monitor'=>$selectedMonitor,'monitor_count'=>count($monitors),'desktop_state'=>$meta['desktop_state']??null,'unlock_key'=>$unlockAllowed?($meta['unlock_key']??null):null,'windows_users'=>$unlockAllowed?($meta['windows_users']??[]):[],'windows_users_error'=>$unlockAllowed&&!empty($meta['windows_users_error']),'unlock_result'=>$meta['unlock_result']??null]);
+ arc_json(['ok'=>true,'status'=>$command['status'],'state_message'=>arc_command_error_scrub((string)($command['result_text']??''),500),'elapsed_seconds'=>max(0,time()-strtotime((string)$command['created_at'])),'stopped'=>is_file($stop),'has_frame'=>$mtime>0&&time()-$mtime<8,'control'=>!$ended&&!is_file($stop)&&$controlActive(),'monitors'=>$monitors,'selected_monitor'=>$selectedMonitor,'monitor_count'=>count($monitors),'desktop_state'=>$meta['desktop_state']??null,'unlock_key'=>$unlockAllowed?($meta['unlock_key']??null):null,'windows_users'=>$unlockAllowed?($meta['windows_users']??[]):[],'windows_users_error'=>$unlockAllowed&&!empty($meta['windows_users_error']),'unlock_result'=>$meta['unlock_result']??null]);
 }
 if($action==='image'){
  if($command['status']!=='running'||is_file($stop)){http_response_code(404);exit;}

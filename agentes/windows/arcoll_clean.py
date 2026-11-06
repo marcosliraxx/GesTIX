@@ -76,7 +76,6 @@ _FILE_ITEMS = {
     'windows_update': [('system', 'SoftwareDistribution/Download', 'tree', ())],
     'delivery_optimization': [('system', 'ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache', 'tree', ()),
                               ('system', 'SoftwareDistribution/DeliveryOptimization', 'tree', ())],
-    'defender_history': [('programdata', 'Microsoft/Windows Defender/Scans/History/Service', 'tree', ())],
     'gpu_shader_cache': [('local', 'D3DSCache', 'tree', ()), ('local', 'NVIDIA/DXCache', 'tree', ()), ('local', 'NVIDIA/GLCache', 'tree', ()),
                          ('local', 'AMD/DxCache', 'tree', ()), ('local', 'AMD/GLCache', 'tree', ())],
     # Avançado
@@ -468,8 +467,9 @@ def _scan_recycle(execute, cutoff, policy, notify):
 
 
 def _run(args, timeout=120, text=True):
-    return subprocess.run(args, capture_output=True, text=text, timeout=timeout, creationflags=NO_WINDOW,
-                          encoding='utf-8' if text else None, errors='replace' if text else None)
+    from arcoll_programs import run_tracked  # executor único com cancelamento (derruba a árvore de processos)
+    return run_tracked(args, timeout=timeout, text=text, creationflags=NO_WINDOW,
+                       encoding='utf-8' if text else None, errors='replace' if text else None)
 
 
 def _powershell(script, timeout=180):

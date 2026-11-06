@@ -6,7 +6,7 @@ import os, sys, json, time, socket, platform, threading, subprocess, urllib.requ
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
-import sqlite3, statistics, math, urllib.parse, queue, codecs, tempfile, base64
+import sqlite3, statistics, math, urllib.parse, queue, codecs, tempfile, base64, secrets
 from contextlib import contextmanager
 try:
  from rt_engine import RealtimeNetworkWatcher
@@ -26,6 +26,34 @@ CFG_PATH=Path(os.environ.get('APPDATA',str(Path.home()))) / 'Arcoll' / 'agent.js
 DATA_DIR=Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / 'Arcoll'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 HISTORY_DB=DATA_DIR/'desktop-history.sqlite3'
+# O cache contém apenas identidade visual publicada; nunca credenciais.
+VISUAL_CACHE=DATA_DIR/'desktop-visual-theme.json'
+
+
+def _load_cached_visual_theme():
+ try:
+  if not VISUAL_CACHE.is_file() or time.time()-VISUAL_CACHE.stat().st_mtime>30*86400:return None
+  data=json.loads(VISUAL_CACHE.read_text(encoding='utf-8'))
+  if not isinstance(data,dict):return None
+  if data.get('origin')!=ORIGIN or data.get('site_code')!=SITE_CODE:return None
+  if data.get('id') not in ('windows','ocean','crystal','graphite','neon','emerald'):return None
+  if data.get('mode') not in ('theme','auto','light','dark'):return None
+  return data
+ except (OSError,ValueError,TypeError):return None
+
+
+def _cache_visual_theme(visual):
+ try:
+  # Persistência atômica, evitando arquivos truncados ao desligar o Windows.
+  clean={'origin':ORIGIN,'site_code':SITE_CODE,'id':visual['id'],'mode':visual['mode']}
+  if _load_cached_visual_theme()==clean:return
+  with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=str(DATA_DIR),prefix='.visual-',suffix='.tmp',delete=False) as handle:
+   target=handle.name
+   json.dump(clean,handle,ensure_ascii=False)
+  try:os.replace(target,VISUAL_CACHE)
+  finally:
+   if os.path.exists(target):os.unlink(target)
+ except (OSError,ValueError,TypeError,KeyError):pass
 @contextmanager
 def history_db(timeout=15):
  connection=sqlite3.connect(HISTORY_DB,timeout=timeout)
@@ -47,6 +75,17 @@ APP_DESCRIPTION=str(BUNDLED_CFG.get('system_description') or CFG.get('system_des
 # preenche a URL, sem substituir o fingerprint autorizado ou a chave revogável.
 for _key in ('origin','site_code','download_key','system_name','system_description'):
  if not CFG.get(_key) and BUNDLED_CFG.get(_key):CFG[_key]=BUNDLED_CFG[_key]
+# Um instalador NOVO (chave diferente da última já adotada) é a vontade mais recente do gestor:
+# ele substitui rede/chave antigas e descarta pedidos de vinculação anteriores.
+# Pedidos aprovados depois disso continuam valendo, pois a chave do pacote não muda.
+_CFG_ADOPTED_PACKAGE=False
+_bundled_key=str(BUNDLED_CFG.get('download_key') or '')
+if re.fullmatch(r'[a-fA-F0-9]{64}',_bundled_key) and CFG.get('bundled_download_key')!=_bundled_key:
+ for _key in ('site_code','download_key'):
+  if BUNDLED_CFG.get(_key):CFG[_key]=BUNDLED_CFG[_key]
+ CFG.pop('rebind_enrollment_secret',None);CFG.pop('rebind_site_code',None)
+ CFG['bundled_download_key']=_bundled_key
+ _CFG_ADOPTED_PACKAGE=True
 
 ORIGIN=str(CFG.get('origin') or os.environ.get('ARCOLL_ORIGIN','')).rstrip('/')
 if not ORIGIN.startswith('https://'):ORIGIN=''
@@ -64,10 +103,104 @@ if not FINGERPRINT:
  raw=raw or '|'.join((platform.node(),platform.system(),platform.machine()))
  FINGERPRINT=hashlib.sha256(('arcoll-speed-connection|'+raw).encode()).hexdigest()
 
+def save_agent_configuration(updated):
+ """Grava credenciais em arquivo local de maneira atômica (nunca no diretório público)."""
+ CFG_PATH.parent.mkdir(parents=True, exist_ok=True)
+ file_name=None
+ try:
+  with tempfile.NamedTemporaryFile('w',encoding='utf-8',dir=str(CFG_PATH.parent),prefix='.agent-',suffix='.tmp',delete=False) as output:
+   file_name=output.name
+   json.dump(updated,output,ensure_ascii=False,indent=2)
+  os.replace(file_name,CFG_PATH)
+ except Exception:
+  if file_name:
+   try:os.unlink(file_name)
+   except OSError:pass
+  raise
+
+if _CFG_ADOPTED_PACKAGE:
+ try:save_agent_configuration(CFG)
+ except Exception:pass
+
+def request_agent_rebind(site_code):
+ """O código local inicia solicitação pendente; nunca equivale a autorização."""
+ code=site_code.strip().upper()
+ if not re.fullmatch(r'[A-Z0-9]{5}',code):raise ValueError('O código local deve conter cinco letras ou números.')
+ if not ORIGIN:raise ValueError('Servidor do agente não configurado.')
+ secret=str(CFG.get('rebind_enrollment_secret') or '')
+ old_code=str(CFG.get('rebind_site_code') or '')
+ if not re.fullmatch(r'[a-f0-9]{64}',secret) or old_code!=code:secret=secrets.token_hex(32)
+ response=request_json(ORIGIN+'/api/api.php?action=agent-rebind-request',{
+  'fingerprint':FINGERPRINT,'site_code':code,'enrollment_secret':secret,
+  'machine_name':platform.node()},timeout=15)
+ if not response.get('ok'):raise ValueError(str(response.get('error') or 'Servidor recusou solicitação.'))
+ updated=dict(CFG,rebind_enrollment_secret=secret,rebind_site_code=code)
+ save_agent_configuration(updated)
+ CFG.update(updated)
+ return response
+
+def check_agent_rebind(timeout=7):
+ global SITE_CODE, DOWNLOAD_KEY
+ secret=str(CFG.get('rebind_enrollment_secret') or '')
+ code=str(CFG.get('rebind_site_code') or '')
+ if not (re.fullmatch(r'[a-f0-9]{64}',secret) and re.fullmatch(r'[A-Z0-9]{5}',code)):return None
+ try:
+  response=request_json(ORIGIN+'/api/api.php?action=agent-rebind-poll',{
+   'fingerprint':FINGERPRINT,'site_code':code,'enrollment_secret':secret},timeout=timeout)
+  if not response.get('ok'):return 'rebind_pending'
+  status=str(response.get('status') or 'pending')
+  if status=='approved':
+   next_cfg=dict(CFG,site_code=code,download_key=secret)
+   next_cfg.pop('rebind_enrollment_secret',None)
+   next_cfg.pop('rebind_site_code',None)
+   save_agent_configuration(next_cfg)
+   CFG.clear();CFG.update(next_cfg)
+   # A credencial aprovada passa a valer imediatamente para todas as chamadas deste processo.
+   SITE_CODE=code
+   DOWNLOAD_KEY=secret
+   return None
+  return 'rebind_rejected' if status=='rejected' else 'rebind_pending'
+ except Exception:return 'rebind_pending'
+
+# Cadastro inicial: a autorização do gestor continua obrigatória. O registro
+# apenas cria a solicitação pendente que é exibida em Redes > Liberação.
+_REGISTRATION_NEXT_ATTEMPT=0.0
+_REGISTRATION_ERROR=''
+def register_installation(timeout=7):
+ global _REGISTRATION_NEXT_ATTEMPT, _REGISTRATION_ERROR
+ if time.monotonic() < _REGISTRATION_NEXT_ATTEMPT:
+  return None
+ if not (ORIGIN and re.fullmatch(r'[A-Z0-9]{5}',SITE_CODE)
+         and re.fullmatch(r'[a-f0-9]{64}',DOWNLOAD_KEY.lower())):
+  return None
+ _REGISTRATION_NEXT_ATTEMPT=time.monotonic()+60
+ try:
+  response=request_json(ORIGIN+'/api/api.php?action=agent-register',{
+   'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,
+   'machine_name':platform.node(),'platform':platform.system() or 'Windows',
+   'version':AGENT_VERSION},timeout=timeout)
+  if not response.get('ok'):
+   _REGISTRATION_ERROR=str(response.get('error') or 'Cadastro recusado.')[:200]
+   return None
+  _REGISTRATION_ERROR=''
+  return str(response.get('status') or 'pending').lower()
+ except urllib.error.HTTPError as exc:
+  try:
+   details=json.loads(exc.read(4096).decode('utf-8','replace'))
+   _REGISTRATION_ERROR=str(details.get('error') or 'Cadastro recusado.')[:200]
+  except (ValueError,OSError):
+   _REGISTRATION_ERROR='Cadastro recusado pelo servidor (HTTP %d).' % exc.code
+  return None
+ except (urllib.error.URLError,TimeoutError,OSError,ValueError) as exc:
+  _REGISTRATION_ERROR='Falha de comunicação no cadastro: '+str(exc)[:140]
+  return None
+
 # Validação separada do canal de comandos: 403 nos comandos não informa o estado da instalação.
 INSTALL_FLAGS={'uninstall':False}
 def verify_installation_status(timeout=7):
  """Estado da instalação: approved, ui_locked (tela com login), uninstall (remoção ordenada), blocked, rejected, pending..."""
+ pending=check_agent_rebind(timeout=timeout)
+ if pending:return pending
  if not (ORIGIN and SITE_CODE and DOWNLOAD_KEY):
   return 'unavailable'
  url=ORIGIN+'/api/api.php?action=agent-poll'
@@ -81,8 +214,14 @@ def verify_installation_status(timeout=7):
   if INSTALL_FLAGS['uninstall']:return 'uninstall'
   return 'ui_locked' if result.get('ui_locked') and result.get('status')=='approved' else str(result.get('status') or 'unavailable').lower()
  except urllib.error.HTTPError as error:
-  # Fail closed para HTTP 403: a instalação não pode abrir a interface sem autorização.
-  if error.code==403:return 'unauthorized'
+  # Sem registro, a API não cria a solicitação de aprovação espontaneamente.
+  # Uma chave de instalação válida registra o computador como PENDENTE,
+  # nunca o autoriza: somente o gestor pode aprovar em Redes > Liberação.
+  if error.code in (403,404):
+   registration=register_installation(timeout=timeout)
+   if registration in ('pending','approved','blocked','rejected'):
+    return registration
+   return 'unauthorized'
   return 'unavailable'
  except (urllib.error.URLError,TimeoutError,ValueError,OSError):
   return 'unavailable'
@@ -657,19 +796,23 @@ class SystemMetrics:
 class ArcollApp:
  def __init__(self):
   self.root=tk.Tk(); self.root.withdraw(); self.root.title(APP_NAME);
-  self.root.minsize(820,560); bind_theme(self.root, background='bg').configure(bg=theme_color('bg'))
+  self.root.minsize(640,440); bind_theme(self.root, background='bg').configure(bg=theme_color('bg'))
   width,height=1080,720
   sx,sy=self.root.winfo_screenwidth(),self.root.winfo_screenheight()
-  width=min(width,max(820,sx-48));height=min(height,max(560,sy-96))
+  width=min(width,max(640,sx-48));height=min(height,max(440,sy-96))
   self.root.geometry(f'{width}x{height}+{max(0,(sx-width)//2)}+{max(0,(sy-height)//2)}')
+  # Inicializa as cores ANTES de construir as abas, inclusive sem Internet.
+  self.appearance=AppearanceManager(self.root,AGENT_VERSION,controls=False,restyle=self._style)
+  cached=_load_cached_visual_theme()
+  if cached:self.appearance.set_remote_theme(cached['id'],cached['mode'])
   self.stop_event=threading.Event(); self.samples=[]; self.devices=[]; self.alerts=[]; self.running=True; self.monitor_on=True; self.agent_proc=None; self.last_status='Verificando autorização'; self._auth_status='checking'; self._auth_error=''; self._command_poll_busy=False; self._last_command_error=''; self.last_sync='Ainda não sincronizado'; self.latency='--'; self.loss='0%'; self.last_error=''; self.scan_running=False; self.speed_busy=False; self.session_started=time.time();self.last_alert_sent=0; self.monitor_interval=5; self.alert_threshold=150; self._init_history_db(); self._load_history()
-  self._style(); self._modern_header(); self._enable_custom_chrome(); self._tabs(); self._footer(); self._animate_ui(); self._fade_in()
+  self._style(); self._enable_custom_chrome(); self._tabs(); self._footer(); self._animate_ui(); self._fade_in()
   self.allowed_remote_tabs=None;self.latest_release=None
   try:
    if (ROOT/'favicon.ico').is_file(): self.root.iconbitmap(default=str(ROOT/'favicon.ico'))
   except Exception: pass
   self.root.bind('<Control-q>',lambda _event:self.hide_window())
-  self.root.protocol('WM_DELETE_WINDOW',self.hide_window); self.tray=None; self.tray_ready=False; self._focus_server=None; self._start_focus_server(); self._start_tray(); self.root.after(100,self.hide_window)
+  self.root.protocol('WM_DELETE_WINDOW',self.hide_window); self.tray=None; self.tray_ready=False; self._focus_server=None; self._start_focus_server(); self._start_tray(); self.root.after(100,self.show_window)
   self._install_tooltips()
   self._presence_worker=threading.Thread(target=self._presence_loop,daemon=True)
   self._presence_worker.start()
@@ -694,7 +837,6 @@ class ArcollApp:
   self.cloud_backup=None
   self.root.after(800,self._start_cloud_backup)
   self.root.after(1200,self._refresh_platform_config)
-  self.appearance=AppearanceManager(self.root,AGENT_VERSION,controls=False,restyle=self._style)
   self._refresh_title_and_theme()
   self.root.mainloop()
  def _confirm_installed_update(self):
@@ -720,8 +862,8 @@ class ArcollApp:
  def _presence_loop(self):
   # Canal de presença separado da telemetria e da interface, sem acumular registros.
   if not (ORIGIN and SITE_CODE and DOWNLOAD_KEY):return
-  body={'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'state':'online','version':AGENT_VERSION}
   while not self.stop_event.is_set():
+   body={'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'state':'online','version':AGENT_VERSION}
    try:
     request_json(ORIGIN+'/api/api.php?action=agent-presence',body,timeout=3)
    except Exception:pass
@@ -734,7 +876,6 @@ class ArcollApp:
   de administrador, então o próprio componente se atualiza: aqui apenas o avisamos, sem enviar código.
   """
   if platform.system()!='Windows' or not (ORIGIN and SITE_CODE and DOWNLOAD_KEY):return
-  creds={'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY}
   warned='';announced=''
   self.stop_event.wait(20)
   while not self.stop_event.is_set():
@@ -745,13 +886,13 @@ class ArcollApp:
      helper=str(info.get('version') or '');core=str(info.get('core_version') or '')
      if helper!=AGENT_VERSION or (core and core!=AGENT_VERSION):
       if info.get('self_update'):
-       request_helper_update(creds)
+       request_helper_update({'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY})
        if announced!=helper+'|'+core:
         announced=helper+'|'+core
         self.log('Componentes do sistema (tela segura v%s, núcleo v%s) divergem do agente v%s: atualização solicitada.'%(helper or '?',core or '-',AGENT_VERSION))
       elif warned!=helper:
        warned=helper
-       self.log('O componente da tela segura (v%s) é anterior ao agente (v%s) e não se atualiza sozinho. Execute uma vez o Instalar.bat do painel como administrador.'%(helper or '?',AGENT_VERSION))
+       self.log('O componente da tela segura (v%s) é anterior ao agente (v%s) e não se atualiza sozinho. Execute uma vez o instalador (.exe) baixado no painel como administrador.'%(helper or '?',AGENT_VERSION))
    except Exception:pass
    self.stop_event.wait(600 if not info else 120)
 
@@ -914,6 +1055,13 @@ class ArcollApp:
   """Bloqueia apenas o painel local; mantém conectividade, monitoramento e serviços do agente em execução."""
   previous=getattr(self,'_installation_status','checking')
   self._installation_status=state
+  if state in ('approved','ui_locked') and previous not in ('approved','ui_locked','checking'):
+   # A autorização remota libera a própria janela, sem reinicialização manual.
+   self.root.after_idle(self.show_window)
+   backup=getattr(self,'cloud_backup',None)
+   if backup is not None:
+    backup.queue_credentials(FINGERPRINT,SITE_CODE,DOWNLOAD_KEY)
+   self.root.after(0,lambda:self._refresh_platform_config(once=True))
   if state!='ui_locked':self._local_login_granted=False
   locked=state!='approved' and not (state=='ui_locked' and self._local_login_granted)
   if not locked:
@@ -936,16 +1084,16 @@ class ArcollApp:
  def _build_lock_overlay(self,state):
   layer=tk.Frame(self.root,bg='#1f2a36')
   layer.place(relx=0,rely=0,relwidth=1,relheight=1)
-  panel=tk.Frame(layer,bg='#283643',padx=36,pady=28,highlightthickness=1,highlightbackground='#3f5568')
+  panel=tk.Frame(layer,bg='#283643',padx=16,pady=12,highlightthickness=1,highlightbackground='#3f5568')
   panel.place(relx=.5,rely=.5,anchor='center')
-  tk.Label(panel,text='\N{LOCK}',font=('Segoe UI Symbol',30),fg='#dfe5ec',bg='#283643').pack(pady=(0,6))
+  tk.Label(panel,text=APP_NAME,font=('Segoe UI',13,'bold'),fg='#dfe5ec',bg='#283643').pack(pady=(0,6))
   if state=='ui_locked':
    tk.Label(panel,text='Acesso protegido',font=('Segoe UI',17,'bold'),fg='#fff',bg='#283643').pack()
    tk.Label(panel,text='Entre com o usuário e a senha autorizados pela rede.',font=('Segoe UI',10),fg='#ced7e2',bg='#283643').pack(pady=(6,14))
    tk.Label(panel,text='Usuário (e-mail)',font=('Segoe UI',9),fg='#aebccb',bg='#283643',anchor='w').pack(fill='x')
-   email=tk.Entry(panel,width=34,font=('Segoe UI',11),relief='flat');email.pack(pady=(3,9),ipady=4)
+   email=tk.Entry(panel,width=27,font=('Segoe UI',11),relief='flat');email.pack(pady=(3,9),ipady=4)
    tk.Label(panel,text='Senha',font=('Segoe UI',9),fg='#aebccb',bg='#283643',anchor='w').pack(fill='x')
-   password=tk.Entry(panel,width=34,font=('Segoe UI',11),show='•',relief='flat');password.pack(pady=(3,8),ipady=4)
+   password=tk.Entry(panel,width=27,font=('Segoe UI',11),show='•',relief='flat');password.pack(pady=(3,8),ipady=4)
    status=tk.Label(panel,text='',font=('Segoe UI',9),fg='#ff9aa6',bg='#283643',wraplength=300,justify='left');status.pack(fill='x')
    button=tk.Button(panel,text='Entrar',bg='#1a789d',fg='white',activebackground='#1f8fba',activeforeground='white',relief='flat',font=('Segoe UI',10,'bold'),padx=30,pady=8,cursor='hand2')
    button.pack(pady=(10,0))
@@ -981,7 +1129,46 @@ class ArcollApp:
    tk.Label(panel,text='A remoção deste agente foi solicitada pelo gestor da rede.',font=('Segoe UI',10),fg='#ced7e2',bg='#283643',wraplength=320).pack(pady=(8,0))
   else:
    tk.Label(panel,text='Acesso indisponível',font=('Segoe UI',17,'bold'),fg='#fff',bg='#283643').pack()
-   tk.Label(panel,text='Aguarde a autorização da rede.',font=('Segoe UI',10),fg='#ced7e2',bg='#283643').pack(pady=(8,0))
+   tk.Label(panel,text={
+    'pending':'Aguardando autorização do gestor da rede.',
+    'blocked':'Este computador está bloqueado pela gestão da rede.',
+    'rejected':'O cadastro deste computador não foi autorizado.',
+    'unauthorized':(_REGISTRATION_ERROR or 'A credencial deste computador não é válida. Solicite uma nova vinculação.'),
+    'rebind_pending':'Solicitação enviada. Aguarde a liberação do gestor da rede.',
+    'rebind_rejected':'A solicitação foi rejeitada. Consulte o gestor da rede.',
+     'unavailable':'Não foi possível confirmar a autorização. Verifique a conexão.'
+   }.get(state,'Aguarde a autorização da rede.'),font=('Segoe UI',10),fg='#ced7e2',bg='#283643',wraplength=320).pack(pady=(8,0))
+  if state in ('unauthorized','rebind_rejected'):
+   tk.Label(panel,text='Solicitar nova vinculação',font=('Segoe UI',10,'bold'),fg='#dfe5ec',bg='#283643').pack(pady=(15,5))
+   tk.Label(panel,text='Código local da rede',font=('Segoe UI',9),fg='#ced7e2',bg='#283643').pack(anchor='w')
+   network_code=tk.Entry(panel,width=22,font=('Segoe UI',13),relief='flat',justify='center')
+   network_code.pack(pady=(5,8),ipady=5)
+   network_code.insert(0,str(CFG.get('rebind_site_code') or SITE_CODE or ''))
+   feedback=tk.Label(panel,text='',font=('Segoe UI',9),fg='#ff9aa6',bg='#283643',wraplength=310,justify='center')
+   feedback.pack()
+   submit=tk.Button(panel,text='Solicitar liberação',bg='#1a789d',fg='white',activebackground='#1f8fba',relief='flat',font=('Segoe UI',10,'bold'),padx=18,pady=7)
+   submit.pack(pady=(8,0))
+   def enroll(_event=None):
+    code=network_code.get().strip().upper()
+    if not re.fullmatch(r'[A-Z0-9]{5}',code):feedback.config(text='Informe os cinco caracteres do código local.');return
+    submit.config(state='disabled');feedback.config(text='Enviando solicitação...',fg='#ced7e2')
+    def work():
+     try:request_agent_rebind(code);error=''
+     except urllib.error.HTTPError as exc:
+      try:error=str(json.loads(exc.read().decode('utf-8','replace')).get('error') or 'Erro HTTP '+str(exc.code))
+      except Exception:error='Servidor recusou solicitação (HTTP '+str(exc.code)+').'
+     except Exception as exc:error=str(exc)[:180]
+     def done():
+      try:
+       if not layer.winfo_exists():return
+       if error:feedback.config(text=error,fg='#ff9aa6');submit.config(state='normal')
+       else:self._apply_local_lock('rebind_pending')
+      except tk.TclError:pass
+     try:self.root.after(0,done)
+     except (RuntimeError,tk.TclError):pass
+    threading.Thread(target=work,daemon=True).start()
+   submit.config(command=enroll);network_code.bind('<Return>',enroll)
+   network_code.focus_set()
   return layer
  def _local_login_success(self):
   self._local_login_granted=True
@@ -1111,7 +1298,7 @@ class ArcollApp:
   self._workspace=bind_theme(tk.Frame(self.root,bg=theme_color('bg')),background='bg')
   self._workspace.pack(fill='both',expand=True,padx=8,pady=6)
   self.nb=ttk.Notebook(self._workspace)
-  self.nb.pack(side='right',fill='both',expand=True,padx=(8,0))
+  # O Notebook é posicionado após a barra de ações para preservar espaço vertical.
   self.server_page=self._page('Servidor')
   self.dashboard=self._page('Monitoramento')
   self.speed_page=self._page('Velocidade')
@@ -1119,6 +1306,7 @@ class ArcollApp:
   self.map_page=self._page('Mapa')
   self.connection_page=self._page('Conexão')
   self.clean_page=self._page('Clean')
+  self.program_page=self._page('Programas')
   self._setup_settings_button()
   self._apply_tab_visibility()
   self.quick_busy=False
@@ -1129,7 +1317,7 @@ class ArcollApp:
   self._build_map()
   self._build_connection()
   self._build_cleaner()
-  self.nb.hide(self.dashboard)
+  self._build_programs()
   self.nb.select(self.server_page)
 
  def _build_cleaner(self):
@@ -1138,43 +1326,29 @@ class ArcollApp:
   self.cc_frames=[]
   for page,sections,start in ((self.clean_page,['health','custom','uninstall','duplicates','cloud','backup','perf','startup','updater','drivers','windows_update'],'health'),):
    frame=arcoll_cc_ui.CleanerFrame(page,self,sections,start);frame.pack(fill='both',expand=True);self.cc_frames.append(frame)
+ def _build_programs(self):
+  from arcoll_programs import ProgramsPanel
+  self.program_panel=ProgramsPanel(self.program_page,self)
+
  def _start_cloud_backup(self):
-  if not (ORIGIN and SITE_CODE and DOWNLOAD_KEY):return
+  if not (ORIGIN and SITE_CODE and DOWNLOAD_KEY):
+   self.log('Backup em nuvem não iniciado: agente sem vínculo completo com a plataforma.','WARN');return
   try:
    from arcoll_cloud import CloudBackup
    self.cloud_backup=CloudBackup(ORIGIN,FINGERPRINT,SITE_CODE,DOWNLOAD_KEY,self.stop_event)
    threading.Thread(target=self.cloud_backup.loop,name='ArcollCloudBackup',daemon=True).start()
+   self.log('Backup em nuvem iniciado.','INFO')
+   try:
+    from arcoll_vdrive import VirtualDrive
+    self.virtual_drive=VirtualDrive(self.cloud_backup,self.stop_event);self.virtual_drive.start()
+   except Exception as exc:
+    self.virtual_drive=None;self.log('Disco virtual indisponível: %s %s'%(type(exc).__name__,str(exc)[:120]),'WARN')
    for frame in self.cc_frames:
     if frame.section=='backup':frame.show()
-  except (OSError,ValueError,sqlite3.Error):self.log('Backup em nuvem indisponível neste perfil.','WARN')
-
- def cloud_choose_folder(self):
-  def choose():
-   from tkinter import filedialog,messagebox
-   if self.cloud_backup is None:return
-   path=filedialog.askdirectory(parent=self.root,title='Autorizar pasta para backup em nuvem',mustexist=True)
-   if not path:return
-   if not messagebox.askyesno('Autorizar backup','Permitir que os arquivos desta pasta sejam enviados à nuvem configurada na sua rede?\n\n'+path,parent=self.root):return
-   self._cloud_local_task(lambda:self.cloud_backup.authorize(path))
-  self._show_manager_auth('Autorizar pasta de backup',choose)
-
- def cloud_remove_folder(self,path):
-  self._show_manager_auth('Remover autorização de backup',lambda:self._cloud_local_task(lambda:self.cloud_backup.remove_root(path)))
-
- def _cloud_local_task(self,task):
-  def work():
-   try:task();text='Autorização local atualizada. Ative o backup na plataforma.'
-   except Exception as exc:
-    from arcoll_cloud import CloudError
-    text=str(exc) if isinstance(exc,CloudError) else 'Não foi possível concluir. Verifique as pastas e a conexão; publique novamente se necessário.'
-   self.root.after(0,lambda:self._cloud_local_notice(text))
-  threading.Thread(target=work,daemon=True).start()
-
- def _cloud_local_notice(self,text):
-  from tkinter import messagebox
-  messagebox.showinfo('Backup em Nuvem',text,parent=self.root)
-  for frame in self.cc_frames:
-   if frame.section=='backup':frame.show()
+  except Exception as exc:   # ImportError, RuntimeError (VERSION), sqlite3.Error, ValueError, OSError...
+   self.cloud_backup=None
+   self.log('Backup em nuvem indisponível neste perfil: %s %s'%(type(exc).__name__,str(exc)[:140]),'WARN')
+   self.root.after(120000,self._start_cloud_backup)   # nova tentativa; evita ficar parado até reiniciar o agente
 
  def _cc_post(self,action,body):
   def work():
@@ -1191,6 +1365,7 @@ class ArcollApp:
    except Exception:pass
  def cc_progress_remote(self,text):
   """Espelha a execução remota na tela Clean do agente, na thread de interface."""
+  if getattr(self,'program_panel',None):self.program_panel.status(str(text) if str(text).startswith('@@ARP@@') else 'Operação remota · '+str(text)[:170])
   for frame in getattr(self,'cc_frames',[]):
    def display(f=frame,t=str(text)):
     try:
@@ -1198,43 +1373,48 @@ class ArcollApp:
       if f.section!='windows_update' and not f.busy:f.go('windows_update')
      f.status('Execução remota · '+t[:170])
      f.remote_activity='Execução remota · '+t[:170]
-     try:self.nb.select(self.clean_page)
+     try:self.nb.select(self.program_page if 'programa' in t.lower() or 'instala' in t.lower() else self.clean_page)
      except Exception:pass
      if not f.busy and f.section=='windows_update':f.show()
     except Exception:pass
    try:frame.post(display)
    except Exception:pass
  def _setup_settings_button(self):
-  """Navegação lateral única; o Notebook conserva os conteúdos e as permissões originais."""
-  self._toolbar=bind_theme(tk.Frame(self._workspace,bg=theme_color('surface'),width=150),background='surface')
-  self._toolbar.pack(side='left',fill='y');self._toolbar.pack_propagate(False)
-  self._tab_nav=bind_theme(tk.Frame(self._toolbar,bg=theme_color('surface')),background='surface')
-  self._tab_nav.pack(fill='both',expand=True,padx=6,pady=12)
+  """Abas e ações globais em uma única linha, sem cabeçalho redundante."""
   self._nav_buttons={}
-  nav_items=[('Servidor',self.server_page),('Monitoramento',self.dashboard),('Velocidade',self.speed_page),('Dispositivos',self.devices_page),('Mapa',self.map_page),('Conexão',self.connection_page),('Clean',self.clean_page)]
-  symbols={'Servidor':'▣','Monitoramento':'◷','Velocidade':'ϟ','Dispositivos':'▦','Mapa':'◇','Conexão':'⇄','Clean':'✦'}
-  for label,page in nav_items:
-   button=bind_theme(tk.Button(self._tab_nav,text=symbols[label]+'  '+label,anchor='w',font=('Segoe UI',10,'bold'),relief='flat',bd=0,padx=10,pady=12,cursor='hand2',bg=theme_color('surface'),fg=theme_color('text'),activebackground=theme_color('alt'),activeforeground=theme_color('accent'),command=lambda p=page:self.nb.select(p)),background='surface',foreground='text',activebackground='alt',activeforeground='accent')
-   button.pack(fill='x',pady=2);self._nav_buttons[label]=(button,page)
-  actions=bind_theme(tk.Frame(self._toolbar,bg=theme_color('surface')),background='surface');actions.pack(side='bottom',fill='x',padx=6,pady=10)
-  for text,description,command in [('Acesso remoto','Permitir acesso remoto',self._show_support_code),('Atualizar','Atualizar agente',self.update_agent),('◐ Aparência','Alternar aparência',self._cycle_appearance)]:
-   button=self.btn(actions,text,command);button.pack(fill='x',pady=3);button.arc_tooltip=description
-   if description=='Alternar aparência':self._theme_button=button
-   if description=='Atualizar agente':self._update_button=button
-  self.nb.bind('<<NotebookTabChanged>>',lambda _e:self._refresh_navigation(),add='+')
-  style=ttk.Style(self.root);style.layout('Compact.TNotebook.Tab',[])
-  style.configure('Compact.TNotebook',tabmargins=(0,0,0,0),borderwidth=0)
-  self.nb.configure(style='Compact.TNotebook');self.root.after(200,self._refresh_navigation)
+  style=ttk.Style(self.root)
+  style.configure('Compact.TNotebook',tabmargins=(0,2,0,0),borderwidth=0)
+  style.configure('Compact.TNotebook.Tab',padding=(6,5),font=('Segoe UI',8,'bold'))
+  self.nb.configure(style='Compact.TNotebook')
+  self.nb.pack(side='top',fill='both',expand=True)
+  actions=bind_theme(tk.Frame(self._workspace,bg=theme_color('bg')),background='bg')
+  self._quick_actions=actions
+  for symbol,description,command,kind in [('⌁','Acesso remoto',self._show_support_code,'remote'),('⟳','Atualizar agente',self.update_agent,'update'),('◐','Alternar aparência',self._cycle_appearance,'theme')]:
+   button=self.btn(actions,symbol,command)
+   button.configure(font=('Segoe UI Symbol',12,'bold'),padx=7,pady=2,width=2)
+   button.pack(side='left',padx=2,pady=1)
+   button.arc_tooltip=description
+   if kind=='theme':self._theme_button=button
+   if kind=='update':self._update_button=button
+  # As ações ocupam a extremidade direita da mesma faixa de abas.
+  actions.place(in_=self.nb,relx=1.0,x=-5,y=1,anchor='ne')
+  actions.lift()
+  self.root.bind('<Configure>',self._resize_tabs,add='+')
+
+ def _resize_tabs(self,event):
+  """Compacta somente a tipografia das abas em janelas pequenas, sem ocultar páginas."""
+  if event.widget is not self.root:return
+  compact=event.width<930
+  labels=('Servidor','Monitoramento','Velocidade','Dispositivos','Mapa','Conexão','Clean','Programas')
+  short=('Serv.','Monit.','Veloc.','Dispos.','Mapa','Conex.','Clean','Prog.')
+  for page,label in zip((self.server_page,self.dashboard,self.speed_page,self.devices_page,self.map_page,self.connection_page,self.clean_page,self.program_page),short if compact else labels):
+   try:self.nb.tab(page,text=label)
+   except tk.TclError:pass
+  ttk.Style(self.root).configure('Compact.TNotebook.Tab',padding=(3,4) if compact else (6,5),font=('Segoe UI',7 if compact else 8,'bold'))
 
  def _refresh_navigation(self):
-  for label,(button,page) in getattr(self,'_nav_buttons',{}).items():
-   try:
-    visible=str(page) in self.nb.tabs() and self.nb.tab(page,'state')!='hidden'
-    if visible and not button.winfo_manager():button.pack(side='top',fill='x',pady=2)
-    elif not visible:button.pack_forget()
-    selected=str(self.nb.select())==str(page)
-    button.configure(bg=theme_color('surface') if selected else theme_color('alt'),fg=theme_color('accent') if selected else theme_color('text'))
-   except tk.TclError:pass
+  """Visibilidade das abas é administrada diretamente pelo Notebook."""
+  return
 
  def _cycle_appearance(self):
   if not hasattr(self,'appearance'):return
@@ -1253,7 +1433,12 @@ class ArcollApp:
     hwnd=self.root.winfo_id();value=ctypes.c_int(1 if getattr(self.appearance,'resolved','dark')=='dark' else 0)
     ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd,20,ctypes.byref(value),ctypes.sizeof(value))
   except (OSError,AttributeError,ValueError):pass
-  try:self._theme_button.config(text={'auto':'◐ Automático','dark':'☾ Escuro','light':'☀ Claro'}.get(self.appearance.choice,'◐ Aparência'))
+  try:
+   managed=getattr(self.appearance,'remote_choice',None) is not None
+   if managed:
+    self._theme_button.config(text='◈',state='disabled')
+   else:
+    self._theme_button.config(text={'auto':'◐','dark':'☾','light':'☀'}.get(self.appearance.choice,'◐'),state='normal')
   except (AttributeError,tk.TclError):pass
 
  def _apply_tab_visibility(self):
@@ -1266,7 +1451,7 @@ class ArcollApp:
   return [('Servidor',self.server_page),
           ('Velocidade',self.speed_page),('Dispositivos',self.devices_page),
           ('Mapa',self.map_page),('Conexão',self.connection_page),
-          ('Clean',self.clean_page)]
+          ('Clean',self.clean_page),('Programas',self.program_page)]
  def _center_dialog(self, dlg, width, height):
   # Centraliza no monitor que contém a janela principal, mesmo que esteja oculta.
   self.root.update_idletasks()
@@ -1983,7 +2168,7 @@ class ArcollApp:
     self.agent_proc=subprocess.Popen([sys.executable,str(script),'--origin',ORIGIN],cwd=str(ROOT),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags)
     self.log('Serviço local iniciado automaticamente.')
    except Exception as e: self.log('Não foi possível iniciar serviço local: '+str(e),'ERROR')
- def _refresh_platform_config(self):
+ def _refresh_platform_config(self,once=False):
   if self.stop_event.is_set():return
   if ORIGIN and SITE_CODE and DOWNLOAD_KEY:
    def work():
@@ -1995,7 +2180,7 @@ class ArcollApp:
     except Exception as exc:
      self.root.after(0,lambda err=str(exc):self.log('Configuração remota indisponível: '+err[:110]))
    threading.Thread(target=work,daemon=True).start()
-  self.root.after(60000,self._refresh_platform_config)
+  if not once:self.root.after(60000,self._refresh_platform_config)
  def _show_support_code(self):
   win=tk.Toplevel(self.root);win.title('Permitir acesso remoto');win.resizable(False,False);bind_theme(win,background='bg').configure(bg=theme_color('bg'));self._center_dialog(win,370,200);code=tk.StringVar(value='Gerando…');bind_theme(tk.Label(win,text='CÓDIGO DE ACESSO REMOTO',font=('Segoe UI',10,'bold'),bg=theme_color('bg'),fg=theme_color('muted')),background='bg',foreground='muted').pack(pady=(22,5));bind_theme(tk.Label(win,textvariable=code,font=('Segoe UI',29,'bold'),bg=theme_color('bg'),fg=theme_color('accent')),background='bg',foreground='accent').pack(expand=True);bind_theme(tk.Label(win,text='Uso único · válido por 3 minutos · confirmação local',font=('Segoe UI',9),bg=theme_color('bg'),fg=theme_color('muted')),background='bg',foreground='muted').pack(pady=(0,18))
   def work():
@@ -2019,6 +2204,14 @@ class ArcollApp:
    if hasattr(self,'appearance'):self.appearance.apply()
    apply_platform_icon(self.root,ORIGIN,self._platform_design)
    if hasattr(self,'appearance'):self._refresh_title_and_theme()
+  visual=data.get('visual_theme')
+  if isinstance(visual,dict) and hasattr(self,'appearance'):
+   theme_id=visual.get('id')
+   mode=visual.get('mode','theme')
+   if theme_id in ('windows','ocean','crystal','graphite','neon','emerald') and mode in ('theme','auto','light','dark'):
+    self.appearance.set_remote_theme(theme_id,mode)
+    _cache_visual_theme({'id':theme_id,'mode':mode})
+    self._refresh_title_and_theme()
   # Parâmetros administrados por rede na plataforma, sem preferências locais.
   try:
    seconds=data.get('monitor_interval_seconds',data.get('monitor_refresh'))
@@ -2155,6 +2348,34 @@ class ArcollApp:
   ident=int(command.get('id',0));name=str(command.get('command_name',''))
   if ident and name:
    self._operation_message('remote','Solicitação recebida: '+name.replace('_',' '))
+  first_tab=(self.nb.tabs() or (self.server_page,))[0]
+  remote_pages={
+   'program_inventory':first_tab,'program_uninstall':first_tab,'program_install':first_tab,
+   'clean_scan':first_tab,'clean_execute':first_tab,'clean_tool':first_tab,
+   'windows_update':self.clean_page,'agent_update':self.clean_page,
+   'file_browser':self.clean_page,'cloud_folders':self.clean_page,'file_transfer':self.clean_page,
+   'file_bundle':self.clean_page,'file_execute':self.clean_page,'file_operation':self.clean_page,
+   'terminal_diagnostic':self.connection_page,'toolkit':self.connection_page,
+   'toolkit_traceroute':self.connection_page,'toolkit_services':self.connection_page,
+   'toolkit_health':self.connection_page,'toolkit_troubleshooter':self.connection_page,
+   'remote_assistance':self.dashboard,'screen_lock':self.server_page,
+   'monitor_start':self.server_page,'monitor_pause':self.server_page,
+   'speed_test':self.speed_page,'scan_devices':self.devices_page,
+   'scan_map':self.map_page,'diagnostic':self.connection_page}
+  if name:
+   try:
+    self.nb.select(remote_pages.get(name,self.server_page))
+    self.show_window()
+   except tk.TclError:pass
+  if name in ('clean_scan','clean_execute','clean_tool','program_uninstall','windows_update'):
+   for frame in getattr(self,'cc_frames',[]):
+    try:
+     section={'program_inventory':'uninstall','program_uninstall':'uninstall','program_install':'updater',
+      'clean_scan':'health','clean_execute':'health','clean_tool':'custom',
+      'windows_update':'windows_update'}[name]
+     if not frame.busy:frame.go(section)
+     frame.status('Comando da plataforma recebido: '+name.replace('_',' '))
+    except (AttributeError,tk.TclError):pass
   unattended=bool(int(command.get('headless_mode') or 0)) and command.get('requester_role') in ('owner','administrator')
   if unattended and not command.get('_verified') and name!='remote_assistance':
    def verify():
@@ -2166,12 +2387,14 @@ class ArcollApp:
      self.root.after(0,lambda:self._run_remote_command(verified))
     except Exception as exc:self._ack_remote_command(ident,'failed',str(exc)[:160])
    threading.Thread(target=verify,daemon=True).start();return
-  if name in ('program_inventory','program_uninstall','clean_scan','clean_execute','clean_tool'):
+  if name in ('program_inventory','program_uninstall','program_install','clean_scan','clean_execute','clean_tool'):
    self._request_program_operation(ident,name,command.get('request_text',''),unattended=unattended);return
   if name in ('power_shutdown','power_restart','power_cancel'):
    self._request_power_action(ident,name,headless=bool(int(command.get('headless_mode') or 0)),role=str(command.get('requester_role') or ''),request_text=command.get('request_text',''));return
   if name=='file_browser':
    self._request_file_browser(ident,command);return
+  if name=='cloud_folders':
+   self._request_cloud_folders(ident,command);return
   if name=='file_transfer':
    self._request_file_transfer(ident,unattended=unattended);return
   if name=='file_bundle':
@@ -2183,7 +2406,11 @@ class ArcollApp:
   if name in ('screen_lock','windows_update'):
    self._request_windows_action(ident,name,command.get('request_text',''),unattended=unattended);return
   if name=='agent_update':
-   self.update_agent(remote_command_id=ident);return
+   try:
+    update_request=json.loads(command.get('request_text') or '{}')
+    force= isinstance(update_request,dict) and update_request.get('mode')=='force'
+   except (TypeError,ValueError):force=False
+   self.update_agent(remote_command_id=ident,force=force);return
   if name=='remote_assistance':
    self._request_remote_assistance(ident,headless=bool(int(command.get('headless_mode') or 0)),requester_role=str(command.get('requester_role') or ''),requester_name=str(command.get('requester_name') or ''));return
   if name=='terminal_diagnostic':
@@ -2224,30 +2451,43 @@ class ArcollApp:
    if status=='failed' and name=='speed_test':self._remote_speed_command=None
    if status=='failed' and name in ('scan_devices','scan_map'):self._remote_scan_command=None
    self._ack_remote_command(ident,status,result)
- def _progress_remote_command(self,ident,text,last=[0.0]):
+ def _progress_remote_command(self,ident,text):
   """Andamento de operações longas (Programas/Clean): o solicitante vê o texto enquanto o comando segue em execução."""
   now=time.monotonic()
-  if now-last[0]<3:return
-  last[0]=now
+  if now-getattr(self,'_last_remote_progress',{}).get(ident,0)<3:return
+  if not hasattr(self,'_last_remote_progress'):self._last_remote_progress={}
+  self._last_remote_progress[ident]=now
   try:request_json(ORIGIN+'/api/api.php?action=agent-command-ack',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident,'status':'running','result':str(text)[:480]},timeout=8)
   except Exception:pass
  def _request_program_operation(self,ident,name,request_text='',unattended=False):
   """Autonomous inventory / requested uninstall / clean; Windows registry IDs are rechecked locally."""
   def work():
+   stop_watch=threading.Event()
    try:
     if not unattended:raise PermissionError('Modo sem monitor e administrador necessários.')
     auth={'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident}
     verified=request_json(ORIGIN+'/api/api.php?action=agent-command-authorize',auth,timeout=12)
     if not verified.get('ok') or verified.get('command')!=name:raise PermissionError('Autorização revogada.')
     payload=json.loads(verified.get('request_text') or '{}')
-    last_check=[0.0]
+    import arcoll_programs
+    arcoll_programs.reset_cancel()
+    self._active_program_command=ident
+    def watch():
+     # Vigia o cancelamento a cada 2 s, inclusive enquanto o winget/desinstalador roda sem emitir progresso.
+     while not stop_watch.wait(2.0):
+      try:
+       checked=request_json(ORIGIN+'/api/api.php?action=agent-command-authorize',auth,timeout=8)
+       revoked=not checked.get('ok') or checked.get('command')!=name
+      except urllib.error.HTTPError as exc:revoked=exc.code in (403,404,409)
+      except Exception:revoked=False
+      if revoked:
+       arcoll_programs.cancel_all();self.root.after(0,self._install_modal_cancelled);return
+    threading.Thread(target=watch,daemon=True).start()
+    if name=='program_install':self.root.after(0,lambda ids=list(payload.get('ids') or []):self._install_modal_open(ids))
     def progress(text):
-     now=time.monotonic()
-     if now-last_check[0]>3:
-      last_check[0]=now
-      checked=request_json(ORIGIN+'/api/api.php?action=agent-command-authorize',auth,timeout=10)
-      if not checked.get('ok') or checked.get('command')!=name:raise RuntimeError('Operação interrompida pelo operador.')
+     arcoll_programs.check_cancel()
      self._progress_remote_command(ident,text)
+     if name=='program_install':self.root.after(0,lambda t=str(text):self._install_modal_update(t))
      try:self.cc_progress_remote(str(text))
      except Exception:pass
     if name in ('clean_scan','clean_execute','clean_tool'):
@@ -2266,18 +2506,98 @@ class ArcollApp:
      from arcoll_programs import installed_programs
      progress('Lendo programas instalados...')
      rows=installed_programs()
+     from arcoll_programs import catalog_inventory
+     catalog_state=catalog_inventory(progress=progress)
+     from arcoll_programs import _canonical_name, INSTALL_CATALOG
+     matched=set()
+     for item in rows:
+      found=next((entry['id'] for entry in INSTALL_CATALOG
+       if catalog_state[entry['id']]['installed'] and
+       (_canonical_name(entry['name'])==_canonical_name(item.get('name','')) or
+        (catalog_state[entry['id']].get('version') and _canonical_name(entry['name']) in _canonical_name(item.get('name',''))))),None)
+      if found:
+       item['package_id']=found
+       item['available_version']=catalog_state[found].get('available_version','')
+       matched.add(found)
+     # WinGet identifica determinados pacotes mesmo quando o Registro usa outro nome.
+     # Tais entradas são somente informativas: não disponibilizam desinstalação genérica.
+     for entry in INSTALL_CATALOG:
+      package_id=entry['id'];state=catalog_state[package_id]
+      if not state['installed'] or package_id in matched:continue
+      rows.append({'id':hashlib.sha256(('winget:'+package_id).encode()).hexdigest(),
+       'name':entry['name'],'version':state.get('version',''),
+       'publisher':'WinGet','date':'','size':0,'method':'','uninstallable':False,
+       'icon':state.get('icon',''),'package_id':package_id,
+       'available_version':state.get('available_version','')})
      self.cc_notify('programs',rows)
      response=request_json(ORIGIN+'/api/api.php?action=agent-program-inventory',dict(auth,programs=rows),timeout=60)
      if not response.get('ok'):raise RuntimeError('Inventário não recebido pela plataforma.')
      summary='Inventário atualizado: '+str(len(rows))+' programas.'
+    elif name=='program_install':
+     from arcoll_programs import install_packages
+     summary=install_packages(payload.get('ids',[]),progress)
     else:
      from arcoll_programs import uninstall_programs,BATCH_MAX
      chosen=payload.get('ids',[])
      if not isinstance(chosen,list) or not (1<=len(chosen)<=BATCH_MAX):raise ValueError('Seleção inválida.')
      summary=uninstall_programs(chosen,payload.get('restore','try'),bool(payload.get('residual')),bool(payload.get('interactive')),progress)
+    if name=='program_install':self.root.after(0,lambda m=summary:self._install_modal_finish(m,True))
     self._ack_remote_command(ident,'completed',summary[:480])
-   except Exception as exc:self._ack_remote_command(ident,'failed',str(exc)[:470])
+   except Exception as exc:
+    if name=='program_install':self.root.after(0,lambda m=str(exc)[:300]:self._install_modal_finish(m,False))
+    self._ack_remote_command(ident,'failed',str(exc)[:470])
+   finally:
+    stop_watch.set();self._active_program_command=None
+    self.root.after(0,self._after_program_operation)
   threading.Thread(target=work,daemon=True).start()
+ def _after_program_operation(self):
+  """Terminada (ou cancelada) a operação, a tela do agente volta à primeira aba e o catálogo é relido."""
+  try:self.nb.select((self.nb.tabs() or (self.server_page,))[0])
+  except tk.TclError:pass
+  panel=getattr(self,'program_panel',None)
+  if panel:
+   try:panel.refresh()
+   except Exception:pass
+ def _cancel_local_operation(self):
+  """Botão Cancelar da janela de instalação: derruba tudo e libera o comando na plataforma."""
+  ident=getattr(self,'_active_program_command',None)
+  def work():
+   try:
+    import arcoll_programs;arcoll_programs.cancel_all()
+   except Exception:pass
+   if ident:self._ack_remote_command(ident,'failed','Cancelado no computador pelo operador')
+  threading.Thread(target=work,daemon=True).start()
+ def _install_modal_cancelled(self):
+  dlg=getattr(self,'_install_modal',None)
+  if dlg:
+   try:dlg.update_message('Cancelamento solicitado pela plataforma. Encerrando processos...')
+   except Exception:pass
+ def _install_modal_open(self,ids):
+  """Janela de instalação na tela do agente (espelha o modal da plataforma)."""
+  try:
+   from arcoll_programs import _InstallProgressDialog
+   self._install_modal_close()
+   self.show_window()
+   self._install_modal=_InstallProgressDialog(self.root,'Instalação de programas · solicitada pela plataforma',ids,on_cancel=self._cancel_local_operation)
+  except Exception as exc:
+   self._install_modal=None;self.log('Janela de instalação indisponível: '+str(exc)[:120],'WARN')
+ def _install_modal_update(self,text):
+  dlg=getattr(self,'_install_modal',None)
+  if not dlg:return
+  try:dlg.update_message(text)
+  except Exception:pass
+ def _install_modal_finish(self,message,ok):
+  dlg=getattr(self,'_install_modal',None)
+  if not dlg:return
+  try:
+   dlg.finish(message,ok)
+   if ok:self.root.after(8000,self._install_modal_close)
+  except Exception:pass
+ def _install_modal_close(self):
+  dlg=getattr(self,'_install_modal',None);self._install_modal=None
+  if dlg:
+   try:dlg.close()
+   except Exception:pass
  def _request_file_browser(self,ident,command):
   """Only the installed, authenticated headless agent can report drive listings."""
   def work():
@@ -2345,6 +2665,56 @@ class ArcollApp:
     answer=request_json(ORIGIN+'/api/api.php?action=agent-file-browser-result',body,timeout=15)
     if not answer.get('saved'):raise RuntimeError('Solicitação expirada')
     self._ack_remote_command(ident,'failed' if body.get('error') else 'completed',body.get('error') or 'Diretório consultado')
+   except Exception as exc:self._ack_remote_command(ident,'failed',str(exc)[:160])
+  threading.Thread(target=work,daemon=True).start()
+
+ def _request_cloud_folders(self,ident,command):
+  """Escolha de pastas do Backup em Nuvem: lista somente NOMES DE PASTAS dos discos locais (nunca arquivos).
+  Funciona sem o modo sem monitor porque só o gestor autenticado com permissão Clean e o agente vinculado participam."""
+  def work():
+   import ctypes
+   from pathlib import Path
+   body={'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident,'entries':[],'path':''}
+   try:
+    if command.get('requester_role') not in ('owner','administrator'):
+     raise PermissionError('Perfil sem autorização para escolher pastas.')
+    requested=os.path.expandvars(str(command.get('request_text') or '').strip())
+    if not requested:
+     mask=ctypes.windll.kernel32.GetLogicalDrives()
+     if mask==0:raise OSError('Não foi possível localizar os discos.')
+     for i in range(26):
+      if mask & (1<<i):
+       drive=chr(65+i)+':\\'
+       if ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(drive)) in (2,3):
+        try:
+         usage=shutil.disk_usage(drive);total=int(usage.total);free=int(usage.free)
+        except OSError:
+         continue
+        label=ctypes.create_unicode_buffer(261)
+        try:ctypes.windll.kernel32.GetVolumeInformationW(ctypes.c_wchar_p(drive),label,260,None,None,None,None,0)
+        except Exception:pass
+        name=(label.value+' ('+drive[:2]+')') if label.value else drive
+        body['entries'].append({'name':name,'path':drive,'directory':True,'drive':True,'size':total,'total':total,'free':free})
+    else:
+     if requested.startswith(('\\\\','//')) or not re.match(r'^[A-Za-z]:[\\/]',requested):raise ValueError('Somente discos locais.')
+     resolved=Path(requested).resolve(strict=True)
+     if not resolved.is_dir():raise ValueError('Pasta inexistente.')
+     body['path']=str(resolved)
+     with os.scandir(resolved) as scan:
+      for item in scan:
+       if len(body['entries'])>=150:body['truncated']=True;break
+       try:
+        if item.is_symlink() or not item.is_dir(follow_symlinks=False):continue
+        attrs=getattr(item.stat(follow_symlinks=False),'st_file_attributes',0)
+        if attrs&0x400 or attrs&0x2 and attrs&0x4:continue
+        body['entries'].append({'name':item.name,'path':item.path,'directory':True})
+       except OSError:continue
+     body['entries'].sort(key=lambda x:x['name'].casefold())
+   except Exception as exc:body['error']=str(exc)[:200]
+   try:
+    answer=request_json(ORIGIN+'/api/api.php?action=agent-file-browser-result',body,timeout=15)
+    if not answer.get('saved'):raise RuntimeError('Solicitação expirada')
+    self._ack_remote_command(ident,'failed' if body.get('error') else 'completed',body.get('error') or 'Pastas consultadas')
    except Exception as exc:self._ack_remote_command(ident,'failed',str(exc)[:160])
   threading.Thread(target=work,daemon=True).start()
 
@@ -2836,7 +3206,7 @@ class ArcollApp:
  def _ack_remote_command(self,ident,status,result):
   def ack():
    try:
-    response=request_json(ORIGIN+'/api/api.php?action=agent-command-ack',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident,'status':status,'result':result},timeout=8)
+    response=request_json(ORIGIN+'/api/api.php?action=agent-command-ack',{'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident,'status':status,'result':result,'error_code':'LEGACY_AGENT_ERROR' if status=='failed' else None,'error_detail':str(result)[:5000] if status=='failed' else None},timeout=8)
     self.root.after(0,lambda:self._operation_message('remote',result if status=='completed' else 'Falha: '+result,completed=status=='completed',error=status!='completed'))
    except Exception as exc:self.root.after(0,lambda message=str(exc):self._operation_message('remote','Falha ao confirmar resultado: '+message,error=True))
   threading.Thread(target=ack,daemon=True).start()
@@ -3779,7 +4149,7 @@ class ArcollApp:
    self.root.attributes('-alpha',min(1.0,step*0.09))
    if step<12:self.root.after(24,lambda:self._fade_in(step+1))
   except tk.TclError:pass
- def update_agent(self,remote_command_id=None):
+ def update_agent(self,remote_command_id=None,force=False):
   """Download an authenticated code-only update and delegate the swap to a separate process."""
   if getattr(self,'_file_transfer_busy',False):
    if remote_command_id:self._ack_remote_command(remote_command_id,'failed','Conclua a transferência de arquivos antes de atualizar.')
@@ -3819,11 +4189,12 @@ class ArcollApp:
   def worker():
    try:
     body={'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY}
-    from arcoll_updater import stage_installer
-    self.root.after(0,lambda:update_progress('Baixando o instalador completo e verificando integridade...'))
-    response=request_json(ORIGIN+'/api/api.php?action=agent-installer-package',body,timeout=90)
+    from arcoll_updater import stage_code_update,stage_installer
+    self.root.after(0,lambda:update_progress('Verificando pacote completo...' if force else 'Baixando código e verificando integridade...'))
+    endpoint='agent-installer-package' if force else 'agent-update-package'
+    response=request_json(ORIGIN+'/api/api.php?action='+endpoint,body,timeout=90)
     stage=Path(tempfile.mkdtemp(prefix='arcoll-update-',dir=str(DATA_DIR)))
-    manifest=stage_installer(response,stage)
+    manifest=stage_installer(response,stage) if force else stage_code_update(response,stage)
     manifest['remote_command_id']=remote_command_id
     (stage/'manifest.json').write_text(json.dumps(manifest),encoding='utf-8')
     def confirm():
@@ -3862,15 +4233,6 @@ class ArcollApp:
 
 
 
-
- def _modern_header(self):
-  """Cabeçalho declarativo e barra nativa do Windows, sem moldura desenhada paralela."""
-  self.hdr=None;self.hdr_uninstall=None;self._hdr_segs=[]
-  header=bind_theme(tk.Frame(self.root,bg=theme_color('surface')),background='surface')
-  header.pack(fill='x',padx=8,pady=(8,0))
-  title=bind_theme(tk.Label(header,text=APP_NAME,font=('Segoe UI',19,'bold'),bg=theme_color('surface'),fg=theme_color('text'),anchor='w'),background='surface',foreground='text')
-  title.pack(side='left',padx=16,pady=14);self._brand_title=title
-  bind_theme(tk.Label(header,text='ESTAÇÃO DE TRABALHO  ·  '+AGENT_VERSION,font=('Segoe UI',9),bg=theme_color('surface'),fg=theme_color('muted')),background='surface',foreground='muted').pack(side='right',padx=16)
 
  # Diagnósticos e comandos ativos preservam a implementação original.
 
@@ -3943,11 +4305,7 @@ if __name__=='__main__':
  if not ORIGIN or not SITE_CODE or not DOWNLOAD_KEY:
   r=tk.Tk();r.withdraw();messagebox.showerror(APP_NAME,'A configuração do agente está incompleta. Baixe novamente o agente pela gestão de redes.');sys.exit(2)
  state=verify_installation_status()
- if state not in ('approved','ui_locked','uninstall','blocked','rejected'):
-  r=tk.Tk();r.withdraw()
-  messagebox.showwarning(APP_NAME,blocked_notice(state),parent=r)
-  r.destroy()
-  sys.exit(3)
+ # A interface unificada apresenta o estado de autorização e seu login no próprio painel.
  try:
   ArcollApp()
  except Exception:

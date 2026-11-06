@@ -132,7 +132,7 @@ LABELS = {
     'recycle_bin': 'Lixeira', 'user_temp': 'Arquivos temporários dos usuários', 'windows_temp': 'Arquivos temporários do Windows',
     'clipboard': 'Área de transferência', 'memory_dumps': 'Despejos de memória', 'chkdsk_fragments': 'Fragmentos do Chkdsk',
     'system_logs': 'Logs do Windows', 'error_reports': 'Relatórios de erro', 'windows_update': 'Cache do Windows Update',
-    'delivery_optimization': 'Otimização de entrega', 'defender_history': 'Histórico do Defender', 'gpu_shader_cache': 'Cache de shaders da GPU',
+    'delivery_optimization': 'Otimização de entrega', 'gpu_shader_cache': 'Cache de shaders da GPU',
     'dns_cache': 'Cache DNS', 'event_logs': 'Logs de eventos', 'office_recent': 'Documentos recentes do Office', 'office_cache': 'Cache do Office',
     'teams_cache': 'Microsoft Teams: cache', 'discord_cache': 'Discord: cache', 'spotify_cache': 'Spotify: cache', 'vscode_cache': 'VS Code: cache e logs',
     'adobe_cache': 'Adobe: cache de mídia', 'java_cache': 'Java: cache', 'mspaint_recent': 'Paint/WordPad: recentes', 'winrar_history': 'WinRAR: histórico',
@@ -140,7 +140,7 @@ LABELS = {
 }
 JUNK = [('Windows', ['recent_docs', 'jump_lists', 'thumbnails', 'run_history', 'search_history', 'user_assist']),
         ('Sistema', ['recycle_bin', 'user_temp', 'windows_temp', 'clipboard', 'memory_dumps', 'chkdsk_fragments', 'system_logs', 'error_reports',
-                     'windows_update', 'delivery_optimization', 'defender_history', 'gpu_shader_cache', 'dns_cache', 'event_logs']),
+                     'windows_update', 'delivery_optimization', 'gpu_shader_cache', 'dns_cache', 'event_logs']),
         ('Programas', ['office_recent', 'office_cache', 'teams_cache', 'discord_cache', 'spotify_cache', 'vscode_cache', 'adobe_cache', 'java_cache',
                        'mspaint_recent', 'winrar_history']),
         ('Windows Store', ['store_cache']), ('Ferramentas de IA', ['ai_cache']), ('Avançado', ['prefetch', 'custom_folders'])]
@@ -186,10 +186,9 @@ class CleanerFrame(tk.Frame):
         self.show()
         self.after(100, self._pump)
         # Barra compacta inicial deixa espaço para conteúdo em notebooks pequenos.
-        self.mini = True
-        self.side.configure(width=56)
-        for _row, _ic, text in self.rows.values():
-            text.pack_forget()
+        # Expandido por padrão; o próprio tamanho da janela controla a redução.
+        self.mini = False
+        self.bind('<Configure>', self._responsive_navigation, add='+')
 
     # ---------------------------------------------------------------- base
     def _style(self):
@@ -220,9 +219,6 @@ class CleanerFrame(tk.Frame):
     def _nav(self):
         for w in self.side.winfo_children():
             w.destroy()
-        top = tk.Label(self.side, text='☰', bg=P['side'], fg=P['mut'], font=(F, 15), cursor='hand2', anchor='w', padx=14, pady=8)
-        top.pack(fill='x')
-        top.bind('<Button-1>', lambda _e: self._collapse())
         self.rows = {}
         for key, label, icon in self.sections_nav():
             row = tk.Frame(self.side, bg=P['side'], cursor='hand2')
@@ -259,22 +255,19 @@ class CleanerFrame(tk.Frame):
         for k in self.rows:
             self._paint(k, False)
 
-    def _collapse(self):
-        self.mini = not self.mini
-        goal = 56 if self.mini else 252
-
-        def step():
-            cur = int(self.side.cget('width'))
-            nxt = cur + (goal - cur) // 3 or (1 if goal > cur else -1)
-            if abs(goal - cur) <= 2:
-                nxt = goal
-            self.side.configure(width=nxt)
-            if nxt != goal:
-                self.after(16, step)
+    def _responsive_navigation(self, event):
+        if event.widget is not self:
+            return
+        compact = event.width < 730
+        if compact == self.mini:
+            return
+        self.mini = compact
+        self.side.configure(width=56 if compact else 252)
+        for _row, _ic, text in self.rows.values():
+            if compact:
+                text.pack_forget()
             else:
-                for _row, _ic, tx in self.rows.values():
-                    tx.pack_forget() if self.mini else tx.pack(side='left', fill='x', expand=True)
-        step()
+                text.pack(side='left', fill='x', expand=True)
 
     def go(self, key):
         if self.busy or key == self.section:
@@ -321,11 +314,16 @@ class CleanerFrame(tk.Frame):
         self.busy_title.pack()
         self.busy_sub = tk.Label(box, text='', bg=P['main'], fg=P['mut'], font=(F, 9))
         self.busy_sub.pack(pady=(0, 14))
-        Pill(box, 'Interromper verificação', self.cancel).pack()
+        Pill(box, 'Cancelar operação', self.cancel).pack()
 
     def cancel(self):
         self.cancel_event.set()
         self.cancelled = True
+        try:  # derruba também processos externos (winget, desinstaladores, PowerShell) em andamento
+            import arcoll_programs
+            threading.Thread(target=arcoll_programs.cancel_all, daemon=True).start()
+        except Exception:
+            pass
         self.status('Cancelamento solicitado. A operação será encerrada no próximo ponto seguro.')
 
     def _set_prog(self, pct, text):
@@ -352,6 +350,11 @@ class CleanerFrame(tk.Frame):
         if self.busy:
             return
         self.cancel_event.clear()
+        try:
+            import arcoll_programs
+            arcoll_programs.reset_cancel()
+        except Exception:
+            pass
         self.busy, self.pct, self.msg, self.cancelled = True, None, label, False
         self.status(label + '...')
         self.show()
@@ -858,63 +861,48 @@ class CleanerFrame(tk.Frame):
             self.tool('duplicates', {'tool': 'duplicates', 'action': 'delete', 'ids': ids, 'permanent': False}, 'Excluindo duplicados')
 
     def page_backup(self, v):
+        """Painel de acompanhamento: configuração e execução pertencem à plataforma."""
         self._head(v, 'Backup em Nuvem')
         worker = getattr(self.app, 'cloud_backup', None)
-        if worker is None:
-            return self._empty(v, 'Conecte este agente à plataforma', 'O backup usa a autorização da instalação e as configurações da sua rede.')
-        state = worker.snapshot()
-        viewport = tk.Canvas(v, bg=P['main'], highlightthickness=0)
-        scrollbar = ttk.Scrollbar(v, orient='vertical', command=viewport.yview)
-        scrollbar.pack(side='right', fill='y')
-        viewport.configure(yscrollcommand=scrollbar.set)
-        viewport.pack(fill='both', expand=True, padx=12, pady=8)
-        box = tk.Frame(viewport, bg=P['main'])
-        window = viewport.create_window((0, 0), window=box, anchor='nw')
-        box.bind('<Configure>', lambda _e: viewport.configure(scrollregion=viewport.bbox('all')))
-        viewport.bind('<Configure>', lambda e: viewport.itemconfigure(window, width=max(1, e.width)))
-        viewport.bind('<MouseWheel>', lambda e: viewport.yview_scroll(-1 if e.delta > 0 else 1, 'units'))
-        message = tk.StringVar(value=state.get('message', 'Aguardando configuração.'))
-        tk.Label(box, textvariable=message, bg=P['main'], fg=P['txt'], font=(F, 12, 'bold'), anchor='w', wraplength=440).pack(fill='x', pady=8)
-        progress = ttk.Progressbar(box, maximum=100)
-        progress.pack(fill='x', pady=8)
-        counters = tk.StringVar()
-        tk.Label(box, textvariable=counters, bg=P['main'], fg=P['mut'], font=(F, 10), anchor='w').pack(fill='x')
-        actions = tk.Frame(box, bg=P['main']); actions.pack(fill='x', pady=12)
-        ttk.Button(actions, text='Autorizar pasta', command=self.app.cloud_choose_folder).pack(side='left', padx=(0, 8))
-        pause = ttk.Button(actions, text='Retomar' if worker.local_paused else 'Pausar')
-        def toggle():
-            worker.pause(not worker.local_paused)
-            pause.configure(text='Retomar' if worker.local_paused else 'Pausar')
-        pause.configure(command=toggle); pause.pack(side='left', padx=(0, 8))
-        ttk.Button(actions, text='Sincronizar agora', command=worker.request_run).pack(side='left')
-        tk.Label(box, text='Pastas autorizadas neste perfil', bg=P['main'], fg=P['txt'], font=(F, 10, 'bold'), anchor='w').pack(fill='x', pady=(8, 4))
-        listing = ttk.Treeview(box, columns=('path',), show='headings', height=4)
-        listing.heading('path', text='Pasta local'); listing.column('path', width=350)
-        listing.pack(fill='both', expand=True)
-        for i, folder in enumerate(worker.preference('roots', [])):
-            listing.insert('', 'end', iid=str(i), values=(folder['path'],))
-        def remove():
-            selected = listing.selection()
-            if selected:
-                self.app.cloud_remove_folder(listing.item(selected[0], 'values')[0])
-        footer = tk.Frame(box, bg=P['main']); footer.pack(fill='x', pady=8)
-        ttk.Button(footer, text='Remover autorização', command=remove).pack(side='left')
-        ttk.Button(footer, text='Publicar pastas novamente', command=lambda:self.app._cloud_local_task(worker.publish_roots)).pack(side='right')
-        def full_backup():
-            def confirm():
-                if messagebox.askyesno('Reenviar backup completo', 'Reenviar todos os arquivos autorizados, inclusive os que não mudaram? Isso usa a banda de envio e substitui as cópias atuais no provedor.', parent=self.winfo_toplevel()):
-                    worker.request_run(full=True)
-            self.app._show_manager_auth('Reenviar backup completo', confirm)
-        ttk.Button(box, text='Reenviar backup completo', command=full_backup).pack(anchor='w', pady=6)
-        tk.Label(box, text='Conta, horário e exclusões: abra Redes → Clean → Backup em Nuvem na plataforma. Arquivos excluídos no PC permanecem na nuvem. Recuperação e versões: use o provedor.', bg=P['main'], fg=P['mut'], font=(F, 10), wraplength=500, justify='left').pack(fill='x', pady=8)
+        state = worker.snapshot() if worker else {}
+        box = tk.Frame(v, bg=P['main'])
+        box.pack(fill='both', expand=True, padx=20, pady=12)
+        states = {'waiting': 'Aguardando', 'disabled': 'Não configurado', 'scanning': 'Analisando',
+                  'uploading': 'Sincronizando', 'idle': 'Atualizado', 'error': 'Requer atenção', 'paused': 'Pausado'}
+        headline = tk.StringVar(value=states.get(state.get('state'), 'Aguardando'))
+        tk.Label(box, textvariable=headline, bg=P['main'], fg=P['txt'], font=(F, 18, 'bold'), anchor='w').pack(fill='x')
+        message = tk.StringVar(value=state.get('message') or 'Aguardando conexão com a plataforma.')
+        tk.Label(box, textvariable=message, bg=P['main'], fg=P['mut'], font=(F, 10), anchor='w').pack(fill='x', pady=(3, 12))
+        columns = tk.Frame(box, bg=P['main']);columns.pack(fill='x',pady=(4,0))
+        for label,weight in [('Nome',4),('Tamanho do arquivo',2),('Status',2)]:
+            tk.Label(columns,text=label,bg=P['main'],fg=P['txt'],font=(F,9,'bold'),anchor='w').pack(side='left',fill='x',expand=True)
+        ttk.Separator(box,orient='horizontal').pack(fill='x',pady=(8,8))
+        listing=ttk.Treeview(box,columns=('name','size','status'),show='headings',height=5)
+        for key,label,w in [('name','Arquivo',320),('size','Tamanho',120),('status','Estado',140)]:
+            listing.heading(key,text=label);listing.column(key,width=w,stretch=True)
+        listing.pack(fill='both',expand=True)
+        empty=tk.Label(box,text='☁\n\nAs atividades de sincronização\naparecerão aqui.',bg=P['main'],fg=P['mut'],font=(F,12),justify='center')
+        empty.pack(pady=(8,12))
+        summary=tk.StringVar()
+        tk.Label(box,textvariable=summary,bg=P['main'],fg=P['mut'],font=(F,9),anchor='w').pack(fill='x',pady=(4,4))
+        progress=ttk.Progressbar(box,maximum=100)
+        progress.pack(fill='x',pady=(2,8))
+        tk.Label(box,text='Pastas, horários, contas e execução são administrados pela plataforma online.',
+                 bg=P['main'],fg=P['mut'],font=(F,9),anchor='w',wraplength=580).pack(fill='x')
         def refresh():
-            if not box.winfo_exists():
-                return
-            current = worker.snapshot()
-            message.set(current.get('message', 'Aguardando configuração.'))
-            counters.set('%s de %s arquivos · %s enviados · último sucesso: %s' % (current.get('files_done', 0), current.get('files_total', 0), human(current.get('bytes_done', 0)), current.get('last_success_at', 'ainda não concluído')))
-            progress['value'] = min(100, 100 * current.get('bytes_done', 0) / max(1, current.get('bytes_total', 0)))
-            box.after(1500, refresh)
+            if not box.winfo_exists():return
+            current=worker.snapshot() if worker else {}
+            headline.set(states.get(current.get('state'),'Aguardando'))
+            message.set(current.get('message') or 'Aguardando conexão com a plataforma.')
+            summary.set('%s de %s arquivos · %s enviados · último sucesso: %s' % (
+                current.get('files_done',0),current.get('files_total',0),human(current.get('bytes_done',0)),current.get('last_success_at') or 'ainda não concluído'))
+            progress['value']=min(100,100*current.get('bytes_done',0)/max(1,current.get('bytes_total',0)))
+            active=current.get('current') or ''
+            for row in listing.get_children():listing.delete(row)
+            if active:
+                listing.insert('','end',values=(active,'—',states.get(current.get('state'),'Em andamento')))
+            empty.pack_forget() if active else empty.pack(pady=(8,12)) if not empty.winfo_manager() else None
+            box.after(1500,refresh)
         refresh()
 
     def page_cloud(self, v):

@@ -106,7 +106,6 @@ if ($arcNetworkDock):
 </span><?php else:?><i class="fa <?=arc_h($entry[2])?>" aria-hidden="true"></i><?php endif;?><span><?=arc_h($entry[1])?></span></a>
 <?php endif; ?>
 <?php endforeach;?></nav>
-<dialog id="arc-mobile-more" class="arc-mobile-more arc-network-more erp-user-menu-style" aria-labelledby="arc-mobile-more-title"><header><h2 id="arc-mobile-more-title">Configurações da rede</h2><button type="button" data-close-more aria-label="Fechar menu"><i class="fa fa-times" aria-hidden="true"></i></button></header><div class="erp-menu-sep"></div><nav aria-label="Páginas de configurações da rede"><?php foreach ($arcConfigDockItems as [$section,$label,$icon]): if (!$arcDockAllowed($section)) continue; $link=$arcDockBase.$section.'.php?'.$arcDockQuery; ?><a href="<?=arc_h($link)?>" <?= $arcDockCurrent===$section?'aria-current="page"':'' ?>><i class="fa <?=arc_h($icon)?>" aria-hidden="true"></i><span><?=arc_h($label)?></span></a><?php endforeach; ?></nav></dialog>
 <?php else: ?>
 <?php
 /* Caminho: includes/footer.php — footer global uniforme com a navegação de redes.
@@ -158,13 +157,24 @@ $arcCanRegisterNetwork = arc_is_user();
 <?php else: ?>
 <a class="arc-system-dock-create" href="<?=arc_h(arc_workspace_base_url().'pages/painel.php')?>" aria-label="Abrir painel do sistema"><span class="arc-system-dock-bubble"><i class="fa fa-th-large" aria-hidden="true"></i></span><span class="arc-system-dock-label">Painel</span></a>
 <?php endif; ?>
-<dialog id="arc-mobile-more" class="arc-mobile-more arc-global-more erp-user-menu-style" aria-labelledby="arc-mobile-more-title"><header><h2 id="arc-mobile-more-title">Mais páginas</h2><button type="button" data-close-more aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><div class="erp-menu-sep"></div><nav aria-label="Outras páginas do sistema"><?php foreach($arcGlobalMore as $item): ?><a href="<?=arc_h((string)$item['url'])?>"><span class="arc-db-icon" data-icon="<?=arc_h((string)$item['icon'])?>" aria-hidden="true"></span><span><?=arc_h((string)$item['label'])?></span></a><?php endforeach; ?></nav></dialog>
 <?php endif; // dock global ?>
 <?php endif; // dock de rede ?>
 </footer>
 
+<?php /* Dropdown fora do footer para não ser recortado pelo dock móvel. */ ?>
+<?php if ($arcNetworkDock): ?>
+<dialog id="arc-mobile-more" class="arc-mobile-more arc-network-more erp-user-menu-style" aria-labelledby="arc-mobile-more-title"><header><h2 id="arc-mobile-more-title">Configurações da rede</h2><button type="button" data-close-more aria-label="Fechar menu"><i class="fa fa-times" aria-hidden="true"></i></button></header><div class="erp-menu-sep"></div><nav aria-label="Páginas de configurações da rede"><?php $arcDockVisibleCount=0; foreach ($arcConfigDockItems as [$section,$label,$icon]): if (!$arcDockAllowed($section)) continue; $arcDockVisibleCount++; $link=$arcDockBase.$section.'.php?'.$arcDockQuery; ?><a href="<?=arc_h($link)?>" <?= $arcDockCurrent===$section?'aria-current="page"':'' ?>><i class="fa <?=arc_h($icon)?>" aria-hidden="true"></i><span><?=arc_h($label)?></span></a><?php endforeach; if($arcDockVisibleCount===0): ?><p role="status" style="padding:12px;color:var(--muted)">Seu perfil não possui páginas de configuração liberadas.</p><?php endif; ?></nav></dialog>
+<?php else: ?>
+<dialog id="arc-mobile-more" class="arc-mobile-more arc-global-more erp-user-menu-style" aria-labelledby="arc-mobile-more-title"><header><h2 id="arc-mobile-more-title">Mais páginas</h2><button type="button" data-close-more aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><div class="erp-menu-sep"></div><nav aria-label="Outras páginas do sistema"><?php foreach($arcGlobalMore as $item): ?><a href="<?=arc_h((string)$item['url'])?>"><span class="arc-db-icon" data-icon="<?=arc_h((string)$item['icon'])?>" aria-hidden="true"></span><span><?=arc_h((string)$item['label'])?></span></a><?php endforeach; ?></nav></dialog>
+<?php endif; ?>
 
 <style>
+/* Caminho: includes/footer.php — Mais fora do footer, acima da barra e do conteúdo. */
+body.arc-workspace > #arc-mobile-more.arc-network-more[open],
+body.arc-workspace > #arc-mobile-more.arc-global-more[open]{z-index:3010!important;visibility:visible!important}
+body.arc-workspace > #arc-mobile-more.arc-network-more[open]{display:flex!important;flex-direction:column!important;height:max-content!important;overflow:hidden!important}
+body.arc-workspace > #arc-mobile-more.arc-network-more[open] nav{display:flex!important;flex-direction:column!important;max-height:min(330px,calc(100dvh - var(--arc-more-bottom,78px) - 70px))!important;overflow-y:auto!important;min-height:0!important;flex:0 1 auto!important}
+body.arc-workspace > #arc-mobile-more.arc-network-more[open] nav>a{display:flex!important;min-height:42px!important;flex:0 0 auto!important;visibility:visible!important}
 /* Caminho: includes/footer.php — dock global responsivo, cinco posições, divisórias e botão central. */
 .arc-system-dock{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:min(100%,820px);height:64px;margin:0 auto;gap:0;align-items:stretch;isolation:isolate;background-image:linear-gradient(var(--border),var(--border)),linear-gradient(var(--border),var(--border)),linear-gradient(var(--border),var(--border)),linear-gradient(var(--border),var(--border));background-size:1px calc(100% - 24px);background-position:20% center,40% center,60% center,80% center;background-repeat:no-repeat}
 .arc-system-dock>a,.arc-system-dock>button{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;min-width:0;min-height:64px;padding:5px 2px;box-sizing:border-box;background:transparent;border:0;border-radius:10px;color:var(--muted);font:600 11px/1.2 var(--font);text-decoration:none;cursor:pointer}
@@ -187,40 +197,55 @@ $arcCanRegisterNetwork = arc_is_user();
     'use strict';
 
     var more=document.getElementById('arc-mobile-more');
-    /* Dropdown Mais da rede: ancorado à direita do próprio botão, sem modal de tela inteira. */
-    var moreTrigger = null;
+    /* Dropdown fixo no viewport, separado da altura e do overflow do footer. */
+    var moreTrigger=null;
     function placeMore(button) {
         if (!more || !button) return;
-        var rect = button.getBoundingClientRect();
-        var menuWidth = Math.min(320, window.innerWidth - 20);
-        var left = Math.max(10, Math.min(window.innerWidth - menuWidth - 10, rect.right - menuWidth));
-        var bottom = Math.max(10, window.innerHeight - rect.top + 8);
-        more.style.setProperty('--arc-more-left', left + 'px');
-        more.style.setProperty('--arc-more-bottom', bottom + 'px');
+        var rect=button.getBoundingClientRect();
+        var viewport=window.visualViewport;
+        var screenWidth=viewport ? viewport.width : window.innerWidth;
+        var screenHeight=viewport ? viewport.height + viewport.offsetTop : window.innerHeight;
+        var menuWidth=Math.min(320,Math.max(180,screenWidth-20));
+        var left=Math.max(10,Math.min(screenWidth-menuWidth-10,rect.right-menuWidth));
+        var bottom=Math.max(10,screenHeight-rect.top+8);
+        more.style.setProperty('--arc-more-left',left+'px');
+        more.style.setProperty('--arc-more-bottom',bottom+'px');
     }
     function syncMoreButtons() {
-        document.querySelectorAll('[data-mobile-more]').forEach(function(b){
-            b.setAttribute('aria-expanded', more && more.open && b === moreTrigger ? 'true' : 'false');
+        document.querySelectorAll('[data-mobile-more]').forEach(function(button) {
+            button.setAttribute('aria-expanded',more && more.open && button===moreTrigger?'true':'false');
         });
     }
-    document.querySelectorAll('[data-mobile-more]').forEach(function(button){
-        button.addEventListener('click',function(){
+    function hideMore() {
+        if (!more || !more.open) return;
+        if (typeof more.close==='function') more.close();
+        else {more.removeAttribute('open');moreTrigger=null;syncMoreButtons();}
+    }
+    document.querySelectorAll('[data-mobile-more]').forEach(function(button) {
+        button.setAttribute('aria-haspopup','dialog');
+        button.addEventListener('click',function() {
             if (!more) return;
-            if (more.open && moreTrigger === button) { more.close(); return; }
-            if (more.open) more.close();
-            moreTrigger = button;
+            if (more.open && moreTrigger===button) {hideMore();return;}
+            hideMore();
+            moreTrigger=button;
             placeMore(button);
-            more.show();
+            if (typeof more.show==='function') more.show();
+            else more.setAttribute('open','');
             syncMoreButtons();
         });
     });
-    if(more){
-        more.querySelector('[data-close-more]').addEventListener('click',function(){more.close();});
+    if (more) {
+        var closeMore=more.querySelector('[data-close-more]');
+        if (closeMore) closeMore.addEventListener('click',hideMore);
         more.addEventListener('close',function(){moreTrigger=null;syncMoreButtons();});
-        document.addEventListener('pointerdown',function(e){
-            if(more.open && !more.contains(e.target) && !e.target.closest('[data-mobile-more]')) more.close();
+        document.addEventListener('pointerdown',function(event) {
+            if (more.open && !more.contains(event.target) && !event.target.closest('[data-mobile-more]')) hideMore();
+        });
+        document.addEventListener('keydown',function(event) {
+            if (event.key==='Escape' && more.open) {hideMore();event.preventDefault();}
         });
         window.addEventListener('resize',function(){if(more.open && moreTrigger)placeMore(moreTrigger);});
+        if(window.visualViewport)window.visualViewport.addEventListener('resize',function(){if(more.open && moreTrigger)placeMore(moreTrigger);});
         window.addEventListener('scroll',function(){if(more.open && moreTrigger)placeMore(moreTrigger);},true);
     }
     /* ---------- Sidebar recolhível (persistente; respeita a preferência da conta) ---------- */

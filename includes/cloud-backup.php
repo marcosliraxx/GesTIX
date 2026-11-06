@@ -6,7 +6,7 @@
    - Nenhum arquivo do usuário é gravado na plataforma: os blocos enviados pelo agente são repassados ao provedor em memória
      (php://input -> cURL). Só ficam no banco metadados mínimos: conexão, configuração, estado do envio em andamento.
    - Tokens OAuth e chaves S3 ficam criptografados (arc_platform_encrypt) e nunca são enviados ao agente.
-   - As credenciais de API de cada provedor são configuradas pelo administrador em admin/configuracoes.php (aba Backup em Nuvem).
+   - As credenciais de API de cada provedor são configuradas pelo administrador em admin/configuracoes.php (aba Drive).
    - Provedores: Google Drive, Microsoft OneDrive, Dropbox e Amazon S3 (ou compatível: Wasabi, Backblaze B2, Cloudflare R2, MinIO).
      Para incluir outro provedor basta registrá-lo em arc_cloud_providers() e implementar as funções arc_cloud_<chave>_*. */
 declare(strict_types=1);
@@ -131,6 +131,25 @@ function arc_cloud_available_providers(PDO $pdo): array
     return $result;
 }
 
+/** Regras do administrador (Configurações > Manutenção): quem pode escolher conta própria ou Drive da plataforma. */
+function arc_cloud_policy(PDO $pdo): array
+{
+    return ['own' => arc_platform_setting($pdo, 'platform_cloud_allow_own', '1') === '1',
+        'platform' => arc_platform_setting($pdo, 'platform_cloud_allow_platform', '1') === '1',
+        'vdrive' => arc_platform_setting($pdo, 'platform_cloud_allow_vdrive', '1') === '1',
+        'folder_picker' => arc_platform_setting($pdo, 'platform_cloud_allow_folder_picker', '1') === '1',
+        'max_file_mb' => (int)(arc_cloud_max_file_bytes($pdo) / 1048576)];
+}
+
+/** Impede selecionar um destino que a política do administrador não permite. */
+function arc_cloud_assert_destination_allowed(PDO $pdo, array $connection): void
+{
+    $policy = arc_cloud_policy($pdo);
+    $managed = (int)$connection['network_id'] === 0 && (int)$connection['account_id'] === 0;
+    if ($managed && !$policy['platform']) throw new InvalidArgumentException('O Drive da plataforma não está liberado pelo administrador.');
+    if (!$managed && !$policy['own']) throw new InvalidArgumentException('O administrador não permite contas de nuvem próprias. Use o Drive da plataforma.');
+}
+
 function arc_cloud_max_file_bytes(PDO $pdo): int
 {
     $mb = (int)arc_platform_setting($pdo, 'platform_cloud_max_file_mb', '5120');
@@ -165,6 +184,7 @@ function arc_cloud_http(string $method, string $url, array $headers = [], string
             return strlen($line);
         },
     ];
+    if ($method === 'HEAD') $options[CURLOPT_NOBODY] = true;
     if ($body !== null) $options[CURLOPT_POSTFIELDS] = is_array($body) ? http_build_query($body) : $body;
     elseif (in_array($method, ['POST', 'PUT', 'PATCH'], true)) $options[CURLOPT_POSTFIELDS] = '';
     $options[CURLOPT_RESOLVE]=[$resolvedHost.':443:'.implode(',',$resolvedAddresses)];
@@ -216,7 +236,7 @@ function arc_cloud_state_verify(string $state): ?array
 }
 
 /** URL de autorização do provedor. O verificador PKCE fica só na sessão do navegador que iniciou a conexão. */
-function arc_cloud_oauth_start(PDO $pdo, string $provider, int $networkId, int $agentId, int $userId): string
+function arc_cloud_oauth_start(PDO $pdo, string $provider, int $networkId, int $agentId, int $userId, bool $managed = false): string
 {
     $meta = arc_cloud_providers()[$provider] ?? null;
     $config = arc_cloud_provider_config($pdo, $provider);
@@ -225,7 +245,7 @@ function arc_cloud_oauth_start(PDO $pdo, string $provider, int $networkId, int $
     $nonce = bin2hex(random_bytes(16));
     $verifier = arc_cloud_b64url(random_bytes(48));
     $_SESSION['arc_cloud_oauth'] = [$nonce => ['verifier' => $verifier, 'time' => time()]] + array_slice((array)($_SESSION['arc_cloud_oauth'] ?? []), 0, 3, true);
-    $state = arc_cloud_state_sign(['n' => $nonce, 'p' => $provider, 'net' => $networkId, 'ag' => $agentId, 'u' => $userId, 'exp' => time() + 900]);
+    $state = arc_cloud_state_sign(['n' => $nonce, 'p' => $provider, 'net' => $networkId, 'ag' => $agentId, 'u' => $userId, 'managed' => $managed ? 1 : 0, 'exp' => time() + 900]);
     $common = ['client_id' => $config['client_id'], 'redirect_uri' => arc_cloud_redirect_uri(), 'response_type' => 'code', 'state' => $state,
         'code_challenge' => arc_cloud_b64url(hash('sha256', $verifier, true)), 'code_challenge_method' => 'S256'];
     return match ($provider) {
@@ -268,12 +288,12 @@ function arc_cloud_connection_public(array $row): array
     return ['id' => (int)$row['id'], 'provider' => (string)$row['provider'], 'provider_name' => $meta['name'], 'icon' => $meta['icon'],
         'label' => (string)$row['label'], 'identity' => (string)$row['identity'], 'status' => (string)$row['status'], 'error' => (string)$row['last_error'],
         'quota_used' => $row['quota_used'] === null ? null : (int)$row['quota_used'], 'quota_total' => $row['quota_total'] === null ? null : (int)$row['quota_total'],
-        'created_at' => (string)$row['created_at']];
+        'created_at' => (string)$row['created_at'], 'managed'=>((int)$row['network_id']===0 && (int)$row['account_id']===0)];
 }
 
 function arc_cloud_connection_get(PDO $pdo, int $id, int $networkId, int $accountId): ?array
 {
-    $q = $pdo->prepare('SELECT * FROM ' . arc_table('cloud_connections') . ' WHERE id=? AND network_id=? AND account_id=?');
+    $q = $pdo->prepare('SELECT * FROM ' . arc_table('cloud_connections') . ' WHERE id=? AND ((network_id=? AND account_id=?) OR (network_id=0 AND account_id=0))');
     $q->execute([$id, $networkId, $accountId]);
     $row = $q->fetch(PDO::FETCH_ASSOC);
     return $row ?: null;
@@ -281,9 +301,18 @@ function arc_cloud_connection_get(PDO $pdo, int $id, int $networkId, int $accoun
 
 function arc_cloud_connections_list(PDO $pdo, int $networkId, int $accountId): array
 {
-    $q = $pdo->prepare('SELECT * FROM ' . arc_table('cloud_connections') . ' WHERE network_id=? AND account_id=? ORDER BY id');
+    $q = $pdo->prepare('SELECT * FROM ' . arc_table('cloud_connections') . ' WHERE (network_id=? AND account_id=?) OR (network_id=0 AND account_id=0) ORDER BY network_id,id');
     $q->execute([$networkId, $accountId]);
-    return array_map('arc_cloud_connection_public', $q->fetchAll(PDO::FETCH_ASSOC));
+    $policy = arc_cloud_policy($pdo);
+    $rows = array_values(array_filter($q->fetchAll(PDO::FETCH_ASSOC), static function(array $row) use ($policy): bool {
+        $managed = (int)$row['network_id'] === 0 && (int)$row['account_id'] === 0;
+        return $managed ? $policy['platform'] : $policy['own'];
+    }));
+    return array_map(static function(array $row): array {
+        $item=arc_cloud_connection_public($row);
+        if($item['managed']){$item['label']='Drive da plataforma · '.$item['provider_name'];$item['identity']='Armazenamento administrado pela plataforma';$item['quota_used']=null;$item['quota_total']=null;$item['error']=$item['status']==='active'?'':'A conexão da plataforma precisa ser revisada pelo administrador.';}
+        return $item;
+    }, $rows);
 }
 
 function arc_cloud_secret_read(array $connection): array
@@ -407,7 +436,8 @@ function arc_cloud_purge_network(PDO $pdo, int $networkId, int $accountId): void
 function arc_cloud_default_settings(): array
 {
     return ['folders' => [], 'schedule' => 'continuous', 'interval_minutes' => 60, 'daily_time' => '02:00', 'mirror_deletes' => false,
-        'exclusions' => [], 'max_file_mb' => 2048, 'bandwidth_kbps' => 0, 'remote_root' => ARC_CLOUD_DEFAULT_ROOT];
+        'exclusions' => [], 'max_file_mb' => 2048, 'bandwidth_kbps' => 0, 'remote_root' => ARC_CLOUD_DEFAULT_ROOT,
+        'vdrive' => false, 'vdrive_letter' => 'Z'];
 }
 
 function arc_cloud_clean_segment(string $name, int $max = 150): string
@@ -468,6 +498,10 @@ function arc_cloud_validate_settings(array $input): array
     $bandwidth = (int)($input['bandwidth_kbps'] ?? 0);
     if ($bandwidth < 0 || $bandwidth > 1048576) throw new InvalidArgumentException('Limite de velocidade inválido.');
     $out['bandwidth_kbps'] = $bandwidth;
+    $out['vdrive'] = !empty($input['vdrive']);
+    $letter = strtoupper(trim((string)($input['vdrive_letter'] ?? 'Z')));
+    if (!preg_match('/^[D-Z]$/D', $letter)) throw new InvalidArgumentException('Letra do disco virtual inválida (use de D a Z).');
+    $out['vdrive_letter'] = $letter;
     $root = arc_cloud_clean_segment((string)($input['remote_root'] ?? ARC_CLOUD_DEFAULT_ROOT), 80);
     $out['remote_root'] = $root === '_' ? ARC_CLOUD_DEFAULT_ROOT : $root;
     return $out;
@@ -488,7 +522,11 @@ function arc_cloud_job_save(PDO $pdo, int $agentId, int $networkId, int $account
 {
     $current = arc_cloud_job_get($pdo, $agentId, $networkId, $accountId);
     if ($keepConnection) $connectionId = $current['connection_id'];
-    if ($connectionId !== null && !arc_cloud_connection_get($pdo, $connectionId, $networkId, $accountId)) throw new InvalidArgumentException('Conta de nuvem inválida.');
+    if ($connectionId !== null) {
+        $selected = arc_cloud_connection_get($pdo, $connectionId, $networkId, $accountId);
+        if (!$selected) throw new InvalidArgumentException('Conta de nuvem inválida.');
+        arc_cloud_assert_destination_allowed($pdo, $selected);
+    }
     if ($enabled && $connectionId === null) throw new InvalidArgumentException('Conecte uma conta de nuvem antes de ativar o backup.');
     $pdo->prepare('INSERT INTO ' . arc_table('cloud_backup_jobs') . ' (agent_id,network_id,account_id,connection_id,enabled,settings_json) VALUES (?,?,?,?,?,?) '
         . 'ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),connection_id=VALUES(connection_id),enabled=VALUES(enabled),settings_json=VALUES(settings_json)')
@@ -511,7 +549,7 @@ function arc_cloud_sanitize_status(array $in): array
     $state = in_array($in['state'] ?? '', ARC_CLOUD_STATES, true) ? (string)$in['state'] : 'idle';
     $out = ['state' => $state, 'message' => $text($in['message'] ?? '', 200), 'current' => $text($in['current'] ?? '', 260),
         'files_total' => $int($in['files_total'] ?? 0), 'files_done' => $int($in['files_done'] ?? 0), 'bytes_total' => $int($in['bytes_total'] ?? 0), 'bytes_done' => $int($in['bytes_done'] ?? 0),
-        'errors' => $int($in['errors'] ?? 0), 'synced_files' => $int($in['synced_files'] ?? 0), 'synced_bytes' => $int($in['synced_bytes'] ?? 0),
+        'errors' => $int($in['errors'] ?? 0), 'skipped' => $int($in['skipped'] ?? 0), 'vdrive' => $text($in['vdrive'] ?? '', 160), 'synced_files' => $int($in['synced_files'] ?? 0), 'synced_bytes' => $int($in['synced_bytes'] ?? 0),
         'speed_bps' => $int($in['speed_bps'] ?? 0), 'started_at' => $text($in['started_at'] ?? '', 25), 'last_run_at' => $text($in['last_run_at'] ?? '', 25),
         'last_success_at' => $text($in['last_success_at'] ?? '', 25), 'next_run_at' => $text($in['next_run_at'] ?? '', 25), 'agent_version' => $text($in['agent_version'] ?? '', 20),
         'run_ack' => $int($in['run_ack'] ?? 0), 'runs' => [], 'failures' => [], 'folders' => []];
@@ -590,7 +628,7 @@ function arc_cloud_purge_uploads(PDO $pdo): void
 }
 
 /** Inicia o envio de um arquivo. Retorna ['upload_id'=>?,'chunk'=>int,'done'=>bool]. */
-function arc_cloud_upload_begin(PDO $pdo, array $connection, int $agentId, array $segments, int $size, int $mtime, ?string $requestId = null): array
+function arc_cloud_upload_begin(PDO $pdo, array $connection, int $agentId, array $segments, int $size, int $mtime, ?string $requestId = null, ?int $networkId = null, ?int $accountId = null): array
 {
     $provider = (string)$connection['provider'];
     $meta = arc_cloud_providers()[$provider];
@@ -607,7 +645,7 @@ function arc_cloud_upload_begin(PDO $pdo, array $connection, int $agentId, array
     $id = $requestId ?? bin2hex(random_bytes(16));
     if ($done) $state = ['done'=>true];
     $pdo->prepare('INSERT INTO ' . arc_table('cloud_backup_uploads') . ' (id,agent_id,network_id,account_id,connection_id,total_size,received,state_enc,expires_at) VALUES (?,?,?,?,?,?,0,?,?)')
-        ->execute([$id, $agentId, (int)$connection['network_id'], (int)$connection['account_id'], (int)$connection['id'], $size, arc_platform_encrypt(json_encode($state, JSON_UNESCAPED_UNICODE)), date('Y-m-d H:i:s', time() + ARC_CLOUD_UPLOAD_TTL)]);
+        ->execute([$id, $agentId, $networkId ?? (int)$connection['network_id'], $accountId ?? (int)$connection['account_id'], (int)$connection['id'], $size, arc_platform_encrypt(json_encode($state, JSON_UNESCAPED_UNICODE)), date('Y-m-d H:i:s', time() + ARC_CLOUD_UPLOAD_TTL)]);
     if ($done) arc_cloud_state_write($pdo,$id,$state,$size);
     return ['upload_id' => $id, 'chunk' => $meta['chunk'], 'done' => $done, 'next_offset'=>$done?$size:0];
 }
@@ -1000,6 +1038,59 @@ function arc_cloud_onedrive_folders(string $token,array $folders): void
     }
 }
 
+/** Lista arquivos existentes no destino da conexão, sem conceder token ao navegador. Apenas o prefixo do backup gerenciado é exposto. */
+function arc_cloud_browse(PDO $pdo, array $connection, string $relative = '', string $root = ARC_CLOUD_DEFAULT_ROOT, ?int $networkId = null, ?int $agentId = null, ?string $page = null): array
+{
+    if (strlen($relative) > 560 || str_contains($relative, "\\") || str_contains($relative, chr(0))) throw new InvalidArgumentException('Pasta remota inválida.');
+    $parts = $relative === '' ? [] : explode('/', $relative);
+    foreach ($parts as $part) if ($part === '' || $part === '.' || $part === '..' || strlen($part) > 180 || preg_match('/[\\x00-\\x1f]/', $part)) throw new InvalidArgumentException('Pasta remota inválida.');
+    $provider = (string)$connection['provider'];
+    $token = $provider === 's3' ? '' : arc_cloud_access_token($pdo, $connection);
+    $root = arc_cloud_clean_segment($root,80);
+    $scope=($connection['network_id']??null) !== null && (int)$connection['network_id']===0 && (int)$connection['account_id']===0;
+    if($scope){if(!$networkId || !$agentId)throw new RuntimeException('Escopo do backup inválido.',403);}
+    $rootSegments=arc_cloud_scope_segments($connection,$root,(int)$networkId,(int)$agentId);
+    $result = [];
+    $nextPage = '';
+    if ($provider === 'gdrive') {
+        $id = 'root';
+        foreach (array_merge($rootSegments, $parts) as $part) {
+            $id = arc_cloud_gdrive_find($token, $id, $part, true);
+            if (!$id) return ['path'=>$relative, 'entries'=>[], 'missing'=>true];
+        }
+        $q = "'" . $id . "' in parents and trashed=false";
+        $query = ['q'=>$q,'fields'=>'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink)','pageSize'=>200,'orderBy'=>'folder,name','supportsAllDrives'=>'false'];
+        if ($page !== null && $page !== '' && preg_match('/^[A-Za-z0-9._~\-\/+=]{1,2000}$/D', $page)) $query['pageToken'] = $page;
+        $data = arc_cloud_json(arc_cloud_expect(arc_cloud_http('GET','https://www.googleapis.com/drive/v3/files?' . http_build_query($query),arc_cloud_gdrive_headers($token)),[200],'Não foi possível listar o Google Drive'));
+        foreach (($data['files']??[]) as $item) $result[]=['name'=>(string)$item['name'],'directory'=>($item['mimeType']??'')==='application/vnd.google-apps.folder','size'=>(int)($item['size']??0),'modified'=>(string)($item['modifiedTime']??''),'link'=>(string)($item['webViewLink']??'')];
+        $nextPage = (string)($data['nextPageToken'] ?? '');
+    } elseif ($provider === 'onedrive') {
+        $segments=array_merge($rootSegments,$parts);
+        $path='https://graph.microsoft.com/v1.0/me/drive/root:/'.implode('/',array_map('rawurlencode',$segments)).':/children?$top=200&$select=name,size,folder,lastModifiedDateTime';
+        $response=arc_cloud_http('GET',$path,['Authorization: Bearer '.$token,'Accept: application/json']);
+        if($response['status']===404)return ['path'=>$relative,'entries'=>[],'missing'=>true];
+        $data=arc_cloud_json(arc_cloud_expect($response,[200],'Não foi possível listar o OneDrive'));
+        foreach(($data['value']??[]) as $item)$result[]=['name'=>(string)$item['name'],'directory'=>isset($item['folder']),'size'=>(int)($item['size']??0),'modified'=>(string)($item['lastModifiedDateTime']??'')];
+    } elseif ($provider === 'dropbox') {
+        $path='/'.implode('/',$rootSegments).($relative!==''?'/'.$relative:'');
+        try {$data=arc_cloud_json(arc_cloud_dropbox_rpc($token,'files/list_folder',['path'=>$path,'recursive'=>false,'limit'=>500]));}
+        catch (RuntimeException $e) {if($e->getCode()===409)return ['path'=>$relative,'entries'=>[],'missing'=>true];throw $e;}
+        foreach(($data['entries']??[]) as $item)$result[]=['name'=>(string)$item['name'],'directory'=>($item['.tag']??'')==='folder','size'=>(int)($item['size']??0),'modified'=>(string)($item['server_modified']??'')];
+    } elseif ($provider === 's3') {
+        $cfg=arc_cloud_s3_config($connection);
+        $prefix=trim((string)($cfg['prefix']??''),'/');
+        $prefix=($prefix!==''?$prefix.'/':'').implode('/',$rootSegments).'/'.($relative!==''?$relative.'/':'');
+        $response=arc_cloud_s3_request($cfg,'GET','',['list-type'=>'2','prefix'=>$prefix,'delimiter'=>'/','max-keys'=>'500']);
+        $xml=@simplexml_load_string((string)$response['body']);
+        if(!$xml)throw new RuntimeException('Resposta S3 inválida.');
+        foreach($xml->CommonPrefixes??[] as $node){$name=rtrim(substr((string)$node->Prefix,strlen($prefix)),'/');if($name!=='')$result[]=['name'=>$name,'directory'=>true,'size'=>0,'modified'=>''];}
+        foreach($xml->Contents??[] as $node){$name=substr((string)$node->Key,strlen($prefix));if($name!=='')$result[]=['name'=>$name,'directory'=>false,'size'=>(int)$node->Size,'modified'=>(string)$node->LastModified];}
+    }
+    $result=array_values(array_filter($result,static fn($entry)=>$entry['name']!==''&&$entry['name']!=='.'&&$entry['name']!=='..'&&!str_contains($entry['name'],'/')));
+    usort($result,static fn($a,$b)=>(int)$b['directory']<=>(int)$a['directory'] ?: strcasecmp($a['name'],$b['name']));
+    return ['path'=>$relative,'entries'=>$result,'limited'=>count($result)>=($provider==='dropbox'||$provider==='s3'?500:200) && $nextPage === '','next'=>$nextPage];
+}
+
 /** Revalida autorização e configuração antes de cada bloco; não persiste conteúdo. */
 function arc_cloud_agent_job(PDO $pdo,array $agent): array
 {
@@ -1007,8 +1098,11 @@ function arc_cloud_agent_job(PDO $pdo,array $agent): array
     $job=arc_cloud_job_get($pdo,(int)$agent['id'],(int)$agent['network_id'],(int)$agent['account_id']);
     $job['agent_id']=(int)$agent['id'];$job['network_id']=(int)$agent['network_id'];
     $connection=$job['connection_id']?arc_cloud_connection_get($pdo,$job['connection_id'],(int)$agent['network_id'],(int)$agent['account_id']):null;
-    $job['available']=$job['enabled'] && $connection && arc_cloud_provider_config($pdo,(string)$connection['provider'])['ready'];
-    $job['revision']=hash('sha256',json_encode([$job['connection_id'],$job['settings']]));
+    $allowed=true;if($connection){try{arc_cloud_assert_destination_allowed($pdo,$connection);}catch(InvalidArgumentException $e){$allowed=false;}}
+    $job['available']=$job['enabled'] && $connection && $allowed && arc_cloud_provider_config($pdo,(string)$connection['provider'])['ready'];
+    $policy=arc_cloud_policy($pdo);
+    $job['vdrive_available']=!empty($job['settings']['vdrive']) && $policy['vdrive'] && $connection && $allowed && arc_cloud_provider_config($pdo,(string)$connection['provider'])['ready'];
+    $job['revision']=hash('sha256',json_encode([$job['connection_id'],array_diff_key($job['settings'],['vdrive'=>1,'vdrive_letter'=>1])]));
     return [$job,$connection];
 }
 
@@ -1026,5 +1120,175 @@ function arc_cloud_dropbox_folders(PDO $pdo,array $connection,string $token,arra
             if(($metadata['.tag']??'')!=='folder')throw new RuntimeException('O destino Dropbox não é uma pasta.',409);
         }else arc_cloud_expect($response,[200],'Não foi possível criar a pasta Dropbox');
         $pdo->prepare('INSERT IGNORE INTO '.arc_table('cloud_backup_folders').' (connection_id,path_hash,remote_id) VALUES (?,?,?)')->execute([(int)$connection['id'],$hash,'folder']);
+    }
+}
+
+
+/** Nomes amigáveis para a navegação (estilo Google Drive): Rede-12 vira o nome da rede, Computador-5 o nome da máquina e o sufixo técnico das pastas some. */
+function arc_cloud_browse_decorate(PDO $pdo, array $browser, int $accountId): array
+{
+    $networks = [];$agents = [];
+    foreach ($browser['entries'] as &$entry) {
+        $entry['display'] = $entry['name'];
+        if (!$entry['directory']) { $entry['type'] = arc_cloud_file_type($entry['name']); continue; }
+        $entry['type'] = 'folder';
+        if (preg_match('/^Rede-(\d+)$/D', $entry['name'], $m)) {
+            $id = (int)$m[1];
+            if (!isset($networks[$id])) { $q = $pdo->prepare('SELECT name FROM ' . arc_table('managed_networks') . ' WHERE id=? AND account_id=?'); $q->execute([$id, $accountId]); $networks[$id] = (string)($q->fetchColumn() ?: ''); }
+            if ($networks[$id] !== '') { $entry['display'] = $networks[$id]; $entry['type'] = 'network'; }
+        } elseif (preg_match('/^Computador-(\d+)$/D', $entry['name'], $m)) {
+            $id = (int)$m[1];
+            if (!isset($agents[$id])) { $q = $pdo->prepare('SELECT machine_name FROM ' . arc_table('network_agents') . ' WHERE id=? AND account_id=?'); $q->execute([$id, $accountId]); $agents[$id] = (string)($q->fetchColumn() ?: ''); }
+            if ($agents[$id] !== '') { $entry['display'] = $agents[$id]; $entry['type'] = 'computer'; }
+        } elseif (preg_match('/^(.+)-[0-9a-f]{12}$/D', $entry['name'], $m)) {
+            $entry['display'] = $m[1];
+        }
+    }
+    unset($entry);
+    return $browser;
+}
+
+function arc_cloud_file_type(string $name): string
+{
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    return match (true) {
+        in_array($ext, ['jpg','jpeg','png','gif','bmp','webp','heic','tif','tiff','svg'], true) => 'image',
+        in_array($ext, ['mp4','mkv','avi','mov','wmv','webm'], true) => 'video',
+        in_array($ext, ['mp3','wav','flac','aac','ogg','m4a'], true) => 'audio',
+        in_array($ext, ['pdf'], true) => 'pdf',
+        in_array($ext, ['doc','docx','odt','rtf','txt'], true) => 'doc',
+        in_array($ext, ['xls','xlsx','csv','ods'], true) => 'sheet',
+        in_array($ext, ['ppt','pptx','odp'], true) => 'slide',
+        in_array($ext, ['zip','rar','7z','tar','gz','bak'], true) => 'archive',
+        in_array($ext, ['sql','db','mdb','accdb','sqlite','pst','ost'], true) => 'data',
+        default => 'file',
+    };
+}
+
+
+/* ============================================================
+   Navegação, download e disco virtual (v3.10)
+   ============================================================ */
+/** Segmentos-base visíveis: Drive da plataforma = só o computador; conta própria = só a rede (nunca outras redes da mesma conta). */
+function arc_cloud_scope_segments(array $connection, string $root, int $networkId, int $agentId): array
+{
+    $root = arc_cloud_clean_segment($root, 80);
+    $managed = (int)$connection['network_id'] === 0 && (int)$connection['account_id'] === 0;
+    if ($managed) return [$root, 'Rede-' . $networkId, 'Computador-' . $agentId];
+    return $networkId > 0 ? [$root, 'Rede-' . $networkId] : [$root];
+}
+
+/** Valida um caminho relativo (a/b/c) vindo da tela ou do agente e devolve as partes. */
+function arc_cloud_relative_parts(string $relative): array
+{
+    if ($relative === '') return [];
+    if (strlen($relative) > 700 || str_contains($relative, '\\') || str_contains($relative, chr(0))) throw new InvalidArgumentException('Caminho remoto inválido.');
+    $parts = explode('/', $relative);
+    foreach ($parts as $part) if ($part === '' || $part === '.' || $part === '..' || strlen($part) > 190 || preg_match('/[\x00-\x1f]/', $part)) throw new InvalidArgumentException('Caminho remoto inválido.');
+    return $parts;
+}
+
+/** Tipos que o navegador pode exibir sem baixar. Todo o resto sai como anexo binário. */
+function arc_cloud_mime(string $name): array
+{
+    static $map = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp', 'bmp' => 'image/bmp',
+        'pdf' => 'application/pdf', 'txt' => 'text/plain; charset=utf-8', 'csv' => 'text/plain; charset=utf-8', 'log' => 'text/plain; charset=utf-8',
+        'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mp3' => 'audio/mpeg', 'wav' => 'audio/wav', 'ogg' => 'audio/ogg', 'm4a' => 'audio/mp4'];
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    return isset($map[$ext]) ? [$map[$ext], true] : ['application/octet-stream', false];
+}
+
+/** Resolve o arquivo no provedor e devolve a requisição de leitura: [method,url,headers,body,size]. Nada é gravado em disco. */
+function arc_cloud_read_plan(PDO $pdo, array $connection, array $segments): array
+{
+    $provider = (string)$connection['provider'];
+    $token = $provider === 's3' ? '' : arc_cloud_access_token($pdo, $connection);
+    $name = (string)end($segments);
+    if ($provider === 'gdrive') {
+        $parent = 'root';
+        foreach (array_slice($segments, 0, -1) as $part) { $parent = arc_cloud_gdrive_find($token, $parent, $part, true); if (!$parent) throw new RuntimeException('Arquivo não encontrado no destino.', 404); }
+        $id = arc_cloud_gdrive_find($token, $parent, $name, false);
+        if (!$id) throw new RuntimeException('Arquivo não encontrado no destino.', 404);
+        $meta = arc_cloud_json(arc_cloud_expect(arc_cloud_http('GET', 'https://www.googleapis.com/drive/v3/files/' . rawurlencode($id) . '?fields=size,mimeType', arc_cloud_gdrive_headers($token), null, 30), [200], 'Não foi possível ler o arquivo no Google Drive'));
+        if (str_starts_with((string)($meta['mimeType'] ?? ''), 'application/vnd.google-apps.')) throw new RuntimeException('Arquivos nativos do Google (Docs/Planilhas) não são baixáveis aqui.', 415);
+        return ['GET', 'https://www.googleapis.com/drive/v3/files/' . rawurlencode($id) . '?alt=media', ['Authorization: Bearer ' . $token], null, (int)($meta['size'] ?? 0)];
+    }
+    if ($provider === 'onedrive') {
+        $meta = arc_cloud_json(arc_cloud_expect(arc_cloud_http('GET', arc_cloud_onedrive_path($segments) . '?$select=size,file,@microsoft.graph.downloadUrl', ['Authorization: Bearer ' . $token, 'Accept: application/json'], null, 30), [200], 'Não foi possível ler o arquivo no OneDrive'));
+        $url = (string)($meta['@microsoft.graph.downloadUrl'] ?? '');
+        if (!isset($meta['file']) || !str_starts_with($url, 'https://')) throw new RuntimeException('Arquivo indisponível no OneDrive.', 404);
+        return ['GET', $url, [], null, (int)($meta['size'] ?? 0)];
+    }
+    if ($provider === 'dropbox') {
+        $path = '/' . implode('/', $segments);
+        $meta = arc_cloud_json(arc_cloud_dropbox_rpc($token, 'files/get_metadata', ['path' => $path]));
+        if (($meta['.tag'] ?? '') !== 'file') throw new RuntimeException('Arquivo indisponível no Dropbox.', 404);
+        return ['POST', 'https://content.dropboxapi.com/2/files/download', ['Authorization: Bearer ' . $token, 'Dropbox-API-Arg: ' . json_encode(['path' => $path]), 'Content-Type:'], '', (int)($meta['size'] ?? 0)];
+    }
+    if ($provider === 's3') {
+        $cfg = arc_cloud_s3_config($connection);
+        $key = implode('/', $segments);
+        $head = arc_cloud_expect(arc_cloud_s3_request($cfg, 'HEAD', $key), [200], 'Arquivo indisponível no S3');
+        $size = (int)($head['headers']['content-length'] ?? 0);
+        return ['S3', $key, $cfg, null, $size];
+    }
+    throw new RuntimeException('Provedor sem suporte a download.', 400);
+}
+
+/** Envia o arquivo ao cliente em fluxo, com suporte a Range (retomar download e reprodução de vídeo/áudio). */
+function arc_cloud_stream_file(PDO $pdo, array $connection, array $segments, bool $inline, ?string $rangeHeader = null): void
+{
+    $plan = arc_cloud_read_plan($pdo, $connection, $segments);
+    [$method, $url, $headers, $body, $size] = $plan;
+    $name = (string)end($segments);
+    [$mime, $viewable] = arc_cloud_mime($name);
+    $range = null;
+    if ($rangeHeader !== null && preg_match('/^bytes=(\d*)-(\d*)$/D', trim($rangeHeader))) $range = trim($rangeHeader);
+    if ($method === 'S3') {
+        $cfg = $headers;
+        $extra = $range !== null ? ['Range' => $range] : [];
+        [$url, $httpHeaders] = arc_cloud_s3_prepare($cfg, 'GET', $url, [], '', $extra);
+        $headers = $httpHeaders; $method = 'GET';
+    } elseif ($range !== null) $headers[] = 'Range: ' . $range;
+    [$host, $addresses] = arc_cloud_validate_url($url);
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    @set_time_limit(0); ignore_user_abort(false);
+    while (ob_get_level() > 0) @ob_end_clean();
+    $started = false; $status = 0; $error = '';
+    $disposition = ($inline && $viewable ? 'inline' : 'attachment') . "; filename*=UTF-8''" . rawurlencode($name);
+    $send = [];
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => false, CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+        CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 0, CURLOPT_LOW_SPEED_LIMIT => 1024, CURLOPT_LOW_SPEED_TIME => 60,
+        CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RESOLVE => [$host . ':443:' . implode(',', $addresses)],
+        CURLOPT_HEADERFUNCTION => static function ($h, string $line) use (&$status, &$send, &$started, $mime, $disposition, $inline, $viewable): int {
+            if (preg_match('~^HTTP/\S+\s+(\d{3})~', $line, $m)) { $status = (int)$m[1]; $send = []; }
+            elseif (($pos = strpos($line, ':')) > 0) { $send[strtolower(trim(substr($line, 0, $pos)))] = trim(substr($line, $pos + 1)); }
+            elseif (trim($line) === '' && in_array($status, [200, 206], true) && !$started) {
+                $started = true;
+                http_response_code($status);
+                header('Content-Type: ' . $mime); header('Content-Disposition: ' . $disposition);
+                header('X-Content-Type-Options: nosniff'); header('Cache-Control: private, no-store'); header('Accept-Ranges: bytes');
+                if ($inline && $viewable && $mime !== 'application/pdf') header("Content-Security-Policy: default-src 'none'; img-src 'self' data:; media-src 'self'; sandbox");
+                if (isset($send['content-length'])) header('Content-Length: ' . (int)$send['content-length']);
+                if (isset($send['content-range']) && $status === 206) header('Content-Range: ' . preg_replace('/[^0-9a-z \/*-]/i', '', $send['content-range']));
+            }
+            return strlen($line);
+        },
+        CURLOPT_WRITEFUNCTION => static function ($h, string $chunk) use (&$started, &$error): int {
+            if (!$started) { if (strlen($error) < 300) $error .= $chunk; return strlen($chunk); }
+            echo $chunk; flush();
+            return connection_aborted() ? 0 : strlen($chunk);
+        },
+    ]);
+    if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    curl_exec($ch);
+    $failure = curl_errno($ch);
+    curl_close($ch);
+    if (!$started) {
+        error_log('Arcoll nuvem: leitura recusada HTTP ' . $status . ' curl ' . $failure);
+        throw new RuntimeException($status === 416 ? 'Trecho solicitado fora do arquivo.' : 'O provedor recusou a leitura do arquivo (HTTP ' . $status . ').', $status === 404 ? 404 : ($status === 416 ? 416 : 502));
     }
 }

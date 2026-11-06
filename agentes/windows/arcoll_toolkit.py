@@ -375,6 +375,13 @@ class AppearanceManager:
         'light': {'bg':'#edf2f7','surface':'#ffffff','alt':'#f4f7fb','text':'#203249','muted':'#5d7189','border':'#d8e2ed','accent':'#087eac','onaccent':'#ffffff','success':'#12856b','danger':'#bc4356','warning':'#a86b12','violet':'#6c51bf'},
         'dark': {'bg':'#0b1420','surface':'#111f30','alt':'#182a40','text':'#e5edf8','muted':'#9db0c8','border':'#2b4059','accent':'#47b9e5','onaccent':'#071521','success':'#40c6a2','danger':'#f28291','warning':'#e6b95c','violet':'#b5a3ee'},
     }
+    # Temas vinculados ao catálogo da plataforma; sem dependências gráficas extras.
+    PALETTES['windows'] = {'bg':'#edf3fa','surface':'#ffffff','alt':'#e3ebf5','text':'#172b44','muted':'#536982','border':'#d0ddea','accent':'#2563eb','onaccent':'#ffffff','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
+    PALETTES['ocean'] = {'bg':'#081c30','surface':'#112b44','alt':'#193851','text':'#e7f7ff','muted':'#a7c1d5','border':'#315169','accent':'#26bae9','onaccent':'#071521','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
+    PALETTES['crystal'] = {'bg':'#f2f5fa','surface':'#ffffff','alt':'#e9edf7','text':'#222842','muted':'#64718c','border':'#dce2ee','accent':'#6366f1','onaccent':'#ffffff','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
+    PALETTES['graphite'] = {'bg':'#16191f','surface':'#242a34','alt':'#303744','text':'#f1f4fa','muted':'#b0bbc9','border':'#485364','accent':'#9aaee5','onaccent':'#071521','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
+    PALETTES['neon'] = {'bg':'#110e27','surface':'#221a40','alt':'#302551','text':'#f5f0ff','muted':'#c5b4e3','border':'#534474','accent':'#a879ff','onaccent':'#ffffff','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
+    PALETTES['emerald'] = {'bg':'#0b211d','surface':'#15352d','alt':'#20463a','text':'#e6fcf3','muted':'#acd5c5','border':'#386352','accent':'#32d4a1','onaccent':'#071521','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
     LABELS={'auto':'Automático','light':'Claro','dark':'Escuro'}
 
     @staticmethod
@@ -408,7 +415,7 @@ class AppearanceManager:
     def __init__(self,root,version='',controls=True,restyle=None):
         import tkinter as tk
         from tkinter import ttk
-        self.root=root;self.choice=self.read_choice();self.resolved=None;self.restyle=restyle;self.selected=None
+        self.root=root;self.choice=self.read_choice();self.remote_choice=None;self.remote_mode='theme';self._system_mode=None;self.resolved=None;self.restyle=restyle;self.selected=None
         self.apply()
         if controls:
             bar=bind_theme(tk.Frame(root,height=36,bg=theme_color('surface')),background='surface')
@@ -424,6 +431,7 @@ class AppearanceManager:
         root.after(1800,self.poll)
 
     def set_choice(self,choice):
+        if self.remote_choice is not None:return
         if choice not in self.LABELS:raise ValueError('Tema inválido')
         import tempfile
         path=self.preference_path();path.parent.mkdir(parents=True,exist_ok=True);temporary=None
@@ -435,12 +443,43 @@ class AppearanceManager:
             if temporary and os.path.exists(temporary):os.unlink(temporary)
         self.choice=choice;self.apply()
 
+    @classmethod
+    def remote_palette(cls, choice, mode):
+        """Conserva a identidade do tema publicado ao alternar a luminosidade."""
+        palette=dict(cls.PALETTES[choice])
+        target=cls.system_theme() if mode=='auto' else mode
+        if target not in ('light','dark'):
+            return palette
+        already_light=choice in ('windows','crystal')
+        if (target=='light')==already_light:
+            return palette
+        neutral=cls.PALETTES[target]
+        for role in ('bg','surface','alt','text','muted','border'):
+            palette[role]=neutral[role]
+        return palette
+
+    def set_remote_theme(self, choice, mode='theme'):
+        if choice not in self.PALETTES or choice in ('light','dark'):
+            return
+        if mode not in ('theme','auto','light','dark'):
+            return
+        if (choice,mode)==(self.remote_choice,self.remote_mode):
+            return
+        self.remote_choice=choice
+        self.remote_mode=mode
+        self.apply()
+
     def apply(self):
         global _CURRENT_PALETTE
         import tkinter as tk
         from tkinter import ttk
-        self.resolved=self.system_theme() if self.choice=='auto' else self.choice
-        _CURRENT_PALETTE=self.PALETTES[self.resolved]
+        selected=self.remote_choice if self.remote_choice is not None else self.choice
+        self.resolved=(self.system_theme() if self.remote_mode=='auto' else
+                       (self.remote_mode if self.remote_mode in ('light','dark') else
+                        ('light' if selected in ('windows','crystal','light') else 'dark'))) if self.remote_choice is not None else (self.system_theme() if selected=='auto' else selected)
+        _CURRENT_PALETTE=(self.remote_palette(self.remote_choice,self.remote_mode)
+                          if self.remote_choice is not None else self.PALETTES[self.resolved])
+        self._system_mode=self.system_theme() if self.remote_mode=='auto' else None
         def apply_declared(widget):
             roles=getattr(widget,'_arc_theme_roles',{})
             if roles:widget.configure(**{name:theme_color(role) for name,role in roles.items()})
@@ -462,8 +501,18 @@ class AppearanceManager:
     def poll(self):
         import tkinter as tk
         try:
-            saved=self.read_choice();resolved=self.system_theme() if saved=='auto' else saved
-            if saved!=self.choice or resolved!=self.resolved:self.choice=saved;self.apply()
+            saved=self.read_choice() if self.remote_choice is None else self.choice
+            selected=self.remote_choice if self.remote_choice is not None else saved
+            # A identidade do tema (por exemplo "windows") não deve ser
+            # comparada com o modo claro/escuro efetivamente aplicado.
+            resolved=(self.system_theme() if self.remote_mode=='auto' else
+                      (self.remote_mode if self.remote_mode in ('light','dark') else
+                       ('light' if selected in ('windows','crystal','light') else 'dark'))) if self.remote_choice is not None else (self.system_theme() if selected=='auto' else selected)
+            system_changed=(self.remote_choice is not None and self.remote_mode=='auto'
+                            and self._system_mode!=self.system_theme())
+            if saved!=self.choice or resolved!=self.resolved or system_changed:
+                self.choice=saved
+                self.apply()
             self.root.after(1800,self.poll)
         except tk.TclError:return
 

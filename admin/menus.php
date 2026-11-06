@@ -18,7 +18,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
   $action=(string)($_POST['action']??'');
   if($action==='sync_files'){
    [$created,$updated,$disabled]=arc_menu_sync_existing($pdo);
-   $_SESSION['arc_menu_bulk_result']=sprintf('Descoberta concluída: %d novos destinos cadastrados desativados. As escolhas existentes foram preservadas.',$created);
+   $_SESSION['arc_menu_bulk_result']=sprintf('Auditoria concluída: %d páginas novas vinculadas aos menus. Itens anteriormente desativados permaneceram desativados.',$created);
   } elseif($action==='reorder'){
    $ids=array_map('intval',(array)($_POST['ordered_ids']??[]));
    $ids=array_values(array_unique(array_filter($ids,static fn($v)=>$v>0)));
@@ -116,6 +116,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
   header('Location: menus.php?saved=1',true,303);exit;
  }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();$message='Não foi possível concluir a operação: '.$e->getMessage();}
 }
+$arcMenuAudit=arc_navigation_audit($pdo);
 $items=$pdo->query('SELECT * FROM '.arc_table('navigation_items').' ORDER BY placement,sort_order,id')->fetchAll(PDO::FETCH_ASSOC);
 // Ordem hierárquica preserva os filhos junto ao seu respectivo pai, sem perder registros órfãos.
 $byParent=[];$known=[];foreach($items as $r)$known[(int)$r['id']]=true;
@@ -209,8 +210,27 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
       <button type="submit" class="button" id="menu-bulk-apply" disabled aria-label="Aplicar" title="Aplicar"><i class="fa fa-check" aria-hidden="true"></i><span class="arc-action-label">Aplicar</span></button>
     </form>
 
+    <form method="post" action="<?=arc_h(arc_workspace_base_url())?>admin/menus.php" title="Cadastrar páginas encontradas no código, respeitando menus desativados e permissões">
+      <input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>">
+      <input type="hidden" name="action" value="sync_files">
+      <button type="submit" class="button"><i class="fa fa-refresh" aria-hidden="true"></i> Sincronizar páginas (<?=count($arcMenuAudit['missing'])?>)</button>
+    </form>
     <button type="button" class="button primary" id="menu-new"><i class="fa fa-plus" aria-hidden="true"></i> Criar novo</button>
   </div>
+  <details style="margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:10px">
+    <summary style="cursor:pointer;font-weight:700">Conferência das páginas: <?=count($arcMenuAudit['missing'])?> sem menu, <?=count($arcMenuAudit['inactive'])?> desativadas, <?=count($arcMenuAudit['invalid'])?> destinos para revisão</summary>
+    <p class="help-text">A sincronização cadastra páginas sem menu na área correta (administração, usuário ou rede). Não reativa itens desligados manualmente e não inclui rotinas internas, autenticação ou instaladores.</p>
+    <?php foreach (['missing'=>'Páginas não cadastradas','inactive'=>'Menus desativados','invalid'=>'Destinos incorretos ou permissões para revisar'] as $type=>$heading): ?>
+      <h3 style="font-size:13px;margin:12px 0 6px"><?=mh($heading)?></h3>
+      <?php if (!$arcMenuAudit[$type]): ?><p class="help-text">Nenhum item.</p><?php else: ?>
+        <ul style="max-height:185px;overflow:auto;margin:0 0 10px;padding-left:20px">
+          <?php foreach ($arcMenuAudit[$type] as $record): ?>
+            <li><code><?=mh((string)($record['target']??$record['target_url']??''))?></code> — <?=mh((string)($record['label']??''))?></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    <?php endforeach; ?>
+  </details>
   <div class="table-wrap arc-menu-table-scroll"><table class="arc-responsive-table data-table" id="menu-table"><thead><tr>
     <th title="Arrastar para ordenar">Ordem</th><th class="menu-select-cell"><input type="checkbox" id="menu-select-all" aria-label="Selecionar todos os menus visíveis"></th>
     <th><button type="button" class="table-sort" data-sort="icon">Ícone <i class="fa fa-sort"></i></button></th>

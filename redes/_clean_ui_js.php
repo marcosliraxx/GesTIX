@@ -32,7 +32,7 @@ async function track(id,P){const end=Date.now()+7200000;let done=null;while(Date
  if(!done||!['completed','failed','expired'].includes(done.status))throw Error('Operação ainda em andamento. Recarregue a página para retomar.');
  if(done.status!=='completed')throw Error(done.status==='expired'?'O agente não recebeu a solicitação. Verifique a conexão e tente novamente.':(done.message||'Operação não concluída'));return done}
 async function run(start,body,reload,label,P=call){busy=true;busyLabel=label||'Executando no computador';progressText='';render();status('Aguardando agente...');let ok=false;try{let id;try{id=(await P(start,body)).command_id}catch(e){if(e.active&&e.active.command_id){status('Já existe uma operação em andamento. Acompanhando...');id=e.active.command_id}else throw e}
- activeCommandId=id;render();const done=await track(id,P);await reload();status(done.message||'Operação concluída');ok=true}catch(e){status(e.message,true)}finally{activeCommandId=0;busy=false;progressText='';render()}return ok}
+ activeCommandId=id;render();const done=await track(id,P);await reload();status(done.message||'Operação concluída');ok=true}catch(e){status(e.message,true);window.arcRemoteFailure?.({command_id:activeCommandId,command:label||start,message:e.message})}finally{activeCommandId=0;busy=false;progressText='';render()}return ok}
 const startTool=(payload,kind,label)=>run('tool',payload,()=>loadReport(kind),label);
 const startClean=(mode,cats,days,label)=>run('start',{mode,categories:cats,age_days:days},refreshList,label||(mode==='scan'?'Verificando o computador':'Limpando'));
 const progTask=(payload,label)=>run('start',payload,pload,label,pcall);
@@ -46,30 +46,31 @@ function confirmBox(title,nodes,yes='Confirmar',danger=false,validate){return ne
 const ill=(g,tone)=>{const d=document.createElement('div');d.innerHTML='<svg viewBox="0 0 320 220" class="ill" aria-hidden="true"><ellipse cx="160" cy="198" rx="118" ry="11" fill="#171c28"/><circle cx="262" cy="56" r="13" fill="#3f78ff" opacity=".75"/><circle cx="52" cy="92" r="8" fill="#6f9bff" opacity=".55"/><circle cx="278" cy="120" r="5" fill="#ffbf02" opacity=".8"/><rect x="62" y="36" width="196" height="126" rx="11" fill="#9ebfff"/><rect x="72" y="46" width="176" height="106" rx="6" fill="'+(tone||'#2c4fa6')+'"/><path d="M38 168h244l-17 20H55z" fill="#d6e4ff"/><text x="160" y="118" fill="#fff" font-family="FontAwesome" font-size="52" text-anchor="middle">'+g+'</text></svg>';return d.firstChild};
 function pctOf(t){const m=/(\d+)\/(\d+)/.exec(t||'');return m&&Number(m[2])>0?Math.min(99,Math.round((Number(m[1])-1)/Number(m[2])*100)):null}
 function ring(pct){const d=document.createElement('div');d.className='cc-ring'+(pct==null?' ind':'');const C=289;d.innerHTML='<svg viewBox="0 0 104 104"><circle class="bg" cx="52" cy="52" r="46"/><circle class="fg" cx="52" cy="52" r="46" stroke-dasharray="'+C+'" stroke-dashoffset="'+(pct==null?C*0.72:C*(1-pct/100))+'"/></svg><b>'+(pct==null?'':pct+'<small>%</small>')+'</b>';return d}
-function busyView(){return h('div',{class:'cc-center'},ring(pctOf(progressText)),h('h2',{},busyLabel||'Trabalhando...'),h('p',{class:'mut',style:'max-width:520px'},progressText||'Aguardando o agente...'),h('button',{class:'cc-pill red',disabled:!activeCommandId,onclick:async()=>{if(!await confirmBox('Cancelar operação',[h('p',{},'O agente interromperá nas próximas etapas que permitirem cancelamento. Alterações já realizadas não serão revertidas.')],'Solicitar cancelamento',true))return;try{await api2('network-clean-','cancel',{command_id:activeCommandId});status('Cancelamento solicitado ao agente.')}catch(e){status(e.message,true)}}},'Cancelar operação'))}
+function busyView(){return h('div',{class:'cc-center'},ring(pctOf(progressText)),h('h2',{},busyLabel||'Trabalhando...'),h('p',{class:'mut',style:'max-width:520px'},progressText||'Aguardando o agente...'),h('button',{class:'cc-pill red',onclick:async()=>{if(!await confirmBox('Cancelar operação',[h('p',{},'O agente derruba imediatamente os processos em andamento no computador e libera a tela. Alterações já realizadas não serão revertidas.')],'Cancelar tudo',true))return;try{await api2('network-clean-','cancel',{command_id:activeCommandId||0});activeCommandId=0;busy=false;progressText='';render();status('Operação cancelada. O agente está encerrando os processos.')}catch(e){status(e.message,true)}}},'Cancelar operação'))}
 const intro=(g,title,lead,feats,btn,tone)=>h('div',{class:'cc-intro'},h('div',{class:'tx'},h('h2',{},title),lead&&h('p',{class:'mut'},lead),feats.map(([i,t,s])=>h('div',{class:'ft'},ico(i),h('div',{},h('b',{},t),h('span',{},s)))),h('div',{},btn)),ill(g,tone));
 const can=()=>!busy&&headless&&online;
 const stamp=k=>stamps[k]?'Última verificação: '+stamps[k]:'';
 /* ---------- navegação e estrutura ---------- */
 function renderNav(){const nav=$('cc-nav'),fn=$('cc-foot-nav');nav.replaceChildren();fn.replaceChildren();
- const mk=([key,label,icon])=>h('button',{type:'button',class:key===section?'on':'',title:label,onclick:()=>{if(busy||key===section)return;section=key;render();ensureLoaded()}},ico(icon),h('span',{},label));
+ const mk=([key,label,icon])=>h('button',{type:'button',class:key===section?'on':'',title:label,onclick:()=>{if(busy||key===section)return;section=key;render()}},ico(icon),h('span',{},label));
  for(const n of NAV)if(ALLOWED.has(n[0]))nav.append(mk(n));if(ALLOWED.has(OPT[0]))fn.append(mk(OPT));
  const a=$('cc-agent');a.className='cc-agent '+(online?'on':'off');a.lastChild.textContent=online?(headless?'Agente conectado':'Agente conectado (sem modo sem monitor)'):'Agente desconectado'}
-function banner(){const b=$('cc-banner');b.replaceChildren();if(section==='backup'){b.append(h('div',{class:'cc-banner'},'O agente executa o backup em segundo plano usando apenas pastas autorizadas neste computador.'));return}if(!online)b.append(h('div',{class:'cc-banner'},'Agente desconectado: as solicitações só funcionam com o computador online.'));else if(!headless)b.append(h('div',{class:'cc-banner'},'Ative o modo sem monitor no agente para analisar ou limpar remotamente.'))}
+function banner(){const b=$('cc-banner');b.replaceChildren();if(section==='backup'){b.append(h('div',{class:'cc-banner'},'Escolha o destino e as pastas aqui; o agente Windows envia os arquivos automaticamente e você acompanha tudo nesta tela.'));return}if(!online)b.append(h('div',{class:'cc-banner'},'Agente desconectado: as solicitações só funcionam com o computador online.'));else if(!headless)b.append(h('div',{class:'cc-banner'},'Ative o modo sem monitor no agente para analisar ou limpar remotamente.'))}
 const VIEWS={};
-function render(){renderNav();banner();const v=$('cc-view');const keep=[...v.querySelectorAll('[data-keep]')].map(e=>[e.dataset.keep,e.scrollTop]);const key=[section,busy,tab,hstate,hstep,dupStage,diskStage,startTab].join('|');if(section==='backup'&&backupDirty&&v.querySelector('.cb-config'))return;v.replaceChildren();if(key!==lastKey){v.style.animation='none';void v.offsetWidth;v.style.animation='';lastKey=key}
+function render(){renderNav();banner();const v=$('cc-view');const keep=[...v.querySelectorAll('[data-keep]')].map(e=>[e.dataset.keep,e.scrollTop]);const key=[section,busy,tab,hstate,hstep,dupStage,diskStage,startTab].join('|');if(section==='backup'&&BK.dirty&&BK.tab==='setup'&&BK.saving===false&&v.querySelector('.cb-step')&&document.activeElement&&v.contains(document.activeElement)&&/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)&&document.activeElement.type!=='checkbox'&&document.activeElement.type!=='radio')return;v.replaceChildren();if(key!==lastKey){v.style.animation='none';void v.offsetWidth;v.style.animation='';lastKey=key}
  if(busy){v.append(busyView());return}
  (VIEWS[section]||VIEWS[cfg.start])(v);for(const [k,t] of keep){const e=v.querySelector('[data-keep="'+k+'"]');if(e)e.scrollTop=t}}
-function ensureLoaded(){if(section==='backup'){backupLoad();return}if(section==='windows_update'){wuRefresh();return}const need={health:'health',startup:'startup',disk:'disk',duplicates:'duplicates',restore:'restore',updater:'updater',cloud:'cloud',perf:'performance',drivers:'drivers'}[section];if(need&&!(need in reports)&&stamps[need])loadReport(need).then(render).catch(e=>status(e.message,true));
- if(section==='uninstall'&&!progLoaded)pload().then(()=>{render();status(progStamp?'Inventário: '+progStamp:'Sem inventário. Clique em Verificar agora.')}).catch(e=>status(e.message,true))}
+// Trocar de aba nunca consulta a API. Relatórios são lidos apenas mediante clique.
+function ensureLoaded(){}
+// Cada ferramenta consulta somente pelo seu botão de ação, nunca ao entrar na aba.
 const tri=(cb,keys,set)=>{const n=keys.filter(k=>set.has(k)).length;cb.checked=keys.length>0&&n===keys.length;cb.indeterminate=n>0&&n<keys.length;return cb};
 /* ---------- Windows Update: visual do Windows 11 e ações pelo agente autorizado ---------- */
 let wuState=null,wuBusy=false,wuTimer=null,wuScreen='home',wuLastScan=null,wuHistory=null,wuSettings=null,wuScanId=0;
 const wuCard=(symbol,title,subtitle,action,tail)=>h('div',{class:'wu-row',role:action?'button':null,tabindex:action?'0':null,onclick:action||null,onkeydown:action?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();action()}}:null},h('div',{class:'wu-symbol'},ico(symbol)),h('div',{class:'wu-description'},h('div',{class:'wu-row-title'},title),subtitle&&h('div',{class:'wu-subtitle'},subtitle)),h('div',{class:'wu-tail'},tail||ico('angle-right')));
 const wuBusyNow=()=>wuBusy||['pending','running'].includes(wuState?.command?.status);
 async function wuApi(action,body){const url=new URL(action==='windows-update-status'?api.replace(/api\/api\.php(?:\?.*)?$/,'api/support.php'):api,location.href);url.searchParams.set('action',action);const resp=await fetch(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:agent,...body})});let data={};try{data=await resp.json()}catch{}if(!resp.ok||!data.ok)throw Error(data.error||'Falha no Windows Update');return data}
-async function wuRefresh(){try{wuState=await wuApi('windows-update-status',{});if(wuState.scan_report){wuLastScan=wuState.scan_report;wuScanId=wuState.scan_id}const r=wuState.report;if(r?.mode==='scan'){wuLastScan=r;wuScanId=wuState.command.id}else if(r?.mode==='history')wuHistory=r;else if(r?.mode==='settings')wuSettings=r;render()}catch(e){status(e.message,true)}finally{clearTimeout(wuTimer);if(section==='windows_update'&&['pending','running'].includes(wuState?.command?.status))wuTimer=setTimeout(wuRefresh,2800)}}
-async function wuRun(mode){if(wuBusyNow())return;wuBusy=true;render();try{await wuApi('network-command',{command:'windows_update',update_mode:mode,scan_id:wuScanId,confirmed:mode==='install'});await wuRefresh()}catch(e){status(e.message,true)}finally{wuBusy=false;render()}}
+async function wuRefresh(){try{wuState=await wuApi('windows-update-status',{});if(['failed','expired'].includes(wuState?.command?.status))window.arcRemoteFailure?.({command_id:wuState.command.id,command:'windows_update',message:wuState.command.message||'Falha no Windows Update'});if(wuState.scan_report){wuLastScan=wuState.scan_report;wuScanId=wuState.scan_id}const r=wuState.report;if(r?.mode==='scan'){wuLastScan=r;wuScanId=wuState.command.id}else if(r?.mode==='history')wuHistory=r;else if(r?.mode==='settings')wuSettings=r;render()}catch(e){status(e.message,true)}finally{clearTimeout(wuTimer);if(section==='windows_update'&&['pending','running'].includes(wuState?.command?.status))wuTimer=setTimeout(wuRefresh,2800)}}
+async function wuRun(mode){if(wuBusyNow())return;wuBusy=true;render();try{await wuApi('network-command',{command:'windows_update',update_mode:mode,scan_id:wuScanId,confirmed:mode==='install'});await wuRefresh()}catch(e){status(e.message,true);window.arcRemoteFailure?.({command:'windows_update',message:e.message})}finally{wuBusy=false;render()}}
 function wuBack(){wuScreen='home';render()}
 function wuDetail(title,subtitle,...content){return h('div',{class:'wu-page'},h('button',{class:'wu-back',onclick:wuBack},ico('arrow-left'),' Windows Update'),h('h2',{class:'wu-heading'},title),subtitle&&h('p',{class:'wu-note'},subtitle),content)}
 VIEWS.windows_update=b=>{
@@ -124,6 +125,9 @@ VIEWS.windows_update=b=>{
 VIEWS.health=b=>{const r=reports.health;
  if(!r||hstate==='idle')return void b.append(h('div',{class:'cc-center'},ill('\uf08a','#2a3f86'),h('h2',{},r?'Bom retorno ao Health Check':'Health Check'),h('p',{class:'mut',style:'max-width:430px'},r?'Continue escaneando seu PC para aplicar atualizações e mantê-lo funcionando sem problemas.':'Analisa espaço em disco, privacidade, inicialização e registro do computador. Nada é excluído durante a verificação.'),h('button',{class:'cc-pill blue',disabled:!can(),onclick:startHealth},'Verificar agora'),h('span',{class:'mut'},stamp('health'))));
  if(hstate==='done')return void b.append(h('div',{class:'cc-center'},ill('\uf00c','#1f6b45'),h('h2',{},'Tudo pronto!'),h('p',{class:'mut'},hfreed.files>0?fmt(hfreed.files)+' arquivos removidos · '+size(hfreed.bytes)+' liberados.':'Nenhuma limpeza foi aplicada nesta verificação.'),h('button',{class:'cc-pill blue',disabled:!can(),onclick:startHealth},'Verificar novamente')));
+ if(r.incomplete)b.append(h('div',{style:'margin:12px 20px;padding:12px;border:1px solid #d9a358;border-radius:10px;color:#f4cc85'},
+     h('b',{},'Verificação parcial do agente nativo'),h('p',{},r.note||'Algumas categorias não foram verificadas.'),
+     h('small',{},(r.missing||[]).length+' categoria(s) não verificadas. O registro não foi auditado.')));
  const labels=['Mais privacidade','Mais espaço','Resolver problemas'],st=h('div',{class:'cc-steps'});
  labels.forEach((l,i)=>{if(i)st.append(h('div',{class:'cc-ln'}));st.append(h('div',{class:'cc-st '+(i<hstep?'done':i===hstep?'on':'dot')},h('i',{},i<hstep?'✓':i===hstep?'!':''),l))});b.append(st);
  if(hstep<2){const part=hstep===0?'privacy':'space',cats=Object.entries(r[part].categories||{}).filter(([k,v])=>v.file_count>0&&catalog[k]);
@@ -137,7 +141,7 @@ VIEWS.health=b=>{const r=reports.health;
   b.append(head,rows);const s=sum();
   b.append(h('div',{class:'cc-foot'},h('div',{class:'sum'},cats.length?size(s.by)+' ('+fmt(s.fi)+' arquivos) selecionados':'Nenhum item',h('small',{},'Esses itens podem ser removidos com segurança')),h('button',{class:'cc-pill',onclick:()=>{hstep++;render()}},cats.length?'Ignorar':'Continuar'),cats.length&&h('button',{class:'cc-pill blue',disabled:!can()||!hsel.size,onclick:()=>healthClean(part,cats)},'Limpar')));return}
  const sp=r.speed,rg=r.registry,line=(i,t,s,n,lbl,go)=>h('div',{class:'cc-hrow',style:'grid-template-columns:28px minmax(0,1fr) 120px'},ico(i),h('span',{},h('b',{},t),h('small',{},s)),h('button',{class:'cc-pill sm',onclick:go},lbl));
- b.append(h('div',{style:'padding:6px 28px 0'},h('h2',{class:'cc-title-big',style:'font-size:20px'},(rg.issues+sp.startup_enabled>0)?'Resolva os problemas restantes':'Nenhum problema encontrado'),h('p',{class:'mut'},'Itens que exigem sua revisão antes de qualquer alteração.')),
+ b.append(h('div',{style:'padding:6px 28px 0'},h('h2',{class:'cc-title-big',style:'font-size:20px'},r.incomplete?'Verificação parcial':((rg.issues+sp.startup_enabled>0)?'Resolva os problemas restantes':'Nenhum problema encontrado')),h('p',{class:'mut'},'Itens que exigem sua revisão antes de qualquer alteração.')),
   h('div',{class:'cc-scroll',style:'padding:14px 28px'},line('cubes','Registro',fmt(rg.issues)+' problema(s) encontrado(s). Cada correção gera backup .reg.',0,'Revisar',()=>{section='custom';tab='reg';render()}),line('desktop','Inicialização',fmt(sp.startup_enabled)+' de '+fmt(sp.startup_total)+' programas iniciam com o Windows.',0,'Gerenciar',()=>{if(ALLOWED.has('startup')){section='startup';render();ensureLoaded()}})),
   h('div',{class:'cc-foot'},h('div',{class:'sum'},'Verificação concluída',h('small',{},stamp('health'))),h('button',{class:'cc-pill blue',onclick:()=>{hstate='done';render()}},'Concluir')))};
 async function startHealth(){hfreed={bytes:0,files:0};const ok=await startTool({tool:'health',action:'scan'},'health','Verificando integridade do computador');if(ok){hstate='steps';hstep=0;const r=reports.health;hsel=new Set([...Object.keys(r.privacy.categories||{}),...Object.keys(r.space.categories||{})]);render()}}
@@ -155,7 +159,7 @@ VIEWS.custom=b=>{
  const sel=h('select',{class:'cc-sel',disabled:busy,'aria-label':'Idade mínima dos itens',onchange:e=>{age=Number(e.target.value);render()}},cfg.ages.map(d=>h('option',{value:d,selected:d===age},d===0?'Qualquer idade':'Mais de '+ageText(d))));
  b.append(h('div',{class:'cc-head'},h('h2',{},'Limpeza personalizada'),h('div',{class:'r'},tab!=='reg'&&sel,ALLOWED.has('options')&&h('button',{class:'cc-pill sm',onclick:()=>{section='options';render()}},ico('cog'),'Configurar'))));
  const tabs=[['lixo','Lixo','trash-o'],['nav','Navegador','window-maximize'],['reg','Registro','th-large']];
- b.append(h('div',{class:'cc-tabs'},tabs.map(([k,n,i])=>h('button',{type:'button',class:'cc-tab'+(k===tab?' on':''),onclick:()=>{tab=k;render();if(k==='reg'&&!reports.registry&&stamps.registry)loadReport('registry').then(render).catch(()=>{})}},ico(i),n))));
+ b.append(h('div',{class:'cc-tabs'},tabs.map(([k,n,i])=>h('button',{type:'button',class:'cc-tab'+(k===tab?' on':''),onclick:()=>{tab=k;render();/* leitura do registro somente pelo botão Carregar dados */}},ico(i),n))));
  return tab==='reg'?customReg(b):customFiles(b)};
 function customFiles(b){const groups=groupsFor(tab),keys=groups.flatMap(g=>g[1]);
  const list=h('div',{class:'cc-list','data-keep':'list'}),all=h('input',{type:'checkbox','aria-label':'Selecionar tudo',onchange:e=>{for(const k of keys)e.target.checked?selected.add(k):selected.delete(k);render()}});tri(all,keys,selected);
@@ -269,69 +273,12 @@ VIEWS.options=b=>{const ex=h('textarea',{class:'cc-area',id:'cc-ex','aria-label'
   h('p',{class:'mut',style:'margin-top:12px'},'Estas listas são as mesmas usadas pela tela Clean do agente instalado no Windows.')),
   h('div',{class:'cc-foot'},h('button',{class:'cc-pill blue',disabled:busy,onclick:async()=>{try{const r=await call('settings-save',{exclusions:lines(ex),custom_folders:lines(cu)});settings=r.settings;status('Configurações salvas');render()}catch(e){status(e.message,true)}}},'Salvar')))};
 /* ---------- início e sincronização ---------- */
-/* ---------- Backup em Nuvem: configuração e acompanhamento nativos do Clean ---------- */
-let backupData=null,backupLoading=false,backupDirty=false,backupError='';
-async function backupApi(action,data={}){
- const u=new URL(api.replace(/api\/api\.php(?:\?.*)?$/,'api/cloud.php'),location.href);u.searchParams.set('action',action);
- const response=await fetch(u,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:agent,...data})});
- let result;try{result=await response.json()}catch{throw Error('Não foi possível consultar o backup.')}
- if(!response.ok||!result.ok)throw Error(result.error||'Backup indisponível.');return result;
-}
-async function backupLoad(force=false){
- if(backupLoading||(!force&&backupData))return;backupLoading=true;
- try{backupData=await backupApi('state');backupError='';backupDirty=false}catch(e){backupError=e.message}finally{backupLoading=false;if(section==='backup')render()}
-}
-async function backupAction(action,data={}){try{await backupApi(action,data);backupDirty=false;backupData=null;await backupLoad(true);status('Backup atualizado.')}catch(e){status(e.message,true)}}
-VIEWS.backup=b=>{
- const body=h('div',{class:'cc-scroll cb-workspace','data-keep':'backup'});b.append(body);
- body.append(h('h2',{},'Backup em Nuvem'),h('p',{class:'mut'},'Pastas do computador sincronizadas para sua conta de nuvem. A plataforma repassa os blocos sem manter cópias dos arquivos.'));
- if(!backupData){body.append(h('p',{role:'status'},backupError||'Consultando configurações...'),h('button',{class:'cc-pill',onclick:()=>backupLoad(true)},'Tentar novamente'));return}
- const d=backupData,s=d.job.settings,st=d.status||{},connections=d.connections||[],providers=d.providers||[];
- const stateNames={idle:'Em dia',waiting:'Aguardando',scanning:'Analisando',uploading:'Enviando',paused:'Pausado',disabled:'Desativado',error:'Requer atenção'};
- const summary=h('section',{class:'cb-summary','aria-live':'polite'},h('strong',{},stateNames[st.state]||'Aguardando agente atualizado'),h('span',{},st.message||'Configure uma conta e autorize as pastas no agente.'),h('span',{class:'mut'},st.reported_at?('Último contato: '+st.reported_at+(st.fresh?'':' · sem atualização recente')):'Nenhum contato de backup recebido'));
- const pct=st.bytes_total?Math.min(100,100*st.bytes_done/st.bytes_total):0;
- summary.append(h('progress',{max:100,value:pct,'aria-label':'Progresso do backup'}),h('span',{},fmt(st.files_done)+' / '+fmt(st.files_total)+' arquivos · '+size(st.bytes_done)+' / '+size(st.bytes_total)),h('small',{},'Último sucesso: '+(st.last_success_at||'ainda não concluído')));body.append(summary);
- const connectionSelect=h('select',{name:'connection_id','aria-label':'Conta de nuvem'},h('option',{value:''},'Selecione uma conta'),connections.map(c=>h('option',{value:c.id,selected:c.id===d.job.connection_id},c.label+' · '+(c.status==='active'?'Conectada':'Requer atenção'))));
- const enabled=h('input',{type:'checkbox',name:'enabled',checked:d.job.enabled});
- const schedule=h('select',{name:'schedule'},[['continuous','Contínua (a cada 30 segundos)'],['interval','A cada intervalo'],['daily','Diariamente'],['manual','Somente manual']].map(([value,label])=>h('option',{value,selected:s.schedule===value},label)));
- const interval=h('select',{name:'interval'},[15,30,60,180,360,720].map(n=>h('option',{value:n,selected:n===s.interval_minutes},n+' minutos')));
- const daily=h('input',{type:'time',value:s.daily_time,required:true});
- const exclusions=h('textarea',{rows:3,placeholder:'*.tmp\n~$*','aria-label':'Exclusões'},(s.exclusions||[]).join('\n'));
- const limit=h('input',{type:'number',min:1,max:51200,value:s.max_file_mb,required:true});
- const bandwidth=h('input',{type:'number',min:0,max:1048576,value:s.bandwidth_kbps,required:true});
- const rootFolder=h('input',{type:'text',maxlength:80,value:s.remote_root,required:true});
- const form=h('form',{class:'cb-config',oninput:()=>{backupDirty=true},onsubmit:async e=>{e.preventDefault();await backupAction('save',{connection_id:Number(connectionSelect.value)||null,enabled:enabled.checked,settings:{...s,schedule:schedule.value,interval_minutes:Number(interval.value),daily_time:daily.value,exclusions:exclusions.value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),max_file_mb:Number(limit.value),bandwidth_kbps:Number(bandwidth.value),remote_root:rootFolder.value,mirror_deletes:false}})}},
- h('label',{},'Conta de destino',connectionSelect),h('label',{class:'cb-toggle'},enabled,' Ativar backup deste computador'),h('label',{},'Programação',schedule),h('label',{},'Intervalo',interval),h('label',{},'Horário local do computador',daily),h('label',{},'Pasta na nuvem',rootFolder),h('label',{},'Máximo por arquivo (MB)',limit),h('label',{},'Limite de envio (KB/s; 0 = livre)',bandwidth),h('label',{class:'cb-wide'},'Ignorar nomes ou caminhos (um padrão por linha)',exclusions),h('div',{class:'cb-actions cb-wide'},h('button',{type:'submit',class:'cc-pill blue'},'Salvar configuração'),h('button',{type:'button',class:'cc-pill',disabled:!d.job.enabled||backupDirty,onclick:()=>backupAction('run')},'Sincronizar agora'),h('button',{type:'button',class:'cc-pill',onclick:()=>backupLoad(true)},'Atualizar estado')));
- body.append(form,h('h3',{},'Pastas autorizadas neste computador'));
- const folders=s.folders||[];body.append(folders.length?h('ul',{class:'cb-folders'},folders.map(f=>h('li',{},h('strong',{},f.label),h('span',{},f.path)))):h('p',{class:'mut'},'No agente Windows, abra Clean → Backup em Nuvem → Autorizar pasta. Nenhum caminho pode ser autorizado pelo navegador.'));
- body.append(h('p',{class:'mut'},'Backup em uma direção: computador → nuvem. Exclusões locais não removem o backup. Arquivos abertos, indisponíveis ou alterados durante o envio são tentados novamente. Para recuperar arquivos ou versões anteriores, use o próprio provedor.'));
- body.append(h('h3',{},'Contas da rede'));
- connections.forEach(c=>body.append(h('div',{class:'cb-connection'},h('div',{},h('strong',{},c.label),h('p',{class:'mut'},c.identity+(c.error?' · '+c.error:'')),c.quota_total!=null?h('small',{},size(c.quota_used)+' de '+size(c.quota_total)):null),h('div',{class:'cb-actions'},h('button',{class:'cc-pill',onclick:()=>backupAction('refresh',{connection_id:c.id})},'Verificar'),h('button',{class:'cc-pill',onclick:async()=>{if(await confirmBox('Desconectar conta',[h('p',{},'Os backups que usam esta conta serão pausados. Os arquivos existentes na nuvem serão preservados.')],'Desconectar'))backupAction('disconnect',{connection_id:c.id,confirmed:true})}},'Desconectar')))));
- body.append(h('div',{class:'cb-actions'},providers.map(p=>h('button',{class:'cc-pill',onclick:async()=>{
-  if(p.key==='s3'){
-   const fields={};const labels={bucket:'Bucket',access_key:'Chave de acesso',secret_key:'Chave secreta',region:'Região',prefix:'Prefixo opcional'};
-   const content=Object.entries(labels).map(([key,label])=>{const input=h('input',{type:key==='secret_key'?'password':'text',autocomplete:'off',value:key==='region'?(p.region||'us-east-1'):''});fields[key]=input;return h('label',{},label,input)});
-   if(await confirmBox('Conectar Amazon S3 / compatível',[h('div',{class:'cb-config'},content),h('p',{class:'mut'},'Use chaves restritas a este bucket. Endpoint: '+(p.endpoint||'Amazon S3'))],'Conectar')){const credentials=Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value]));credentials.endpoint=p.endpoint||'';await backupAction('connect',{provider:'s3',credentials});Object.values(fields).forEach(input=>input.value='')}
-  }else{try{const result=await backupApi('connect',{provider:p.key});location.assign(result.url)}catch(e){status(e.message,true)}}
- }},ico(p.icon),' Conectar '+p.name))));
- if(!providers.length)body.append(h('p',{class:'mut'},'O administrador deve habilitar um provedor em Configurações → Backup em Nuvem.'));
- if(st.failures?.length)body.append(h('h3',{},'Itens que precisam de atenção'),h('ul',{},st.failures.map(f=>h('li',{},f.path+' · '+f.message))));
- if(st.runs?.length)body.append(h('h3',{},'Últimas execuções'),h('ul',{},st.runs.map(run=>h('li',{},run.at+' · '+fmt(run.files)+' arquivos · '+size(run.bytes)+' · '+fmt(run.errors)+' erro(s)'))));
-};
-setInterval(()=>{if(section==='backup'&&!document.hidden&&!backupDirty&&!backupLoading&&!$('cc-dlg').open&&!root.contains(document.activeElement))backupLoad(true)},15000);
+<?php require __DIR__.'/_clean_ui_backup.php'; ?>
 
 $('cc-burger').onclick=()=>root.classList.toggle('mini');
 function hasClean(){return [...ALLOWED].some(k=>k!=='uninstall')}
 <?php require __DIR__.'/_clean_ui_js_extra.php'; ?>
 render();
-const first=hasClean()?refreshList():Promise.resolve({});
-first.then(r=>{if(hasClean()){status(r.collected_at?'Última análise: '+r.collected_at+(online?'':' · Agente desconectado'):'Nenhuma análise anterior',!online||!headless);if(!headless)status('Ative o modo sem monitor no agente para analisar ou limpar.',true);if(r.report&&cfg.ages.includes(r.report.age_days))age=r.report.age_days}
- return ALLOWED.has('uninstall')?pload().catch(()=>{}):null}).then(()=>{render();ensureLoaded();if(!hasClean()&&progStamp)status('Inventário: '+progStamp);});
-(async()=>{try{const lists=[];if(hasClean())lists.push([await call('list'),call]);if(ALLOWED.has('uninstall'))lists.push([await pcall('list'),pcall]);const act=lists.find(([r])=>r.active&&r.active.command_id);if(!act)return;const [r,P]=act;busy=true;busyLabel='Operação em andamento';render();try{await track(r.active.command_id,P);if(hasClean())await refreshList();if(ALLOWED.has('uninstall'))await pload();status('Operação concluída')}catch(e){status(e.message,true)}finally{busy=false;render()}}catch(e){}})();
-/* Sincronia com o agente: execuções feitas na tela do próprio Windows aparecem aqui sem recarregar. */
-const NEED={health:'health',startup:'startup',disk:'disk',duplicates:'duplicates',restore:'restore',updater:'updater',cloud:'cloud',perf:'performance',drivers:'drivers'};
-setInterval(async()=>{if(busy||document.hidden||$('cc-dlg').open)return;try{
- if(hasClean()){const before=JSON.stringify(stamps);const r=await call('list');const newStamps=r.index||{};if(JSON.stringify(newStamps)!==before){cleanReport=r.report;history=r.history||[];settings=r.settings||settings;stamps=Object.assign({},newStamps);const need=NEED[section]||(section==='custom'&&tab==='reg'?'registry':null);if(need)await loadReport(need).catch(()=>{});else if(section==='custom'&&tab==='reg'&&stamps.registry)await loadReport('registry').catch(()=>{});render();status('Atualizado a partir do agente.')}headless=r.headless!==false;if(online!==!!r.online){online=!!r.online;render()}}
- if(ALLOWED.has('uninstall')){const r=await pcall('list');if((r.collected_at||null)!==progStamp){programs=r.programs||[];progStamp=r.collected_at||null;progSel.clear();if(section==='uninstall'){render();status('Inventário atualizado: '+progStamp)}}}}catch(e){}},15000);
+status('Modo manual: execute a ação da ferramenta selecionada para carregar seus dados.');
 })();
 </script>

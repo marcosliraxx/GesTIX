@@ -1,4 +1,4 @@
-﻿# Caminho: agentes/windows/Instalar_Arcoll.ps1
+# Caminho: agentes/windows/Instalar_Arcoll.ps1
 param(
     [switch]$Run,
     [switch]$Background,
@@ -17,7 +17,6 @@ if (Test-Path -LiteralPath $configPath) {
         if ($configuredOrigin -match '^https://[^/\s]+(?:/.*)?$') { $origin = $configuredOrigin }
     } catch { }
 }
-$desktopApp = Join-Path $base 'arcoll_desktop.py'
 $fullApp = Join-Path $base 'arcoll_app.py'
 $agentService = Join-Path $base 'arcoll_agent.py'
 $stateDir = Join-Path $env:LOCALAPPDATA 'Arcoll'
@@ -150,6 +149,13 @@ function Install-PythonRuntime {
         }
     }
     if (-not $downloaded) { throw 'O instalador do Python não foi baixado corretamente. Verifique a conexão com a internet (acesso a python.org) e execute novamente.' }
+    # Verificar a assinatura antes de executar um instalador obtido pela rede.
+    $signature = Get-AuthenticodeSignature -LiteralPath $installerPath
+    if ($signature.Status -ne 'Valid' -or -not $signature.SignerCertificate -or
+        $signature.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
+        throw 'Assinatura digital do instalador do Python ausente ou inválida. Instalação interrompida.'
+    }
+
 
     $common = 'InstallAllUsers=0 Include_launcher=1 Include_pip=1 Include_tcltk=1 Include_test=0 Include_doc=0 PrependPath=0 Shortcuts=0 AssociateFiles=0'
     $setupLog = Join-Path $stateDir 'python-setup.log'
@@ -330,10 +336,10 @@ function Install-HeadlessCore {
 function Start-ArcollApp($Runtime) {
     $pythonw = [string]$Runtime.PythonW
     if (-not (Test-Path -LiteralPath $pythonw)) { throw "Interpretador Python não encontrado: $pythonw" }
-    if (-not (Test-Path -LiteralPath $desktopApp)) { throw "Arquivo ausente: $desktopApp" }
+    if (-not (Test-Path -LiteralPath $fullApp)) { throw "Arquivo ausente: $fullApp" }
     if (-not (Test-Path -LiteralPath $agentService)) { throw "Arquivo ausente: $agentService" }
-    $arguments = '"' + $desktopApp + '" --origin "' + $origin + '"' + $(if ($Background) { ' --background' } else { '' })
-    $guiProcess = Start-Process -FilePath $pythonw -ArgumentList $arguments -WorkingDirectory $base -WindowStyle Hidden -PassThru
+    $arguments = '"' + $fullApp + '" --origin "' + $origin + '" --show'
+    $guiProcess = Start-Process -FilePath $pythonw -ArgumentList $arguments -WorkingDirectory $base -PassThru
     Start-Sleep -Milliseconds 1500
     $guiProcess.Refresh()
     if ($guiProcess.HasExited -and $guiProcess.ExitCode -ne 0) {
@@ -348,7 +354,7 @@ try {
     if (-not $origin.StartsWith('https://', [System.StringComparison]::OrdinalIgnoreCase)) {
         throw 'O endereço HTTPS do sistema não foi configurado. Baixe o agente novamente pela página Redes.'
     }
-    if (-not (Test-Path -LiteralPath $desktopApp)) { throw "Arquivo arcoll_desktop.py ausente. Extraia novamente o ZIP completo: $desktopApp" }
+
     if (-not (Test-Path -LiteralPath $fullApp)) { throw "Aplicativo desktop completo ausente: $fullApp. Baixe novamente o pacote do agente." }
     if (-not (Test-Path -LiteralPath $agentService)) { throw "Arquivo arcoll_agent.py ausente. Extraia novamente o ZIP completo: $agentService" }
 
@@ -368,7 +374,12 @@ try {
         if ($LASTEXITCODE -ne 0) { Write-Log 'Bandeja: dependências não instaladas; aplicativo continua funcional.' }
     } catch { Write-Log ('Bandeja: ' + $_.Exception.Message) } finally { $ErrorActionPreference = $previousEap } }
 
-    if ($Repair) { & $runtime.Python -c "import PIL, psutil, pystray" *> $null; if ($LASTEXITCODE -ne 0) { throw 'O reparo não conseguiu preparar as dependências do agente. Os arquivos anteriores serão restaurados.' } }
+    if ($Repair) {
+        # A atualização do código não deve falhar por dependências opcionais da bandeja.
+        # A interface principal valida suas dependências no início, sem exigir reinstalação.
+        & $runtime.Python -c "import tkinter" *> $null
+        if ($LASTEXITCODE -ne 0) { throw 'O interpretador do agente não possui tkinter; repare o Python antes de prosseguir.' }
+    }
     if (-not $Run) {
         $desktop = [Environment]::GetFolderPath('Desktop')
         $shortcutPath = Join-Path $desktop ($systemName + '.lnk')
@@ -396,7 +407,7 @@ try {
         if ($startup) {
             $autoLink = $ws.CreateShortcut((Join-Path $startup ($systemName + '.lnk')))
             $autoLink.TargetPath = $link.TargetPath
-            $autoLink.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $base 'Instalar_Arcoll.ps1') + '" -Run'
+            $autoLink.Arguments = $link.Arguments
             $autoLink.WorkingDirectory = $base
             $autoLink.Description = 'Inicialização de ' + $systemName
             if (Test-Path -LiteralPath $iconPath) { $autoLink.IconLocation = $iconPath + ',0' }
@@ -408,6 +419,13 @@ try {
         if (Test-Elevated) {
             try { Install-SecureDesktopHelper $runtime } catch { Write-Log ('Tela segura: ' + $_.Exception.Message + ' O acesso remoto funcionará, mas sem controle da tela de bloqueio.') }
             try { Install-HeadlessCore } catch { Write-Log ('Núcleo pré-login: ' + $_.Exception.Message) }
+            try {
+                $helperScript = Join-Path $PSScriptRoot 'Registrar_Instalador_Programas.ps1'
+                if (Test-Path -LiteralPath $helperScript) {
+                    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $helperScript -User ($env:USERDOMAIN + '\' + $env:USERNAME) -Script (Join-Path $base 'arcoll_programs.py') | Out-Null
+                    Write-Log ('Auxiliar de instalação de programas: código ' + $LASTEXITCODE)
+                }
+            } catch { Write-Log ('Auxiliar de instalação de programas: ' + $_.Exception.Message) }
         } else {
             Write-Log 'Tela segura e núcleo pré-login não instalados: execute o instalador como administrador.'
         }

@@ -6,6 +6,26 @@ function arc_app_version(): string {
     $value=trim((string)@file_get_contents(dirname(__DIR__).'/VERSION'));
     if(!preg_match('/^\d+\.\d+\.\d+$/D',$value))throw new RuntimeException('VERSION ausente ou inválido. Conclua a atualização da plataforma.');return $value;
 }
+/** O cliente Python legado (3.x/4.x) ja executa agent_update pelo canal autenticado.
+ * A atualizacao do Python atua apenas como ponte verificada para instalar WinUI 3;
+ * nenhuma reinstalacao manual e exigida enquanto o agente anterior estiver conectado
+ * e tiver suporte ao comando. Versoes nao identificaveis exigem diagnostico, nunca
+ * liberacao silenciosa de comandos sem autenticacao.
+ */
+function arc_agent_upgrade_policy(string $installed, string $published): array {
+    $valid = static fn(string $v): bool => (bool)preg_match('/^\d+\.\d+\.\d+$/D', $v);
+    $known = $valid($installed);
+    $migration = $known && $valid($published) && version_compare($published, '5.0.0', '>=')
+        && version_compare($installed, '5.0.0', '<');
+    return [
+        'requires_reinstall' => !$known,
+        'can_remote_update' => $known,
+        'migrate_native' => $migration,
+        'message' => !$known
+            ? 'A versao deste agente nao foi identificada. Verifique se esta conectado e responde a comandos antes de atualizar.'
+            : ($migration ? 'Migracao remota do agente antigo para WinUI 3. O Windows deve permitir a instalacao das dependencias nativas.' : ''),
+    ];
+}
 function arc_release_skip(string $path): bool {
     return (str_starts_with(basename($path),'.')&&basename($path)!=='.htaccess')||preg_match('~(?:^|/)(?:storage|uploads|backups|secrets|_sql|__pycache__|tests|scripts|docs|pacotes)(?:/|$)~',$path)||in_array(basename($path),['config.php','agent-config.json','agent.json','error_log','_manifest.json','VERSION'],true)||preg_match('/\.(?:log|pyc|zip|env|pem|key|pfx|tmp|updating)$/i',$path);
 }

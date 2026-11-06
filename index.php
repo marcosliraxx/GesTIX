@@ -11,6 +11,9 @@ header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 $escape = static fn ($value): string => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $pdo = arc_db();
+$arcVisualTheme=arc_visual_theme($pdo);
+$arcVisualMode=$arcVisualTheme['mode'];
+$arcEffectiveTheme=$arcVisualMode==='theme'?($arcVisualTheme['light']?'light':'dark'):$arcVisualMode;
 arc_ensure_user_schema($pdo);
 
 // Quem já está autenticado não deve voltar à tela pública de login/cadastro.
@@ -32,7 +35,7 @@ if($maintenanceOn && !arc_is_admin() && (string)($_GET['admin_login']??'')!=='1'
     http_response_code(503);
     header('Retry-After: 600');
     ?>
-    <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?= $escape($mTitle) ?></title>
+    <!doctype html><html lang="pt-BR" data-arc-design="<?= $escape($arcVisualTheme['id']) ?>" data-arc-system-theme="<?= $escape($arcEffectiveTheme) ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?= $escape($mTitle) ?></title>
     <style>body{margin:0;min-height:100dvh;display:grid;place-items:center;background:linear-gradient(135deg,<?= $escape($mColor) ?>,var(--surface-alt));font-family:Inter,system-ui,sans-serif;color:var(--text);padding:20px;box-sizing:border-box}.panel{width:min(100%,550px);padding:clamp(22px,5vw,50px);text-align:center;border-radius:22px;background:color-mix(in srgb, var(--surface) 9%, transparent);border:1px solid color-mix(in srgb, var(--border) 20%, transparent);backdrop-filter:blur(18px);box-shadow:0 25px 75px #0003}.panel img{max-width:150px;max-height:120px;object-fit:contain;margin-bottom:15px}.panel h1{font-size:clamp(24px,4vw,37px)}.panel p{line-height:1.8;color:var(--text)}.countdown{display:flex;justify-content:center;gap:12px;margin:24px 0}.countdown span{background:#ffffff16;border-radius:12px;padding:13px;min-width:60px;font-size:22px;font-weight:800}.countdown small{display:block;font-size:10px;font-weight:500;margin-top:6px}.note{font-size:11px;color:var(--text)}.arc-login-left .arc-auth-panel{order:-1}.arc-login-center .arc-auth-showcase{display:none}.arc-login-center .arc-auth-page{grid-template-columns:1fr}.arc-login-center .arc-auth-panel{min-height:100dvh}.arc-login-center .arc-auth-card{max-width:450px}
 
 /* Identidade e composição sem sobrescrever as preferências do administrador */
@@ -87,7 +90,7 @@ if($maintenanceOn && !arc_is_admin() && (string)($_GET['admin_login']??'')!=='1'
  body.arc-login-page .arc-auth-page{justify-content:flex-start!important}
  body.arc-login-page .arc-auth-panel{margin:0 auto!important}
 }
-</style><script src="assets/js/arcoll.js?v=<?=arc_h(arc_app_version())?>" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head><body><label class="arc-appearance-control arc-appearance-public"><i class="fa fa-adjust" aria-hidden="true"></i><select data-arc-appearance aria-label="Tema do aplicativo"><option value="auto"></option><option value="light"></option><option value="dark"></option></select></label><main class="panel">
+</style><script src="assets/js/arcoll.js?v=<?=arc_h(arc_app_version())?>" defer></script><script>try{const c=document.documentElement.dataset.arcSystemTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head><body><main class="panel">
     <?php if($mImage!==''):?><img src="<?= $escape($mImage) ?>" alt="Imagem de manutenção"><?php else:?><img src="api/brand-logo.php" alt="Logo da plataforma"><?php endif;?>
     <h1><?= $escape($mTitle) ?></h1><p><?= nl2br($escape($mText)) ?></p><div class="countdown" id="countdown" aria-live="off"></div><div class="note" id="maintenance-note">Acompanhe a previsão de retorno.</div><a href="index.php?admin_login=1" style="display:inline-block;margin-top:25px;color:#d4ebf8;font-size:11px">Acesso administrativo</a></main>
     <script>const until=<?= json_encode($mUntil,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;const target=until?new Date(until.replace(' ','T')).getTime():0;const node=document.getElementById('countdown');function tick(){if(!target||!Number.isFinite(target)){node.hidden=true;return}const delta=Math.max(0,target-Date.now());const units=[Math.floor(delta/86400000),Math.floor(delta/3600000)%24,Math.floor(delta/60000)%60,Math.floor(delta/1000)%60];node.innerHTML=units.map((v,i)=>'<span>'+String(v).padStart(2,'0')+'<small>'+['Dias','Horas','Min','Seg'][i]+'</small></span>').join('');if(delta===0)document.getElementById('maintenance-note').textContent='A previsão foi alcançada. Aguarde a liberação do serviço.';}tick();setInterval(tick,1000);</script></body></html>
@@ -96,7 +99,7 @@ if($maintenanceOn && !arc_is_admin() && (string)($_GET['admin_login']??'')!=='1'
 $settings = arc_setting_values($pdo);
 $registrationEnabled = arc_platform_setting($pdo,'platform_registration_enabled','1') === '1';
 $googleEnabled = arc_is_https() && arc_platform_setting($pdo,'platform_google_enabled')==='1'
- && arc_platform_setting($pdo,'platform_google_client_id')!=='' && arc_platform_setting($pdo,'platform_google_client_secret')!=='';
+ && arc_platform_setting($pdo,'platform_google_client_id')!=='' && arc_platform_decrypt(arc_platform_setting($pdo,'platform_google_client_secret'))!=='';
 $passwordPolicy=arc_platform_setting($pdo,'platform_registration_password_policy','medium');
 if(!in_array($passwordPolicy,['none','basic','medium','advanced'],true))$passwordPolicy='medium';
 $passwordMin=['none'=>1,'basic'=>6,'medium'=>10,'advanced'=>12][$passwordPolicy];
@@ -198,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $csrfToken = arc_csrf_token();
 ?><!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1424">
+<html lang="pt-BR" data-arc-design="<?= $escape($arcVisualTheme['id']) ?>" data-arc-system-theme="<?= $escape($arcEffectiveTheme) ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1424">
 <link rel="icon" type="image/png" sizes="192x192" href="api/brand-logo.php?icon=192">
 <link rel="shortcut icon" href="api/brand-logo.php?icon=192">
 <link rel="apple-touch-icon" sizes="192x192" href="api/brand-logo.php?icon=192">
@@ -284,9 +287,9 @@ body.arc-login-page{margin:0;display:block;width:100%;height:auto;min-height:100
     .arc-auth-brand span{font-size:15px}
 }
 
-</style><script src="assets/js/arcoll.js?v=<?=arc_h(arc_app_version())?>" defer></script><script>try{const c=localStorage.getItem('arc_appearance')||document.documentElement.dataset.arcTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
+</style><script src="assets/js/arcoll.js?v=<?=arc_h(arc_app_version())?>" defer></script><script>try{const c=document.documentElement.dataset.arcSystemTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head>
 <?php $loginLayout=arc_platform_setting($pdo,'platform_login_layout','right');if(!in_array($loginLayout,['left','center','right'],true))$loginLayout='right'; ?>
-<body class="arc-login-page arc-login-<?= $escape($loginLayout) ?> <?= $loginFlag('platform_login_compact','1') ? 'arc-login-compact' : '' ?> <?= !$loginFlag('platform_login_show_showcase') ? 'arc-login-no-showcase' : '' ?>"><?php if($loginFlag('platform_login_show_theme')): ?><label class="arc-appearance-control arc-appearance-public"><i class="fa fa-adjust" aria-hidden="true"></i><select data-arc-appearance aria-label="Tema do aplicativo"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label><?php endif; ?><main class="arc-auth-page">
+<body class="arc-login-page arc-login-<?= $escape($loginLayout) ?> <?= $loginFlag('platform_login_compact','1') ? 'arc-login-compact' : '' ?> <?= !$loginFlag('platform_login_show_showcase') ? 'arc-login-no-showcase' : '' ?>"><main class="arc-auth-page">
 <section class="arc-auth-showcase" aria-label="Apresentação da plataforma">
     
     

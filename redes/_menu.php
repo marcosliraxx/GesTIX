@@ -24,7 +24,7 @@ $arcFooterSections = [
 ];
 $arcTopItems = [];
 // Ferramenta integrada mesmo quando o menu configurável ainda não tiver rota cadastrada.
-foreach (['clean'=>['Clean','fa-magic']] as $toolKey=>$toolMeta) {
+foreach (['clean'=>['Clean','fa-magic'],'programas'=>['Programas','fa-download']] as $toolKey=>$toolMeta) {
 if (($teamRole ?? '') === 'owner' || (($teamRole ?? '') === 'administrator' && ($arcAllowedMenu === null || in_array($toolKey,$arcAllowedMenu,true)))) {
     $params=['network'=>(int)$networkId];
     if(!empty($_GET['agent']))$params['agent']=(int)$_GET['agent'];

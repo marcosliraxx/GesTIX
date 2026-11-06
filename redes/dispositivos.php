@@ -125,7 +125,9 @@ require __DIR__.'/_topo.php';
 
  // O comando real também é executado no desktop; o portal acompanha sua conclusão.
  document.addEventListener('arc:command-queued',e=>{const d=e.detail||{};if(d.command==='scan_devices' && Number(d.agent_id)===agentId){activeScan=Number(d.command_id||0);notify('Varredura iniciada no agente Windows. Aguardando a sincronização do inventário...')}});
- setInterval(async()=>{if(document.hidden||!agentId)return;await load();if(activeScan){try{const j=await api(base+'api/api.php?action=network-command-status&network_id='+networkId);const cmd=(j.commands||[]).find(c=>Number(c.id)===activeScan);if(cmd && ['completed','failed','expired'].includes(cmd.status)){notify(cmd.status==='completed'?'Varredura concluída e inventário sincronizado.':'Varredura não concluída: '+(cmd.result_text||cmd.status));activeScan=0;await load()}}catch(e){}}},7000);
+ // Só acompanha comandos iniciados pelo operador; nenhum polling de inventário em segundo plano.
+ const scanTimer=setInterval(async()=>{if(document.hidden||!agentId||!activeScan)return;try{const j=await api(base+'api/api.php?action=network-command-status&network_id='+networkId);const cmd=(j.commands||[]).find(c=>Number(c.id)===activeScan);if(cmd && ['completed','failed','expired'].includes(cmd.status)){notify(cmd.status==='completed'?'Varredura concluída e inventário sincronizado.':'Varredura não concluída: '+(cmd.result_text||cmd.status));activeScan=0;await load()}}catch(e){}},7000);
+ window.addEventListener('pagehide',()=>clearInterval(scanTimer));
  refreshFilters();render();
 })();
 </script>

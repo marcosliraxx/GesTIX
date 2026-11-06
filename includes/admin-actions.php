@@ -85,9 +85,17 @@ if (!arc_is_admin() && ($_SERVER['REQUEST_METHOD'] !== 'POST' || (string)($_POST
     exit;
 }
 
-// A página Configurações trata seus próprios comandos locais; este módulo trata apenas save_settings.
+// Os formulários específicos de Configurações são tratados pela própria página.
+// O roteador geral continua responsável apenas por save_settings (identidade visual legada)
+// e pelas ações administrativas globais. Manter esta lista alinhada aos handlers da página
+// evita interceptar save_group (credenciais Drive) e descartar o POST antes de salvar.
+$arcConfigLocalActions = [
+    'save', 'save_group', 'upload_designer_icon', 'smtp_test',
+    'upload_maintenance_image', 'save_log_policies', 'clear_logs',
+    'delete_audit_rows', 'clear_cache',
+];
 $arcConfigLocalPost = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) === 'configuracoes.php'
-    && in_array((string)($_POST['action'] ?? 'save'), ['save','smtp_test','clear_logs','clear_cache','upload_maintenance_image'], true);
+    && in_array((string)($_POST['action'] ?? 'save'), $arcConfigLocalActions, true);
 // admin/clean.php processa seus proprios comandos com verificacao CSRF e JSON.
 // Nao deixar o roteador geral interceptar esses POSTs e emitir HTML/redirect.
 $arcCleanLocalPost = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) === 'clean.php'
@@ -162,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanL
                 'designer' => ['accent_color','portal_heading_start','portal_heading_emphasis',
                     'feature_monitor_title','feature_monitor_text','feature_devices_title',
                     'feature_devices_text','feature_reports_title','feature_reports_text'],
-                'apis' => ['measurement_endpoint','monitor_interval_ms','retention_days'],
+                'retencao' => ['retention_days'],
             ];
             $tab = (string)($_POST['tab'] ?? 'legacy');
             $types = [
@@ -172,8 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanL
                 'feature_monitor_title'=>['text',120], 'feature_monitor_text'=>['text',255],
                 'feature_devices_title'=>['text',120], 'feature_devices_text'=>['text',255],
                 'feature_reports_title'=>['text',120], 'feature_reports_text'=>['text',255],
-                'measurement_endpoint'=>['choice',20],
-                'monitor_interval_ms'=>['number',8], 'retention_days'=>['number',8],
+                'retention_days'=>['number',8],
             ];
             $keys = $groups[$tab] ?? array_keys($types);
             $values = [];
@@ -184,11 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanL
             if (isset($values['site_name']) && $values['site_name']==='') throw new RuntimeException('Informe o nome do sistema.');
             
             if (isset($values['accent_color']) && !preg_match('/^#[0-9a-fA-F]{6}$/',$values['accent_color'])) throw new RuntimeException('Cor inválida.');
-            if (isset($values['measurement_endpoint']) && !in_array($values['measurement_endpoint'],['cloudflare','google'],true)) throw new RuntimeException('Endpoint inválido.');
-            if (isset($values['monitor_interval_ms'])) {
-                $n=filter_var($values['monitor_interval_ms'],FILTER_VALIDATE_INT);
-                if ($n===false || $n<250 || $n>30000) throw new RuntimeException('Intervalo inválido.');
-            }
             if (isset($values['retention_days'])) {
                 $n=filter_var($values['retention_days'],FILTER_VALIDATE_INT);
                 if ($n===false || $n<1 || $n>3650) throw new RuntimeException('Retenção inválida.');
@@ -211,7 +213,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanL
             arc_audit($pdo,'settings.updated','Configurações da aba '.$tab.' atualizadas.');
             arc_admin_flash('Configurações salvas.','success');
             if (isset($groups[$tab])) {
-                header('Location: '.arc_workspace_base_url().'admin/configuracoes.php#'.$tab,true,303);
+                $destinationTab = $tab === 'retencao' ? 'manutencao' : $tab;
+                header('Location: '.arc_workspace_base_url().'admin/configuracoes.php?tab='.$destinationTab.'#'.$destinationTab,true,303);
                 exit;
             }
             arc_admin_redirect('identity');

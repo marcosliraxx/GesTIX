@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Caminho: agentes/windows/arcoll_agent.py
+# Caminho: agentes/windows/arcoll_agent.p
 """Arcoll Network Agent - companion local para o PWA.
 
 Uso:

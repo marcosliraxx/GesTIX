@@ -18,11 +18,8 @@ if(($_SERVER['REQUEST_METHOD']??'')==='POST'){
    if($def['type']!=='bool'&&!array_key_exists($v,$def['options'])){$error='Preferência inválida: '.$def['label'];break;}
    $new[$key]=$v;
   }
-  $theme=(string)($_POST['system_theme']??'auto');
-  if(!in_array($theme,['auto','light','dark'],true))$error='Tema inválido.';
   if($error==='')try{
    arc_system_prefs_save($pdo,$new);
-   arc_platform_save_setting($pdo,'platform_system_pref_theme',$theme);
    arc_audit($pdo,'system_preferences_updated','Preferências globais do sistema alteradas');
    header('Location: '.arc_workspace_base_url().'pages/preferencias.php?saved=1',true,303);exit;
   }catch(Throwable $e){error_log('Preferências globais: '.$e->getMessage());$error='Não foi possível salvar as preferências do sistema.';}
@@ -30,8 +27,6 @@ if(($_SERVER['REQUEST_METHOD']??'')==='POST'){
 }
 try{$values=arc_system_prefs($pdo);}
 catch(Throwable $e){error_log('Preferências globais: '.$e->getMessage());$values=[];foreach($defs as $key=>$def)$values[$key]=(string)$def['default'];}
-$theme=arc_platform_setting($pdo,'platform_system_pref_theme',arc_platform_setting($pdo,'platform_theme_mode','auto'));
-if(!in_array($theme,['auto','light','dark'],true))$theme='auto';
 $groups=[];foreach($defs as $key=>$def)$groups[$def['group']][$key]=$def;
 $ARCMode='app';$ARCPageTitle='Preferências do sistema';$ARCActiveNav='settings';$ARCHeaderActions='';
 require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';
@@ -52,7 +47,7 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 <?php if(isset($_GET['saved'])):?><div class="card" role="status">Preferências globais atualizadas para todos os usuários.</div><?php endif;?>
 <section class="card"><h2 style="font-size:15px;margin:0 0 12px"><i class="fa fa-cogs" aria-hidden="true"></i> Configurações globais do sistema</h2><p>Estas opções são aplicadas igualmente a clientes e administradores, em todas as sessões. <?= $admin?'':'Somente administradores podem alterar estas configurações.' ?></p></section>
 <form method="post" action="pages/preferencias.php"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>">
-<section class="card"><h2 style="font-size:15px;margin:0 0 12px"><i class="fa fa-adjust" aria-hidden="true"></i> Tema padrão do sistema</h2><label class="pref-appearance">Tema da interface <select name="system_theme" <?= $admin?'':'disabled' ?> aria-label="Tema global do aplicativo"><option value="auto" <?= $theme==='auto'?'selected':'' ?>>Automático</option><option value="light" <?= $theme==='light'?'selected':'' ?>>Claro</option><option value="dark" <?= $theme==='dark'?'selected':'' ?>>Escuro</option></select></label></section>
+<section class="card"><h2>Tema global da plataforma</h2><p>A aparência é administrada centralmente nas Configurações Administrativas. <?php if($admin):?><a href="admin/configuracoes.php?tab=aparencia">Gerenciar temas globais</a><?php endif;?></p></section>
 <?php foreach($groups as $group=>$items):?><section class="card pref-group"><h2><?=arc_h((string)$group)?></h2><div class="pref-grid">
 <?php foreach($items as $key=>$def):$v=(string)($values[$key]??$def['default']);if($def['type']==='bool'):?>
 <label class="pref-switch"><input type="checkbox" name="pref_<?=arc_h($key)?>" value="1" <?=$v==='1'?'checked':''?> <?=$admin?'':'disabled'?>><span><?=arc_h($def['label'])?><?php if(!empty($def['help'])):?><small><?=arc_h($def['help'])?></small><?php endif;?></span></label>
