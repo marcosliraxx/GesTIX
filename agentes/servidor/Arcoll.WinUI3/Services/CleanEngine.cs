@@ -93,6 +93,9 @@ public static class CleanEngine
                 if (process.ExitCode != 0 || result.ValueKind == JsonValueKind.Undefined) throw new InvalidOperationException("Clean não confirmou a operação. " + (stderr.Length > 500 ? stderr[^500..] : stderr));
                 if (result.TryGetProperty("errors", out var failures) && failures.ValueKind == JsonValueKind.Number && failures.GetDouble() > 0) operation.FlagFailure("Operação encerrada com itens não alterados: " + failures);
                 if (result.TryGetProperty("failed", out failures) && failures.ValueKind == JsonValueKind.Number && failures.GetDouble() > 0) operation.FlagFailure("Operação parcial; falhas: " + failures);
+                if (result.TryGetProperty("complete", out var complete) && complete.ValueKind == JsonValueKind.False) operation.FlagFailure("Consulta incompleta. Revise o relatório.");
+                if (result.TryGetProperty("created", out var created) && created.ValueKind == JsonValueKind.False) operation.FlagFailure("O Windows não confirmou a criação do ponto de restauração.");
+                if (result.TryGetProperty("results", out var results) && results.ValueKind == JsonValueKind.Array && results.EnumerateArray().Any(x => x.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.False)) operation.FlagFailure("Operação parcial: há itens não aplicados.");
                 operation.Succeed("Operação Clean aplicada");
                 return result;
             }

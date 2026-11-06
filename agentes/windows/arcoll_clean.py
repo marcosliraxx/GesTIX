@@ -1530,13 +1530,20 @@ def _tool_restore(payload, progress):
         if proc.returncode != 0:
             report['message'] = (proc.stderr or proc.stdout or 'Falha ao criar o ponto.').strip()[:300]
     try:
-        raw = _powershell('ConvertTo-Json -InputObject @(Get-ComputerRestorePoint | Select-Object SequenceNumber,Description,CreationTime,RestorePointType) -Compress', 90).stdout.strip()
+        query = _powershell('ConvertTo-Json -InputObject @(Get-ComputerRestorePoint -ErrorAction Stop | Select-Object SequenceNumber,Description,CreationTime,RestorePointType) -Compress', 90)
+        if query.returncode != 0:
+            raise RuntimeError((query.stderr or query.stdout or 'O Windows não confirmou a consulta.').strip()[:300])
+        raw = query.stdout.strip()
         points = json.loads(raw) if raw else []
-    except (OSError, subprocess.SubprocessError, ValueError):
-        points = []
-    points = points if isinstance(points, list) else [points]
-    report['points'] = [{'sequence': int(p.get('SequenceNumber') or 0), 'description': str(p.get('Description') or '')[:120],
-                         'created': str(p.get('CreationTime') or '')[:14], 'type': int(p.get('RestorePointType') or 0)} for p in points if isinstance(p, dict)][-30:]
+        points = points if isinstance(points, list) else [points]
+        report['points'] = [{'sequence': int(p.get('SequenceNumber') or 0), 'description': str(p.get('Description') or '')[:120],
+                             'created': str(p.get('CreationTime') or '')[:14], 'type': int(p.get('RestorePointType') or 0)} for p in points if isinstance(p, dict)][-30:]
+        report['complete'] = True
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError, RuntimeError) as exc:
+        report['points'] = []
+        report['complete'] = False
+        detail = 'Não foi possível consultar os pontos de restauração: ' + str(exc)[:300]
+        report['message'] = (report.get('message', '') + ' ' + detail).strip()
     return report
 
 
@@ -1775,7 +1782,10 @@ def _pending_drivers(progress):
                             "man=[string]$u.DriverManufacturer;model=[string]$u.DriverModel;date=$(if($u.DriverVerDate){$u.DriverVerDate.ToString('yyyy-MM-dd')}else{''});"
                             "size=[int64]$u.MaxDownloadSize} }; ConvertTo-Json -InputObject $r -Compress")
     try:
-        out = _powershell(script, 420).stdout.strip()
+        query = _powershell(script, 420)
+        if query.returncode != 0:
+            return None
+        out = query.stdout.strip()
         data = json.loads(out) if out else []
     except (OSError, subprocess.SubprocessError, ValueError):
         return None

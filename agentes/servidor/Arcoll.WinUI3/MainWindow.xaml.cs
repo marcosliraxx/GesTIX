@@ -27,7 +27,8 @@ public sealed partial class MainWindow : Window
     private readonly DevicesPage _devicesPage;
     private readonly MapPage _mapPage;
     private readonly ProgramsPage _programsPage;
-    private readonly CleanPage _cleanPage;
+    private readonly Dictionary<string, MaintenancePage> _tools = new();
+    private readonly WindowsUpdatePage _windowsUpdatePage;
     private readonly FilesPage _filesPage;
     private readonly SupportPage _supportPage;
     private readonly TicketsPage _ticketsPage;
@@ -40,8 +41,10 @@ public sealed partial class MainWindow : Window
     private sealed record MenuItem(string Key, string Label, Symbol Icon);
     private sealed record MenuGroup(string Key, string Label, Symbol Icon, MenuItem[] Items);
     private static readonly MenuGroup[] Groups = {
-        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.Home), new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("speed", "Internet", Symbol.World) }),
-        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("clean", "Clean", Symbol.Delete), new MenuItem("programs", "Programas", Symbol.Library) }),
+        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.Home), new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("speed", "Internet", Symbol.World), new MenuItem("health", "Saúde", Symbol.Important) }),
+        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("clean", "Limpeza", Symbol.Delete), new MenuItem("registry", "Registro", Symbol.Repair), new MenuItem("startup", "Inicialização", Symbol.Play), new MenuItem("performance", "Desempenho", Symbol.View), new MenuItem("restore", "Restauração", Symbol.Undo), new MenuItem("options", "Configurações", Symbol.Setting) }),
+        new("software", "Aplicativos", Symbol.Library, new[] { new MenuItem("programs", "Programas", Symbol.Library), new MenuItem("uninstall", "Desinstalar", Symbol.Remove), new MenuItem("updater", "Atualizações", Symbol.Refresh), new MenuItem("drivers", "Drivers", Symbol.AllApps), new MenuItem("windows_update", "Windows Update", Symbol.Download) }),
+        new("storage", "Armazenamento", Symbol.Folder, new[] { new MenuItem("disk", "Disco", Symbol.Folder), new MenuItem("duplicates", "Duplicados", Symbol.Copy), new MenuItem("cloud", "Sincronizados", Symbol.World), new MenuItem("backup", "Backup", Symbol.Save) }),
         new("network", "Rede", Symbol.World, new[] { new MenuItem("devices", "Dispositivos", Symbol.AllApps), new MenuItem("map", "Mapa", Symbol.Map), new MenuItem("files", "Arquivos", Symbol.Folder) }),
         new("service", "Atendimento", Symbol.Help, new[] { new MenuItem("support", "Suporte", Symbol.Help), new MenuItem("tickets", "Chamados", Symbol.Message) })
     };
@@ -60,7 +63,15 @@ public sealed partial class MainWindow : Window
         BuildCategories();
         _serverPage = new(_hub, () => FooterText.Text); _monitorPage = new(_hub, () => _runtime.MonitorEnabled);
         _speedPage = new(_runtime); _devicesPage = new(_runtime, m => FooterText.Text = m); _mapPage = new(_runtime, m => FooterText.Text = m);
-        _programsPage = new(_runtime, ConfirmAsync); _cleanPage = new(_runtime, ConfirmAsync); _filesPage = new(_runtime);
+        _programsPage = new(_runtime, ConfirmAsync); _filesPage = new(_runtime); _windowsUpdatePage = new(_runtime);
+        var clean = new CleanPage(_runtime, ConfirmAsync); _tools.Add("clean", clean);
+        _tools.Add("health", new HealthPage(_runtime, ConfirmAsync, SelectSection, (categories, age, tab) => { clean.Review(categories, age, tab); SelectSection("clean"); }));
+        _tools.Add("registry", new RegistryPage(_runtime, ConfirmAsync)); _tools.Add("startup", new StartupPage(_runtime, ConfirmAsync));
+        _tools.Add("performance", new PerformancePage(_runtime, ConfirmAsync)); _tools.Add("restore", new RestorePage(_runtime, ConfirmAsync));
+        _tools.Add("options", new MaintenanceSettingsPage(_runtime, ConfirmAsync)); _tools.Add("uninstall", new UninstallPage(_runtime, ConfirmAsync));
+        _tools.Add("updater", new SoftwareUpdatesPage(_runtime, ConfirmAsync)); _tools.Add("drivers", new DriversPage(_runtime, ConfirmAsync));
+        _tools.Add("disk", new DiskPage(_runtime, ConfirmAsync)); _tools.Add("duplicates", new DuplicatesPage(_runtime, ConfirmAsync));
+        _tools.Add("cloud", new CloudCleanupPage(_runtime, ConfirmAsync)); _tools.Add("backup", new CloudBackupPage(_runtime, ConfirmAsync));
         _supportPage = new(_runtime, ShowRemoteCodeAsync, () => SelectSection("tickets")); _ticketsPage = new(_runtime);
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "system.ico");
         if (File.Exists(icon)) try { AppWindow.SetIcon(icon); } catch (Exception ex) { RuntimeLog.Write("Ícone da janela: " + ex.Message); }
@@ -88,7 +99,7 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _exiting = true;
-            _refreshTimer.Stop(); _themeTimer.Stop(); _pending?.Cancel(); _hub.Dispose(); _agent.Dispose(); _themes.Dispose(); _presence.Dispose(); _cleanPage.CancelOperations(); _programsPage.CancelOperations(); _runtime.Dispose(); _tray.Dispose();
+            _refreshTimer.Stop(); _themeTimer.Stop(); _pending?.Cancel(); _hub.Dispose(); _agent.Dispose(); _themes.Dispose(); _presence.Dispose(); foreach (var page in _tools.Values) page.CancelOperations(); _programsPage.CancelOperations(); _runtime.Dispose(); _tray.Dispose();
         };
         _ = RefreshAsync(); _ = RefreshThemeAsync();
     }
@@ -150,7 +161,7 @@ public sealed partial class MainWindow : Window
         ConnectionLabel.Foreground = FooterText.Foreground = p.Muted;
         if (_appliedTheme == t && _paletteState == _runtime.State) return; _appliedTheme = t; _paletteState = _runtime.State;
         _serverPage.ApplyPalette(p); _monitorPage.ApplyPalette(p); _speedPage.ApplyPalette(p); _devicesPage.ApplyPalette(p); _mapPage.ApplyPalette(p);
-        _programsPage.ApplyPalette(p); _cleanPage.ApplyPalette(p); _filesPage.ApplyPalette(p); _supportPage.ApplyPalette(p); _ticketsPage.ApplyPalette(p);
+        _programsPage.ApplyPalette(p); foreach (var page in _tools.Values) page.ApplyPalette(p); _windowsUpdatePage.ApplyPalette(p); _filesPage.ApplyPalette(p); _supportPage.ApplyPalette(p); _ticketsPage.ApplyPalette(p);
     }
     private void Menu_Click(object sender, RoutedEventArgs e) { if (sender is Button menu) SelectSection(menu.Tag?.ToString() ?? "panel"); }
     private void SelectSection(string section)
@@ -159,12 +170,14 @@ public sealed partial class MainWindow : Window
         if (!group.Items.Any(i => i.Key == section)) section = "panel";
         _section = section; _lastSection[group.Key] = section;
         if (_group != group.Key || _menus.Count == 0) { _group = group.Key; BuildRibbon(group); }
-        // Programas mantém filtros e ações fixos; outras páginas conservam sua rolagem original.
+        // Cada ferramenta tem sua página e seu estado; trocar menus não cancela nem reinicia operações.
         PageHost.Content = null; CompactHost.Content = null;
-        PageScroll.Visibility = section == "programs" ? Visibility.Collapsed : Visibility.Visible;
-        CompactHost.Visibility = section == "programs" ? Visibility.Visible : Visibility.Collapsed;
+        var bounded = section == "programs" || _tools.ContainsKey(section);
+        PageScroll.Visibility = bounded ? Visibility.Collapsed : Visibility.Visible;
+        CompactHost.Visibility = bounded ? Visibility.Visible : Visibility.Collapsed;
         if (section == "programs") CompactHost.Content = _programsPage;
-        else PageHost.Content = section switch { "clean" => _cleanPage, "devices" => _devicesPage, "map" => _mapPage, "files" => _filesPage, "server" => _serverPage, "speed" => _speedPage, "support" => _supportPage, "tickets" => _ticketsPage, _ => _monitorPage };
+        else if (_tools.TryGetValue(section, out var tool)) CompactHost.Content = tool;
+        else PageHost.Content = section switch { "windows_update" => _windowsUpdatePage, "devices" => _devicesPage, "map" => _mapPage, "files" => _filesPage, "server" => _serverPage, "speed" => _speedPage, "support" => _supportPage, "tickets" => _ticketsPage, _ => _monitorPage };
         ApplyTheme(_themes.Current);
     }
     private async void Refresh_Click(object sender, RoutedEventArgs e)
@@ -207,7 +220,7 @@ public sealed partial class MainWindow : Window
     }
     private void UpdateRuntimeUi()
     {
-        if (!_runtime.Allowed) { _cleanPage.CancelOperations(); _programsPage.CancelOperations(); }
+        if (!_runtime.Allowed) { foreach (var page in _tools.Values) page.CancelOperations(); _programsPage.CancelOperations(); }
         if (_paletteState != _runtime.State) ApplyTheme(_themes.Current);
         GateOverlay.Visibility = _runtime.Gated ? Visibility.Visible : Visibility.Collapsed; GateText.Text = _runtime.StateNotice;
         ConnectionLabel.Text = _runtime.State switch { AuthState.Approved or AuthState.UiLocked => "Conectado · " + _runtime.NetworkName, AuthState.Pending => "Aguardando liberação", AuthState.Checking => "Verificando…", _ => "Sem confirmação" };

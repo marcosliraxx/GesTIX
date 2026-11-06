@@ -1,0 +1,20 @@
+// Caminho: agentes/servidor/Arcoll.WinUI3/Pages/CloudBackupPage.cs
+using System.Diagnostics;
+using Arcoll.WinUI3.Services;
+namespace Arcoll.WinUI3.Pages;
+public sealed class CloudBackupPage : MaintenancePage
+{
+    public CloudBackupPage(AgentRuntime runtime,Func<string,string,string,Task<bool>> confirm):base(runtime,confirm,"backup","Backup em nuvem","Estado, pastas, conexão e execução do backup da rede. Autenticação do provedor e escolha de destino permanecem no fluxo oficial da plataforma."){}
+    protected override void Build()
+    {
+        Actions(Action("Atualizar estado do backup",()=>RunAsync("backup_status",new())),Action("Executar backup configurado",async()=>{if(await Confirm("Executar backup","Enviar as pastas configuradas ao destino conectado na plataforma?","Executar")&&Runtime.Allowed)await RunAsync("backup_run",new());}),Action("Configurar conexão, pastas e destino",async()=>{var info=await LoadSettingsAsync();var origin=Runtime.Platform.Config.Origin;if(!Uri.TryCreate(origin,UriKind.Absolute,out var url)||url.Scheme!="https")throw new InvalidOperationException("Origem HTTPS inválida.");Process.Start(new ProcessStartInfo(origin+"/redes/clean.php?network="+info.GetProperty("network_id").GetInt64()+"&agent="+info.GetProperty("agent_id").GetInt64()+"&section=backup"){UseShellExecute=true});}));
+        var job=Part(Report,"job");var settings=Part(job,"settings");var status=Part(Report,"status");
+        if(Report.ValueKind!=System.Text.Json.JsonValueKind.Object){Text("Atualize o estado para consultar a configuração real.");return;}
+        Text(Yes(job,"available")?"Backup disponível":"Backup indisponível ou desativado",true);
+        var connection=Part(Report,"connection");if(connection.ValueKind==System.Text.Json.JsonValueKind.Object)Text("Provedor: "+Get(connection,"provider")+" · "+Get(connection,"status"));
+        Text("Estado: "+Get(status,"message"));Text("Último sucesso: "+Get(status,"last_success_at"));
+        foreach(var key in new[]{"files","bytes","failed","skipped"})if(Get(status,key).Length>0)Text(key+": "+Get(status,key));
+        Text("Pastas configuradas",true);foreach(var folder in Rows(settings,"folders"))if(Matches(Get(folder,"label"),Get(folder,"path")))Text(Get(folder,"label")+" · "+Get(folder,"path"));
+        if(Rows(settings,"folders").Length==0)Text("Nenhuma pasta definida. Use a configuração da plataforma.");
+    }
+}

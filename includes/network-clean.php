@@ -413,6 +413,7 @@ function arc_clean_sanitize_tool_report(string $tool, array $r): array
             foreach (['removed', 'freed', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_clean_count($r[$n]);
             break;
         case 'restore':
+            $out['complete'] = !isset($r['complete']) || !empty($r['complete']);
             $out['points'] = array_map(static fn($p) => ['sequence' => arc_clean_count($p['sequence'] ?? 0), 'description' => arc_clean_text($p['description'] ?? '', 120), 'created' => preg_replace('/\D/', '', (string)($p['created'] ?? '')) ?: '', 'type' => arc_clean_count($p['type'] ?? 0)], $rows($r['points'] ?? [], 30));
             if (isset($r['created'])) $out['created'] = !empty($r['created']);
             if (!empty($r['message'])) $out['message'] = arc_clean_text($r['message'], 300);
