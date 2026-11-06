@@ -2,7 +2,7 @@
 # Instalacao e atualizacao, por usuario, do agente Windows nativo (C# WinUI 3): atalhos, execucao em segundo plano e progresso em porcentagem.
 # -Update: troca silenciosa disparada pelo proprio agente (atualizacao remota); -ForceRebuild: reinstalacao integral (build limpo).
 [CmdletBinding()]
-param([switch]$Update,[int]$ParentPid=0,[switch]$ForceRebuild,[switch]$Unattended)
+param([switch]$Update,[int]$ParentPid=0,[switch]$ForceRebuild,[switch]$Unattended,[string]$UpdateId)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 # Implantacao por ferramenta de TI: nao abre UAC nem qualquer confirmacao local.
@@ -26,6 +26,7 @@ $publish = $null
 $swapped = $false
 $previous = $null
 $bootStatus = $null
+$updateOperationId = $UpdateId
 $destination = Join-Path $env:LOCALAPPDATA 'TI-Digital\WinUI3'
 $appName = 'Arcoll.WinUI3.exe'
 function Step([int]$Percent,[string]$Message) {
@@ -35,7 +36,7 @@ function Step([int]$Percent,[string]$Message) {
         $shown = if ($Percent -lt 45) { 55 } elseif ($Percent -lt 82) { 65 } elseif ($Percent -lt 88) { 88 } elseif ($Percent -lt 93) { 92 } elseif ($Percent -lt 96) { 96 } elseif ($Percent -lt 99) { 98 } else { 99 }
         try {
             $progressPath = Join-Path $env:LOCALAPPDATA 'TI-Digital\update-progress.json'
-            $state = @{ percent = $shown; message = $Message; when = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() }
+            $state = @{ update_id = $updateOperationId; percent = $shown; message = $Message; when = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() }
             [IO.File]::WriteAllText($progressPath, ($state | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
         } catch { }
         # O processo anterior deve fechar para substituir os arquivos. O instalador
@@ -60,9 +61,22 @@ function Step([int]$Percent,[string]$Message) {
         } catch { } # Desconexao nao interrompe instalacao: o aplicativo retomara o recibo.
     }
 }
+function Write-UpdateState([string]$Path, [object]$Value) {
+    $temp = $Path + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+    try {
+        [IO.File]::WriteAllText($temp, ($Value | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+        for ($attempt = 0; $attempt -lt 5; $attempt++) {
+            try { Move-Item -LiteralPath $temp -Destination $Path -Force; return }
+            catch { if ($attempt -eq 4) { throw }; Start-Sleep -Milliseconds 100 }
+        }
+    } finally { if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue } }
+}
 function Write-UpdateResult([bool]$Ok,[string]$Message) {
     if (-not $Update) { return }
-    try { $o = [ordered]@{ ok = $Ok; message = $Message; finished = [int][DateTimeOffset]::UtcNow.ToUnixTimeSeconds() }; [IO.File]::WriteAllText((Join-Path $env:LOCALAPPDATA 'TI-Digital\update-result.json'), ($o | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false))) } catch { }
+    $o = [ordered]@{ update_id = $updateOperationId; ok = $Ok; message = $Message; finished = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() }
+    # A janela usa um recibo duravel: o agente pode consumir update-result.json rapidamente.
+    try { Write-UpdateState (Join-Path $env:LOCALAPPDATA 'TI-Digital\update-ui-result.json') $o } catch { Write-Warning $_.Exception.Message }
+    try { Write-UpdateState (Join-Path $env:LOCALAPPDATA 'TI-Digital\update-result.json') $o } catch { Write-Warning $_.Exception.Message }
 }
 $logs = Join-Path $env:LOCALAPPDATA 'TI-Digital\Logs'
 New-Item -ItemType Directory -Path $logs -Force | Out-Null
@@ -70,6 +84,24 @@ $log = Join-Path $logs ('Instalar-WinUI3-' + (Get-Date -Format 'yyyyMMdd-HHmmss'
 Start-Transcript -Path $log -Force | Out-Null
 try {
     Write-Host ('T.I Digital - ' + $(if ($Update) { 'Atualizacao' } else { 'Instalacao' }) + ' do Agente Windows') -ForegroundColor Cyan
+    if ($Update) {
+        $pendingPath = Join-Path $env:LOCALAPPDATA 'TI-Digital\update-pending.json'
+        $pending = $null
+        if (Test-Path -LiteralPath $pendingPath) { $pending = Get-Content -LiteralPath $pendingPath -Raw -Encoding UTF8 | ConvertFrom-Json }
+        if (-not $updateOperationId -and $pending) { $updateOperationId = [string]$pending.update_id }
+        if (-not $updateOperationId) { $updateOperationId = [guid]::NewGuid().ToString('N') }
+        if ($pending) {
+            $pending | Add-Member -NotePropertyName update_id -NotePropertyValue $updateOperationId -Force
+            Write-UpdateState $pendingPath $pending
+        }
+        $viewer = Join-Path $root 'ATUALIZACAO_VISUAL.ps1'
+        if (-not $Unattended -and [Environment]::UserInteractive -and (Get-Process -Id $PID).SessionId -ne 0 -and (Test-Path -LiteralPath $viewer)) {
+            try {
+                $viewerArgs = '-NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $viewer + '" -UpdateId "' + $updateOperationId + '"'
+                Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList $viewerArgs -WindowStyle Hidden | Out-Null
+            } catch { Write-Warning ('Janela de progresso indisponivel: ' + $_.Exception.Message) }
+        }
+    }
     Step 36 'Verificando requisitos do Windows...'
     if ($Update -and $ParentPid -gt 0) {
         Step 38 'Aguardando o agente encerrar...'
@@ -190,6 +222,7 @@ try {
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $bootPublish 'TIDigital.BootPresence.exe'))) {
             throw 'Falha na compilacao do worker de inicializacao antes do login.'
         }
+        Copy-Item -LiteralPath (Join-Path $root 'ATUALIZACAO_VISUAL.ps1') -Destination (Join-Path $publish 'ATUALIZACAO_VISUAL.ps1') -Force
         Copy-Item -LiteralPath (Join-Path $root 'PreLogin-Setup.ps1') -Destination (Join-Path $publish 'PreLogin-Setup.ps1') -Force
         Copy-Item -LiteralPath (Join-Path $root 'HABILITAR_PRELOGIN.ps1') -Destination (Join-Path $publish 'HABILITAR_PRELOGIN.ps1') -Force
         Copy-Item -Path $bootPublish -Destination (Join-Path $publish 'BootWorker') -Recurse -Force
@@ -287,6 +320,7 @@ try {
     $active = Get-Process -Id $launched.Id -ErrorAction SilentlyContinue
     if (-not $active -or $active.HasExited) { throw 'O executavel encerrou imediatamente apos a instalacao.' }
     if ($Update) {
+        Step 99 'Validando versao e autorizacao do agente... '
         # Nao basta a janela abrir: a nova instancia precisa estar APROVADA pela
         # plataforma, possuir a mesma identidade e informar a versao publicada.
         $projectSource = Get-Content -LiteralPath $project -Raw -Encoding UTF8

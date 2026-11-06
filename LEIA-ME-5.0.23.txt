@@ -1,0 +1,43 @@
+GesTI 5.0.23 — janela de progresso da atualizacao do agente
+
+COMPORTAMENTO
+Durante a atualizacao normal ou forcada, mostra uma janela independente com
+"Atualizando agente", a etapa e a porcentagem. Ela continua visivel enquanto o
+executavel principal e substituido.
+So confirma sucesso depois que a nova instancia retorna com a versao esperada e
+a autorizacao validada na plataforma. Exibe "Agente atualizado com sucesso",
+100%, contagem de tres segundos e abre a tela do agente ao fechar.
+A nova instancia e iniciada em segundo plano para validar; ao final da contagem
+um sinal de instancia unica abre essa mesma janela, sem iniciar outro agente.
+Falha nao mostra sucesso nem abre o agente novo; o erro fica visivel e a reversao
+existente continua funcionando.
+A janela nao abre UAC nem solicita permissao local. Em sessao 0/sem desktop ou
+implantacao -Unattended, a atualizacao funciona sem janela; nao bloqueia servidor.
+
+COMPATIBILIDADE
+Na primeira atualizacao de uma versao anterior a 5.0.23, a janela comeca quando o
+novo instalador recebido entra em execucao (depois do download). Nas seguintes,
+o componente instalado tambem acompanha o download desde o inicio.
+Cada atualizacao tem identificador proprio. Um recibo antigo nao confirma uma
+atualizacao nova, e a confirmacao do comando no servidor nao apaga o recibo que
+alimenta a contagem da janela.
+
+APLICAR NO CPANEL
+Faca uma copia dos arquivos atuais. Extraia o ZIP na raiz do sistema preservando
+as pastas e substitua somente os arquivos incluidos. Preserve config.php,
+uploads e includes/storage. Nao precisa executar SQL.
+Depois solicite a atualizacao do agente no painel para receber a versao 5.0.23.
+Atualizar o GitHub ou o cPanel sozinho nao troca o agente instalado no computador.
+Nao ha exclusoes manuais nesta correcao.
+VERSION e o caminho do arquivo sem formato de comentario.
+
+TESTAR
+Solicite uma atualizacao normal e uma forcada em uma sessao Windows conectada.
+Confira as etapas e porcentagens, mensagem de sucesso, 3/2/1 e abertura da janela.
+Os testes Windows exercitam progresso monotono, recibos de outra operacao,
+falha sem falso sucesso, contador 3/2/1/0 e recibo visual independente da API.
+Os resultados da compilacao Windows e dos testes estao no GitHub Actions.
+
+DESFAZER
+Restaure os arquivos e VERSION da sua copia 5.0.22. Reinstale o agente anterior
+se necessario. Nao restaure banco nem credenciais.
