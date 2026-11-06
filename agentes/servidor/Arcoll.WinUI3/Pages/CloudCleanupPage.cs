@@ -11,7 +11,7 @@ public sealed class CloudCleanupPage : MaintenancePage
         var providers=new List<(string,string)>{("all","Todos os provedores")};foreach(var p in Rows(Report,"providers")){providers.Add((Get(p,"key"),Get(p,"name")));Text(Get(p,"name")+" · "+Get(p,"files")+" arquivos · "+Ui.Size(Number(p,"bytes")));}
         Choices(providers.DistinctBy(x=>x.Item1).ToArray(),_provider,value=>_provider=value);
         Choices(new[]{("all","Todas as categorias"),("junk","Temporários"),("duplicate","Duplicados"),("large","Arquivos grandes"),("old","Arquivos antigos")},_category,value=>_category=value);
-        var items=Rows(Report,"items").Where(x=>(_provider=="all"||Get(x,"provider")==_provider)&&(_category=="all"||Get(x,"cat")==_category)).ToArray();Text(items.Length+" itens neste filtro · "+Ui.Size(items.Sum(x=>Number(x,"bytes"))),true);
+        var items=Rows(Report,"items").Where(x=>(_provider=="all"||Get(x,"provider")==_provider)&&(_category=="all"||Get(x,"cat")==_category)).DistinctBy(x=>Get(x,"id")).ToArray();Text(items.Length+" itens neste filtro · "+Ui.Size(items.Sum(x=>Number(x,"bytes"))),true);
         foreach(var item in items.OrderByDescending(x=>Number(x,"bytes")))Select(item,Get(item,"path"),Get(item,"provider")+" · "+Get(item,"cat")+" · "+Ui.Size(Number(item,"bytes"))+" · "+(Yes(item,"local")?"Disponível localmente":"Somente na nuvem"),Yes(item,"local"));
     }
 }

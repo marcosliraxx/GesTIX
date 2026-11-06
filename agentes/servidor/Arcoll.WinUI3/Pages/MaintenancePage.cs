@@ -69,7 +69,9 @@ public abstract class MaintenancePage : UserControl
     protected void Text(string value,bool heading=false) => View.Children.Add(Ui.Label(value,heading?P.Text:P.Muted,heading?15:13,heading,true));
     protected Button Action(string title,Func<Task> action,bool enabled=true)
     {
-        var button = new Button { Content=title,IsEnabled=!Busy&&Runtime.Allowed&&enabled,FontSize=12,MinHeight=30,Padding=new Thickness(9,4,9,4),HorizontalAlignment=HorizontalAlignment.Left };
+        var label=Ui.Label(title,P.Text,12,wrap:true);
+        var button = new Button { Content=label,IsEnabled=!Busy&&Runtime.Allowed&&enabled,FontSize=12,MinHeight=30,Padding=new Thickness(9,4,9,4),HorizontalAlignment=HorizontalAlignment.Left };
+        AutomationProperties.SetName(button,title);
         button.Click += async (_,_) => { if(_dispatching||Busy||!Runtime.Allowed)return;_dispatching=true;button.IsEnabled=false;try { await action(); } catch(Exception ex) { Status(ex.Message); } finally {_dispatching=false;Render();} }; return button;
     }
     protected void Actions(params Button[] buttons) { foreach(var button in buttons) View.Children.Add(button); }
@@ -101,7 +103,7 @@ public abstract class MaintenancePage : UserControl
         try {
             var progress=new Progress<string>(message=>Status(message));
             Report=await CleanEngine.RunAsync(mode,payload,Runtime.Platform.Config,progress,_operation.Token);_collected=DateTime.Now;Selected.Clear();
-            var partial=Number(Report,"errors")>0||Number(Report,"failed")>0||Part(Report,"complete").ValueKind==JsonValueKind.False||Yes(Report,"truncated")||Get(Report,"created").Equals("False",StringComparison.OrdinalIgnoreCase)||Rows(Report,"results").Any(x=>Part(x,"ok").ValueKind==JsonValueKind.False);
+            var partial=CleanEngine.HasFailures(Report);
             Status(partial?"Operação parcial. Revise as falhas e limitações do relatório.":"Execução concluída. Revise o relatório.");
             if(!mode.StartsWith("backup",StringComparison.Ordinal))try{await Runtime.Platform.PostAsync("agent-clean-local-result",Runtime.Platform.WithCredentials(("mode",mode),("tool",Kind),("report",Report)),_operation.Token,40);}catch(Exception ex){Status(_status.Text+" Relatório local preservado; envio pendente: "+ex.Message);}
             return true;

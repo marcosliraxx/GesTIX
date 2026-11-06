@@ -11,7 +11,7 @@ public sealed class MaintenanceSettingsPage : MaintenancePage
     protected override void Build()
     {
         Actions(Action("Carregar configurações",async()=>{if(_dirty&&!await Confirm("Descartar edição","Substituir os campos editados pelas configurações atuais da plataforma?","Carregar"))return;await LoadSettingsAsync();_exclusions.Text=string.Join("\n",Setting("exclusions"));_folders.Text=string.Join("\n",Setting("custom_folders"));_dirty=false;Render();}),Action("Salvar configurações",async()=>{
-            var exclusions=Lines(_exclusions),folders=Lines(_folders);
+            var exclusions=Lines(_exclusions);var folders=Lines(_folders);
             // Recarrega antes de salvar para preservar as listas administradas em outras áreas.
             await LoadSettingsAsync();await SaveSettingsAsync(exclusions,folders,Setting("perf_excluded"),Setting("drivers_ignored"));_dirty=false;Status("Configurações compartilhadas salvas. Uma nova análise será exigida antes da limpeza.");Render();
         },Settings.ValueKind==System.Text.Json.JsonValueKind.Object));
