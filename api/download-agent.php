@@ -65,7 +65,7 @@ try {
             if (!preg_match('~\.(?:cs|csproj|xaml|ps1|manifest|md)$~i', $rel)) continue;
             // VERSION e a fonte unica; o pacote compilado no Windows precisa usar a versao publicada,
             // inclusive quando a plataforma avancou o patch automaticamente.
-            if ($rel === 'Arcoll.WinUI3.csproj') {
+            if (in_array($rel, ['Arcoll.WinUI3.csproj','BootWorker/BootWorker.csproj'], true)) {
                 $source = file_get_contents($file->getPathname());
                 if (!is_string($source) || !preg_match('~<Version>\d+\.\d+\.\d+</Version>~', $source))
                     throw new RuntimeException('Versao do projeto WinUI nao encontrada.');

@@ -36,6 +36,15 @@ class NativeCleanTests(unittest.TestCase):
                 self.assertTrue(report['execute']); self.assertFalse(old.exists())
                 self.assertTrue(excluded.exists()); self.assertTrue(recent.exists())
 
+    def test_relative_and_absolute_wildcard_exclusions_remain_effective(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            target = folder / 'keep.tmp'
+            target.write_text('synthetic')
+            self.assertTrue(clean.Policy(['*.tmp']).excluded(target))
+            self.assertTrue(clean.Policy([str(folder / '*.tmp')]).excluded(target))
+            self.assertFalse(clean.Policy(['*.log']).excluded(target))
+
     def test_tool_rejects_arbitrary_names_and_invalid_categories(self):
         with self.assertRaises(ValueError): worker.run({'mode': 'tool', 'payload': {'tool': 'shell'}})
         with self.assertRaises(ValueError): worker.run({'mode': 'execute', 'payload': {'categories': ['../../outside'], 'age_days': 7}})

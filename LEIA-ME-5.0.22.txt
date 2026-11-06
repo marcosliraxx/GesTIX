@@ -17,6 +17,8 @@ ALTERACOES
 - Clean usa o motor original distribuido pela propria plataforma, com os mesmos
   limites, revalidacao de identificadores, backups do registro e protecoes de
   arquivos. Nao executa pagina web dentro do agente.
+- Exclusoes reconhecem aliases curtos 8.3 e nomes longos do mesmo caminho no
+  Windows, preservando os curingas relativos e absolutos.
 - Exclusoes e pastas personalizadas sao compartilhadas com a plataforma e
   reconsultadas antes de analisar/limpar; mudar a selecao exige nova analise.
 - Corrigidos os atributos somente leitura e a heranca de ACL dos binarios de
