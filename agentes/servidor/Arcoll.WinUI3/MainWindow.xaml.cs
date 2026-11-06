@@ -1,6 +1,5 @@
 // Caminho: agentes/servidor/Arcoll.WinUI3/MainWindow.xaml.cs
 using System.Diagnostics;
-using Arcoll.WinUI3.Controls;
 using Arcoll.WinUI3.Models;
 using Arcoll.WinUI3.Pages;
 using Arcoll.WinUI3.Services;
@@ -50,6 +49,8 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, string> _lastSection = new();
     private readonly List<Border> _separators = new();
     private string _group = "home";
+    private AgentTheme? _appliedTheme;
+    private AuthState? _paletteState;
 
     private CancellationTokenSource? _pending;
 
@@ -147,6 +148,7 @@ public sealed partial class MainWindow : Window
         foreach (var separator in _separators) separator.BorderBrush = p.Line;
         RemoteButton.Foreground = RefreshButton.Foreground = p.Accent; NetworkBadge.Background = p.Surface; NetworkBadge.BorderBrush = p.Accent;
         ConnectionLabel.Foreground = FooterText.Foreground = p.Muted;
+        if (_appliedTheme == t && _paletteState == _runtime.State) return; _appliedTheme = t; _paletteState = _runtime.State;
         _serverPage.ApplyPalette(p); _monitorPage.ApplyPalette(p); _speedPage.ApplyPalette(p); _devicesPage.ApplyPalette(p); _mapPage.ApplyPalette(p);
         _programsPage.ApplyPalette(p); _cleanPage.ApplyPalette(p); _filesPage.ApplyPalette(p); _supportPage.ApplyPalette(p); _ticketsPage.ApplyPalette(p);
     }
@@ -206,6 +208,7 @@ public sealed partial class MainWindow : Window
     private void UpdateRuntimeUi()
     {
         if (!_runtime.Allowed) { _cleanPage.CancelOperations(); _programsPage.CancelOperations(); }
+        if (_paletteState != _runtime.State) ApplyTheme(_themes.Current);
         GateOverlay.Visibility = _runtime.Gated ? Visibility.Visible : Visibility.Collapsed; GateText.Text = _runtime.StateNotice;
         ConnectionLabel.Text = _runtime.State switch { AuthState.Approved or AuthState.UiLocked => "Conectado · " + _runtime.NetworkName, AuthState.Pending => "Aguardando liberação", AuthState.Checking => "Verificando…", _ => "Sem confirmação" };
         Title = _runtime.SystemName + " — Agente Windows";
