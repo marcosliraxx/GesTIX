@@ -1,0 +1,25 @@
+# Caminho: .github/workflows/validar-ribbon.yml (validacao temporaria da entrega)
+name: Validar agente ribbon 5.0.60
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compilar agente nativo
+        shell: powershell
+        run: |
+          dotnet publish agentes/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishReadyToRun=false -p:PublishTrimmed=false -o "$env:RUNNER_TEMP\winui-ribbon"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          dotnet build agentes/servidor/Arcoll.WinUI3/BootWorker/BootWorker.csproj -c Release -r win-x64
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Medir janela e menus reais sem imagens
+        shell: powershell
+        run: .\tests\ribbon-layout.ps1
