@@ -28,11 +28,37 @@ const progressMessage=document.createElement('div');progressMessage.className='a
 const progressPercent=document.createElement('span');progressPercent.className='arc-notice-percent';progressPercent.setAttribute('aria-label','Progresso de comunicação');
 const progressTrack=document.createElement('div');progressTrack.className='arc-notice-track';
 const progressFill=document.createElement('div');progressFill.className='arc-notice-fill';
-progressTrack.append(progressFill);const progressHeader=document.createElement('div');progressHeader.className='arc-notice-header';progressHeader.append(progressMessage,progressPercent);log.replaceChildren(progressHeader,progressTrack);
+progressTrack.append(progressFill);const progressHeader=document.createElement('div');progressHeader.className='arc-notice-header';progressHeader.append(progressMessage,progressPercent);
+const errorButton=document.createElement('button');errorButton.type='button';errorButton.className='arc-notice-error-action';errorButton.textContent='Ver motivo';errorButton.hidden=true;
+const dismissButton=document.createElement('button');dismissButton.type='button';dismissButton.className='arc-notice-dismiss';dismissButton.setAttribute('aria-label','Fechar aviso de erro');dismissButton.title='Fechar';dismissButton.textContent='×';dismissButton.hidden=true;
+const cancelCommandButton=document.createElement('button');cancelCommandButton.type='button';cancelCommandButton.className='arc-notice-error-action';cancelCommandButton.textContent='Cancelar';cancelCommandButton.hidden=true;
+progressHeader.append(cancelCommandButton,errorButton,dismissButton);log.replaceChildren(progressHeader,progressTrack);
+const errorDialog=document.createElement('dialog');errorDialog.id='arc-remote-error-details';errorDialog.setAttribute('aria-labelledby','arc-remote-error-title');
+errorDialog.innerHTML=`<div class="arc-error-head"><div><h2 id="arc-remote-error-title">Diagnóstico de operação remota</h2><small>Relatório técnico da plataforma e do agente</small></div><button type="button" data-error-close aria-label="Fechar">×</button></div><div class="arc-error-body"><p id="arc-error-explanation">Carregando diagnóstico…</p><pre id="arc-error-report" tabindex="0"></pre><div class="arc-error-history" id="arc-error-history" hidden></div></div><footer class="arc-error-actions"><button type="button" data-error-history>Falhas recentes</button><button type="button" data-error-copy>Copiar relatório</button><button type="button" data-error-close>Fechar</button></footer>`;
+document.body.append(errorDialog);
 const style=document.createElement('style');style.textContent=`
 body>.arc-command-log.arc-operation-notice{position:fixed!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 78px)!important;left:auto!important;right:12px!important;width:min(420px,calc(100vw - 24px))!important;max-width:none!important;min-width:0!important;z-index:2147483000!important;box-sizing:border-box!important;pointer-events:none!important;margin:0!important;padding:9px 12px 11px!important;max-height:64px!important;border:1px solid rgba(105,196,235,.6)!important;border-radius:12px!important;background:rgba(15,32,56,.79)!important;backdrop-filter:blur(18px) saturate(140%)!important;-webkit-backdrop-filter:blur(18px) saturate(140%)!important;box-shadow:0 10px 26px #0007!important;transform:translateX(calc(100% + 24px))!important;opacity:0!important;visibility:hidden!important;transition:transform .25s ease,opacity .25s ease,visibility .25s!important}
 body>.arc-command-log.arc-operation-notice.arc-toast-show:not([hidden]){transform:translateX(0)!important;opacity:1!important;visibility:visible!important}
 body>.arc-command-log.arc-operation-notice[hidden]{display:none!important;visibility:hidden!important}
+body>.arc-command-log.arc-operation-notice[data-kind=error]{pointer-events:auto!important;max-height:104px!important}
+.arc-operation-notice .arc-notice-error-action,.arc-operation-notice .arc-notice-dismiss{pointer-events:auto!important;flex:none;border:1px solid #f2aeb9;border-radius:7px;background:#95334e;color:white;padding:5px 8px;font:700 11px Segoe UI,Arial;cursor:pointer}
+.arc-operation-notice .arc-notice-dismiss{padding:2px 7px;font-size:18px;line-height:1.15;background:transparent;border-color:#7291aa}
+.arc-operation-notice button[hidden]{display:none!important}
+#arc-remote-error-details{position:fixed;inset:0;margin:auto;width:min(640px,calc(100vw - 20px));max-height:min(85dvh,720px);padding:0;border:1px solid #537394;border-radius:13px;background:#132a43;color:#e8f4ff;box-shadow:0 18px 65px #0009;z-index:2147483001;overflow:hidden}
+#arc-remote-error-details:not([open]){display:none!important}#arc-remote-error-details::backdrop{background:#031222c9;backdrop-filter:blur(3px)}
+#arc-remote-error-details .arc-error-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:13px 16px;border-bottom:1px solid #35516a}
+#arc-remote-error-details .arc-error-head h2{font-size:16px;margin:0 0 3px}#arc-remote-error-details .arc-error-head small{font-size:11px;color:#b4cfe6}
+#arc-remote-error-details .arc-error-head button{border:0;background:none;color:#fff;font-size:24px;cursor:pointer}
+#arc-remote-error-details .arc-error-body{padding:14px 16px;overflow:auto;max-height:calc(85dvh - 132px)}
+#arc-remote-error-details .arc-error-body p{font-size:12px;margin:0 0 10px;color:#b8d5e9}
+#arc-remote-error-details pre{white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;font:12px/1.55 Consolas,monospace;margin:0;padding:12px;background:#0b1a2d;color:#eef6ff;border:1px solid #35516a;border-radius:8px;max-height:46dvh;overflow:auto}
+#arc-remote-error-details .arc-error-actions{display:flex;gap:7px;align-items:center;justify-content:flex-end;padding:12px 16px;border-top:1px solid #35516a;flex-wrap:wrap}
+#arc-remote-error-details .arc-error-actions button,.arc-error-history button{border:1px solid #6684a0;border-radius:7px;background:#274968;color:#fff;font:600 12px Segoe UI,Arial;padding:8px 10px;cursor:pointer}
+#arc-remote-error-details [data-error-copy]{background:#007fa3!important;border-color:#279cbe!important}
+#arc-remote-error-details .arc-error-history{margin-top:12px;display:grid;gap:6px}
+#arc-remote-error-details .arc-error-history[hidden]{display:none!important}
+#arc-remote-error-details .arc-error-history button{text-align:left;background:#203952;white-space:normal}
+@media(max-width:600px){.arc-operation-notice .arc-notice-header{gap:6px}.arc-operation-notice .arc-notice-message{font-size:11px}.arc-operation-notice .arc-notice-percent{display:none}#arc-remote-error-details .arc-error-actions{justify-content:stretch}#arc-remote-error-details .arc-error-actions button{flex:1 1 100px}}
 @media(max-width:600px){body>.arc-command-log.arc-operation-notice{bottom:calc(env(safe-area-inset-bottom,0px) + 72px)!important;right:8px!important;width:calc(100vw - 16px)!important;padding:7px 10px 9px!important;max-height:56px!important;border-radius:10px!important}.arc-operation-notice .arc-notice-message{font-size:11px!important;line-height:1.5!important}}
 .arc-operation-notice .arc-notice-header{display:flex;align-items:center;gap:10px;min-width:0;padding-bottom:5px}
 .arc-operation-notice .arc-notice-message{flex:1;min-width:0;font:600 12px/1.45 Segoe UI,Arial,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -52,8 +78,83 @@ body>.arc-command-log.arc-operation-notice[hidden]{display:none!important;visibi
 
 @media(prefers-reduced-motion:reduce){.arc-operation-notice.is-working .arc-notice-fill::after{animation:none;display:none}}
 `;document.head.append(style);
+// Uma única barra de atividade e diagnóstico; nenhum segundo toast flutuante.
+cancelCommandButton.addEventListener('click',async()=>{
+ if(!window.confirm('Cancelar a operação remota em andamento?'))return;
+ cancelCommandButton.disabled=true;
+ try{const response=await fetch(base+'api/api.php?action=network-operation-cancel',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value)})});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Cancelamento não confirmado');notice('Cancelamento solicitado à plataforma.','info',false,0)}catch(e){showFailure({command:'operation_cancel',message:e.message})}finally{cancelCommandButton.disabled=false;cancelCommandButton.hidden=true}
+});
 let pollBusy=false;
 let toastTimer, lastSignature='', activeCommand=false,queuedCommandId=0,activeProgressId=0;
+let selectedError=null, errorReport='', stickyError=false;
+const seenErrors=new Set();
+const errorSeenKey='arc:errors:'+networkId+':'+String(target.value);
+try { JSON.parse(sessionStorage.getItem(errorSeenKey)||'[]').forEach(id=>seenErrors.add(Number(id))); } catch (_) {}
+let initialErrorsChecked=false;
+function persistSeenError(id){if(id){seenErrors.add(Number(id));try{sessionStorage.setItem(errorSeenKey,JSON.stringify([...seenErrors].slice(-100)))}catch(_){}}}
+
+function dismissFailure(){cancelCommandButton.hidden=true;stickyError=false;selectedError=null;errorButton.hidden=true;dismissButton.hidden=true;log.hidden=true;log.classList.remove('arc-toast-show');}
+function showFailure(info){
+ const item=info||{};const id=Number(item.command_id||item.id)||0;
+ if(id)persistSeenError(id);
+ selectedError={command_id:id,command:item.command||item.command_name||'Operação remota',message:String(item.message||item.result_text||'Falha não detalhada'),time:item.completed_at||new Date().toISOString(),agent:target?.selectedOptions?.[0]?.textContent?.trim()||'Agente não identificado'};
+ stickyError=true;activeProgressId=0;cancelCommandButton.hidden=true;
+ notice('Erro em '+(labels[selectedError.command]||selectedError.command)+' · '+selectedError.message,'error',false,0);
+ clearTimeout(toastTimer);errorButton.hidden=false;dismissButton.hidden=false;log.hidden=false;
+}
+async function diagnostic(id){
+ const u=new URL(base+'api/api.php',location.href);u.searchParams.set('action','network-command-diagnostic');u.searchParams.set('network_id',networkId);u.searchParams.set('command_id',id);
+ const r=await fetch(u,{credentials:'same-origin',cache:'no-store'});let data={};try{data=await r.json()}catch{}
+ if(!r.ok||!data.ok)throw Error(data.error||'Detalhes indisponíveis');return data.diagnostic;
+}
+function composeReport(row){
+ return ['DIAGNÓSTICO REMOTO — T.I Digital',
+ 'Comando: '+(row.command_name||row.command||'Desconhecido'),
+ 'ID do comando: '+(row.command_id||'Não enviado'),
+ 'Computador: '+(row.machine_name||row.agent||'Não identificado'),
+ 'Versão do agente: '+(row.agent_version||'Não informada'),
+ 'Status: '+(row.status||'Falhou'),
+ 'Código: '+(row.error_code||'Não informado'),
+ 'Solicitado: '+(row.created_at||''),
+ 'Finalizado: '+(row.completed_at||row.time||''),
+ 'Origem do diagnóstico: '+(row.source==='agent_report'?'Agente Windows':row.source==='platform_status'?'Plataforma':'Interface'),
+ '', 'MOTIVO', row.summary||row.message||'Não informado', '', 'DETALHES TÉCNICOS', row.details||row.message||'O agente não enviou mais detalhes.'].join('\n');
+}
+async function openErrorDetails(info=selectedError){
+ if(!info)return;
+ errorDialog.querySelector('#arc-error-history').hidden=true;
+ errorDialog.querySelector('#arc-error-report').textContent='Consultando o motivo do erro…';
+ errorDialog.querySelector('#arc-error-explanation').textContent='Os detalhes são carregados somente quando você abre este modal.';
+ if(!errorDialog.open)errorDialog.showModal();
+ try{
+  const row=info.command_id?await diagnostic(info.command_id):{...info,source:'interface',summary:info.message,details:info.message};
+  errorReport=composeReport(row);
+  errorDialog.querySelector('#arc-error-report').textContent=errorReport;
+  errorDialog.querySelector('#arc-error-explanation').textContent=row.source==='platform_status'?'O agente não enviou informações adicionais; este relatório mostra o estado registrado pelo servidor.':'Copie o relatório para análise técnica. Informações sensíveis conhecidas são ocultadas automaticamente.';
+ }catch(e){errorReport=composeReport({...info,source:'interface',details:'Não foi possível consultar os detalhes no servidor: '+e.message});errorDialog.querySelector('#arc-error-report').textContent=errorReport;errorDialog.querySelector('#arc-error-explanation').textContent='A consulta falhou; os dados disponíveis ainda podem ser copiados.';}
+}
+errorButton.addEventListener('click',()=>openErrorDetails());dismissButton.addEventListener('click',dismissFailure);
+errorDialog.querySelectorAll('[data-error-close]').forEach(b=>b.addEventListener('click',()=>errorDialog.close()));
+errorDialog.querySelector('[data-error-copy]').addEventListener('click',async e=>{
+ const button=e.currentTarget;
+ try{
+  if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(errorReport);
+  else {const box=document.createElement('textarea');box.value=errorReport;box.style.position='fixed';box.style.opacity='0';document.body.append(box);box.select();if(!document.execCommand('copy'))throw Error('Cópia indisponível');box.remove();}
+  button.textContent='Copiado!';setTimeout(()=>button.textContent='Copiar relatório',1700);
+ }catch{const field=errorDialog.querySelector('#arc-error-report');const range=document.createRange();range.selectNodeContents(field);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);button.textContent='Selecione e copie o texto';}
+});
+errorDialog.querySelector('[data-error-history]').addEventListener('click',async()=>{
+ const el=errorDialog.querySelector('#arc-error-history');el.hidden=false;el.replaceChildren();el.textContent='Consultando falhas recentes…';
+ try{
+  const u=new URL(base+'api/api.php',location.href);u.searchParams.set('action','network-command-errors');u.searchParams.set('network_id',networkId);if(target.value)u.searchParams.set('agent_id',target.value);
+  const r=await fetch(u,{credentials:'same-origin',cache:'no-store'});const data=await r.json();if(!r.ok||!data.ok)throw Error(data.error||'Histórico indisponível');
+  el.replaceChildren();if(!data.failures?.length){el.textContent='Nenhuma falha registrada para este agente.';return}
+  data.failures.forEach(row=>{const b=document.createElement('button');b.type='button';b.textContent='#'+row.command_id+' · '+(labels[row.command_name]||row.command_name)+' · '+(row.summary||row.status);b.addEventListener('click',()=>openErrorDetails({command_id:row.command_id,command:row.command_name,message:row.summary}));el.append(b)});
+ }catch(e){el.textContent=e.message}
+});
+window.arcRemoteFailure=showFailure;
+document.addEventListener('arc:remote-error',e=>{if(!e.detail)return;const d=e.detail;if(d.agent_id&&Number(d.agent_id)!==Number(target.value))return;showFailure(d)});
+
 // BLOCO 02 — Animação independente das consultas ao servidor, sem simular confirmação.
 let estimateActive=false,estimateStarted=0,estimateFloor=5,estimateShown=0,estimateTimer=null,realPercent=null;
 function tickProgress(){
@@ -69,7 +170,9 @@ function tickProgress(){
 }
 function stopProgressAnimation(){estimateActive=false;if(estimateTimer!==null){clearInterval(estimateTimer);estimateTimer=null}}
 function notice(message,type='info',working=false,pct=null,stageFloor=null){
- clearTimeout(toastTimer);log.dataset.kind=type;log.hidden=false;log.classList.add('arc-toast-show');
+ clearTimeout(toastTimer);
+ if(type!=='error'){stickyError=false;errorButton.hidden=true;dismissButton.hidden=true;selectedError=null;}
+ cancelCommandButton.hidden=(!working||type==='error');log.dataset.kind=type;log.hidden=false;log.classList.add('arc-toast-show');
  log.classList.toggle('is-working',working);progressMessage.textContent=window.arcPlainMessage?window.arcPlainMessage(message):String(message);
  const valid=pct!==null&&pct!==undefined&&Number.isFinite(Number(pct));
  if(working){
@@ -81,69 +184,122 @@ function notice(message,type='info',working=false,pct=null,stageFloor=null){
   stopProgressAnimation();realPercent=null;
   const value=valid?Math.max(0,Math.min(100,Number(pct))):(type==='success'?100:0);
   progressPercent.textContent=Math.round(value)+'%';progressFill.style.width=value+'%';progressPercent.title=type==='success'?'Concluído e confirmado':'Operação encerrada';progressPercent.setAttribute('aria-label',progressPercent.title);
-  toastTimer=setTimeout(()=>{if(!activeProgressId){log.classList.remove('arc-toast-show');log.hidden=true}},type==='error'?6500:4200);
+  toastTimer=setTimeout(()=>{if(!activeProgressId&&!stickyError){log.classList.remove('arc-toast-show');log.hidden=true}},type==='error'?6500:4200);
  }
 }
-function toast(message,type='info'){if(activeProgressId)return;notice(message,type,false,type==='success'?100:0)}
+function toast(message,type='info'){if(activeProgressId||(stickyError&&type!=='error'))return;notice(message,type,false,type==='success'?100:0)}
 function showProgress(label,state='Tudo certo, estou aguardando o computador…',id=0){activeProgressId=Number(id)||0;notice(state,'info',true,null,25)}
 function endProgress(label,ok){activeProgressId=0;notice(label,ok?'success':'error',false,ok?100:0)}
 function setRunning(on){}
 function setOnline(online){const wrap=status.closest('.arc-agent-select-wrap');if(wrap){wrap.classList.toggle('is-online',!!online);wrap.classList.toggle('is-offline',!online)}status.classList.toggle('is-online',!!online);status.classList.toggle('is-offline',!online);status.title=online?'Agente online':'Agente offline';status.setAttribute('aria-label',status.title)}
-let releaseStatus=null;
+let releaseStatus=null,releaseNotes='',selectedVersion='',selectedAgentPolicy=null;
+let canManageAgent=<?= in_array($teamRole,['owner','administrator'],true)?'true':'false' ?>,versionLookupFailed=false;
+const headerUpdate=document.getElementById('arc-header-agent-update');
 const versionInfo=document.getElementById('arc-agent-version-info');
 const updateTiles=()=>document.querySelectorAll('[data-arc-command="agent_update"]');
 async function refreshAgentVersions(){
- if(!versionInfo)return;
+ if(!versionInfo&&!headerUpdate)return;
  try{
   const resp=await fetch(base+'api/api.php?action=network-agent-versions&network_id='+networkId,{cache:'no-store',credentials:'same-origin'});
   const result=await resp.json();if(!resp.ok||!result.ok)throw Error(result.error||'Consulta indisponível');
-  releaseStatus=result.release||null;document.dispatchEvent(new CustomEvent('arc:release-status',{detail:releaseStatus}));
+  versionLookupFailed=false;
+  canManageAgent=result.can_update===true;
+  releaseStatus=result.release||null;releaseNotes=String(result.release_notes||'');selectedVersion=String(result.published_version||'');document.dispatchEvent(new CustomEvent('arc:release-status',{detail:releaseStatus}));
   const current=(result.agents||[]).find(a=>Number(a.id)===Number(target.value));
-  versionInfo.textContent=current?.version?'v. '+String(current.version).replace(/^v\.?\s*/i,''):'v. --';document.querySelectorAll('[data-tile-version]').forEach(el=>{const type=el.dataset.tileVersion;el.textContent=type==='agent'?'v'+(result.display_agent_version||result.published_version||'--'):type==='update'?'v'+(result.display_agent_version||result.published_version||'--'):type==='support'?'v'+(result.support_version||'--'):'v'+(result.access_version||'--')});
+  selectedAgentPolicy=current||null;
+  if(versionInfo)versionInfo.textContent=current?.version?'v. '+String(current.version).replace(/^v\.?\s*/i,''):'v. --';
+  document.querySelectorAll('[data-tile-version]').forEach(el=>{const type=el.dataset.tileVersion;el.textContent=type==='agent'?'v'+(result.display_agent_version||result.published_version||'--'):type==='update'?'v'+(result.display_agent_version||result.published_version||'--'):type==='support'?'v'+(result.support_version||'--'):'v'+(result.access_version||'--')});
   const published=String(result.published_version||'');
   const installed=String(current?.version||'');
-  // Valor calculado na API, respeitando a versão real informada pelo agente.
+  // O aviso visual informa versões disponíveis mesmo a quem não pode disparar atualização.
   const outdated=!!current?.outdated;
+  const needsInstall=!!current?.requires_reinstall;
+  if(headerUpdate){
+   headerUpdate.classList.toggle('arc-update-available',outdated);
+   headerUpdate.dataset.updateAvailable=outdated?'1':'0';
+   headerUpdate.title=outdated?'Atualização Windows disponível: '+(installed||'versão desconhecida')+' → '+published:'Agente Windows: instalar ou atualizar';
+   headerUpdate.setAttribute('aria-label',headerUpdate.title);
+  }
   updateTiles().forEach(btn=>{
    btn.classList.toggle('arc-update-available',outdated);
    btn.setAttribute('aria-label',outdated?'Atualização disponível: '+installed+' → '+published:'Atualizar agente');
-   btn.title=outdated?'Atualização disponível: '+installed+' → '+published:'Atualizar os arquivos do agente';
+   btn.title=needsInstall?'Identifique a versão do agente antes da atualização remota':outdated?'Atualização disponível: '+installed+' → '+published:'Atualizar os arquivos do agente';
    btn.dataset.updateAvailable=outdated?'1':'0';
+   btn.dataset.requiresReinstall=needsInstall?'1':'0';
+   btn.disabled=!canManageAgent||needsInstall||!target.value;
+   const subtitle=btn.querySelector('small');
+   if(needsInstall&&subtitle)subtitle.textContent='Versão não identificada';
   });
- }catch(_e){releaseStatus=null;document.dispatchEvent(new CustomEvent('arc:release-status',{detail:null}));versionInfo.textContent='v. --';updateTiles().forEach(btn=>btn.classList.remove('arc-update-available'))}
+ }catch(_e){
+  versionLookupFailed=true;selectedAgentPolicy=null;releaseStatus=null;releaseNotes='';selectedVersion='';
+  if(headerUpdate){headerUpdate.classList.remove('arc-update-available');headerUpdate.dataset.updateAvailable='0';headerUpdate.title='Agente Windows: consultar instalação e atualizações';headerUpdate.setAttribute('aria-label',headerUpdate.title)}
+  document.dispatchEvent(new CustomEvent('arc:release-status',{detail:null}));
+  if(versionInfo)versionInfo.textContent='v. --';updateTiles().forEach(btn=>btn.classList.remove('arc-update-available'));
+ }
 }
-refreshAgentVersions();setInterval(()=>{if(!document.hidden)refreshAgentVersions()},8000);
+refreshAgentVersions(); // Atualização de versões apenas na abertura e após operações explícitas.
 target.addEventListener('change',()=>document.getElementById('arc-agent-form').requestSubmit());
 document.addEventListener('arc:command-queued',e=>{const d=e.detail||{};if(d.command_id&&Number(d.agent_id)===Number(target.value)&&!activeProgressId)showProgress(labels[d.command]||'Comando remoto','Aguardando o agente',Number(d.command_id))});
 const labels={monitor_start:'Monitoramento iniciado',monitor_pause:'Monitoramento pausado',speed_test:'Teste de velocidade',scan_devices:'Varredura de dispositivos',scan_map:'Atualização da topologia',diagnostic:'Diagnóstico',quick_health:'Saúde rápida',dns_test:'Teste de DNS',public_ip:'IP público',system_snapshot:'Recursos do computador',flush_dns:'Limpeza de DNS',wifi_info:'Sinal Wi-Fi',agent_update:'Atualização remota do agente',power_shutdown:'Desligamento',power_restart:'Reinicialização',power_cancel:'Cancelamento do agendamento'};
 async function askRemoteUpdateConfirm(){
+ // A consulta ocorre por clique no ícone ou ao abrir a página, nunca em polling ocioso.
  await refreshAgentVersions();
  return new Promise(resolve=>{
   const dialog=document.getElementById('arc-agent-update-confirm');
-  if(!dialog||typeof dialog.showModal!=='function')return resolve(window.confirm('Atualizar remotamente o agente selecionado? O aplicativo será reiniciado.'));
-  const label=(document.querySelector('#arc-agent-target option:checked')?.textContent||'Agente selecionado').trim();
-  const title=dialog.querySelector('[data-update-agent-name]'); if(title) title.textContent=label;
-  const details=dialog.querySelector('[data-update-agent-details]'); if(details) details.textContent='O agente baixará o pacote autenticado, verificará a integridade e reinstalará os componentes gerenciados, preservando o cadastro e permitindo reversão em falhas.';
+  if(!dialog||typeof dialog.showModal!=='function')return resolve(null);
+  const agent=(document.querySelector('#arc-agent-target option:checked')?.textContent||'Nenhum agente selecionado').trim();
+  const installed=String(selectedAgentPolicy?.version||'não identificada');
+  const published=selectedVersion||'indisponível';
+  const outdated=!!selectedAgentPolicy?.outdated;
+  const selected=!!target.value;
+  const updatable=selected&&canManageAgent&&!versionLookupFailed&&!selectedAgentPolicy?.requires_reinstall;
+  dialog.querySelector('[data-update-agent-name]').textContent=agent;
+  dialog.querySelector('[data-update-modal-version]').textContent='Versão publicada: '+published;
+  dialog.querySelector('[data-update-agent-details]').textContent='Instalada: '+installed+' · Publicada: '+published+'.';
+  let description;
+  if(versionLookupFailed)description='Não foi possível consultar as versões. O instalador local continua disponível; tente consultar novamente para habilitar a atualização remota.';
+  else if(!selected)description='Selecione um agente para atualizar remotamente ou baixe o instalador para um novo computador.';
+  else if(!canManageAgent)description='Seu perfil pode consultar a atualização. A execução remota exige permissão administrativa.';
+  else if(selectedAgentPolicy?.requires_reinstall)description=selectedAgentPolicy.update_message||'A versão instalada não foi identificada. Verifique o agente ou reinstale localmente.';
+  else if(selectedAgentPolicy?.migrate_native)description='O agente antigo será migrado para WinUI 3 pelo canal remoto autorizado. Se ocorrer falha, a versão anterior permanecerá disponível para recuperação.';
+  else if(outdated)description='Uma nova versão está disponível para este computador.';
+  else description='Nenhuma atualização nova detectada. Você ainda pode solicitar uma atualização ou reinstalação forçada, conforme sua permissão.';
+  dialog.querySelector('[data-update-status]').textContent=description;
+  dialog.querySelector('[data-update-release]').textContent=releaseNotes.trim()||'Nenhuma nota de versão foi publicada para esta atualização.';
   const cancel=dialog.querySelector('[data-update-cancel]');
-  const confirm=dialog.querySelector('[data-update-confirm]');
-  const report=dialog.querySelector('[data-update-release]');report.replaceChildren();
-  const status=releaseStatus;
-  if(status){
-   const discrepancies=(status.components||[]).filter(row=>!row.aligned);
-   report.textContent=status.ready?'Pacote v'+status.platform_version+' disponível.':'Arquivos não alinhados: '+discrepancies.map(row=>row.file+' ('+(row.version||'ausente')+')').join(', ');
-   details.textContent=status.ready?'Vou baixar, validar e reinstalar os arquivos publicados.':'O pacote publicado precisa ser corrigido antes do envio. A tentativa apresentará o erro do servidor.';
-  }else{report.textContent='Vou verificar os arquivos no servidor antes de enviar.';}
-  confirm.disabled=false;
-
-  const onCancel=(ev)=>{if(ev)ev.preventDefault(); cleanup(false)};
-  const onOk=(ev)=>{if(ev)ev.preventDefault(); cleanup(true)};
-  let finished=false;const onClose=()=>cleanup(false);
-  const cleanup=(answer)=>{if(finished)return;finished=true;cancel?.removeEventListener('click',onCancel);confirm?.removeEventListener('click',onOk);dialog.removeEventListener('cancel',onCancel);dialog.removeEventListener('close',onClose);if(dialog.open)dialog.close();resolve(answer)};
-  cancel?.addEventListener('click', onCancel);
-  confirm?.addEventListener('click',onOk);dialog.addEventListener('cancel',onCancel);dialog.addEventListener('close',onClose);
+  const normal=dialog.querySelector('[data-update-confirm]');
+  const force=dialog.querySelector('[data-update-force-confirm]');
+  normal.disabled=!updatable;
+  force.disabled=!updatable;
+  normal.title=!canManageAgent?'Disponível apenas para administradores':!selected?'Selecione um agente':selectedAgentPolicy?.requires_reinstall?'Versão do agente não identificada':'Solicitar atualização remota';
+  force.title=!canManageAgent?'Disponível apenas para administradores':!selected?'Selecione um agente':selectedAgentPolicy?.requires_reinstall?'Versão do agente não identificada':'Solicitar reinstalação remota autorizada';
+  let finished=false;
+  function cleanup(answer){if(finished)return;finished=true;normal.removeEventListener('click',onNormal);force.removeEventListener('click',onForce);cancel.removeEventListener('click',onCancel);dialog.removeEventListener('cancel',onCancel);dialog.removeEventListener('close',onClose);if(dialog.open)dialog.close();resolve(answer)}
+  function onNormal(e){e.preventDefault();if(updatable)cleanup('normal')}
+  function onForce(e){e.preventDefault();if(updatable)cleanup('force')}
+  function onCancel(e){e?.preventDefault();cleanup(null)}
+  function onClose(){cleanup(null)}
+  normal.addEventListener('click',onNormal);force.addEventListener('click',onForce);cancel.addEventListener('click',onCancel);dialog.addEventListener('cancel',onCancel);dialog.addEventListener('close',onClose);
   dialog.showModal();
  });
 }
+// A mesma fila autenticada executa as duas ações; não há canal remoto alternativo.
+async function queueAgentUpdate(mode){
+ await refreshAgentVersions();
+ if(!canManageAgent){notice('Seu perfil não tem permissão para atualizar agentes.','error');return;}
+ if(versionLookupFailed){notice('Não foi possível validar a versão do agente. Consulte novamente.','error');return;}
+ if(selectedAgentPolicy?.requires_reinstall){notice('O agente não informou uma versão válida. Verifique a conexão e a instalação.','error');return;}
+ if(!target.value){notice('Selecione um agente aprovado.','error');return}
+ notice('Enviando pedido de atualização…','info',true,null,5);
+ try{
+  const resp=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value),command:'agent_update',force_update:mode==='force',_csrf:csrf})});
+  const data=await resp.json();if(!resp.ok||!data.ok)throw Error(data.error||'Falha ao solicitar atualização');
+  activeCommand=true;queuedCommandId=Number(data.command_id||0);showProgress('Atualizando agente','Comando enviado. Aguardando execução no computador…',queuedCommandId);
+  document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:'agent_update',command_id:queuedCommandId,agent_id:Number(target.value)}}));poll(false);
+ }catch(err){showFailure({command:'agent_update',message:'Não foi possível solicitar a atualização: '+err.message})}
+}
+headerUpdate?.addEventListener('click',async()=>{const mode=await askRemoteUpdateConfirm();if(mode)await queueAgentUpdate(mode)});
+
 async function poll(notify=false){
  if(pollBusy)return;pollBusy=true;
  if(!target.value){pollBusy=false;}
@@ -154,6 +310,16 @@ async function poll(notify=false){
  const heartbeat=(j.agents||[]).find(a=>Number(a.id)===Number(target.value));
  setOnline(!!heartbeat&&heartbeat.status==='approved'&&Number(j.server_time)-Number(heartbeat.last_seen_unix||0)<120);
  const commands=(j.commands||[]).filter(x=>Number(x.agent_id)===Number(target.value));
+ if(!initialErrorsChecked){
+  commands.filter(c=>['failed','expired'].includes(String(c.status).toLowerCase())).forEach(c=>persistSeenError(c.id));
+  initialErrorsChecked=true;
+ }
+ const recentFailures=commands.filter(c=>['failed','expired'].includes(String(c.status).toLowerCase())&&!seenErrors.has(Number(c.id)));
+ // Historical failures remain in the on-demand list; do not spam old failures on each page load.
+ recentFailures.forEach(c=>{if(Date.now()-Date.parse(c.completed_at||c.created_at||0)>12*3600*1000)persistSeenError(c.id)});
+ const fresh=recentFailures.filter(c=>!seenErrors.has(Number(c.id))).sort((a,b)=>Number(a.id)-Number(b.id));
+ if(fresh.length){fresh.slice(0,-1).forEach(c=>persistSeenError(c.id));const newest=fresh[fresh.length-1];if(!activeProgressId||Number(newest.id)!==activeProgressId)showFailure(newest);}
+
  const x=activeProgressId?commands.find(c=>Number(c.id)===activeProgressId):commands[0];if(!x){setRunning(false);return}
  const state=String(x.status||'').toLowerCase();const busy=['queued','pending','running','processing'].includes(state);
  setRunning(busy);
@@ -162,7 +328,9 @@ async function poll(notify=false){
   if(busy){
    const steps={queued:'Já mandei! Assim que o computador responder, aviso aqui.',pending:'Chegou ao servidor. Falta o computador confirmar.',running:'O computador já começou. Acompanhando por aqui…',processing:'Está em andamento. Aviso assim que terminar.'};
    const detail=String(x.result_text||'').trim();
-   const pct=x.progress_percent===undefined||x.progress_percent===null||x.progress_percent===''?null:Number(x.progress_percent);
+   const reported=x.progress_percent===undefined||x.progress_percent===null||x.progress_percent===''?null:Number(x.progress_percent);
+   const updatePercent=x.command_name==='agent_update'?String(x.result_text||'').match(/(?:WinUI 3|Atualização)\s+(\d{1,3})%/i):null;
+   const pct=updatePercent?Math.min(99,Number(updatePercent[1])):reported;
    const phases={queued:25,pending:40,running:70,processing:70};notice(detail||steps[state]||'Estou acompanhando a execução…','info',true,Number.isFinite(pct)?Math.min(99,pct):null,phases[state]??25);
   }else{
    const ok=state==='completed';const detail=String(x.result_text||'').trim();
@@ -170,6 +338,7 @@ async function poll(notify=false){
    if(detail)finalText+=': '+detail;
    // A conclusão é a confirmação retornada pela API, e não apenas o envio do comando.
    endProgress(finalText,ok);
+   if(!ok)showFailure(x);
    document.dispatchEvent(new CustomEvent('arc:operation-updated',{detail:{id:x.id,status:state,command:x.command_name}}));
    if(ok&&['scan_devices','scan_map','diagnostic','speed_test'].includes(x.command_name))setTimeout(()=>location.reload(),1400);
    if(x.command_name==='agent_update')refreshAgentVersions();
@@ -185,9 +354,15 @@ document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-arc-command]');if(!b)return;
  e.preventDefault();if(!target.value){toast('Selecione um agente aprovado antes de executar comandos.','error');return}
  if(b.disabled)return;
- if(b.dataset.arcCommand==='agent_update'){const proceed=await askRemoteUpdateConfirm();if(!proceed)return;}
+ if(b.dataset.arcCommand==='agent_update'){
+  // Botão normal: envia a atualização imediatamente. Apenas a reinstalação
+  // forçada exige confirmação específica, mantendo o mesmo canal autenticado.
+  if(b.dataset.updateForce==='1'){const mode=await askRemoteUpdateConfirm();if(mode==='force')await queueAgentUpdate('force');}
+  else await queueAgentUpdate('normal');
+  return;
+ }
  b.disabled=true;setRunning(true);notice('Só um instante, estou enviando…','info',true,null,5);
- try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value),command:b.dataset.arcCommand,_csrf:csrf})});const j=await r.json();if(!r.ok||!j.ok){const error=Error(j.error||'Falha ao enviar comando');error.supportRef=j.error_ref||'';throw error;}activeCommand=true;queuedCommandId=Number(j.command_id||0);showProgress(labels[b.dataset.arcCommand]||b.dataset.arcCommand,'Enviei! Estou aguardando o computador confirmar…',queuedCommandId);document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:b.dataset.arcCommand,command_id:Number(j.command_id),agent_id:Number(target.value)}}));poll(false)}catch(err){setRunning(false);activeProgressId=0;endProgress('Falha ao enviar comando · '+err.message+(err.supportRef?' Referência: '+err.supportRef:''),false)}finally{b.disabled=false}
+ try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value),command:b.dataset.arcCommand,_csrf:csrf})});const j=await r.json();if(!r.ok||!j.ok){const error=Error(j.error||'Falha ao enviar comando');error.supportRef=j.error_ref||'';throw error;}activeCommand=true;queuedCommandId=Number(j.command_id||0);showProgress(labels[b.dataset.arcCommand]||b.dataset.arcCommand,'Enviei! Estou aguardando o computador confirmar…',queuedCommandId);document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:b.dataset.arcCommand,command_id:Number(j.command_id),agent_id:Number(target.value)}}));poll(false)}catch(err){setRunning(false);activeProgressId=0;showFailure({command:b.dataset.arcCommand,message:'Falha ao enviar comando: '+err.message+(err.supportRef?' Referência: '+err.supportRef:'')})}finally{b.disabled=false}
 });
 const powerDlg=document.getElementById('arc-power-schedule');
 const powerForm=document.getElementById('arc-power-form');
@@ -203,7 +378,7 @@ async function sendPower(command,delay,tile){
  if(delay!==undefined)body.delay_seconds=delay;
  tile.disabled=true;notice('Já estou enviando para o computador…','info',true,null,5);
  try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Não consegui enviar o pedido');activeProgressId=Number(j.command_id||0);showProgress('','Agendando para '+(delay===undefined?'agora':delay>=60?(delay/60+' min'):(delay+' segundos'))+'…',activeProgressId);const id=Number(j.command_id||0);if(delay!==undefined){if(command==='screen_lock'){deadlines.set(command,{until:Date.now()+delay*1000});drawCountdown()}const check=async()=>{for(let tries=0;tries<45;tries++){await new Promise(resolve=>setTimeout(resolve,2000));const response=await fetch(base+'api/api.php?action=network-command-status&network_id='+networkId,{credentials:'same-origin',cache:'no-store'});if(!response.ok)continue;const data=await response.json();const item=(data.commands||[]).find(x=>Number(x.id)===id);if(item&&['failed','expired'].includes(item.status)){deadlines.delete(command);document.querySelector('[data-power-tile="'+command+'"] .arc-power-countdown')?.remove();return;}if(item?.status==='completed'){if(delay!==undefined)notice('Pronto! Prazo selecionado: '+(delay>=60?(delay/60+' min'):(delay+' segundos'))+'.','success',false,100);const tileCmd=command==='power_cancel'?'power_shutdown':command;if(command==='power_cancel'){deadlines.delete('power_shutdown');document.querySelector('[data-power-tile="power_shutdown"] .arc-power-countdown')?.remove();swapShutdown(false)}else if(command!=='screen_lock'){deadlines.set(tileCmd,{until:Date.now()+delay*1000});drawCountdown();if(command==='power_shutdown')swapShutdown(true)}return}}};check().catch(()=>{})}poll()}
- catch(err){activeProgressId=0;notice(err.message,'error',false,0)}finally{tile.disabled=false}
+ catch(err){activeProgressId=0;showFailure({command,message:err.message})}finally{tile.disabled=false}
 }
 document.addEventListener('click',async e=>{
  const tile=e.target.closest('[data-support-action]');if(!tile||tile.disabled)return;
@@ -214,7 +389,9 @@ document.addEventListener('click',async e=>{
  await sendPower(command,delay,tile)
 });
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-power-cancel]');if(!b)return;if(!window.confirm('Cancelar o desligamento agendado?'))return;await sendPower('power_cancel',undefined,b)});
-poll();setInterval(()=>{if(!document.hidden && activeProgressId)poll()},1000);setInterval(()=>{if(!document.hidden && !activeProgressId)poll()},5000);
+// Falhas antigas não são reenviadas automaticamente; o histórico permanece no modal.
+poll();setInterval(()=>{if(!document.hidden && activeProgressId)poll()},1000);
+// Histórico consultado apenas quando solicitado no modal.
 })();
 </script>
 
@@ -417,14 +594,17 @@ async function refresh(){
  try{
   const response=await fetch(frameUrl('status'),{credentials:'same-origin',cache:'no-store'});const result=await response.json().catch(()=>({ok:false,error:'Resposta inválida da API (HTTP '+response.status+').'}));if(!response.ok)throw Error(result.error||'Erro HTTP '+response.status);
   if(!result.ok||result.stopped||['failed','completed','expired'].includes(result.status)){
-   setState('A sessão foi encerrada ou recusada.');await endSession();return;
+   const reason=String(result.state_message||'A sessão foi encerrada ou recusada.');
+   await endSession();setState(reason);return;
   }
   renderMonitorPicker(result.monitors||[],result.selected_monitor||'');
   if(result.has_frame){
    if(!live){live=true;pump();qualitySelect?.dispatchEvent(new Event('change'))}
    setControl(result.control);
    setState(result.control?'● Acesso remoto ativo · controle de mouse e teclado autorizado':'● Visualização ativa · controle não autorizado (somente tela)');
-  }else setState('Aguardando autorização ou primeira imagem do computador...');
+  }else if(result.status==='pending')setState('Pedido aguardando entrega ao agente Windows. Confirme se o agente está conectado e atualizado.');
+  else if(Number(result.elapsed_seconds||0)>45)setState('Ainda sem imagem. Confira no computador a janela de autorização do agente. '+String(result.state_message||''));
+  else setState(String(result.state_message||'Aguardando autorização ou primeira imagem do computador...'));
  }catch(e){setState('Falha ao consultar sessão remota: '+(e.message||'erro desconhecido'))}finally{locked=false}
 }
 /* ---------- entrada: mouse e teclado ---------- */
@@ -631,7 +811,7 @@ async function sendRemoteAssistanceRequest(agent,confirmPassword){
  const res=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
  const value=await res.json().catch(()=>({error:'O servidor retornou uma resposta inválida. Verifique o log PHP (HTTP '+res.status+').'}));if(!res.ok||!value.ok||!value.command_id)throw Error(value.error||'Falha ao solicitar acesso');
  commandId=Number(value.command_id);saveRemoteSession();send.hidden=true;stop.hidden=false;
- setState(confirmPassword?'Acesso automático liberado (dispositivo autorizado)...':'Aguardando o usuário permitir o acesso no Windows...');
+ setState(value.unattended?'Acesso administrativo sem monitor autorizado; aguardando a imagem...':'Aguardando o usuário permitir o acesso no Windows...');
  clearTimers();timer=setInterval(refresh,1200);refresh();
 }
 const autoDialog=$('arc-remote-auto-modal'),autoForm=$('arc-remote-auto-form'),autoError=$('arc-remote-auto-error'),autoCancel=$('arc-remote-auto-cancel'),autoSubmit=$('arc-remote-auto-submit');
@@ -686,19 +866,18 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
 
 <dialog id="arc-agent-update-confirm" class="arc-agent-update-confirm arc-service-dialog" aria-labelledby="arc-agent-update-title">
 <div class="arc-agent-update-card">
- <div class="arc-agent-update-icon"><i class="fa fa-refresh" aria-hidden="true"></i></div>
- <div class="arc-agent-update-copy">
-  <h2 id="arc-agent-update-title">Atualizar agente?</h2>
-  <small data-update-agent-name>Agente selecionado</small>
-  <p data-update-agent-details>O agente será reiniciado após receber a atualização.</p>
-  <div data-update-release class="arc-update-release-details" role="status"></div>
+ <div class="arc-update-modal-header"><div><strong id="arc-agent-update-title">Atualização do agente</strong> <small data-update-modal-version>Nova versão —</small></div><button class="arc-update-modal-close" type="button" data-update-cancel aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></div>
+ <div class="arc-agent-update-copy"><small data-update-agent-name>Agente selecionado</small><p data-update-agent-details></p><p data-update-status class="arc-update-state" role="status">Selecione um agente para consultar a versão.</p><div data-update-release class="arc-update-release-details" role="region" aria-label="Notas da versão" tabindex="0"></div></div>
+ <div class="arc-agent-update-actions arc-service-actions" role="group" aria-label="Instalação e atualização do agente">
+ <?php if(($teamRole??'')==='owner'): ?>
+ <a class="button secondary" data-update-install href="<?=arc_h(arc_workspace_base_url().'api/download-agent.php?network='.(int)$networkId)?>" title="Baixar o instalador Windows para executar no computador de destino"><i class="fa fa-download" aria-hidden="true"></i> Instalar agente</a>
+ <?php else: ?>
+ <button type="button" class="button secondary" disabled title="Somente o proprietário da rede pode gerar instaladores"><i class="fa fa-download" aria-hidden="true"></i> Instalar agente</button>
+ <?php endif; ?>
+ <button type="button" class="button" data-update-confirm><i class="fa fa-refresh" aria-hidden="true"></i> Atualizar</button>
+ <button type="button" class="button secondary" data-update-force-confirm><i class="fa fa-cloud-download" aria-hidden="true"></i> Forçar atualização</button>
  </div>
- <div class="arc-agent-update-actions arc-service-actions">
-  <button type="button" class="button secondary" data-update-cancel>Cancelar</button>
-  <button type="button" class="button" data-update-confirm><i class="fa fa-refresh" aria-hidden="true"></i> Atualizar agente</button>
- </div>
-</div>
-</dialog>
+</div></dialog>
 <dialog id="arc-network-confirm" class="arc-network-confirm" aria-labelledby="arc-network-confirm-title">
 <div class="arc-confirm-head"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i><h2 id="arc-network-confirm-title">Confirmar operação</h2></div>
 <p data-confirm-text>Deseja continuar?</p><div class="arc-confirm-actions"><button type="button" class="button secondary" data-confirm-cancel>Cancelar</button><button type="button" class="button danger" data-confirm-proceed>Confirmar</button></div>
@@ -761,6 +940,7 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
  const hash=(location.hash||'').toLowerCase();if(hash==='#team'||hash==='#users')open('team');else if(hash==='#agents'||hash==='#installations')open('agents');else if(hash==='#settings'||hash==='#preferences')open('settings');else if(hash==='#cadastro')open('data');
 })();
 </script>
+
 </div></main><?php require dirname(__DIR__).'/includes/footer.php'; ?>
 
 
@@ -879,17 +1059,7 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
 .arc-remote-auto-modal input { width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 8px; border: 1px solid rgb(49, 92, 125); background: var(--surface); color: var(--text); font-size: 14px; }
 #arc-remote-auto-error { display: block; min-height: 16px; color: var(--text); font-size: 12px; margin-top: 6px; }
 .arc-remote-auto-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
-#arc-agent-update-confirm { box-sizing: border-box !important; width: min(94vw, 420px) !important; max-width: 420px !important; max-height: min(80dvh, 500px) !important; overflow: auto !important; padding: 0px !important; border: 1px solid rgb(66, 104, 135) !important; border-radius: 14px !important; color: rgb(232, 243, 255) !important; background: rgba(20, 35, 56, 0.97) !important; box-shadow: rgba(0, 0, 0, 0.6) 0px 24px 80px !important; }
 #arc-agent-update-confirm::backdrop { background: rgba(0, 0, 0, 0.55) !important; backdrop-filter: blur(3px) !important; }
-#arc-agent-update-confirm .arc-agent-update-card { display: block !important; padding: 15px !important; max-width: none !important; min-width: 0px !important; min-height: 0px !important; margin: 0px !important; }
-#arc-agent-update-confirm .arc-agent-update-icon { display: none !important; }
-#arc-agent-update-confirm .arc-agent-update-copy { padding: 0px !important; margin: 0px !important; min-width: 0px !important; }
-#arc-agent-update-confirm h2 { font-size: 16px !important; line-height: 1.3 !important; margin: 0px 0px 8px !important; }
-#arc-agent-update-confirm [data-update-agent-name] { display: block; font-size: 12px; color: rgb(148, 203, 231); margin: 0px 0px 7px; }
-#arc-agent-update-confirm [data-update-agent-details] { font-size: 12px !important; line-height: 1.45 !important; margin: 0px 0px 8px !important; }
-#arc-agent-update-confirm [data-update-release] { display: block; font-size: 11px !important; line-height: 1.5 !important; max-height: 78px !important; overflow-y: auto !important; overflow-wrap: anywhere !important; margin: 6px 0px 10px !important; padding: 8px !important; background: rgb(16, 29, 48) !important; border-radius: 7px !important; }
-#arc-agent-update-confirm .arc-agent-update-actions { display: flex !important; gap: 8px !important; justify-content: stretch !important; margin: 8px 0px 0px !important; padding: 0px !important; }
-#arc-agent-update-confirm .arc-agent-update-actions button { flex: 1 1 0% !important; min-width: 0px !important; padding: 10px 8px !important; font-size: 12px !important; white-space: nowrap !important; }
 .arc-remote-sr-title { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0px !important; margin: -1px !important; overflow: hidden !important; clip: rect(0px, 0px, 0px, 0px) !important; white-space: nowrap !important; border: 0px !important; }
 .arc-remote-screen-head { padding: 4px 8px !important; min-height: 35px !important; gap: 3px !important; }
 .arc-remote-screen-head .arc-remote-screen-tools { overflow-x: auto; justify-content: flex-start !important; flex: 1 1 auto !important; min-width: 0px !important; }

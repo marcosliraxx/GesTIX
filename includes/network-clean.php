@@ -1,4 +1,5 @@
 <?php
+// Caminho: includes/network-clean.php
 /* Caminho: includes/network-clean.php */
 /* Fonte única de Programas (inventário/desinstalação) e Clean (limpeza, registro, inicialização, disco, duplicados,
    restauração do sistema, atualizador de software e verificação de integridade): catálogos, limites, validações,
@@ -97,7 +98,6 @@ function arc_clean_catalog(): array
     $g = 'Utilitários';
     $add('mspaint_recent',$t, $g, 'Paint e WordPad: arquivos recentes', 'Listas de arquivos recentes.');
     $add('winrar_history',$t, $g, 'WinRAR: histórico', 'Arquivos compactados recentes.');
-    $add('defender_history', $t, $g, 'Histórico de verificações do Microsoft Defender', 'Pode ser bloqueado pela proteção contra adulteração.');
     $g = 'Multimídia';
     $add('spotify_cache', $t, $g, 'Spotify: armazenamento em cache', 'Músicas e dados em cache.');
     $add('adobe_cache',   $t, $g, 'Adobe: cache de mídia', 'Media Cache e Peak Files (Premiere, After Effects).');
@@ -464,6 +464,9 @@ function arc_clean_sanitize_tool_report(string $tool, array $r): array
             foreach (['removed', 'freed', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_clean_count($r[$n]);
             break;
         case 'health':
+            $out['incomplete'] = !empty($r['incomplete']);
+            $out['missing'] = array_values(array_slice(array_filter((array)($r['missing'] ?? []), 'is_string'), 0, 60));
+            $out['note'] = arc_clean_text($r['note'] ?? '', 300);
             foreach (['space', 'privacy'] as $part) {
                 $san = arc_clean_sanitize_report(is_array($r[$part] ?? null) ? $r[$part] : [], false);
                 $out[$part] = ['file_count' => $san['file_count'], 'bytes' => $san['bytes'], 'errors' => $san['errors'], 'categories' => $san['categories']];
@@ -572,16 +575,305 @@ function arc_clean_ensure_schema(PDO $pdo): void
     )' . $engine);
 }
 
+
+/** Catálogo explícito para instalação remota via WinGet (IDs fixos, sem comandos personalizados). */
+/** Domínio do site oficial de cada pacote do catálogo: origem do logo exibido na plataforma (api/program-logo.php) e no agente. */
+function arc_program_logo_domains(): array
+{
+    return [
+        'AnyDesk.AnyDesk'=>'anydesk.com',
+        'RustDesk.RustDesk'=>'rustdesk.com',
+        'TeamViewer.TeamViewer'=>'teamviewer.com',
+        'GlavSoft.TightVNC'=>'tightvnc.com',
+        'uvncbvba.UltraVNC'=>'uvnc.com',
+        'Dropbox.Dropbox'=>'dropbox.com',
+        'Google.GoogleDrive'=>'drive.google.com',
+        'Microsoft.OneDrive'=>'onedrive.live.com',
+        'RARLab.WinRAR'=>'win-rar.com',
+        'qBittorrent.qBittorrent'=>'qbittorrent.org',
+        'Microsoft.DotNet.DesktopRuntime.10'=>'dotnet.microsoft.com',
+        'Microsoft.DotNet.DesktopRuntime.8'=>'dotnet.microsoft.com',
+        'Microsoft.DotNet.DesktopRuntime.9'=>'dotnet.microsoft.com',
+        'Microsoft.DotNet.AspNetCore.10'=>'dotnet.microsoft.com',
+        'Microsoft.DotNet.AspNetCore.8'=>'dotnet.microsoft.com',
+        'Microsoft.DotNet.AspNetCore.9'=>'dotnet.microsoft.com',
+        'Microsoft.VCRedist.2015+.x64'=>'visualstudio.microsoft.com',
+        'Microsoft.VCRedist.2015+.x86'=>'visualstudio.microsoft.com',
+        'Anysphere.Cursor'=>'cursor.com',
+        'DBeaver.DBeaver.Community'=>'dbeaver.io',
+        'Docker.DockerDesktop'=>'docker.com',
+        'EclipseFoundation.EclipseIDEforJavaDevelopers'=>'eclipse.org',
+        'TimKosse.FileZilla.Client'=>'filezilla-project.org',
+        'Git.Git'=>'git-scm.com',
+        'GitHub.GitHubDesktop'=>'desktop.github.com',
+        'JetBrains.Toolbox'=>'jetbrains.com',
+        'OpenJS.NodeJS.22'=>'nodejs.org',
+        'OpenJS.NodeJS.24'=>'nodejs.org',
+        'OpenJS.NodeJS.LTS'=>'nodejs.org',
+        'Postman.Postman'=>'postman.com',
+        'PuTTY.PuTTY'=>'putty.org',
+        'Python.Python.3.12'=>'python.org',
+        'Python.Python.3.13'=>'python.org',
+        'Python.Python.3.14'=>'python.org',
+        'SublimeHQ.SublimeText.4'=>'sublimetext.com',
+        'Microsoft.VisualStudioCode'=>'code.visualstudio.com',
+        'VSCodium.VSCodium'=>'vscodium.com',
+        'WinMerge.WinMerge'=>'winmerge.org',
+        'WinSCP.WinSCP'=>'winscp.net',
+        'Adobe.Acrobat.Reader.64-bit'=>'acrobat.adobe.com',
+        'AcroSoftware.CutePDFWriter'=>'cutepdf.com',
+        'Foxit.FoxitReader'=>'foxit.com',
+        'TheDocumentFoundation.LibreOffice'=>'libreoffice.org',
+        'Notepad++.Notepad++'=>'notepad-plus-plus.org',
+        'Apache.OpenOffice'=>'openoffice.org',
+        'geeksoftwareGmbH.PDF24Creator'=>'pdf24.org',
+        'SumatraPDF.SumatraPDF'=>'sumatrapdfreader.org',
+        'BlenderFoundation.Blender'=>'blender.org',
+        'FastStone.Viewer'=>'faststone.org',
+        'GIMP.GIMP'=>'gimp.org',
+        'Inkscape.Inkscape'=>'inkscape.org',
+        'IrfanSkiljan.IrfanView'=>'irfanview.com',
+        'KDE.Krita'=>'krita.org',
+        'dotPDN.PaintDotNet'=>'getpaint.net',
+        'XnSoft.XnViewMP'=>'xnview.com',
+        'BambuLab.BambuStudio'=>'bambulab.com',
+        'Ultimaker.Cura'=>'ultimaker.com',
+        'Amazon.Corretto.11.JDK'=>'aws.amazon.com',
+        'Amazon.Corretto.17.JDK'=>'aws.amazon.com',
+        'Amazon.Corretto.21.JDK'=>'aws.amazon.com',
+        'Amazon.Corretto.25.JDK'=>'aws.amazon.com',
+        'Amazon.Corretto.8.JDK'=>'aws.amazon.com',
+        'EclipseAdoptium.Temurin.11.JDK'=>'adoptium.net',
+        'EclipseAdoptium.Temurin.17.JDK'=>'adoptium.net',
+        'EclipseAdoptium.Temurin.21.JDK'=>'adoptium.net',
+        'EclipseAdoptium.Temurin.25.JDK'=>'adoptium.net',
+        'EclipseAdoptium.Temurin.8.JDK'=>'adoptium.net',
+        'EclipseAdoptium.Temurin.8.JRE'=>'adoptium.net',
+        'EpicGames.EpicGamesLauncher'=>'epicgames.com',
+        'Valve.Steam'=>'steampowered.com',
+        'Discord.Discord'=>'discord.com',
+        'Microsoft.Teams'=>'teams.microsoft.com',
+        'Pidgin.Pidgin'=>'pidgin.im',
+        'OpenWhisperSystems.Signal'=>'signal.org',
+        'SlackTechnologies.Slack'=>'slack.com',
+        'Telegram.TelegramDesktop'=>'telegram.org',
+        'Mozilla.Thunderbird'=>'thunderbird.net',
+        'CeruleanStudios.Trillian'=>'trillian.im',
+        'WhatsApp.WhatsApp'=>'whatsapp.com',
+        'Zoom.Zoom'=>'zoom.us',
+        'AIMP.AIMP'=>'aimp.ru',
+        'Audacity.Audacity'=>'audacityteam.org',
+        'PeterPawlowski.foobar2000'=>'foobar2000.org',
+        'HandBrake.HandBrake'=>'handbrake.fr',
+        'Apple.iTunes'=>'apple.com',
+        'CodecGuide.K-LiteCodecPack.Full'=>'codecguide.com',
+        'VentisMedia.MediaMonkey'=>'mediamonkey.com',
+        'MusicBee.MusicBee'=>'getmusicbee.com',
+        'OBSProject.OBSStudio'=>'obsproject.com',
+        'Spotify.Spotify'=>'spotify.com',
+        'VideoLAN.VLC'=>'videolan.org',
+        'Winamp.Winamp'=>'winamp.com',
+        'Brave.Brave'=>'brave.com',
+        'Google.Chrome'=>'chrome.google.com',
+        'Microsoft.Edge'=>'microsoftedge.microsoft.com',
+        'Mozilla.Firefox'=>'mozilla.org',
+        'Opera.Opera'=>'opera.com',
+        'Vivaldi.Vivaldi'=>'vivaldi.com',
+        'Evernote.Evernote'=>'evernote.com',
+        'Google.EarthPro'=>'earth.google.com',
+        'Famatech.AdvancedIPScanner'=>'advanced-ip-scanner.com',
+        'Malwarebytes.Malwarebytes'=>'malwarebytes.com',
+        'OpenVPNTechnologies.OpenVPNConnect'=>'openvpn.net',
+        'Tailscale.Tailscale'=>'tailscale.com',
+        'WireGuard.WireGuard'=>'wireguard.com',
+        'WiresharkFoundation.Wireshark'=>'wireshark.org',
+        'AgileBits.1Password'=>'1password.com',
+        'Bitwarden.Bitwarden'=>'bitwarden.com',
+        'KeePassXCTeam.KeePassXC'=>'keepassxc.org',
+        '7zip.7zip'=>'7-zip.org',
+        'Piriform.CCleaner'=>'ccleaner.com',
+        'voidtools.Everything'=>'voidtools.com',
+        'Glarysoft.GlaryUtilities'=>'glarysoft.com',
+        'Greenshot.Greenshot'=>'getgreenshot.org',
+        'DominikReichl.KeePass'=>'keepass.info',
+        'Launchy.Launchy'=>'launchy.net',
+        'Open-Shell.Open-Shell-Menu'=>'open-shell.github.io',
+        'Giorgiotani.Peazip'=>'peazip.github.io',
+        'Microsoft.PowerToys'=>'microsoft.com',
+        'RevoUninstaller.RevoUninstaller'=>'revouninstaller.com',
+        'Rufus.Rufus'=>'rufus.ie',
+        'ShareX.ShareX'=>'getsharex.com',
+        'CodeSector.TeraCopy'=>'codesector.com',
+        'WinDirStat.WinDirStat'=>'windirstat.net',
+        'AntibodySoftware.WizTree'=>'diskanalyzer.com',
+    ];
+}
+
+/** Nome do arquivo de logo de um pacote: o ID do WinGet com tudo fora de [A-Za-z0-9.-] trocado por "_". */
+function arc_program_logo_filename(string $id): string
+{
+    return preg_replace('/[^A-Za-z0-9.-]/', '_', $id) . '.png';
+}
+
+/** Caminho do logo embutido (assets/program-logos/*.png, 128 px, fundo transparente) ou '' se o pacote não tiver arquivo.
+    Para trocar ou acrescentar um logo basta gravar um PNG com este nome na pasta; não há outra configuração. */
+function arc_program_logo_file(string $id): string
+{
+    static $cache = [];   // o catálogo é montado várias vezes por requisição: evita repetir consultas ao disco
+    if (isset($cache[$id])) return $cache[$id];
+    $file = dirname(__DIR__) . '/assets/program-logos/' . arc_program_logo_filename($id);
+    return $cache[$id] = (is_file($file) && filesize($file) > 100 ? $file : '');
+}
+
+function arc_program_install_catalog(): array
+{
+    $domains = arc_program_logo_domains();
+    $rows = [
+        ['name'=>'AnyDesk','id'=>'AnyDesk.AnyDesk','category'=>'Acesso remoto'],
+        ['name'=>'RustDesk','id'=>'RustDesk.RustDesk','category'=>'Acesso remoto'],
+        ['name'=>'TeamViewer','id'=>'TeamViewer.TeamViewer','category'=>'Acesso remoto'],
+        ['name'=>'TightVNC','id'=>'GlavSoft.TightVNC','category'=>'Acesso remoto'],
+        ['name'=>'UltraVNC','id'=>'uvncbvba.UltraVNC','category'=>'Acesso remoto'],
+        ['name'=>'Dropbox','id'=>'Dropbox.Dropbox','category'=>'Armazenamento'],
+        ['name'=>'Google Drive para computador','id'=>'Google.GoogleDrive','category'=>'Armazenamento'],
+        ['name'=>'OneDrive','id'=>'Microsoft.OneDrive','category'=>'Armazenamento'],
+        ['name'=>'WinRAR','id'=>'RARLab.WinRAR','category'=>'Compactação'],
+        ['name'=>'qBittorrent','id'=>'qBittorrent.qBittorrent','category'=>'Compartilhamento'],
+        ['name'=>'.NET Desktop Runtime 10','id'=>'Microsoft.DotNet.DesktopRuntime.10','category'=>'Componentes Windows'],
+        ['name'=>'.NET Desktop Runtime 8','id'=>'Microsoft.DotNet.DesktopRuntime.8','category'=>'Componentes Windows'],
+        ['name'=>'.NET Desktop Runtime 9','id'=>'Microsoft.DotNet.DesktopRuntime.9','category'=>'Componentes Windows'],
+        ['name'=>'ASP.NET Core Runtime 10','id'=>'Microsoft.DotNet.AspNetCore.10','category'=>'Componentes Windows'],
+        ['name'=>'ASP.NET Core Runtime 8','id'=>'Microsoft.DotNet.AspNetCore.8','category'=>'Componentes Windows'],
+        ['name'=>'ASP.NET Core Runtime 9','id'=>'Microsoft.DotNet.AspNetCore.9','category'=>'Componentes Windows'],
+        ['name'=>'Visual C++ Redistributable 2015+ x64','id'=>'Microsoft.VCRedist.2015+.x64','category'=>'Componentes Windows'],
+        ['name'=>'Visual C++ Redistributable 2015+ x86','id'=>'Microsoft.VCRedist.2015+.x86','category'=>'Componentes Windows'],
+        ['name'=>'Cursor','id'=>'Anysphere.Cursor','category'=>'Desenvolvimento'],
+        ['name'=>'DBeaver','id'=>'DBeaver.DBeaver.Community','category'=>'Desenvolvimento'],
+        ['name'=>'Docker Desktop','id'=>'Docker.DockerDesktop','category'=>'Desenvolvimento'],
+        ['name'=>'Eclipse IDE','id'=>'EclipseFoundation.EclipseIDEforJavaDevelopers','category'=>'Desenvolvimento'],
+        ['name'=>'FileZilla','id'=>'TimKosse.FileZilla.Client','category'=>'Desenvolvimento'],
+        ['name'=>'Git','id'=>'Git.Git','category'=>'Desenvolvimento'],
+        ['name'=>'GitHub Desktop','id'=>'GitHub.GitHubDesktop','category'=>'Desenvolvimento'],
+        ['name'=>'JetBrains Toolbox','id'=>'JetBrains.Toolbox','category'=>'Desenvolvimento'],
+        ['name'=>'Node.js 22','id'=>'OpenJS.NodeJS.22','category'=>'Desenvolvimento'],
+        ['name'=>'Node.js 24','id'=>'OpenJS.NodeJS.24','category'=>'Desenvolvimento'],
+        ['name'=>'Node.js LTS','id'=>'OpenJS.NodeJS.LTS','category'=>'Desenvolvimento'],
+        ['name'=>'Postman','id'=>'Postman.Postman','category'=>'Desenvolvimento'],
+        ['name'=>'PuTTY','id'=>'PuTTY.PuTTY','category'=>'Desenvolvimento'],
+        ['name'=>'Python 3.12','id'=>'Python.Python.3.12','category'=>'Desenvolvimento'],
+        ['name'=>'Python 3.13','id'=>'Python.Python.3.13','category'=>'Desenvolvimento'],
+        ['name'=>'Python 3.14','id'=>'Python.Python.3.14','category'=>'Desenvolvimento'],
+        ['name'=>'Sublime Text','id'=>'SublimeHQ.SublimeText.4','category'=>'Desenvolvimento'],
+        ['name'=>'Visual Studio Code','id'=>'Microsoft.VisualStudioCode','category'=>'Desenvolvimento'],
+        ['name'=>'VSCodium','id'=>'VSCodium.VSCodium','category'=>'Desenvolvimento'],
+        ['name'=>'WinMerge','id'=>'WinMerge.WinMerge','category'=>'Desenvolvimento'],
+        ['name'=>'WinSCP','id'=>'WinSCP.WinSCP','category'=>'Desenvolvimento'],
+        ['name'=>'Adobe Acrobat Reader','id'=>'Adobe.Acrobat.Reader.64-bit','category'=>'Documentos'],
+        ['name'=>'CutePDF Writer','id'=>'AcroSoftware.CutePDFWriter','category'=>'Documentos'],
+        ['name'=>'Foxit PDF Reader','id'=>'Foxit.FoxitReader','category'=>'Documentos'],
+        ['name'=>'LibreOffice','id'=>'TheDocumentFoundation.LibreOffice','category'=>'Documentos'],
+        ['name'=>'Notepad++','id'=>'Notepad++.Notepad++','category'=>'Documentos'],
+        ['name'=>'OpenOffice','id'=>'Apache.OpenOffice','category'=>'Documentos'],
+        ['name'=>'PDF24 Creator','id'=>'geeksoftwareGmbH.PDF24Creator','category'=>'Documentos'],
+        ['name'=>'SumatraPDF','id'=>'SumatraPDF.SumatraPDF','category'=>'Documentos'],
+        ['name'=>'Blender','id'=>'BlenderFoundation.Blender','category'=>'Imagens e design'],
+        ['name'=>'FastStone Image Viewer','id'=>'FastStone.Viewer','category'=>'Imagens e design'],
+        ['name'=>'GIMP','id'=>'GIMP.GIMP','category'=>'Imagens e design'],
+        ['name'=>'Inkscape','id'=>'Inkscape.Inkscape','category'=>'Imagens e design'],
+        ['name'=>'IrfanView','id'=>'IrfanSkiljan.IrfanView','category'=>'Imagens e design'],
+        ['name'=>'Krita','id'=>'KDE.Krita','category'=>'Imagens e design'],
+        ['name'=>'Paint.NET','id'=>'dotPDN.PaintDotNet','category'=>'Imagens e design'],
+        ['name'=>'XnView MP','id'=>'XnSoft.XnViewMP','category'=>'Imagens e design'],
+        ['name'=>'Bambu Studio','id'=>'BambuLab.BambuStudio','category'=>'Impressão 3D'],
+        ['name'=>'Ultimaker Cura','id'=>'Ultimaker.Cura','category'=>'Impressão 3D'],
+        ['name'=>'Amazon Corretto JDK 11','id'=>'Amazon.Corretto.11.JDK','category'=>'Java'],
+        ['name'=>'Amazon Corretto JDK 17','id'=>'Amazon.Corretto.17.JDK','category'=>'Java'],
+        ['name'=>'Amazon Corretto JDK 21','id'=>'Amazon.Corretto.21.JDK','category'=>'Java'],
+        ['name'=>'Amazon Corretto JDK 25','id'=>'Amazon.Corretto.25.JDK','category'=>'Java'],
+        ['name'=>'Amazon Corretto JDK 8','id'=>'Amazon.Corretto.8.JDK','category'=>'Java'],
+        ['name'=>'Java Temurin JDK 11','id'=>'EclipseAdoptium.Temurin.11.JDK','category'=>'Java'],
+        ['name'=>'Java Temurin JDK 17','id'=>'EclipseAdoptium.Temurin.17.JDK','category'=>'Java'],
+        ['name'=>'Java Temurin JDK 21','id'=>'EclipseAdoptium.Temurin.21.JDK','category'=>'Java'],
+        ['name'=>'Java Temurin JDK 25','id'=>'EclipseAdoptium.Temurin.25.JDK','category'=>'Java'],
+        ['name'=>'Java Temurin JDK 8','id'=>'EclipseAdoptium.Temurin.8.JDK','category'=>'Java'],
+        ['name'=>'Java Temurin JRE 8','id'=>'EclipseAdoptium.Temurin.8.JRE','category'=>'Java'],
+        ['name'=>'Epic Games Launcher','id'=>'EpicGames.EpicGamesLauncher','category'=>'Jogos'],
+        ['name'=>'Steam','id'=>'Valve.Steam','category'=>'Jogos'],
+        ['name'=>'Discord','id'=>'Discord.Discord','category'=>'Mensagens'],
+        ['name'=>'Microsoft Teams','id'=>'Microsoft.Teams','category'=>'Mensagens'],
+        ['name'=>'Pidgin','id'=>'Pidgin.Pidgin','category'=>'Mensagens'],
+        ['name'=>'Signal','id'=>'OpenWhisperSystems.Signal','category'=>'Mensagens'],
+        ['name'=>'Slack','id'=>'SlackTechnologies.Slack','category'=>'Mensagens'],
+        ['name'=>'Telegram Desktop','id'=>'Telegram.TelegramDesktop','category'=>'Mensagens'],
+        ['name'=>'Thunderbird','id'=>'Mozilla.Thunderbird','category'=>'Mensagens'],
+        ['name'=>'Trillian','id'=>'CeruleanStudios.Trillian','category'=>'Mensagens'],
+        ['name'=>'WhatsApp','id'=>'WhatsApp.WhatsApp','category'=>'Mensagens'],
+        ['name'=>'Zoom','id'=>'Zoom.Zoom','category'=>'Mensagens'],
+        ['name'=>'AIMP','id'=>'AIMP.AIMP','category'=>'Multimídia'],
+        ['name'=>'Audacity','id'=>'Audacity.Audacity','category'=>'Multimídia'],
+        ['name'=>'foobar2000','id'=>'PeterPawlowski.foobar2000','category'=>'Multimídia'],
+        ['name'=>'HandBrake','id'=>'HandBrake.HandBrake','category'=>'Multimídia'],
+        ['name'=>'iTunes','id'=>'Apple.iTunes','category'=>'Multimídia'],
+        ['name'=>'K-Lite Codec Pack','id'=>'CodecGuide.K-LiteCodecPack.Full','category'=>'Multimídia'],
+        ['name'=>'MediaMonkey','id'=>'VentisMedia.MediaMonkey','category'=>'Multimídia'],
+        ['name'=>'MusicBee','id'=>'MusicBee.MusicBee','category'=>'Multimídia'],
+        ['name'=>'OBS Studio','id'=>'OBSProject.OBSStudio','category'=>'Multimídia'],
+        ['name'=>'Spotify','id'=>'Spotify.Spotify','category'=>'Multimídia'],
+        ['name'=>'VLC','id'=>'VideoLAN.VLC','category'=>'Multimídia'],
+        ['name'=>'Winamp','id'=>'Winamp.Winamp','category'=>'Multimídia'],
+        ['name'=>'Brave','id'=>'Brave.Brave','category'=>'Navegadores'],
+        ['name'=>'Google Chrome','id'=>'Google.Chrome','category'=>'Navegadores'],
+        ['name'=>'Microsoft Edge','id'=>'Microsoft.Edge','category'=>'Navegadores'],
+        ['name'=>'Mozilla Firefox','id'=>'Mozilla.Firefox','category'=>'Navegadores'],
+        ['name'=>'Opera','id'=>'Opera.Opera','category'=>'Navegadores'],
+        ['name'=>'Vivaldi','id'=>'Vivaldi.Vivaldi','category'=>'Navegadores'],
+        ['name'=>'Evernote','id'=>'Evernote.Evernote','category'=>'Produtividade'],
+        ['name'=>'Google Earth Pro','id'=>'Google.EarthPro','category'=>'Produtividade'],
+        ['name'=>'Advanced IP Scanner','id'=>'Famatech.AdvancedIPScanner','category'=>'Rede e segurança'],
+        ['name'=>'Malwarebytes','id'=>'Malwarebytes.Malwarebytes','category'=>'Rede e segurança'],
+        ['name'=>'OpenVPN Connect','id'=>'OpenVPNTechnologies.OpenVPNConnect','category'=>'Rede e segurança'],
+        ['name'=>'Tailscale','id'=>'Tailscale.Tailscale','category'=>'Rede e segurança'],
+        ['name'=>'WireGuard','id'=>'WireGuard.WireGuard','category'=>'Rede e segurança'],
+        ['name'=>'Wireshark','id'=>'WiresharkFoundation.Wireshark','category'=>'Rede e segurança'],
+        ['name'=>'1Password','id'=>'AgileBits.1Password','category'=>'Senhas'],
+        ['name'=>'Bitwarden','id'=>'Bitwarden.Bitwarden','category'=>'Senhas'],
+        ['name'=>'KeePassXC','id'=>'KeePassXCTeam.KeePassXC','category'=>'Senhas'],
+        ['name'=>'7-Zip','id'=>'7zip.7zip','category'=>'Utilitários'],
+        ['name'=>'CCleaner','id'=>'Piriform.CCleaner','category'=>'Utilitários'],
+        ['name'=>'Everything','id'=>'voidtools.Everything','category'=>'Utilitários'],
+        ['name'=>'Glary Utilities','id'=>'Glarysoft.GlaryUtilities','category'=>'Utilitários'],
+        ['name'=>'Greenshot','id'=>'Greenshot.Greenshot','category'=>'Utilitários'],
+        ['name'=>'KeePass','id'=>'DominikReichl.KeePass','category'=>'Utilitários'],
+        ['name'=>'Launchy','id'=>'Launchy.Launchy','category'=>'Utilitários'],
+        ['name'=>'Open-Shell','id'=>'Open-Shell.Open-Shell-Menu','category'=>'Utilitários'],
+        ['name'=>'PeaZip','id'=>'Giorgiotani.Peazip','category'=>'Utilitários'],
+        ['name'=>'PowerToys','id'=>'Microsoft.PowerToys','category'=>'Utilitários'],
+        ['name'=>'Revo Uninstaller','id'=>'RevoUninstaller.RevoUninstaller','category'=>'Utilitários'],
+        ['name'=>'Rufus','id'=>'Rufus.Rufus','category'=>'Utilitários'],
+        ['name'=>'ShareX','id'=>'ShareX.ShareX','category'=>'Utilitários'],
+        ['name'=>'TeraCopy','id'=>'CodeSector.TeraCopy','category'=>'Utilitários'],
+        ['name'=>'WinDirStat','id'=>'WinDirStat.WinDirStat','category'=>'Utilitários'],
+        ['name'=>'WizTree','id'=>'AntibodySoftware.WizTree','category'=>'Utilitários'],
+    ];
+    foreach ($rows as &$row) {
+        $row['domain'] = $domains[$row['id']] ?? '';
+        // Caminho relativo à raiz da plataforma; vazio quando não há logo embutido (a tela usa o endpoint como reserva).
+        $row['logo'] = arc_program_logo_file($row['id']) !== '' ? 'assets/program-logos/' . arc_program_logo_filename($row['id']) : '';
+    }
+    unset($row);
+    return $rows;
+}
+
 /** Comandos de cada tela (nomes usados na fila agent_commands). */
 function arc_network_operation_commands(): array
 {
-    return ['program' => ['program_inventory', 'program_uninstall'], 'clean' => ['clean_scan', 'clean_execute', 'clean_tool']];
+    return ['program' => ['program_inventory', 'program_uninstall', 'program_install'], 'clean' => ['clean_scan', 'clean_execute', 'clean_tool']];
 }
 
 /** Tempo limite (minutos) das operações longas. As demais usam a política padrão de arc_expire_running_commands. */
 function arc_network_operation_timeouts(): array
 {
-    return ['program_inventory' => 10, 'program_uninstall' => 120, 'clean_scan' => 20, 'clean_execute' => 60, 'clean_tool' => 120];
+    return ['program_inventory' => 10, 'program_uninstall' => 120, 'program_install' => 120, 'clean_scan' => 20, 'clean_execute' => 60, 'clean_tool' => 120];
 }
 
 /** Modos do ponto de restauração antes de desinstalar: off, try (tenta e segue) e require (cancela se falhar). */
@@ -611,6 +903,8 @@ function arc_program_sanitize_inventory(array $programs): array
             'size' => max(0, min(10000000, (int)($r['size'] ?? 0))),
             'method' => $method, 'uninstallable' => $method !== '',
             'icon' => preg_match('#^data:image/png;base64,[A-Za-z0-9+/=]{1,35000}$#D', $icon) ? $icon : '',
+            'package_id' => in_array((string)($r['package_id']??''), array_column(arc_program_install_catalog(),'id'), true) ? (string)$r['package_id'] : '',
+            'available_version' => mb_substr((string)($r['available_version']??''),0,80),
         ];
     }
     return $clean;

@@ -1,4 +1,4 @@
-﻿# Caminho: agentes/windows/Preparar_Instalacao.ps1
+# Caminho: agentes/windows/Preparar_Instalacao.ps1
 param([Parameter(Mandatory=$true)][string]$Source)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -7,14 +7,8 @@ Add-Type -AssemblyName System.Drawing
 $state = Join-Path $env:LOCALAPPDATA 'Arcoll'
 New-Item -ItemType Directory -Path $state -Force | Out-Null
 $log = Join-Path $state 'installation.log'
-# Encerra execuções anteriores (ocultas/travadas) deste instalador e do script filho, que mantêm o log aberto.
-try {
-    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.ProcessId -ne $PID -and $_.Name -match '^powershell(_ise)?\.exe$' -and $_.CommandLine -and
-        ($_.CommandLine -match '(?i)Preparar_Instalacao\.ps1' -or $_.CommandLine -match '(?i)C:\\Arcoll\\Instalar_Arcoll\.ps1')
-    } | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }
-    Start-Sleep -Milliseconds 700
-} catch {}
+# Não finalizar outras instâncias de PowerShell indiscriminadamente.
+# A instalação exibirá o erro de arquivo em uso quando houver concorrência.
 $script:lastLogged = ''
 function Write-InstallLog([string]$line) {
     # Nunca deixa uma falha de gravação derrubar o instalador (arquivo em uso, antivírus etc.).
@@ -104,7 +98,7 @@ function Progress([int]$value,[string]$message) {
     [System.Windows.Forms.Application]::DoEvents()
 }
 function Await-Process([string]$path,[string]$arguments,[int]$from,[int]$to,[string]$message) {
-    $proc = Start-Process -FilePath $path -ArgumentList $arguments -PassThru -WindowStyle Hidden
+    $proc = Start-Process -FilePath $path -ArgumentList $arguments -PassThru
     $position=$from
     while (-not $proc.HasExited) {
         if ($position -lt ($to-1)) { $position++ }
@@ -119,7 +113,7 @@ $window.Add_Shown({
     $ErrorActionPreference = 'Stop'
     try {
         Progress 5 'Validando arquivos do agente...'
-        $required = @('arcoll_agent.py','arcoll_desktop.py','arcoll_release.py','arcoll_app.py','arcoll_toolkit.py','arcoll_remote.py','arcoll_secure_helper.py','rt_engine.py','Instalar_Arcoll.ps1','agent-config.json','favicon.ico')
+        $required = @('arcoll_agent.py','arcoll_release.py','arcoll_app.py','arcoll_toolkit.py','arcoll_remote.py','arcoll_secure_helper.py','rt_engine.py','Instalar_Arcoll.ps1','agent-config.json','favicon.ico')
         foreach($item in $required) {
             if (-not (Test-Path -LiteralPath (Join-Path $Source $item))) { throw "Arquivo obrigatório ausente: $item. Extraia o ZIP completo." }
         }
@@ -178,14 +172,14 @@ $window.Add_Shown({
         Progress 31 'Configurando o iniciador do aplicativo...'
         # O script PowerShell lê agent-config.json diretamente. Evita falhas por
         # codificação/for-f ao abrir o atalho do Desktop ou iniciar com o Windows.
-        $launcher = '@rem Caminho: agentes/windows/INICIAR_ARCOLL.bat' + "`r`n" + '@echo off' + "`r`n" + 'setlocal' + "`r`n" + 'cd /d "%~dp0"' + "`r`n" + 'powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File "%~dp0Instalar_Arcoll.ps1" -Run %*' + "`r`n"
+        $launcher = '@rem Caminho: agentes/windows/INICIAR_ARCOLL.bat' + "`r`n" + '@echo off' + "`r`n" + 'setlocal' + "`r`n" + 'cd /d "%~dp0"' + "`r`n" + 'powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "%~dp0Instalar_Arcoll.ps1" -Run %*' + "`r`n"
         [IO.File]::WriteAllText((Join-Path $destination 'INICIAR_ARCOLL.bat'),$launcher,[Text.Encoding]::ASCII)
         $env:ARCOLL_ORIGIN = [string]$config.origin
         Progress 40 'Instalando Python e dependências, se necessário...'
         # O instalador existente instala o runtime, configura atalhos e inicia o aplicativo.
         # Executado no diretório permanente, nunca na pasta temporária extraída.
         $scriptPath = Join-Path $destination 'Instalar_Arcoll.ps1'
-        $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-STA','-WindowStyle','Hidden','-File',('"'+$scriptPath+'"')) -PassThru -WindowStyle Hidden
+        $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-STA','-File',('"'+$scriptPath+'"')) -PassThru
         $pos=40
         while (-not $proc.HasExited) {
             if ($pos -lt 94) {$pos++}
@@ -198,7 +192,7 @@ $window.Add_Shown({
         $script:installationDone = $true
         $title.Text = 'Instalação concluída'
         $subtitle.Text = $systemName + ' foi instalado com sucesso.'
-        # Instalação finalizada: a janela de liberação do agente assume a apresentação.
+        # A interface principal já é aberta pelo instalador; não existe tela de liberação legada.
         $finish.Enabled = $false
         $finish.Visible = $false
         $window.BeginInvoke([Action]{ $window.Close() }) | Out-Null

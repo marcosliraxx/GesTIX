@@ -198,6 +198,8 @@ function RunRemoval {
         }
         if (Test-Path -LiteralPath $installed) { DeleteIfPresent $installed }
 
+        # Remove a entrada de "Aplicativos instalados" criada pelo instalador .exe.
+        try { Remove-Item -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ArcollAgent' -Recurse -Force -ErrorAction SilentlyContinue } catch {}
         Stage 95 'Conferindo a limpeza final desta instalação...'
         foreach ($check in @($installed, (Join-Path $env:ProgramFiles 'Arcoll'), (Join-Path $env:ProgramData 'Arcoll'))) {
             if (Test-Path -LiteralPath $check) { throw 'Ainda existem arquivos do agente neste computador. Tente executar a desinstalação novamente como administrador.' }

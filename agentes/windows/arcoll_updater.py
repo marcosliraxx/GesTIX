@@ -65,7 +65,7 @@ def stage_installer(package,stage):
     if not isinstance(package,dict) or not package.get('ok'):raise ValueError('Instalador indisponível.')
     binary=base64.b64decode(package.get('archive',''),validate=True)
     if not binary or len(binary)>33554432 or hashlib.sha256(binary).hexdigest()!=package.get('sha256'):raise ValueError('Integridade do instalador inválida.')
-    rows=package.get('manifest');required={'arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_desktop.py','arcoll_remote.py','arcoll_secure_helper.py','arcoll_release.py','arcoll_agent.py','arcoll_updater.py','arcoll_toolkit.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1','rt_engine.py','connection_diagnostics.py'}
+    rows=package.get('manifest');required={'arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_remote.py','arcoll_secure_helper.py','arcoll_release.py','arcoll_agent.py','arcoll_updater.py','arcoll_toolkit.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1','rt_engine.py','connection_diagnostics.py'}
     if not isinstance(rows,list) or not 6<=len(rows)<=2000:raise ValueError('Inventário do instalador inválido.')
     expected={};seen=set()
     for row in rows:
@@ -91,6 +91,266 @@ def stage_installer(package,stage):
         dest=stage/name;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
     (stage/'installer.zip').write_bytes(binary)
     return {'files':[{'name':name,'sha256':hashlib.sha256(data).hexdigest()} for name,data in validated.items()],'inventory':list(validated),'remove':[],'installer_complete':True,'release_version':str(package.get('version') or ''),'release_notes':str(package.get('notes') or '')[:12000]}
+
+
+
+def stage_code_update(package,stage):
+    """Stage only signed-by-manifest code components; leave installed resources and credentials intact."""
+    import base64
+    if not isinstance(package,dict) or package.get('ok') is not True:
+        raise ValueError('Pacote de atualização indisponível: '+str((package or {}).get('error','resposta inválida'))[:180])
+    rows=package.get('files')
+    if not isinstance(rows,list) or not 6<=len(rows)<=80:
+        raise ValueError('Inventário de atualização incompleto.')
+    verified={}
+    for entry in rows:
+        if not isinstance(entry,dict):raise ValueError('Entrada de atualização inválida.')
+        name=entry.get('name')
+        if not isinstance(name,str) or not VALID_NAME.fullmatch(name) or name in verified:
+            raise ValueError('Caminho de atualização inválido ou repetido.')
+        content=entry.get('content')
+        if not isinstance(content,str):raise ValueError('Conteúdo da atualização inválido.')
+        blob=base64.b64decode(content,validate=True)
+        if not blob or len(blob)>1500000 or hashlib.sha256(blob).hexdigest()!=entry.get('sha256'):
+            raise ValueError('Integridade inválida no arquivo: '+name)
+        if name.endswith('.py'):compile(blob,name,'exec')
+        verified[name]=blob
+    required={'arcoll_app.py','arcoll_programs.py','arcoll_agent.py','arcoll_updater.py','arcoll_release.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1'}
+    if not required.issubset(verified):raise ValueError('Atualização sem componentes essenciais.')
+    for name,blob in verified.items(): (stage/name).write_bytes(blob)
+    return {'files':[{'name':name,'sha256':hashlib.sha256(blob).hexdigest()} for name,blob in verified.items()],
+            'inventory':list(verified),'remove':[],'installer_complete':False,
+            'release_version':str(package.get('version') or '')[:32],
+            'release_notes':str(package.get('notes') or '')[:12000]}
+
+
+def _native_identity(legacy_root, origin):
+    """Read the existing, revocable enrollment; never create or change an enrollment."""
+    import urllib.parse
+    profile = pathlib.Path(os.environ.get('APPDATA', str(pathlib.Path.home()))) / 'Arcoll' / 'agent.json'
+    settings = {}
+    for path in (legacy_root / 'agent-config.json', profile):
+        if path.is_file():
+            content = json.loads(path.read_text(encoding='utf-8-sig'))
+            if isinstance(content, dict):
+                settings.update({k: v for k, v in content.items() if isinstance(v, str) and v})
+    source = urllib.parse.urlsplit(origin)
+    if source.scheme != 'https' or not source.hostname or source.username or source.password:
+        raise ValueError('A origem HTTPS da instalacao antiga nao e valida.')
+    if str(settings.get('origin', origin)).rstrip('/') != origin.rstrip('/'):
+        raise ValueError('A origem do cadastro nao corresponde ao servidor autorizado.')
+    if not re.fullmatch(r'[A-Z0-9]{5}', str(settings.get('site_code', '')).upper()):
+        raise ValueError('Codigo de rede nao localizado no cadastro antigo.')
+    if not re.fullmatch(r'[a-fA-F0-9]{64}', str(settings.get('download_key', ''))):
+        raise ValueError('Chave revogavel nao localizada no cadastro antigo.')
+    fingerprint = str(settings.get('fingerprint') or '').lower()
+    if not re.fullmatch(r'[a-f0-9]{64}', fingerprint):
+        # Mesmo algoritmo do agente Python que ja esta autenticado na plataforma.
+        import platform
+        raw = ''
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Cryptography') as key:
+                raw = str(winreg.QueryValueEx(key, 'MachineGuid')[0])
+        except (OSError, ImportError):
+            pass
+        raw = raw or '|'.join((platform.node(), platform.system(), platform.machine()))
+        fingerprint = hashlib.sha256(('arcoll-speed-connection|' + raw).encode()).hexdigest()
+    return {'origin': origin.rstrip('/'), 'site_code': str(settings['site_code']).upper(),
+            'download_key': str(settings['download_key']).lower(), 'fingerprint': fingerprint,
+            'system_name': str(settings.get('system_name') or 'T.I Digital')[:100]}
+
+
+def _native_request(origin, auth, command_id, status, result):
+    """Progress and failures use the existing authenticated command, never a second channel."""
+    if not command_id or int(command_id) <= 0:
+        return False
+    import urllib.request
+    payload = dict(auth, command_id=int(command_id), status=status, result=str(result)[:400])
+    if status == 'failed':
+        payload['error_code'] = 'LEGACY_INSTALLER_ERROR'
+        payload['error_detail'] = str(result)[:5000]
+    req = urllib.request.Request(origin + '/api/api.php?action=agent-command-ack',
+        data=json.dumps(payload).encode('utf-8'), method='POST', headers={
+            'Accept': 'application/json', 'Content-Type': 'application/json',
+            'User-Agent': 'ArcollAgent/' + VERSION})
+    with urllib.request.urlopen(req, timeout=12) as response:
+        answer = json.loads(response.read(8192))
+        return bool(answer.get('ok') and answer.get('acknowledged'))
+
+
+def _stage_native_source(origin, auth, staging, expected_version):
+    """Authenticated HTTPS package, SHA-256 and strictly bounded ZIP extraction."""
+    import io
+    import stat
+    import urllib.request
+    import zipfile
+    if not re.fullmatch(r'\d+\.\d+\.\d+', expected_version):
+        raise ValueError('A versao publicada do novo agente e invalida.')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise ValueError('Redirecionamento de atualizacao nao autorizado.')
+    req = urllib.request.Request(origin + '/api/download-agent.php?mode=native-update',
+        data=json.dumps({k: auth[k] for k in ('fingerprint', 'site_code', 'download_key')}).encode('utf-8'),
+        method='POST', headers={'Accept': 'application/zip', 'Content-Type': 'application/json',
+                                'User-Agent': 'ArcollAgent/' + VERSION})
+    with urllib.request.build_opener(NoRedirect).open(req, timeout=150) as response:
+        digest = str(response.headers.get('X-Package-SHA256', '')).strip().lower()
+        published = str(response.headers.get('X-Agent-Version', '')).strip()
+        if published != expected_version:
+            raise ValueError('A versao mudou durante a migracao; solicite novamente.')
+        if not re.fullmatch(r'[a-f0-9]{64}', digest):
+            raise ValueError('O servidor nao apresentou SHA-256 do pacote nativo.')
+        if int(response.headers.get('Content-Length') or 0) > 100 * 1024 * 1024:
+            raise ValueError('O pacote nativo excede 100 MB.')
+        blob = response.read(100 * 1024 * 1024 + 1)
+    if len(blob) > 100 * 1024 * 1024 or hashlib.sha256(blob).hexdigest() != digest:
+        raise ValueError('O pacote nativo recebido nao passou na verificacao SHA-256.')
+    native = staging / 'native'
+    native.mkdir(parents=True, exist_ok=True)
+    seen = set()
+    count = 0
+    total = 0
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        rows = archive.infolist()
+        if not 5 <= len(rows) <= 550:
+            raise ValueError('Inventario nativo incompleto.')
+        for row in rows:
+            name = row.filename
+            bits = pathlib.PurePosixPath(name).parts
+            if (not name.startswith('Arcoll.WinUI3/') or not bits or any(x in ('..', '.') for x in bits)
+                    or '\\' in name or ':' in name or name.startswith('/') or not name.strip()
+                    or (row.external_attr >> 16) & 0o170000 == stat.S_IFLNK or row.flag_bits & 1):
+                raise ValueError('O ZIP nativo possui caminhos nao permitidos.')
+            if row.is_dir():
+                continue
+            if name.lower() in seen:
+                raise ValueError('O ZIP nativo possui arquivos duplicados.')
+            seen.add(name.lower())
+            total += row.file_size
+            count += 1
+            if total > 100 * 1024 * 1024 or row.file_size > 32 * 1024 * 1024:
+                raise ValueError('O pacote nativo excede o limite de arquivos.')
+        essential = {'Arcoll.WinUI3/Arcoll.WinUI3.csproj', 'Arcoll.WinUI3/INSTALAR_WINUI3.ps1',
+                     'Arcoll.WinUI3/App.xaml', 'Arcoll.WinUI3/MainWindow.xaml'}
+        if not essential.issubset(set(x.filename for x in rows)):
+            raise ValueError('O pacote WinUI 3 nao contem os arquivos essenciais.')
+        for row in rows:
+            if row.is_dir():
+                continue
+            target = native.joinpath(*pathlib.PurePosixPath(row.filename).parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            data = archive.read(row)
+            if len(data) != row.file_size:
+                raise ValueError('Arquivo truncado no ZIP nativo.')
+            target.write_bytes(data)
+    config_path = native / 'Arcoll.WinUI3' / 'agent-config.json'
+    config_path.write_text(json.dumps(auth, ensure_ascii=False), encoding='utf-8')
+    return native / 'Arcoll.WinUI3'
+
+
+def _retire_legacy_autostart():
+    """Retire only old desktop autostart links; keep all legacy files for manual rollback."""
+    ps = pathlib.Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    script = ("$startup=[Environment]::GetFolderPath('Startup'); "
+              "if($startup -and (Test-Path -LiteralPath $startup)) {"
+              "$shell=New-Object -ComObject WScript.Shell; "
+              "Get-ChildItem -LiteralPath $startup -Filter '*.lnk' -File | ForEach-Object {"
+              "try {$link=$shell.CreateShortcut($_.FullName); "
+              "if(($link.Arguments -match '(?i)arcoll_app\\.py') -and "
+              "($link.TargetPath -match '(?i)pythonw?\\.exe$')) "
+              "{Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop}} catch {}}}")
+    subprocess.run([str(ps), '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
+                   timeout=25, capture_output=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), check=True)
+
+
+def _migrate_to_native(origin, legacy_root, staging, data, report):
+    """One-click old-Python -> WinUI bridge. Native must start before retiring old autostart."""
+    if os.name != 'nt':
+        return False
+    version = str(data.get('release_version') or '')
+    if not re.fullmatch(r'\d+\.\d+\.\d+', version) or tuple(map(int, version.split('.'))) < (5, 0, 0):
+        return False
+    command = int(data.get('remote_command_id') or 0)
+    auth = _native_identity(legacy_root, origin)
+    report('Baixando pacote nativo autenticado...', 88)
+    try:
+        native = _stage_native_source(origin, auth, staging, version)
+        report('Pacote verificado. Preparando instalador...', 90)
+        local = pathlib.Path(os.environ.get('LOCALAPPDATA', str(pathlib.Path.home()))) / 'TI-Digital'
+        local.mkdir(parents=True, exist_ok=True)
+        pending = local / 'update-pending.json'
+        result = local / 'update-result.json'
+        progress_path = local / 'update-progress.json'
+        for stale in (result, progress_path):
+            stale.unlink(missing_ok=True)
+        if command > 0:
+            pending.write_text(json.dumps({'command_id': command, 'version': version,
+                            'force': bool(data.get('installer_complete')), 'started': int(time.time())}), encoding='utf-8')
+        else:
+            pending.unlink(missing_ok=True)
+        ps = pathlib.Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+        args = [str(ps), '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+                '-File', str(native / 'INSTALAR_WINUI3.ps1'), '-Update']
+        if data.get('installer_complete'):
+            args.append('-ForceRebuild')
+        logs = local / 'Logs'
+        logs.mkdir(parents=True, exist_ok=True)
+        log = logs / ('Migracao-Python-WinUI3-' + time.strftime('%Y%m%d-%H%M%S') + '.log')
+        with log.open('wb') as out:
+            process = subprocess.Popen(args, cwd=str(native), stdout=out, stderr=subprocess.STDOUT,
+                                       creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            started = time.monotonic()
+            last_send = 0
+            while process.poll() is None:
+                if time.monotonic() - started > 40 * 60:
+                    process.terminate()
+                    raise TimeoutError('A compilacao nativa excedeu 40 minutos.')
+                if time.monotonic() - last_send > 12:
+                    last_send = time.monotonic()
+                    pct, msg = 92, 'Compilando e instalando o agente WinUI 3...'
+                    try:
+                        stage = json.loads(progress_path.read_text(encoding='utf-8-sig'))
+                        pct = int(stage.get('percent', pct))
+                        msg = str(stage.get('message') or msg)[:130]
+                    except (OSError, ValueError, TypeError):
+                        pass
+                    # O Python ja aplicou os arquivos legados (ate 88%). Reserve
+                    # os 90-99% finais para as etapas reais do instalador WinUI.
+                    overall = min(99, max(90, 90 + int(max(0, pct - 55) * 9 / 44)))
+                    report('Instalacao WinUI 3: ' + msg, overall)
+                    if command > 0:
+                        try:
+                            _native_request(origin, auth, command, 'running', 'WinUI 3 ' + str(overall) + '%: ' + msg)
+                        except (OSError, ValueError):
+                            pass
+                time.sleep(2)
+            if process.returncode != 0:
+                raise RuntimeError('O instalador nativo falhou (codigo ' + str(process.returncode) + '). Consulte ' + str(log))
+        try:
+            finished = json.loads(result.read_text(encoding='utf-8-sig'))
+        except (OSError, ValueError):
+            raise RuntimeError('O instalador nao produziu confirmacao de integridade e inicializacao.')
+        if finished.get('ok') is not True:
+            raise RuntimeError('O instalador nao confirmou sucesso: ' + str(finished.get('message', 'erro'))[:170])
+        report('Agente WinUI 3 iniciado; mantendo arquivos antigos para reversao.', 99)
+        try:
+            _retire_legacy_autostart()
+        except (OSError, subprocess.SubprocessError):
+            # Nao deixa a migracao travada apos a instalacao comprovadamente concluida.
+            report('Novo agente ativo. Revise o atalho de inicializacao do agente antigo.', 99)
+        return True
+    except Exception as exc:
+        if command > 0:
+            try:
+                _native_request(origin, auth, command, 'failed', 'Falha na migracao WinUI; agente anterior restaurado: ' + str(exc)[:220])
+            except (OSError, ValueError):
+                pass
+        try:
+            (pathlib.Path(os.environ.get('LOCALAPPDATA', str(pathlib.Path.home()))) / 'TI-Digital' / 'update-pending.json').unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def download_installer(origin,root):
@@ -127,10 +387,6 @@ def run(report=lambda _message,_percent:None):
     if not origin.startswith('https://'):
         raise ValueError('Origem HTTPS inválida')
     data = json.loads((staging / 'manifest.json').read_text(encoding='utf-8'))
-    # Transitional older agents launch this updater with the legacy source manifest.
-    # They also receive the complete installer before any installed file is changed.
-    if os.name=='nt' and not data.get('installer_complete') and (staging/'Instalar_Arcoll.ps1').is_file() and (staging/'arcoll_release.py').is_file():
-        original_command=data.get('remote_command_id');data=stage_installer(download_installer(origin,root),staging);data['remote_command_id']=original_command
     files = data.get('files'); inventory=data.get('inventory'); removals=data.get('remove')
     complete=bool(data.get('installer_complete'))
 
@@ -180,13 +436,20 @@ def run(report=lambda _message,_percent:None):
                 shutil.copy2(staging/name,temp)
                 os.replace(temp,dest)
             else:dest.unlink(missing_ok=True)
-        if complete:
+        # Uma migracao nativa verificada nao precisa reparar tarefas e servicos
+        # do Python antes de substituir a interface. Mantemos os arquivos antigos
+        # intactos para recuperar a operacao se o instalador WinUI falhar.
+        release_parts = str(data.get('release_version') or '').split('.')
+        native_target = os.name == 'nt' and len(release_parts) == 3 and all(x.isdigit() for x in release_parts) and tuple(map(int, release_parts)) >= (5, 0, 0)
+        if complete and not native_target:
             report('Executando o instalador completo em modo de reparo...',88)
             powershell=pathlib.Path(os.environ.get('SystemRoot',r'C:\Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe'
             subprocess.run([str(powershell),'-NoLogo','-NoProfile','-NonInteractive','-File',str(root/'Instalar_Arcoll.ps1'),'-Repair','-Background'],cwd=str(root),check=True,timeout=600,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-        temp=root/(MANAGED+'.updating')
-        temp.write_text(json.dumps(inventory,ensure_ascii=False),encoding='utf-8')
-        os.replace(temp,prior_path)
+        # Atualização de código não muda o inventário de recursos do instalador completo.
+        if complete:
+            temp=root/(MANAGED+'.updating')
+            temp.write_text(json.dumps(inventory,ensure_ascii=False),encoding='utf-8')
+            os.replace(temp,prior_path)
     except Exception:
         for name in reversed(touched):
             old=backup/name
@@ -199,6 +462,12 @@ def run(report=lambda _message,_percent:None):
     local=pathlib.Path(os.environ.get('LOCALAPPDATA',str(pathlib.Path.home())))/'Arcoll'
     try:(local/'update-release-notes.json').unlink(missing_ok=True)
     except OSError:pass
+    # O atualizador distribuido junto ao pacote antigo e executado pelo agente
+    # Python que ja recebe agent_update. A migracao e concluida somente se o
+    # instalador WinUI verificar o novo processo; em falha, o Python reinicia.
+    if _migrate_to_native(origin, root, staging, data, report):
+        report('Agente WinUI 3 instalado. Aguardando confirmacao da plataforma.', 100)
+        return
     # Confirmação remota só é emitida após o novo processo iniciar.
     command_id=data.get('remote_command_id')
     if command_id is not None:
@@ -210,7 +479,7 @@ def run(report=lambda _message,_percent:None):
     report('Arquivos instalados; reiniciando agente...',95)
     exe=pathlib.Path(sys.executable)
     if exe.name.lower()=='python.exe' and exe.with_name('pythonw.exe').exists():exe=exe.with_name('pythonw.exe')
-    subprocess.Popen([str(exe),str(root/'arcoll_desktop.py'),'--origin',origin,'--background'],cwd=str(root),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    subprocess.Popen([str(exe),str(root/'arcoll_app.py'),'--origin',origin,'--show'],cwd=str(root),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     report('Reiniciando...',100)
 
 
@@ -244,12 +513,12 @@ def updater_window():
             if not previous and len(sys.argv) in (4,5):
                 try:
                     install=pathlib.Path(sys.argv[4]).resolve() if len(sys.argv)==5 else pathlib.Path(__file__).resolve().parent
-                    if (install/'arcoll_desktop.py').is_file() and sys.argv[3].startswith('https://'):
+                    if (install/'arcoll_app.py').is_file() and sys.argv[3].startswith('https://'):
                         wait_for_exit(int(sys.argv[2]));previous=(install,sys.argv[3])
                 except (OSError,ValueError,RuntimeError):pass
             if previous:
                 install,origin=previous
-                try:subprocess.Popen([sys.executable,str(install/'arcoll_desktop.py'),'--origin',origin,'--background'],cwd=str(install),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                try:subprocess.Popen([sys.executable,str(install/'arcoll_app.py'),'--origin',origin,'--show'],cwd=str(install),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
                 except OSError:pass
             queue.put(('error', str(exc), 0))
     threading.Thread(target=worker, daemon=True).start()

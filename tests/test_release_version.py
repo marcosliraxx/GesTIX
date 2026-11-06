@@ -21,6 +21,16 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('arc_app_version()', (ROOT / 'includes/releases.php').read_text())
         self.assertIn('release-info', (ROOT / 'sw.js').read_text())
 
+    def test_native_components_share_release_version(self):
+        import xml.etree.ElementTree as ET
+        version = (ROOT / 'VERSION').read_text().strip()
+        native = ROOT / 'agentes/windows/Arcoll.WinUI3'
+        for name in ('Arcoll.WinUI3.csproj', 'BootWorker/BootWorker.csproj'):
+            self.assertEqual(ET.parse(native / name).findtext('PropertyGroup/Version'), version)
+        worker = (native / 'BootWorker/Program.cs').read_text()
+        self.assertIn('version = Version', worker)
+        self.assertNotRegex(worker, r'version = "\d+\.\d+\.\d+"')
+
     def test_worker_is_in_canonical_installer_and_updater(self):
         self.assertIn("'arcoll_cloud.py'", (ROOT / 'includes/bootstrap.php').read_text())
         self.assertIn("'arcoll_cloud.py'", (ROOT / 'agentes/windows/arcoll_updater.py').read_text())

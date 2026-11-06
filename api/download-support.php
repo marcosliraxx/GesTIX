@@ -19,36 +19,8 @@ try{
   $origin='https://'.$host.rtrim(arc_workspace_base_url(),'/');
  }
  if(!preg_match('~^https://[a-z0-9.-]+(?::443)?(?:/[a-zA-Z0-9_/-]*)?$~D',$origin))throw new RuntimeException('Configure a URL HTTPS pública da plataforma em Gestão comercial.');
- if(!$packageMode){
-  $expiry=(string)(time()+3600);
-  $signature=hash_hmac('sha256','support|'.$expiry,$secret);
-  $endpoint=rtrim($origin,'/').'/api/download-support.php?mode=package';
-  $ps=<<<'PS'
-$ErrorActionPreference='Stop'
-$ProgressPreference='SilentlyContinue'
-$temp=Join-Path $env:TEMP ('ArcollSuporte-'+[guid]::NewGuid().ToString('N'))
-New-Item -Path $temp -ItemType Directory | Out-Null
-try {
- $zip=Join-Path $temp 'suporte.zip'
- $headers=@{'X-Arcoll-Expires'=$env:ARCOLL_EXPIRES;'X-Arcoll-Signature'=$env:ARCOLL_SIGNATURE}
- $r=Invoke-WebRequest -Uri $env:ARCOLL_URL -Headers $headers -UseBasicParsing -OutFile $zip -PassThru
- $expected=$r.Headers['X-Arcoll-SHA256']
- if(!$expected -or $expected -notmatch '^[a-fA-F0-9]{64}$' -or (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash -ne $expected){throw 'Falha na integridade do pacote.'}
- Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
- $installer=Join-Path $temp 'Instalar_Suporte.bat'
- if(!(Test-Path -LiteralPath $installer)){throw 'Instalador de suporte ausente.'}
- Start-Process -FilePath 'cmd.exe' -ArgumentList ('/c "'+$installer+'"') -WorkingDirectory $temp -WindowStyle Hidden -Wait
-}catch{ Write-Host $_ -ForegroundColor Red; Read-Host 'Pressione Enter para fechar'; exit 1 }
-PS;
-  $encoded=base64_encode(iconv('UTF-8','UTF-16LE',$ps));
-  $bat="@rem Caminho: agentes/suporte/Instalar_Online.bat\r\n@echo off\r\nsetlocal\r\n"
-    .'set "ARCOLL_URL='.$endpoint.'"'."\r\n"
-    .'set "ARCOLL_EXPIRES='.$expiry.'"'."\r\n"
-    .'set "ARCOLL_SIGNATURE='.$signature.'"'."\r\n"
-    .'powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand '.$encoded."\r\n"
-    ."exit /b %errorlevel%\r\n";
-  header('Content-Type: application/octet-stream');header('Content-Disposition: attachment; filename="'.$systemSlug.'_Suporte.bat"');header('Content-Length: '.strlen($bat));header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosniff');echo $bat;exit;
- }
+ // A entrega inicial e a atualização autenticada utilizam o mesmo ZIP transparente.
+ // O usuário extrai os arquivos e executa o instalador visível do pacote.
  $tmp=tempnam(sys_get_temp_dir(),'arc-support-');if($tmp===false)throw new RuntimeException('Arquivo temporário indisponível.');
  $zip=new ZipArchive();if($zip->open($tmp,ZipArchive::OVERWRITE)!==true)throw new RuntimeException('Não foi possível criar o instalador.');
  foreach(['arcoll_support.py','Instalar_Suporte.py','Instalar_Suporte.bat','requirements.txt'] as $name){$path=dirname(__DIR__).'/agentes/suporte/'.$name;if(!is_readable($path))throw new RuntimeException('Componente ausente: '.$name);$zip->addFile($path,$name);}

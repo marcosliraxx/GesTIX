@@ -1,6 +1,6 @@
 # Caminho: agentes/windows/arcoll_cloud.py
-"""Backup incremental: lê somente raízes autorizadas localmente e envia blocos pela plataforma.
-Nunca recebe credenciais do provedor. Manifesto e consentimento ficam no perfil local.
+"""Backup incremental com pastas definidas na plataforma autenticada.
+O agente não recebe credenciais do provedor; o manifesto permanece local.
 """
 import fnmatch
 import hashlib
@@ -35,12 +35,19 @@ class CloudError(RuntimeError):
         self.status = status
 
 
+class OnlineOnly(CloudError):
+    """Arquivo de pasta de sincronização (OneDrive/Google Drive) que existe só na nuvem: é ignorado, não é falha."""
+
+
 def stamp():
     return datetime.now().astimezone().isoformat(timespec='seconds')
 
 
 def file_version(info):
-    return hashlib.sha256(('%s:%s:%s:%s:%s' % (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)).encode()).hexdigest()
+    """Identidade estável do conteúdo: tamanho + data de modificação (microssegundos).
+    NÃO usar st_dev/st_ino/st_ctime: no Windows, os.stat(caminho) e os.fstat(handle) devolvem valores diferentes
+    para esses campos, o que fazia todo arquivo parecer "alterado antes do envio" e nunca ser enviado."""
+    return hashlib.sha256(('%s:%s' % (info.st_size, info.st_mtime_ns // 1000)).encode()).hexdigest()
 
 
 def excluded(relative, patterns):
@@ -48,23 +55,43 @@ def excluded(relative, patterns):
     return any(fnmatch.fnmatchcase(relative.casefold(), p.casefold()) or fnmatch.fnmatchcase(name.casefold(), p.casefold()) for p in patterns)
 
 
+UNSAFE_TAGS = {0xA000000C, 0xA0000003}   # IO_REPARSE_TAG_SYMLINK e IO_REPARSE_TAG_MOUNT_POINT (junction)
+
+
+def is_redirect(info):
+    """Somente links simbólicos e junctions são redirecionamentos. Pastas de sincronização (OneDrive/Drive)
+    também têm o atributo de ponto de análise, mas são pastas normais e podem ser copiadas."""
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    if not getattr(info, 'st_file_attributes', 0) & REPARSE:
+        return False
+    tag = getattr(info, 'st_reparse_tag', None)
+    return tag in UNSAFE_TAGS if tag is not None else True
+
+
 def safe_local_path(path, root=None):
-    """Não segue links, junctions, reparse points, UNC, ADS ou arquivos somente online."""
+    """Não segue links, junctions, UNC, ADS ou arquivos somente online. A verificação de redirecionamento vai da
+    pasta escolhida para baixo; pastas acima dela pertencem à escolha do administrador."""
     path = Path(path).absolute()
     text = str(path)
     if text.startswith(('\\\\', '//')) or (os.name == 'nt' and ':' in text[2:]):
         raise CloudError('Use somente uma pasta de disco local.')
-    for candidate in (path, *path.parents):
-        info = candidate.lstat()
-        if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & REPARSE:
-            raise CloudError('Links e pontos de redirecionamento não são incluídos.')
+    candidates = [path]
     if root is not None:
+        base = Path(root).absolute()
         try:
-            path.relative_to(Path(root).absolute())
+            path.relative_to(base)
         except ValueError as exc:
             raise CloudError('Arquivo fora da pasta autorizada.') from exc
+        for parent in path.parents:
+            candidates.append(parent)
+            if parent == base:
+                break
+    for candidate in candidates:
+        if is_redirect(candidate.lstat()):
+            raise CloudError('Links e pontos de redirecionamento não são incluídos.')
     if getattr(path.stat(), 'st_file_attributes', 0) & PLACEHOLDER:
-        raise CloudError('Arquivo disponível somente online; mantenha uma cópia local para backup.')
+        raise OnlineOnly('Arquivo disponível somente online; mantenha uma cópia local para backup.')
     return path
 
 
@@ -98,9 +125,16 @@ class CloudBackup:
         self.status['last_success_at'] = self.preference('last_success_at', '')
         self.status['runs'] = self.preference('runs', [])
         self.job = None
-        self.local_paused = self.preference('paused', False)
+        self.latest_vdrive = {}
         self.last_report = 0
         self.opener = urllib.request.build_opener(NoRedirect())
+        self._pending_identity = None
+
+    def queue_credentials(self, fingerprint, site_code, key):
+        """Ativa a nova credencial entre ciclos de sincronização, sem interromper transferências."""
+        with self.guard:
+            self._pending_identity = (fingerprint, site_code, key)
+        self.wake.set()
 
     @contextmanager
     def db(self):
@@ -147,9 +181,20 @@ class CloudBackup:
                 return result
             except urllib.error.HTTPError as exc:
                 code = exc.code
-                # Do not reflect raw server responses or authentication headers to status/logs.
+                # Somente a mensagem curta do JSON da própria API é exibida. Nunca repasse cabeçalhos,
+                # token, corpo de arquivo ou páginas HTML de erro ao painel de backup.
+                explanation = ''
+                if code in (400, 404, 409, 410, 413, 422, 429, 502, 503):
+                    try:
+                        failure = json.loads(exc.read(4096))
+                        candidate = failure.get('error', '') if isinstance(failure, dict) else ''
+                        if isinstance(candidate, str) and len(candidate) <= 200 and not any(c in candidate for c in '\r\n\x00'):
+                            explanation = candidate
+                    except (ValueError, OSError, UnicodeError):
+                        pass
                 if code not in (429, 500, 502, 503, 504) or attempt == 3:
-                    raise CloudError({401: 'Credencial expirada.', 403: 'Backup sem autorização.', 409: 'Backup pausado ou configuração alterada.', 410: 'Envio expirado; será reiniciado.'}.get(code, 'A plataforma recusou o backup (HTTP %d).' % code), code) from None
+                    message = explanation or {401: 'Credencial expirada.', 403: 'Backup sem autorização.', 409: 'Backup pausado ou configuração alterada.', 410: 'Envio expirado; será reiniciado.'}.get(code, 'A plataforma recusou o backup (HTTP %d).' % code)
+                    raise CloudError(message, code) from None
             except (urllib.error.URLError, TimeoutError, OSError, ValueError):
                 if attempt == 3:
                     raise CloudError('Sem comunicação segura com a plataforma.') from None
@@ -157,41 +202,23 @@ class CloudBackup:
                 raise CloudError('Agente encerrando.')
         raise CloudError('Backup indisponível.')
 
-    def authorize(self, folder):
-        """Chamada somente pelo seletor local, após autenticação do gestor na interface."""
-        root = safe_local_path(folder)
-        if not root.is_dir() or root == Path(root.anchor):
-            raise CloudError('Selecione uma pasta de dados, não a raiz do disco.')
-        if os.name == 'nt':
-            forbidden = [Path(os.environ.get(k, default)).absolute() for k, default in
-                         [('WINDIR', r'C:\Windows'), ('ProgramFiles', r'C:\Program Files'), ('ProgramData', r'C:\ProgramData')]]
-            if any(root == p or p in root.parents for p in forbidden):
-                raise CloudError('Pastas de sistema não podem ser incluídas.')
-        roots = self.preference('roots', [])
-        normalized = os.path.normcase(str(root))
-        if any(os.path.normcase(x['path']) == normalized for x in roots):
-            return roots
-        if len(roots) >= 20:
-            raise CloudError('Limite de 20 pastas autorizadas.')
-        roots.append({'path': str(root), 'label': root.name})
-        # Persist consent first. A failed publication cannot authorize any other directory.
-        self.remember('roots', roots)
-        self.publish_roots(roots)
-        return roots
-
-    def publish_roots(self, roots=None):
-        self.request('agent-folders', {'folders': self.preference('roots', []) if roots is None else roots})
-
-    def remove_root(self, path):
-        roots = [r for r in self.preference('roots', []) if r['path'] != path]
-        self.remember('roots', roots)  # immediately revokes local access, even offline
-        self.publish_roots(roots)
-
-    def pause(self, paused):
-        self.local_paused = bool(paused)
-        self.remember('paused', self.local_paused)
-        self.update(state='paused' if self.local_paused else 'waiting', message='Pausado neste computador.' if self.local_paused else 'Aguardando próxima sincronização.')
-        self.wake.set()
+    def stream(self, action, data=None):
+        """Abre uma resposta binária da plataforma (download para o disco virtual). O chamador fecha o objeto."""
+        payload = json.dumps(data or {}).encode('utf-8')
+        request_headers = dict(self.headers, **{'Content-Type': 'application/json'})
+        req = urllib.request.Request(self.origin + '/api/cloud.php?action=' + action, data=payload, headers=request_headers, method='POST')
+        try:
+            return self.opener.open(req, timeout=60)
+        except urllib.error.HTTPError as exc:
+            message = ''
+            try:
+                failure = json.loads(exc.read(4096))
+                message = failure.get('error', '') if isinstance(failure, dict) else ''
+            except (ValueError, OSError, UnicodeError):
+                pass
+            raise CloudError((message if isinstance(message, str) and len(message) <= 200 else '') or 'A plataforma recusou a leitura (HTTP %d).' % exc.code, exc.code) from None
+        except (urllib.error.URLError, TimeoutError, OSError):
+            raise CloudError('Sem comunicação segura com a plataforma.') from None
 
     def report(self, force=False):
         if force or time.monotonic() - self.last_report >= 10:
@@ -203,10 +230,8 @@ class CloudBackup:
         return None
 
     def check(self, path=None, root=None):
-        if self.stop.is_set() or self.local_paused:
-            raise CloudError('Backup pausado neste computador.')
-        if root and os.path.normcase(str(root)) not in {os.path.normcase(x['path']) for x in self.preference('roots', [])}:
-            raise CloudError('Autorização local da pasta removida.')
+        if self.stop.is_set():
+            raise CloudError('Agente encerrando.')
         if path is not None:
             safe_local_path(path, root)
 
@@ -270,8 +295,7 @@ class CloudBackup:
         settings = job['settings']
         with self.db() as db:
             db.execute('DELETE FROM files WHERE identity=? AND scope NOT LIKE ?', (self.identity, job['revision'] + ':%'))
-        consent = {os.path.normcase(x['path']) for x in self.preference('roots', [])}
-        self.update(state='scanning', message='Analisando pastas autorizadas.', started_at=stamp(), failures=[], files_done=0,
+        self.update(state='scanning', message='Analisando pastas configuradas na plataforma.', started_at=stamp(), failures=[], files_done=0,
                     bytes_done=0, files_total=0, bytes_total=0, errors=0, current='')
         failures = []
         errors = 0
@@ -280,20 +304,23 @@ class CloudBackup:
             errors += 1
             if len(failures) < 12:
                 failures.append({'path': path, 'message': message})
-        files_done = bytes_done = total_files = total_bytes = unchanged = 0
+        files_done = bytes_done = total_files = total_bytes = unchanged = skipped = 0
+        folder_stats = []
         self.report(True)
         for index, folder in enumerate(settings['folders']):
-            root = Path(folder['path'])
-            if os.path.normcase(str(root)) not in consent:
-                fail(folder['label'], 'Pasta sem consentimento local. Autorize-a no agente.')
-                continue
+            root = Path(os.path.expandvars(folder['path']))
+            stat_before = (total_files, total_bytes, files_done)
+            missing = False
             try:
                 safe_local_path(root)
                 if not root.is_dir():
                     raise CloudError('Pasta indisponível.')
                 scope = job['revision'] + ':' + hashlib.sha256(str(root).casefold().encode()).hexdigest()
+                with self.db() as db:
+                    known = dict(db.execute('SELECT relative,version FROM files WHERE identity=? AND scope=?', (self.identity, scope)).fetchall())
                 def walk_error(error):
-                    raise CloudError('Pasta ou subpasta sem permissão de leitura.')
+                    name = getattr(error, 'filename', None)
+                    fail(str(name or folder['label'])[-200:], 'Subpasta sem permissão de leitura; as demais continuam.')
                 for directory, dirs, names in os.walk(root, followlinks=False, onerror=walk_error):
                     self.check(Path(directory), root)
                     kept = []
@@ -305,6 +332,8 @@ class CloudBackup:
                         try:
                             safe_local_path(candidate, root)
                             kept.append(name)
+                        except OnlineOnly:
+                            skipped += 1
                         except (CloudError, OSError):
                             fail(rel, 'Pasta redirecionada ou indisponível; não foi lida.')
                     dirs[:] = kept
@@ -322,9 +351,7 @@ class CloudBackup:
                                 raise CloudError('Arquivo acima do limite configurado.')
                             total_files += 1
                             total_bytes += info.st_size
-                            with self.db() as db:
-                                row = db.execute('SELECT version FROM files WHERE identity=? AND scope=? AND relative=?', (self.identity, scope, relative)).fetchone()
-                            if row and row[0] == file_version(info):
+                            if known.get(relative) == file_version(info):
                                 unchanged += 1
                                 continue
                             self.update(state='uploading', message='Enviando arquivos para a nuvem.', current=relative,
@@ -332,25 +359,42 @@ class CloudBackup:
                             version = self.send_file(path, root, index, relative, info, job['revision'])
                             with self.db() as db:
                                 db.execute('INSERT OR REPLACE INTO files VALUES (?,?,?,?)', (self.identity, scope, relative, version))
+                            known[relative] = version
                             files_done += 1
                             bytes_done += info.st_size
                             self.update(files_done=files_done, bytes_done=bytes_done)
+                        except OnlineOnly:
+                            skipped += 1
+                            total_files -= 1 if total_files else 0
                         except (CloudError, OSError) as exc:
                             if isinstance(exc, CloudError) and exc.status in (401, 403, 409):
                                 raise
                             fail(relative, str(exc)[:160] if isinstance(exc, CloudError) else 'Arquivo indisponível para leitura.')
                         self.check()
                         self.report()
-            except OSError:
-                fail(folder['label'], 'Pasta indisponível neste computador.')
+            except (CloudError, OSError) as exc:
+                missing = True
+                fail(folder['label'], str(exc)[:160] if isinstance(exc, CloudError) else 'Pasta indisponível neste computador.')
+            folder_stats.append({'label': folder['label'], 'files': total_files - stat_before[0], 'bytes': total_bytes - stat_before[1],
+                                 'pending': 0, 'missing': missing})
         at = stamp()
         run = {'at': at, 'files': files_done, 'bytes': bytes_done, 'errors': errors, 'seconds': int(time.monotonic() - started), 'result': 'error' if failures else 'success'}
         history = ([run] + self.preference('runs', []))[:15]
         self.remember('runs', history)
-        self.update(state='error' if failures else 'idle', message='Backup concluído com pendências.' if failures else 'Pastas sincronizadas; arquivos da nuvem preservados.',
-                    files_total=total_files, bytes_total=total_bytes, files_done=files_done, bytes_done=bytes_done,
-                    synced_files=files_done + unchanged, errors=errors, failures=failures[:12], last_run_at=at, runs=history, current='')
-        if not failures:
+        synced_any = files_done + unchanged > 0
+        state = 'error' if failures and not synced_any else 'idle'
+        if failures:
+            message = 'Backup concluído com %d pendência(s). Veja os itens que precisam de atenção.' % errors
+        elif not settings['folders']:
+            message = 'Nenhuma pasta configurada.'
+        else:
+            message = 'Pastas sincronizadas; arquivos da nuvem preservados.'
+            if skipped:
+                message += ' %d arquivo(s) somente online foram ignorados.' % skipped
+        self.update(state=state, message=message, files_total=total_files, bytes_total=total_bytes, files_done=files_done, bytes_done=bytes_done,
+                    synced_files=files_done + unchanged, errors=errors, skipped=skipped, failures=failures[:12], last_run_at=at, runs=history, current='',
+                    folders=folder_stats)
+        if synced_any and not failures:
             self.update(last_success_at=at)
             self.remember('last_success_at', at)
         self.remember('last_run', time.time())
@@ -393,20 +437,38 @@ class CloudBackup:
 
     def loop(self):
         while not self.stop.is_set():
+            with self.guard:
+                updated = self._pending_identity
+                self._pending_identity = None
+            if updated is not None:
+                fingerprint, site_code, key = updated
+                self.headers.update({'X-Arcoll-Fingerprint': fingerprint, 'X-Arcoll-Site-Code': site_code, 'X-Arcoll-Key': key})
+                self.identity = hashlib.sha256((self.origin + '|' + fingerprint + '|' + key).encode()).hexdigest()
+                self.update(state='waiting', message='Credencial atualizada. Verificando backup na plataforma.')
+            ran = False
             try:
                 self.job = None
                 response = self.request('agent-state', {'status': self.snapshot()})
+                self.latest_vdrive = response.get('vdrive') or {}
                 job = response['job']
-                if self.local_paused:
-                    self.update(state='paused', message='Pausado neste computador.')
-                elif not job['available']:
+                if not job['available']:
                     self.update(state='disabled', message='Configure e ative o backup na plataforma.')
                 elif not job['settings']['folders']:
-                    self.update(state='waiting', message='Autorize as pastas no agente Windows.')
+                    self.update(state='waiting', message='Configure as pastas de origem na plataforma online.')
                 elif self.due(job):
+                    ran = True
                     self.prepare_full_run()
                     self.run_backup(job, int(response['max_file_bytes']))
-            except (CloudError, OSError, ValueError, KeyError) as exc:
-                self.update(state='paused' if self.local_paused else 'error', message=str(exc)[:160] if isinstance(exc, CloudError) else 'Backup indisponível. Verifique a conexão e as pastas.')
-            self.wake.wait(30)
+            except CloudError as exc:
+                ran = True
+                self.update(state='error', message=str(exc)[:160])
+            except Exception as exc:   # a thread de backup nunca pode morrer por um erro inesperado
+                ran = True
+                self.update(state='error', message='Backup indisponível: %s. Será tentado novamente.' % type(exc).__name__)
+            try:
+                if ran:
+                    self.report(True)   # mesmo com erro, a plataforma recebe o motivo
+            except Exception:
+                pass
+            self.wake.wait(6)
             self.wake.clear()

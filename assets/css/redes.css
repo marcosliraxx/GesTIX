@@ -985,3 +985,82 @@
 /* Modal de registro compartilhado com o painel; não interfere no dropdown. */
 .arc-page-redes #modal-register{z-index:10000}
 .arc-page-redes #modal-register .modal{width:min(760px,calc(100vw - 22px));max-height:calc(100dvh - 24px)}
+
+/* Caminho: assets/css/redes.css — aviso de versão do agente no header. */
+.app-header #arc-agent-form .arc-agent-selector-group{overflow:visible}
+/* Ícone do agente Windows sempre visível no header da rede, sem depender de atualização. */
+.app-header #arc-header-agent-update{display:grid!important;place-items:center;flex:0 0 32px;width:32px;height:32px;padding:0;border:0;border-left:1px solid var(--border);border-radius:0;background:transparent;color:var(--primary);cursor:pointer}
+.app-header #arc-header-agent-update:hover,.app-header #arc-header-agent-update:focus-visible{background:rgba(242,196,78,.14);outline-offset:-2px}
+ .app-header #arc-header-agent-update i{font-size:17px}
+.app-header #arc-header-agent-update.arc-update-available{color:#f4c453;background:rgba(242,196,78,.08)}
+.app-header #arc-header-agent-update.arc-update-available i{animation:arcWindowsUpdateBlink 1.25s ease-in-out infinite}
+@keyframes arcWindowsUpdateBlink{0%,100%{opacity:1;filter:drop-shadow(0 0 0 transparent)}50%{opacity:.25;filter:drop-shadow(0 0 8px #f6d169)}}
+@media(prefers-reduced-motion:reduce){.app-header #arc-header-agent-update.arc-update-available i{animation:none;filter:none}}
+
+#arc-agent-update-confirm.arc-agent-update-confirm{width:min(95vw,450px)!important;max-height:min(85dvh,540px)!important;overflow:hidden!important}
+#arc-agent-update-confirm .arc-agent-update-card{display:flex!important;flex-direction:column;min-height:0;max-height:min(85dvh,540px);padding:0!important}
+#arc-agent-update-confirm .arc-update-modal-header{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #35516b;flex:0 0 auto}
+#arc-agent-update-confirm .arc-update-modal-header strong{font-size:13px;line-height:1.35}
+#arc-agent-update-confirm .arc-update-modal-header small{font-size:11px;color:#97cbea}
+#arc-agent-update-confirm .arc-update-modal-close{width:25px;height:25px;border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px}
+#arc-agent-update-confirm .arc-agent-update-copy{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:12px 14px!important}
+#arc-agent-update-confirm .arc-agent-update-copy [data-update-release]{max-height:none!important;min-height:70px;flex:1 1 auto;overflow-y:auto!important;white-space:pre-wrap;padding:10px!important;line-height:1.6!important;overscroll-behavior:contain}
+#arc-agent-update-confirm .arc-agent-update-copy [data-update-agent-details]{font-size:11px!important}
+#arc-agent-update-confirm .arc-agent-update-actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px!important;margin:0!important;padding:10px 12px!important;border-top:1px solid var(--border);flex:0 0 auto}
+#arc-agent-update-confirm .arc-agent-update-actions>.button{box-sizing:border-box;min-width:0;min-height:42px;display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 4px;text-align:center;white-space:normal;line-height:1.2;font-size:11px;text-decoration:none}
+#arc-agent-update-confirm .arc-agent-update-actions>.button:disabled{opacity:.45;cursor:not-allowed}
+#arc-agent-update-confirm .arc-update-state{padding:8px 10px;border-radius:8px;background:var(--surface-alt);font-size:12px;line-height:1.5}
+@media(max-width:370px){#arc-agent-update-confirm .arc-agent-update-actions>.button{font-size:10px;padding:6px 2px}#arc-agent-update-confirm .arc-agent-update-actions>.button i{display:none}}
+@media(max-width:760px){.app-header #arc-agent-form{width:145px!important;max-width:145px}.app-header #arc-header-agent-update{flex-basis:28px;width:28px}}
+
+#arc-agent-update-confirm::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
+
+/* Caminho: assets/css/redes.css — harmonização da gestão de redes com o tema administrativo.
+   Apenas superfícies neutras, campos e tipografia; estados operacionais mantêm suas cores. */
+html[data-arc-design] body.arc-page-redes,
+html[data-arc-design] body.arc-page-redes .arc-redes-page {
+  color:var(--text);background-color:var(--bg);
+}
+html[data-arc-design] body.arc-page-redes :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea) {
+  color:var(--text);background-color:var(--surface);border-color:var(--border);
+}
+html[data-arc-design] body.arc-page-redes :where(input,select,textarea)::placeholder { color:var(--muted); }
+html[data-arc-design] body.arc-page-redes :where(.arc-redes-page,.arc-network-workspace) :where(.card,.panel,.arc-card,.arc-panel) {
+  border-color:var(--border);background-color:var(--surface);color:var(--text);
+}
+html[data-arc-design] body.arc-page-redes :where(.arc-redes-page,.arc-network-workspace) :where(table,th,td) { border-color:var(--border); }
+html[data-arc-design] body.arc-page-redes :where(.arc-redes-page,.arc-network-workspace) :where(th) {
+  background-color:var(--surface-alt);color:var(--text);
+}
+html[data-arc-design] body.arc-page-redes :where(.arc-redes-page,.arc-network-workspace) :where(a:not(.btn):not([class*="danger"])) { accent-color:var(--primary); }
+
+/* Caminho: assets/css/redes.css — tokens administrativos para módulos de rede.
+   Não altera estados semânticos (online, alerta, erro) nem lógica operacional. */
+html[data-arc-design] body.arc-page-redes .cc {
+  --side:var(--surface);--main:var(--bg);--panel:var(--surface);
+  --row:var(--surface-alt);--row2:var(--surface-alt);--foot:var(--surface);
+  --act:var(--surface-alt);--line:var(--border);--blue:var(--primary);
+  --blue2:var(--primary);--txt:var(--text);--mut:var(--muted);
+  border-color:var(--border);color:var(--text);
+}
+html[data-arc-design] body.arc-page-redes .arc-release-page {
+  background:var(--bg)!important;color:var(--text);
+}
+html[data-arc-design] body.arc-page-redes .arc-release-page :is(.arc-release-toolbar,.arc-release-summary,.arc-release-grid-wrap) {
+  background:var(--surface)!important;border-color:var(--border)!important;color:var(--text);
+}
+html[data-arc-design] body.arc-page-redes .arc-release-page :is(input,select,textarea) {
+  background:var(--surface-alt)!important;color:var(--text)!important;border-color:var(--border)!important;
+}
+html[data-arc-design] body.arc-page-redes :is(.arc-support-queue,.arc-service-list,.arc-service-ticket,.arc-filter-bar) {
+  border-color:var(--border);color:var(--text);
+}
+html[data-arc-design] body.arc-page-redes :is(.arc-service-ticket,.arc-support-queue,.arc-filter-bar) {
+  background-color:var(--surface);
+}
+html[data-arc-design] body.arc-page-redes :is(.arp-dashboard,.arp-details,.arc-connect .cc-board) {
+  color:var(--text);border-color:var(--border);background-color:var(--surface);
+}
+html[data-arc-design] body.arc-page-redes :is(.arp-toolbar,.arp-footer) {
+  color:var(--text);border-color:var(--border);background-color:var(--surface-alt);
+}

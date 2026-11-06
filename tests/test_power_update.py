@@ -43,7 +43,7 @@ class PowerUpdateTests(unittest.TestCase):
                 updater.run()
             self.assertEqual((root/'arcoll_app.py').read_bytes(),b'# updated\n')
             self.assertEqual(json.loads((root/'agent-config.json').read_text())['installation'],'preserve')
-            self.assertIn(str(root/'arcoll_desktop.py'),launch.call_args.args[0])
+            self.assertIn(str(root/'arcoll_app.py'),launch.call_args.args[0])
     def test_update_rejects_corrupted_release_before_modification(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);(root/'arcoll_app.py').write_text('# previous\n')

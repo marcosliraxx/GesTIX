@@ -533,7 +533,17 @@ function arc_support_icon(PDO $pdo,string $component): string {
  if(!$path||!is_file($path)){$name=(string)(arc_setting_values($pdo)['logo_path']??'');if(preg_match('/^[a-f0-9]{32,40}\.(png|jpg|webp)$/D',$name))$path=arc_upload_dir('brand').'/'.$name;}
  if(!$path||!is_file($path))$path=dirname(__DIR__).'/assets/img/app-icon-192.png';
  if(!function_exists('imagecreatefromstring'))throw new RuntimeException('Ative GD para gerar os ícones Windows.');$image=imagecreatefromstring((string)file_get_contents($path));if(!$image)throw new RuntimeException('Ícone inválido.');
- $canvas=imagecreatetruecolor(64,64);imagealphablending($canvas,false);imagesavealpha($canvas,true);imagefill($canvas,0,0,imagecolorallocatealpha($canvas,0,0,0,127));$scale=min(64/imagesx($image),64/imagesy($image));$w=max(1,(int)(imagesx($image)*$scale));$h=max(1,(int)(imagesy($image)*$scale));imagecopyresampled($canvas,$image,(int)((64-$w)/2),(int)((64-$h)/2),0,0,$w,$h,imagesx($image),imagesy($image));ob_start();imagepng($canvas);$png=(string)ob_get_clean();imagedestroy($image);imagedestroy($canvas);return pack('vvv',0,1,1).pack('CCCCvvVV',64,64,0,0,1,32,strlen($png),22).$png;
+ // Recursos ICO em tamanhos nativos: preserva proporção e transparência em DPI alto.
+ $entries='';$images='';$sizes=[16,24,32,48,64,128,256];$offset=6+16*count($sizes);
+ foreach($sizes as $size){
+  $canvas=imagecreatetruecolor($size,$size);imagealphablending($canvas,false);imagesavealpha($canvas,true);
+  imagefill($canvas,0,0,imagecolorallocatealpha($canvas,0,0,0,127));
+  $scale=min($size/imagesx($image),$size/imagesy($image));$w=max(1,(int)(imagesx($image)*$scale));$h=max(1,(int)(imagesy($image)*$scale));
+  imagecopyresampled($canvas,$image,(int)(($size-$w)/2),(int)(($size-$h)/2),0,0,$w,$h,imagesx($image),imagesy($image));
+  ob_start();imagepng($canvas);$png=(string)ob_get_clean();imagedestroy($canvas);
+  $entries.=pack('CCCCvvVV',$size===256?0:$size,$size===256?0:$size,0,0,1,32,strlen($png),$offset);$images.=$png;$offset+=strlen($png);
+ }
+ imagedestroy($image);return pack('vvv',0,1,count($sizes)).$entries.$images;
 }
 
 function arc_support_command_request_allowed(PDO $pdo,int $command,int $network,int $account): bool {
@@ -543,7 +553,7 @@ function arc_support_command_request_allowed(PDO $pdo,int $command,int $network,
 
 /** One machine-scoped revalidation for all unattended support operations. */
 function arc_support_unattended_command(PDO $pdo,array $agent,int $id): ?array {
-    $q=$pdo->prepare('SELECT c.*,a.headless_mode,t.request_text FROM '.arc_table('agent_commands')." c JOIN ".arc_table('network_agents')." a ON a.id=c.agent_id AND a.account_id=c.account_id AND a.network_id=c.network_id LEFT JOIN ".arc_table('agent_terminal_jobs')." t ON t.command_id=c.id WHERE c.id=? AND c.agent_id=? AND c.account_id=? AND c.network_id=? AND a.status='approved' AND a.headless_mode=1 AND c.status='running' AND ((c.command_name='screen_lock' AND c.dispatched_at>DATE_SUB(NOW(),INTERVAL 65 MINUTE)) OR (c.command_name<>'screen_lock' AND c.dispatched_at>DATE_SUB(NOW(),INTERVAL 3 MINUTE)))");
+    $q=$pdo->prepare('SELECT c.*,a.headless_mode,t.request_text FROM '.arc_table('agent_commands')." c JOIN ".arc_table('network_agents')." a ON a.id=c.agent_id AND a.account_id=c.account_id AND a.network_id=c.network_id LEFT JOIN ".arc_table('agent_terminal_jobs')." t ON t.command_id=c.id WHERE c.id=? AND c.agent_id=? AND c.account_id=? AND c.network_id=? AND a.status='approved' AND a.headless_mode=1 AND c.status='running' AND ((c.command_name='screen_lock' AND c.dispatched_at>DATE_SUB(NOW(),INTERVAL 65 MINUTE)) OR (c.command_name='program_install' AND c.dispatched_at>DATE_SUB(NOW(),INTERVAL 120 MINUTE)) OR (c.command_name NOT IN ('screen_lock','program_install') AND c.dispatched_at>DATE_SUB(NOW(),INTERVAL 3 MINUTE)))");
     $q->execute([$id,$agent['id'],$agent['account_id'],$agent['network_id']]);$row=$q->fetch();
     if(!$row||!arc_support_command_request_allowed($pdo,$id,(int)$agent['network_id'],(int)$agent['account_id']))return null;
     arc_billing_assert_active($pdo,(int)$agent['account_id']);return $row;

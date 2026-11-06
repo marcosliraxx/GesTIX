@@ -22,6 +22,17 @@ def main():
         os.replace(temporary, ROOT / 'VERSION')
     finally:
         temporary.unlink(missing_ok=True)
+    native = ROOT / 'agentes/windows/Arcoll.WinUI3'
+    for name in ('Arcoll.WinUI3.csproj', 'BootWorker/BootWorker.csproj'):
+        project = native / name
+        if project.exists():
+            source = project.read_text(encoding='utf-8-sig')
+            source = re.sub(r'<Version>[^<]+</Version>', '<Version>' + version + '</Version>', source)
+            project.write_text(source, encoding='utf-8')
+    snapshot = native / 'Models/AgentSnapshot.cs'
+    if snapshot.exists():
+        source = re.sub(r'\?\? "\d+\.\d+\.\d+"', '?? "' + version + '"', snapshot.read_text())
+        snapshot.write_text(source)
     print('Versão única da plataforma e dos componentes:', version)
 
 

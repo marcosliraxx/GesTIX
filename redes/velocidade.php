@@ -232,7 +232,7 @@ require __DIR__.'/_topo.php';
 @keyframes ccpop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
 @keyframes ccbreath{0%,100%{fill-opacity:.05;stroke-opacity:.45}50%{fill-opacity:.14;stroke-opacity:.9}}
 @keyframes ccdown{to{background-position:0 16px}}
-.arc-redes-page:has(.arc-connect) .arc-redes-conteudo{display:flex;min-height:0;overflow:hidden;}.arc-connect{--line:#29445a;--text:#eaf7ff;--muted:#8fabc0;min-width:0;color:var(--text);width:100%;height:100%;min-height:0;display:flex;font-family:inherit;flex:1}
+.arc-redes-page:has(.arc-connect) .arc-redes-conteudo{display:flex;min-height:0;overflow:hidden;}.arc-connect{--line:var(--border);--text:var(--text);--muted:var(--muted);min-width:0;color:var(--text);width:100%;height:100%;min-height:0;display:flex;font-family:inherit;flex:1}
 @media(max-width:1050px){}
 @media(max-width:620px){.arc-redes-page:has(.arc-connect) .arc-redes-conteudo{overflow:auto}.arc-connect{min-height:0}.arc-connect .cc-head{height:auto}.arc-connect .cc-heading h2{font-size:11px}.arc-connect .cc-status{display:none}.arc-connect .cc-stage{min-height:0}.arc-connect .cc-route{width:min(200px,60%);padding:8px 10px}.arc-connect .cc-stop strong{font-size:12px}.arc-connect .cc-tag{max-width:132px;padding:4px 8px}.arc-connect .cc-tag strong{font-size:11px}.arc-connect .cc-layers button{padding:7px 8px}.arc-connect .cc-rows div{grid-template-columns:80px minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.arc-connect *{animation:none!important}.arc-connect path.cc-flow{animation:none!important}}

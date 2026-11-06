@@ -59,8 +59,9 @@ function arc_inventory_sync(PDO $pdo, int $account, int $network, int $agent, ar
     $sql = 'INSERT INTO ' . arc_inventory_table() . ' (account_id,network_id,agent_id,identity_key,mac,ip,detected_name,detected_type,status,first_seen,last_seen,last_change,source,payload_json)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
      ip=VALUES(ip),mac=VALUES(mac),detected_name=VALUES(detected_name),detected_type=VALUES(detected_type),
-     status=VALUES(status), first_seen=IF(first_seen=0, VALUES(first_seen), LEAST(first_seen,VALUES(first_seen))),
-     last_seen=GREATEST(last_seen,VALUES(last_seen)),last_change=VALUES(last_change),source=VALUES(source),payload_json=VALUES(payload_json)';
+     last_change=IF(status<>VALUES(status),VALUES(last_change),last_change),status=VALUES(status),
+     first_seen=IF(first_seen=0, VALUES(first_seen), LEAST(first_seen,VALUES(first_seen))),
+     last_seen=GREATEST(last_seen,VALUES(last_seen)),source=VALUES(source),payload_json=VALUES(payload_json)';
     $statement = $pdo->prepare($sql);
     // Reaproveita consultas no lote e restringe a migração de dados à própria conta.
     $lookup = $pdo->prepare('SELECT id,custom_name,custom_type,group_name,pinned,hidden,managed FROM ' . arc_inventory_table() . ' WHERE account_id=? AND network_id=? AND agent_id=? AND identity_key=? AND mac=\'\' LIMIT 1');
@@ -71,6 +72,25 @@ function arc_inventory_sync(PDO $pdo, int $account, int $network, int $agent, ar
                    pinned=GREATEST(pinned,?),hidden=GREATEST(hidden,?),managed=GREATEST(managed,?)
                    WHERE account_id=? AND network_id=? AND agent_id=? AND identity_key=?');
     $removeLegacy = $pdo->prepare('DELETE FROM ' . arc_inventory_table() . ' WHERE id=? AND account_id=? AND network_id=? AND agent_id=?');
+    // Uma varredura completa é uma fotografia da rede: equipamentos ausentes passaram a offline.
+    // Eventos incrementais 'device_event' NÃO removem nem desconectam os demais dispositivos.
+    if (($event['event'] ?? '') === 'network_scan') {
+        $present = [];
+        foreach (array_slice($devices, 0, 180) as $item) {
+            if (!is_array($item)) continue;
+            [$identity] = arc_inventory_identity($item);
+            if ($identity !== '') $present[$identity] = true;
+        }
+        // Um escaneamento totalmente vazio pode significar perda de rede ou falha do sensor.
+        if ($present) {
+            $offline = $pdo->prepare('UPDATE ' . arc_inventory_table() . " SET status='offline',last_change=UNIX_TIMESTAMP() WHERE account_id=? AND network_id=? AND agent_id=? AND status='online' AND identity_key=?");
+            $previous = $pdo->prepare('SELECT identity_key FROM ' . arc_inventory_table() . " WHERE account_id=? AND network_id=? AND agent_id=? AND status='online' AND mac<>''");
+            $previous->execute([$account,$network,$agent]);
+            foreach ($previous->fetchAll(PDO::FETCH_COLUMN) as $identity) {
+                if (!isset($present[$identity])) $offline->execute([$account,$network,$agent,$identity]);
+            }
+        }
+    }
     foreach (array_slice($devices, 0, 180) as $device) {
         if (!is_array($device)) continue;
         [$identity,$mac] = arc_inventory_identity($device);

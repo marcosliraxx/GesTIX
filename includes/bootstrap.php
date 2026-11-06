@@ -50,7 +50,7 @@ function arc_require_billing_release(): void
 function arc_agent_release_sources(?string $directory=null): array
 {
     $directory=$directory??dirname(__DIR__).'/agentes/windows';
-    $required=['arcoll_release.py','arcoll_agent.py','arcoll_desktop.py','arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py','arcoll_updater.py','arcoll_remote.py','arcoll_secure_helper.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
+    $required=['arcoll_release.py','arcoll_agent.py','arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py','arcoll_updater.py','arcoll_remote.py','arcoll_secure_helper.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
     $retired=['Instalar_Arcoll.py','arcoll_session.py'];$files=[];
     $paths=glob($directory.'/*');
     if($paths===false)throw new RuntimeException('Inventário do agente indisponível.');
@@ -87,7 +87,7 @@ function arc_expire_running_commands(PDO $pdo,?int $agentId=null,?int $networkId
     /* Política única de tempo limite (minutos, contados do despacho). Comandos fora da tabela usam 4 minutos.
        Programas e Clean têm prazos próprios em includes/network-clean.php: uma desinstalação ou limpeza
        longa não pode ser marcada como falha enquanto o agente ainda trabalha. */
-    $limits=['windows_update'=>120,'agent_update'=>15,'screen_lock'=>65]+arc_network_operation_timeouts();
+    $limits=['windows_update'=>120,'agent_update'=>45,'screen_lock'=>65]+arc_network_operation_timeouts();
     $names="'remote_assistance'";$rules=[];
     foreach($limits as $name=>$minutes){$names.=",'".$name."'";$rules[]="(command_name='".$name."' AND dispatched_at<DATE_SUB(NOW(),INTERVAL ".(int)$minutes." MINUTE))";}
     $sql="UPDATE ".arc_table('agent_commands')." SET status='failed',result_text='Tempo limite do agente',completed_at=NOW() WHERE ".$where." AND status='running' AND ((command_name NOT IN (".$names.") AND dispatched_at<DATE_SUB(NOW(),INTERVAL 4 MINUTE)) OR ".implode(' OR ',$rules)." OR (command_name='remote_assistance' AND created_at<DATE_SUB(NOW(),INTERVAL 30 MINUTE)))";
@@ -127,7 +127,7 @@ function arc_table(string $name): string
         'field_values', 'user_accounts', 'managed_networks', 'network_sessions', 'account_login_attempts', 'account_audit', 'pwa_installations',
         'user_preferences', 'network_user_preferences', 'network_agents', 'agent_download_keys', 'agent_telemetry', 'agent_commands', 'agent_terminal_jobs', 'file_browser_requests', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'agent_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations', 'network_access_profiles', 'billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers','support_schedules','support_schedule_runs','support_guest_codes','support_native_accounts','support_command_requests','support_schedule_managers','platform_release_history','platform_release_state','navigation_backup',
         'cloud_connections','cloud_backup_jobs','cloud_backup_status','cloud_backup_uploads','cloud_backup_folders',
-        'agent_removal_queue', 'agent_software_inventory', 'agent_clean_inventory', 'clean_history', 'clean_settings',
+        'agent_removal_queue', 'agent_rebind_requests', 'agent_software_inventory', 'agent_clean_inventory', 'clean_history', 'clean_settings', 'agent_command_errors',
     ];
     if (!in_array($name, $allowed, true)) {
         throw new InvalidArgumentException('Tabela não permitida.');
@@ -660,12 +660,12 @@ function arc_delete_network(PDO $pdo, int $networkId, int $accountId): bool
         $deleteForIds('support_schedule_runs','schedule_id',$scheduleIds);
         $deleteForIds('support_schedule_managers','schedule_id',$scheduleIds);
         $deleteForIds('support_guest_codes','agent_id',$agentIds);
-        foreach(['agent_terminal_jobs','file_browser_requests','support_file_transfers','support_remote_sessions'] as $table) $deleteForIds($table,'command_id',$commandIds);
+        foreach(['agent_terminal_jobs','file_browser_requests','support_file_transfers','support_remote_sessions','agent_command_errors'] as $table) $deleteForIds($table,'command_id',$commandIds);
         foreach(['samples','devices','alerts','preferences','field_values'] as $table) $deleteForIds($table,'session_id',$sessionIds);
         $deleteForIds('sessions','id',$sessionIds);
 
         // Only network-scoped tables (avoid user_accounts and audit logs shared with other networks).
-        $scoped=['support_file_transfers','support_remote_sessions','support_tickets','support_schedules','agent_terminal_jobs','file_browser_requests','agent_software_inventory','agent_clean_inventory','clean_history','clean_settings','agent_telemetry','network_device_inventory','network_geo_points','network_team_invitations','network_team_members','network_access_profiles','network_user_preferences','pwa_installations','agent_download_keys','agent_commands','network_sessions','network_agents'];
+        $scoped=['support_file_transfers','support_remote_sessions','support_tickets','support_schedules','agent_terminal_jobs','file_browser_requests','agent_command_errors','agent_software_inventory','agent_clean_inventory','clean_history','clean_settings','agent_telemetry','network_device_inventory','network_geo_points','network_team_invitations','network_team_members','network_access_profiles','network_user_preferences','pwa_installations','agent_download_keys','agent_rebind_requests','agent_commands','network_sessions','network_agents'];
         foreach($scoped as $logical){
             $table=arc_table($logical);
             if (!$hasCols($table,['network_id'])) continue;
@@ -1248,6 +1248,7 @@ function arc_base_url(): string
     $script = (string)(parse_url((string)($_SERVER['SCRIPT_NAME'] ?? '/'), PHP_URL_PATH) ?: '/');
     $base = rtrim(str_replace('\\', '/', dirname($script)), '/.');
     if (str_ends_with($base, '/pages')) $base = substr($base, 0, -6);
+    if (str_ends_with($base, '/admin')) $base = substr($base, 0, -6);
     if (str_ends_with($base, '/api')) $base = substr($base, 0, -4);
     if (str_ends_with($base, '/redes')) $base = substr($base, 0, -6);
     if (str_ends_with($base, '/pwa')) $base = substr($base, 0, -4);
@@ -1412,6 +1413,27 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+
+/** Catálogo compartilhado de identidade visual; a escolha é exclusiva da administração. */
+function arc_visual_themes(): array {
+    return [
+      'windows'=>['name'=>'Windows Fluent','light'=>true,'accent'=>'#2563eb','bg'=>'#edf3fa','surface'=>'#ffffff','alt'=>'#e3ebf5','text'=>'#172b44','muted'=>'#536982','border'=>'#d0ddea'],
+      'ocean'=>['name'=>'Digital Ocean','light'=>false,'accent'=>'#26bae9','bg'=>'#081c30','surface'=>'#112b44','alt'=>'#193851','text'=>'#e7f7ff','muted'=>'#a7c1d5','border'=>'#315169'],
+      'crystal'=>['name'=>'Crystal Light','light'=>true,'accent'=>'#6366f1','bg'=>'#f2f5fa','surface'=>'#ffffff','alt'=>'#e9edf7','text'=>'#222842','muted'=>'#64718c','border'=>'#dce2ee'],
+      'graphite'=>['name'=>'Graphite Pro','light'=>false,'accent'=>'#9aaee5','bg'=>'#16191f','surface'=>'#242a34','alt'=>'#303744','text'=>'#f1f4fa','muted'=>'#b0bbc9','border'=>'#485364'],
+      'neon'=>['name'=>'Neon Tech','light'=>false,'accent'=>'#a879ff','bg'=>'#110e27','surface'=>'#221a40','alt'=>'#302551','text'=>'#f5f0ff','muted'=>'#c5b4e3','border'=>'#534474'],
+      'emerald'=>['name'=>'Emerald Secure','light'=>false,'accent'=>'#32d4a1','bg'=>'#0b211d','surface'=>'#15352d','alt'=>'#20463a','text'=>'#e6fcf3','muted'=>'#acd5c5','border'=>'#386352'],
+    ];
+}
+function arc_visual_theme(PDO $pdo): array {
+    $themes=arc_visual_themes();
+    $id=arc_platform_setting($pdo,'platform_visual_theme','windows');
+    if(!isset($themes[$id]))$id='windows';
+    $v=$themes[$id];$v['id']=$id;
+    $mode=arc_platform_setting($pdo,'platform_visual_mode','theme');
+    $v['mode']=in_array($mode,['theme','light','dark','auto'],true)?$mode:'theme';
+    return $v;
+}
 
 /** Configurações administrativas sem gravar segredos em texto simples. */
 function arc_platform_setting(PDO $pdo, string $key, string $default = ''): string {

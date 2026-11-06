@@ -1,0 +1,42 @@
+GesTI 5.0.20 — sistema enviado e correcoes de presenca no boot
+
+IMPORTANTE: este pacote NAO atualiza automaticamente o cPanel nem os agentes.
+
+INSTALAR
+1. Faca uma copia dos arquivos atuais antes de instalar.
+2. Extraia o ZIP e envie os arquivos de runtime para as mesmas pastas no servidor.
+   Preserve includes/config.php, uploads e includes/storage; nao importe SQL de producao.
+3. Os caminhos de zero bytes listados ao final sao marcadores de EXCLUSAO MANUAL.
+   Nao os envie para sobrescrever arquivos existentes.
+4. Baixe novamente o agente vinculado no painel e instale no Windows.
+   Para implantacao sem interacao, execute INSTALAR_WINUI3.ps1 -Unattended por
+   ferramenta de TI com privilegios administrativos ja fornecidos.
+5. A conta online nao concede privilegios administrativos no Windows.
+   Sem privilegios, -Unattended encerra com codigo 5, sem abrir UAC.
+
+AUTORIZACAO ONLINE
+Modo sem monitor configurado + proprietario/administrador da rede aprovada dispensa
+consentimento local nas operacoes previstas pela plataforma. Mantidas as validacoes
+no servidor, o isolamento por rede/conta e a revogacao de permissoes.
+
+LIMITES
+O BootWorker informa presenca antes do login; comandos completos e acesso remoto
+WinUI ainda dependem de sessao Windows. Nao foi implementado um servico operacional
+completo nesta entrega. O instalador-base EXE foi preservado do pacote enviado;
+o WinUI e o worker sao compilados pelo instalador no Windows.
+
+TESTAR
+Execute VERIFICAR_PRELOGIN.ps1 como administrador. Reinicie sem fazer login e veja
+a presenca no painel por outro computador. Confira o horario no presence.log.
+Validacoes executadas: teste de versao, testes de atualizacao/energia com chamadas
+Windows simuladas, compilacao sintatica Python e integridade/datas do ZIP.
+A suite completa tem incompatibilidades dos testes de backup antigos com a API
+atual (authorize removido); teste de servidor HTTP local bloqueado pelo ambiente.
+WinUI, PowerShell, PHP e reinicializacao real nao foram executados neste Linux.
+Por isso a publicacao no GitHub fica em PR de rascunho para validacao antes do merge.
+
+DESFAZER
+Restaure a copia dos arquivos anteriores e sua VERSION. Reinstale a versao anterior
+do agente; a atualizacao do GitHub sozinha nao altera os computadores.
+Para desativar somente a presenca de boot: HABILITAR_PRELOGIN.ps1 -Disable como admin.
+Nao restaure banco ou credenciais a partir deste pacote.

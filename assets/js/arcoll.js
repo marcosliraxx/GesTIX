@@ -872,3 +872,25 @@ document.addEventListener('DOMContentLoaded', () => {
 (()=>{const openers=new WeakMap();document.addEventListener('click',event=>{const opener=event.target.closest('[data-open-dialog]');if(opener){const dialog=document.getElementById(opener.dataset.openDialog);if(dialog instanceof HTMLDialogElement){openers.set(dialog,opener);dialog.showModal();}return;}const closer=event.target.closest('[data-close-dialog]');if(closer)closer.closest('dialog')?.close();});document.querySelectorAll('dialog').forEach(dialog=>{dialog.addEventListener('close',()=>openers.get(dialog)?.focus({preventScroll:true}));dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();});});})();
 
 window.arcPlainMessage=(value)=>{const text=String(value??'');if(/SQLSTATE|Traceback|Uncaught|stack trace|Unexpected token|not valid JSON|JSON.parse|[{}].*"(?:error|status|payload)"/i.test(text))return 'Não foi possível concluir. Tente novamente em instantes.';return text.replace(/\bremote_assistance\b/g,'acesso remoto').replace(/\bagent_update\b/g,'atualização do aplicativo').replace(/\bheadless_mode\b/g,'acesso sem confirmação local');};
+
+
+/* Credenciais: alternância local de visibilidade para campos de senha e segredo. */
+(()=>{
+ 'use strict';
+ const selector='input[type="password"]';
+ function install(input){
+  if(input.dataset.arcRevealInstalled==='1' || input.closest('[data-arc-no-reveal]'))return;
+  input.dataset.arcRevealInstalled='1';
+  const wrapper=document.createElement('span');wrapper.className='arc-secret-control';
+  input.parentNode.insertBefore(wrapper,input);wrapper.appendChild(input);
+  const button=document.createElement('button');button.type='button';button.className='arc-secret-eye';
+  button.setAttribute('aria-label','Mostrar senha');button.setAttribute('aria-pressed','false');button.title='Mostrar ou ocultar';
+  const icon=document.createElement('i');icon.className='fa fa-eye';icon.setAttribute('aria-hidden','true');button.appendChild(icon);
+  button.addEventListener('click',()=>{const visible=input.type==='password';input.type=visible?'text':'password';button.setAttribute('aria-label',visible?'Ocultar senha':'Mostrar senha');button.setAttribute('aria-pressed',String(visible));icon.className=visible?'fa fa-eye-slash':'fa fa-eye';});
+  wrapper.appendChild(button);
+ }
+ function update(node=document){if(node.matches?.(selector))install(node);node.querySelectorAll?.(selector).forEach(install);}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>update());else update();
+ new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(n=>{if(n.nodeType===1)update(n);}))).observe(document.documentElement,{childList:true,subtree:true});
+ const css=document.createElement('style');css.textContent='.arc-secret-control{display:inline-flex;position:relative;align-items:center;width:100%;max-width:100%;min-width:0}.arc-secret-control>input{width:100%!important;min-width:0;padding-right:42px!important}.arc-secret-eye{position:absolute;right:5px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;opacity:.82;width:32px;height:32px;display:grid;place-items:center;cursor:pointer;z-index:2}.arc-secret-eye:hover{opacity:1}.arc-secret-eye:focus-visible{outline:2px solid currentColor;outline-offset:0}';document.head.appendChild(css);
+})();
