@@ -1,4 +1,4 @@
-# Caminho: tests/windows_boot_smoke.ps1
+﻿# Caminho: tests/windows_boot_smoke.ps1
 # Exclusivo do runner efemero do GitHub: nao executar em computadores de producao.
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or -not $env:RUNNER_TEMP) { throw 'Teste exclusivo do runner efemero do GitHub.' }
@@ -18,7 +18,11 @@ try {
     foreach ($pass in 1,2) {
         $result = Join-Path $folder ('result-' + $pass + '.json')
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $native 'HABILITAR_PRELOGIN.ps1') -AgentFolder $folder -LogPath (Join-Path $folder ('boot-' + $pass + '.log')) -ResultPath $result
-        if ($LASTEXITCODE -ne 0) { throw ('Instalacao do boot falhou: ' + (Get-Content $result -Raw)) }
+        if ($LASTEXITCODE -ne 0) {
+            & icacls.exe $target
+            & icacls.exe (Join-Path $target 'TIDigital.BootPresence.exe')
+            if (Test-Path (Join-Path $data 'presence.log')) { Get-Content (Join-Path $data 'presence.log') -Tail 15 }
+            throw ('Instalacao do boot falhou: ' + (Get-Content $result -Raw)) }
         $receipt = Get-Content $result -Raw | ConvertFrom-Json
         if (-not $receipt.ok -or (Get-ScheduledTask -TaskName $name).State -ne 'Running') { throw 'Worker nao ficou ativo' }
         $identity = Get-Content (Join-Path $data 'agent-config.json') -Raw | ConvertFrom-Json
@@ -29,5 +33,5 @@ try {
     Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
-    foreach ($dir in @($target,$data,$folder)) { if (Test-Path $dir) { Remove-Item -LiteralPath $dir -Recurse -Force } }
+    foreach ($dir in @($target,$data,$folder)) { if (Test-Path $dir) { Get-ChildItem -LiteralPath $dir -Recurse -File | ForEach-Object { $_.IsReadOnly = $false }; Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction Continue } }
 }

@@ -267,14 +267,33 @@ def _norm(path):
     return os.path.normcase(os.path.normpath(str(path)))
 
 
+def _policy_norm(path, pattern=False):
+    """Compara aliases 8.3/nomes longos sem transformar curingas relativos em caminhos fixos."""
+    text = _norm(path)
+    if pattern:
+        marks = [text.index(c) for c in ('*', '?', '[') if c in text]
+        if marks:
+            prefix = os.path.dirname(text[:min(marks)])
+            if not prefix or not os.path.isabs(prefix):
+                return text
+            try:
+                return _norm(os.path.realpath(prefix) + text[len(prefix):])
+            except OSError:
+                return text
+    try:
+        return _norm(os.path.realpath(text))
+    except OSError:
+        return text
+
+
 class Policy:
     """Exclusões definidas pelo cliente + proteções fixas do agente."""
 
     def __init__(self, exclusions=None):
-        self.exclusions = [_norm(p) for p in (exclusions or []) if isinstance(p, str) and p.strip()][:50]
+        self.exclusions = [_policy_norm(p, pattern=True) for p in (exclusions or []) if isinstance(p, str) and p.strip()][:50]
 
     def excluded(self, path):
-        key = _norm(path)
+        key = _policy_norm(path)
         return any(key == e or key.startswith(e + os.sep) or fnmatch.fnmatch(key, e) for e in self.exclusions)
 
 

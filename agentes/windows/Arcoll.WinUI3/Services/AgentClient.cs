@@ -16,10 +16,5 @@ public sealed class AgentClient : IDisposable
         return new AgentSnapshot(Environment.MachineName, net.Ip, net.Gateway, RuntimeInformation.OSDescription, AppInfo.Version, true);
     }, cancellationToken);
 
-    public Task<long?> PingAsync(string host) => NetworkEngine.PingAsync(host, 1200);
-    public Task<(string Name, IReadOnlyList<string> Ips, IReadOnlyList<string> Reverse)> DnsAsync(string name, CancellationToken cancellationToken) => NetworkEngine.DnsAsync(name, cancellationToken);
-    public Task<IReadOnlyList<OpenPort>> PortsAsync(string host, CancellationToken cancellationToken) => NetworkEngine.PortsAsync(host, cancellationToken);
-    public Task WakeOnLanAsync(string mac) => NetworkEngine.WakeOnLanAsync(mac);
-
     public void Dispose() { }
 }

@@ -1,0 +1,67 @@
+GesTI 5.0.22 — telas nativas do agente Windows
+
+ALTERACOES
+- Removidas as abas Ferramentas e Conexao, seus controles, atalhos locais e a
+  abertura da interface Python antiga. Operacoes remotas existentes da plataforma
+  foram preservadas; o diagnostico de conexao agora faz parte de Internet.
+- Velocidade agora se chama Internet. Um START mede download, upload, latencia,
+  perdas e consulta interface, IP publico, provedora, DNS, gateway e rota.
+  Envia os eventos speed_test e diagnostic para a plataforma na mesma execucao.
+- Programas abre no catalogo agrupado por categoria, com pesquisa, logos,
+  selecao manual de ate 20 itens e Instalar e Atualizar. A operacao tem dialogo
+  com estado por aplicativo e cancelamento do processo WinGet em andamento.
+- Clean tem navegacao nativa com as secoes da plataforma, incluindo Health
+  Check, Limpeza personalizada (Lixo/Navegador/Registro), Desinstalador,
+  Duplicados, Nuvem, Backup, Desempenho, Inicializacao, Atualizador, Drivers,
+  Disco, Restauracao, Windows Update e Configuracoes.
+- Clean usa o motor original distribuido pela propria plataforma, com os mesmos
+  limites, revalidacao de identificadores, backups do registro e protecoes de
+  arquivos. Nao executa pagina web dentro do agente.
+- Exclusoes reconhecem aliases curtos 8.3 e nomes longos do mesmo caminho no
+  Windows, preservando os curingas relativos e absolutos.
+- Exclusoes e pastas personalizadas sao compartilhadas com a plataforma e
+  reconsultadas antes de analisar/limpar; mudar a selecao exige nova analise.
+- Corrigidos os atributos somente leitura e a heranca de ACL dos binarios de
+  boot; codigo permite leitura/execucao, escrita somente por SYSTEM/admins.
+- Restaurado redes/_clean_ui_backup.php, necessario ao include da tela online.
+
+DEPENDENCIAS E LIMITES
+Na primeira operacao do Clean o agente prepara automaticamente o Python
+embarcado oficial 3.12.10, em pasta do usuario, sem abrir UAC. Precisa de acesso
+HTTPS a python.org; o executavel deve ter assinatura valida da Python Software
+Foundation. Se a rede impedir, a falha e exibida; nao bloqueia a instalacao do
+agente nem inventa um resultado de limpeza.
+A configuracao da conta/provedor e das pastas do Backup em Nuvem continua na
+plataforma pelo login oficial no navegador. O painel nativo consulta esse mesmo
+estado e permite executar o backup configurado. Esta entrega nao cria um novo
+servico de backup agendado antes do login.
+Permissoes exigidas pelo proprio Windows ou por instaladores oficiais continuam
+validas. A presenca de boot mantem o funcionamento corrigido em 5.0.21.
+Layout nativo usa os nomes, grupos, selecoes e fluxos da plataforma; nao e uma
+renderizacao pixel a pixel do HTML/CSS do navegador.
+
+APLICAR NO CPANEL
+1. Faca uma copia dos arquivos atuais antes de substituir.
+2. Envie somente os arquivos deste ZIP nas mesmas pastas. Preserve config.php,
+   uploads e includes/storage. Nao e necessario executar SQL.
+3. O caminho agentes/windows/Arcoll.WinUI3/Services/CleanService.cs e um marcador
+   de EXCLUSAO MANUAL com zero bytes: remova o arquivo antigo no servidor; nao
+   envie o marcador para sobrescrever. As instrucoes finais listam os caminhos.
+4. No painel, atualize o agente para 5.0.22. Atualizar apenas o cPanel nao troca
+   o programa instalado no Windows. Um agente parado exige novo instalador.
+
+CONFERIR
+Confira as abas do agente; execute START e veja velocidade e conexao. Em Clean,
+analisar nao exclui arquivos; revise a selecao e confirme antes de limpar.
+Em Programas selecione poucos itens, confira os resultados individuais e teste
+cancelamento. Alterne os temas claro/escuro/automatico e reduza a janela para
+conferir o menu compacto e grupos do catalogo.
+Os testes do motor usam somente arquivos sinteticos em diretorios temporarios.
+A compilacao WinUI, a sintaxe PHP, os testes de versao e a instalacao/reinstalacao
+da tarefa SYSTEM passaram no Windows/GitHub Actions. O teste em runner nao
+substitui conferir a interface e reiniciar o seu proprio servidor.
+
+DESFAZER
+Restaure a copia dos arquivos 5.0.21, inclusive VERSION e o CleanService.cs
+anterior. Reinstale o agente anterior pelo seu pacote guardado se necessario.
+Nao restaure banco nem credenciais. VERSION e o caminho sem formato de comentario.

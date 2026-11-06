@@ -7,5 +7,5 @@ public sealed record OpenPort(int Port, string Service);
 
 public static class AppInfo
 {
-    public static string Version => typeof(AppInfo).Assembly.GetName().Version?.ToString(3) ?? "5.0.21";
+    public static string Version => typeof(AppInfo).Assembly.GetName().Version?.ToString(3) ?? "5.0.22";
 }
