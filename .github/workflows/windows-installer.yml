@@ -1,0 +1,31 @@
+# Caminho: .github/workflows/windows-installer.yml
+name: Validar instalador Windows
+on:
+  push:
+    paths:
+      - 'agentes/windows/Arcoll.WinUI3/**'
+      - 'tests/windows_*.ps1'
+      - '.github/workflows/windows-installer.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  installer:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Sintaxe e politica de instalacao sem interacao
+        shell: powershell
+        run: .\tests\windows_installer_policy.ps1
+      - name: Compilar WinUI com runtime incluido
+        shell: powershell
+        run: |
+          dotnet publish agentes/windows/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishReadyToRun=false -p:PublishTrimmed=false -o "$env:RUNNER_TEMP\winui-publish"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Instalar e reinstalar tarefa real SYSTEM no runner
+        shell: powershell
+        run: .\tests\windows_boot_smoke.ps1

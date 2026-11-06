@@ -1,6 +1,6 @@
 # Inicialização antes do login — correção
 
-O instalador INSTALAR_WINUI3.ps1 agora solicita a autorização administrativa do Windows (UAC) para instalar a tarefa de boot. Aceite essa autorização. A instalação não informa sucesso se essa etapa falhar. A interface continua instalada no perfil original.
+O instalador INSTALAR_WINUI3.ps1 agora solicita a autorização administrativa do Windows (UAC) para instalar a tarefa de boot. Aceite essa autorização. Na versão 5.0.21, uma falha nessa etapa gera pendência explícita e diagnóstico próprio, sem desfazer o aplicativo. Atualizações normais e forçadas sem elevação não abrem UAC; preservam o componente de boot anterior e informam que sua configuração precisa de implantação administrativa. A interface continua instalada no perfil original.
 
 O componente TIDigital.BootPresence.exe é publicado com o runtime .NET incluído, copiado para Program Files com acesso restrito e executado por SYSTEM no evento de inicialização do Windows. Não depende de usuário conectado. A tarefa permite bateria, não tem limite de duração e reinicia em falhas.
 
@@ -17,6 +17,6 @@ Também foram corrigidos o fingerprint ausente no pacote inicial e a resolução
 
 Antes do login, este componente informa presença na plataforma para um agente previamente aprovado. A interface WinUI, captura da tela e os comandos completos continuam dependendo da sessão do Windows. Esta correção não converte a interface em um serviço nem implementa essas operações antes do login.
 
-Os arquivos enviados são fontes e scripts atualizados; não há novo executável Windows pré-compilado. Foram verificadas a estrutura do pacote e as alterações nos scripts. A compilação WinUI e o teste real de reinicialização precisam ser realizados no Windows; não foram executados no ambiente Linux usado nesta entrega.
+Os arquivos enviados são fontes e scripts atualizados; não há novo executável Windows pré-compilado. A validação automatizada Windows está em .github/workflows/windows-installer.yml; consulte seu resultado no GitHub Actions. Foram verificadas a estrutura do pacote e as alterações nos scripts. A compilação WinUI e o teste real de reinicialização precisam ser realizados no Windows; não foram executados no ambiente Linux usado nesta entrega.
 
 Para desativar a tarefa, execute HABILITAR_PRELOGIN.ps1 -Disable como administrador.

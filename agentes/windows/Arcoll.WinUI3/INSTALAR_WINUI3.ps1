@@ -25,6 +25,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $publish = $null
 $swapped = $false
 $previous = $null
+$bootStatus = $null
 $destination = Join-Path $env:LOCALAPPDATA 'TI-Digital\WinUI3'
 $appName = 'Arcoll.WinUI3.exe'
 function Step([int]$Percent,[string]$Message) {
@@ -77,7 +78,7 @@ try {
     }
     if ([Environment]::OSVersion.Version.Build -lt 19041) { throw 'Necessario Windows 10 2004 (build 19041) ou superior.' }
     $project = Join-Path $root 'Arcoll.WinUI3.csproj'
-    $required = @('App.xaml', 'MainWindow.xaml', 'app.manifest'); if (-not $Update) { $required += 'agent-config.json' }
+    $required = @('App.xaml', 'MainWindow.xaml', 'app.manifest', 'PreLogin-Setup.ps1'); if (-not $Update) { $required += 'agent-config.json' }
     foreach ($file in $required) {
         if (-not (Test-Path -LiteralPath (Join-Path $root $file))) { throw "Arquivo ausente: $file" }
     }
@@ -111,7 +112,7 @@ try {
         }
     }
     Step 45 'SDK .NET 8 disponivel.'
-    if ($ForceRebuild) { foreach ($d in 'bin','obj') { $path = Join-Path $root $d; if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue } } }
+    if ($ForceRebuild) { foreach ($d in 'bin','obj','BootWorker\bin','BootWorker\obj') { $path = Join-Path $root $d; if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue } } }
     $arch = if ([Environment]::Is64BitOperatingSystem) { 'win-x64' } else { '' }
     if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { $arch = 'win-arm64' }
     if (-not $arch) { throw 'Windows de 32 bits nao suportado.' }
@@ -189,6 +190,7 @@ try {
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $bootPublish 'TIDigital.BootPresence.exe'))) {
             throw 'Falha na compilacao do worker de inicializacao antes do login.'
         }
+        Copy-Item -LiteralPath (Join-Path $root 'PreLogin-Setup.ps1') -Destination (Join-Path $publish 'PreLogin-Setup.ps1') -Force
         Copy-Item -LiteralPath (Join-Path $root 'HABILITAR_PRELOGIN.ps1') -Destination (Join-Path $publish 'HABILITAR_PRELOGIN.ps1') -Force
         Copy-Item -Path $bootPublish -Destination (Join-Path $publish 'BootWorker') -Recurse -Force
     } finally {
@@ -254,7 +256,7 @@ try {
         New-ItemProperty -Path $runKey -Name 'TIDigitalAgente' -Value ('"' + $target + '" --background') -PropertyType String -Force | Out-Null
     }
     # Eleva somente a instalacao do componente de boot; preserva o perfil da interface.
-    Step 98 'Habilitando inicializacao antes do login (autorizacao do Windows)...'
+    Step 98 'Verificando componente de presenca antes do login...'
     # Resolve a configuracao ainda no perfil original, antes de eventual UAC
     # com credenciais de outro administrador (mesma prioridade de AgentConfig.Load).
     $effectiveConfig = @{}
@@ -269,19 +271,12 @@ try {
         } catch { Write-Warning ('Configuracao ignorada: ' + $cfgPath) }
     }
     [IO.File]::WriteAllText((Join-Path $destination 'agent-config.json'), ($effectiveConfig | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
-    $bootScript = Join-Path $destination 'HABILITAR_PRELOGIN.ps1'
+    . (Join-Path $root 'PreLogin-Setup.ps1')
     $elevated = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    $bootArgs = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $bootScript + '" -AgentFolder "' + $destination + '"'
-    if ($elevated) {
-        & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $bootScript -AgentFolder $destination
-        if ($LASTEXITCODE -ne 0) { throw 'Falha ao configurar inicializacao antes do login. Consulte o log do boot.' }
-    } else {
-        if ($Unattended) { throw 'Contexto administrativo indisponivel; implantacao interrompida sem abrir UAC.' }
-        try {
-            $bootInstall = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList $bootArgs -Verb RunAs -Wait -PassThru
-        } catch { throw ('A inicializacao antes do login exige autorizacao administrativa do Windows. Execute novamente e aceite o UAC. ' + $_.Exception.Message) }
-        if ($bootInstall.ExitCode -ne 0) { throw 'Inicializacao antes do login nao instalada; execute HABILITAR_PRELOGIN.ps1 como administrador para reparar.' }
-    }
+    $bootStatus = Invoke-PreLoginSetup -AgentFolder $destination -LogFolder $logs -Update $Update.IsPresent -Unattended $Unattended.IsPresent -Elevated $elevated
+    [IO.File]::WriteAllText((Join-Path $env:LOCALAPPDATA 'TI-Digital\boot-status.json'), ($bootStatus | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+    if ($bootStatus.pending) { Write-Host ('BOOT-PENDING: ' + $bootStatus.message) -ForegroundColor Yellow }
+    else { Write-Host $bootStatus.message }
     Step 99 'Iniciando o agente...'
     $readyPath = Join-Path $env:LOCALAPPDATA 'TI-Digital\native-ready.json'
     if ($Update -and (Test-Path -LiteralPath $readyPath)) { Remove-Item -LiteralPath $readyPath -Force -ErrorAction SilentlyContinue }
@@ -320,7 +315,9 @@ try {
         }
         if (-not $verified) { throw 'O novo agente nao confirmou autorizacao e versao na plataforma em 50 segundos. Revertendo a instalacao.' }
     }
-    Write-UpdateResult $true 'Versao e autorizacao confirmadas pela plataforma; agente atualizado.'
+    $successMessage = 'Versao e autorizacao confirmadas pela plataforma; agente atualizado.'
+    if ($bootStatus -and $bootStatus.pending) { $successMessage += ' AVISO: ' + $bootStatus.message }
+    Write-UpdateResult $true $successMessage
     Write-Host "Instalado em $destination" -ForegroundColor Green
     Step 100 'Instalacao finalizada.'
 } catch {

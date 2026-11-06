@@ -163,6 +163,8 @@ try {
         if ($st!=='online' && $st!=='offline') arc_json(['ok'=>false,'error'=>'Estado inválido'],400);
         $reportedVersion=trim((string)($v['version']??''));
         if ($reportedVersion!=='' && !preg_match('/^\d+\.\d+\.\d+(?:[-.][A-Za-z0-9]+)?$/D',$reportedVersion)) arc_json(['ok'=>false,'error'=>'Versão inválida'],422);
+        // A presenca do worker protegido nao substitui a versao do aplicativo atualizado.
+        if (($v['mode']??'')==='boot_presence') $reportedVersion='';
         if ($st==='offline') {
             $pdo->prepare('UPDATE '.arc_table('network_agents')." SET last_seen_at='2000-01-01 00:00:00' WHERE id=?")->execute([(int)$id]);
         } else {

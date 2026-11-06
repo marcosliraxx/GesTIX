@@ -1,4 +1,4 @@
-# Caminho: agentes/windows/Arcoll.WinUI3/INSTALADOR_VISUAL_WINUI3.ps1
+﻿# Caminho: agentes/windows/Arcoll.WinUI3/INSTALADOR_VISUAL_WINUI3.ps1
 # Instalador grafico WinForms acionado pelo BAT: barra de progresso em porcentagem, atalhos e execucao em segundo plano.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -165,7 +165,12 @@ $timer.Add_Tick({
        $bar.Value = 100
        $pct.Text = '100%'
        $status.Text = 'Instalacao concluida. O agente esta em execucao em segundo plano.'
-       $steps.Text = 'Atalho criado na Area de Trabalho e no Menu Iniciar. O agente inicia com o Windows.'
+       $steps.Text = 'Atalhos criados. A interface inicia ao entrar no Windows.'
+       $bootPending = @(Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Where-Object { $_ -match '^BOOT-PENDING:' } | Select-Object -Last 1)
+       if ($bootPending.Count) {
+           $status.Text = 'Agente instalado. Inicializacao antes do login pendente.'
+           $steps.Text = [string]$bootPending[0]
+       }
      } else {
        $pct.Text = ([int]$bar.Value).ToString() + '%'
        $status.Text = 'Nao foi possivel concluir a instalacao.'
