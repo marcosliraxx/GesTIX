@@ -205,7 +205,7 @@ public sealed partial class MainWindow : Window
     private async void GateRetry_Click(object sender,RoutedEventArgs e){await _runtime.RecheckAsync();GateText.Text=_runtime.StateNotice+"\n\nNova verificação solicitada…\nRegistro: "+RuntimeLog.PathName;}
     private async Task<bool> ConfirmAsync(string title,string message,string primary)
     {
-        var dialog=new ContentDialog{Title=title,Content=new TextBlock{Text=message,TextWrapping=TextWrapping.Wrap},PrimaryButtonText=primary,CloseButtonText="Cancelar",DefaultButton=ContentDialogButton.Close,XamlRoot=Content.XamlRoot};
+        var dialog=new ContentDialog{Title=title,Content=new ScrollViewer{MaxHeight=420,Content=new TextBlock{Text=message,TextWrapping=TextWrapping.Wrap}},PrimaryButtonText=primary,CloseButtonText="Cancelar",DefaultButton=ContentDialogButton.Close,XamlRoot=Content.XamlRoot};
         return await dialog.ShowAsync()==ContentDialogResult.Primary;
     }
 }

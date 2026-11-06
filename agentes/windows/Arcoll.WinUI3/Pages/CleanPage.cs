@@ -143,7 +143,7 @@ public sealed class CleanPage : UserControl
         {
             var progress = new Progress<string>(message => _status.Text = message);
             var report = await CleanEngine.RunAsync(mode, payload, _runtime.Platform.Config, progress, _operation.Token);
-            _reports[key] = report;
+            _reports[key] = report; _items.Clear();
             if (mode == "scan") _scanSignature = JsonSerializer.Serialize(payload);
             else if (mode == "execute") _scanSignature = "";
             _status.Text = "Operação concluída.";

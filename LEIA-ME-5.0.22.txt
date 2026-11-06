@@ -19,6 +19,8 @@ ALTERACOES
   arquivos. Nao executa pagina web dentro do agente.
 - Exclusoes e pastas personalizadas sao compartilhadas com a plataforma e
   reconsultadas antes de analisar/limpar; mudar a selecao exige nova analise.
+- Corrigidos os atributos somente leitura e a heranca de ACL dos binarios de
+  boot; codigo permite leitura/execucao, escrita somente por SYSTEM/admins.
 - Restaurado redes/_clean_ui_backup.php, necessario ao include da tela online.
 
 DEPENDENCIAS E LIMITES

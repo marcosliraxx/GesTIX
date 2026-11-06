@@ -18,7 +18,7 @@ public sealed class SpeedPage : UserControl
     private double _progress; private string _caption = "", _live = "";
     private readonly StackPanel _root = new() { Spacing = 16, HorizontalAlignment = HorizontalAlignment.Stretch };
 
-    public SpeedPage(AgentRuntime runtime) { _runtime = runtime; Content = _root; Render(); }
+    public SpeedPage(AgentRuntime runtime) { _runtime = runtime; Content = _root; SizeChanged += (_, e) => { if (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) > 1) Render(); }; Render(); }
 
     public void ApplyPalette(Palette p) { _p = p; Render(); }
 
@@ -57,7 +57,7 @@ public sealed class SpeedPage : UserControl
         var launch = new StackPanel { Spacing = 10, HorizontalAlignment = HorizontalAlignment.Center };
         launch.Children.Add(start);
         launch.Children.Add(new TextBlock { Text = _caption, Foreground = _p.Muted, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center });
-        if (_running) launch.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = _progress, Width = 300, Foreground = _p.Accent });
+        if (_running) launch.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = _progress, Width = Math.Max(180, Math.Min(300, ActualWidth - 40)), Foreground = _p.Accent });
         _root.Children.Add(Ui.Card(launch, _p, 22));
 
         var head = new Grid(); head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -66,7 +66,11 @@ public sealed class SpeedPage : UserControl
         repeat.Click += async (_, _) => await StartAsync(); Grid.SetColumn(repeat, 1); head.Children.Add(repeat);
 
         var grid = new Grid { ColumnSpacing = 10 };
-        for (var i = 0; i < 4; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var columns = ActualWidth < 680 ? 2 : 4;
+        for (var i = 0; i < columns; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        if (columns == 2) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowSpacing = 10;
         var r = _last?.Result;
         var cards = new[]
         {
@@ -78,7 +82,7 @@ public sealed class SpeedPage : UserControl
         {
             var s = new StackPanel { Spacing = 4 };
             s.Children.Add(Ui.Label(cards[i].Item1, _p.Muted, 10, true)); s.Children.Add(Ui.Label(cards[i].Item2, _p.Text, 24, true)); s.Children.Add(Ui.Label(cards[i].Item3, _p.Muted, 11));
-            var card = Ui.Card(s, _p, 14); Grid.SetColumn(card, i); grid.Children.Add(card);
+            var card = Ui.Card(s, _p, 14); Grid.SetColumn(card, i % columns); Grid.SetRow(card, i / columns); grid.Children.Add(card);
         }
         var note = Ui.Label(_last is null ? "Aguardando dados reais do agente." : $"Medido em {_last.At:dd/MM/yyyy HH:mm} · {_last.Result.Server}. A velocidade de enlace dos adaptadores não equivale à velocidade contratada.", _p.Muted, 12, false, true);
         var box = new StackPanel { Spacing = 12 }; box.Children.Add(head); box.Children.Add(grid); box.Children.Add(note);

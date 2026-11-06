@@ -60,7 +60,12 @@ New-Item -ItemType Directory -Path $stage -Force | Out-Null
 try {
     Copy-Item -Path (Join-Path $sourceWorker '*') -Destination $stage -Recurse -Force -ErrorAction Stop
     if (-not (Test-Path -LiteralPath (Join-Path $stage 'TIDigital.BootPresence.exe'))) { throw 'Executavel nao copiado.' }
-    & icacls.exe $stage /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' /T /Q | Out-Null
+    # O publish self-contained reutiliza DLLs somente leitura do cache NuGet.
+    # Codigo pode ser lido/executado pelos usuarios; somente SYSTEM/admins gravam.
+    Get-ChildItem -LiteralPath $stage -Recurse -File | ForEach-Object { $_.IsReadOnly = $false }
+    & icacls.exe $stage /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao proteger pasta de executaveis do boot.' }
+    & icacls.exe (Join-Path $stage '*') /reset /T /Q | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao proteger executaveis do boot.' }
     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     if ($task) { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue }
@@ -78,7 +83,7 @@ try {
     $exe = Join-Path $targetDir 'TIDigital.BootPresence.exe'
     $action = New-ScheduledTaskAction -Execute $exe -WorkingDirectory $targetDir
     $trigger = New-ScheduledTaskTrigger -AtStartup
-    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
     $taskRegistered = $true
@@ -94,7 +99,7 @@ try {
     if ((Get-ScheduledTask -TaskName $taskName).State -ne 'Running') { throw ('Worker de boot nao permaneceu em execucao. Resultado: ' + $info.LastTaskResult + '. Consulte ' + (Join-Path $dataDir 'presence.log')) }
     Write-Host ('Inicializacao antes do login instalada. Estado: ' + (Get-ScheduledTask -TaskName $taskName).State + '; ultimo resultado: ' + $info.LastTaskResult)
     Write-Host 'O boot worker informa presenca; a interface WinUI e os comandos completos exigem a sessao Windows.'
-    if (Test-Path -LiteralPath $previousTarget) { Remove-Item -LiteralPath $previousTarget -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $previousTarget) { Get-ChildItem -LiteralPath $previousTarget -Recurse -File | ForEach-Object { $_.IsReadOnly = $false }; Remove-Item -LiteralPath $previousTarget -Recurse -Force -ErrorAction SilentlyContinue }
 } catch {
     $originalFailure = $_
     try {

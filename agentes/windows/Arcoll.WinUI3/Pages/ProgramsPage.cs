@@ -60,6 +60,7 @@ public sealed class ProgramsPage : UserControl
         SizeChanged += (_, e) =>
         {
             var compact = e.NewSize.Width < 680;
+            controls.ColumnDefinitions[1].Width = new GridLength(compact || _inventoryMode ? 0 : 220);
             controls.RowDefinitions.Clear(); controls.RowDefinitions.Add(new()); controls.RowDefinitions.Add(new() { Height = GridLength.Auto });
             Grid.SetColumnSpan(_search, compact ? 3 : 1); Grid.SetColumn(_category, compact ? 0 : 1); Grid.SetRow(_category, compact ? 1 : 0);
             Grid.SetRow(action, compact ? 1 : 0); Render();
