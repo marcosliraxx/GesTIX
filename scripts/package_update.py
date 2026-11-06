@@ -12,7 +12,7 @@ ROOT=Path(__file__).resolve().parents[1]
 RETIRED_PATHS=['support/Instalar_Suporte.cmd','redes/ferramentas.php','_manifest.json','api/network-report.php','redes/_relatorio_modal.php','assets/css/appearance.css','assets/css/arcoll-modern.css','assets/css/mobile-app.css','assets/css/network-agent-states.css','assets/css/panel.css','assets/css/platform-mobile.css','assets/js/appearance.js','assets/js/arcoll-modern.js','assets/js/network-agent-states.js','assets/js/panel.js','pwa/legacy-dashboard.html']
 def git(*args):return subprocess.check_output(['git',*args],cwd=ROOT)
 def allowed(name):
-    if name in {'README.md','AGENTS.md','.gitignore','includes/config.php','_manifest.json','error_log','LEIA-ME-ATUALIZACAO.txt'} or name.startswith(('docs/','tests/','scripts/','pacotes/','uploads/','includes/storage/','_sql/')):return False
+    if name in {'README.md','AGENTS.md','.gitignore','includes/config.php','_manifest.json','error_log','LEIA-ME-ATUALIZACAO.txt'} or name.startswith(('.github/','docs/','tests/','scripts/','pacotes/','uploads/','includes/storage/','_sql/')):return False
     if Path(name).name in {'agent-config.json','agent.json','appearance.json','error_log','.gitkeep'} or name.endswith(('.zip','.log','.pyc')):return False
     if name.endswith('.sql'):return name=='database/schema.sql' or name.startswith('database/migrations/')
     return True
@@ -46,7 +46,6 @@ def main():
     else:
         changed=set(git('diff','--name-only',base,'HEAD').decode().splitlines())
         removed={n for n in git('diff','--name-only','--diff-filter=D',base,'HEAD').decode().splitlines() if allowed(n)}
-        removed.update(RETIRED_PATHS)
         files={n for n in changed if allowed(n) and (ROOT/n).is_file()};files.add('VERSION')
     if files&removed:raise SystemExit('Runtime file conflicts with deletion marker')
     for name in files:

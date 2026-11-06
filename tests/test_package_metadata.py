@@ -22,7 +22,7 @@ class PackageMetadataTests(unittest.TestCase):
                 self.assertEqual(struct.unpack('<HHBI',info.extra),(0x5455,5,1,int(stamp.timestamp())))
                 self.assertEqual((info.external_attr>>16)&0o777,0o644);self.assertEqual(archive.read(info),b'fixture')
     def test_private_config_data_logs_and_backup_manifest_are_excluded(self):
-        for path in ['includes/config.php','uploads/logo.png','includes/storage/transfers/file','_sql/production.sql','api/error_log','pages/error_log','_manifest.json','agent/agent-config.json']:
+        for path in ['.github/workflows/windows-installer.yml','tests/windows_boot_smoke.ps1','includes/config.php','uploads/logo.png','includes/storage/transfers/file','_sql/production.sql','api/error_log','pages/error_log','_manifest.json','agent/agent-config.json']:
             self.assertFalse(package.allowed(path),path)
     def test_canonical_migration_and_source_remain_distributable(self):
         self.assertTrue(package.allowed('database/migrations/3.3.0.sql'));self.assertTrue(package.allowed('redes/ferramentas.php'))
