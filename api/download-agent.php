@@ -79,6 +79,18 @@ try {
         require_once dirname(__DIR__) . '/includes/network-clean.php';
         $zipNative->addFromString('Arcoll.WinUI3/Assets/system.ico', arc_support_icon($pdo, 'agent'));
         $zipNative->addFromString('Arcoll.WinUI3/Assets/program-catalog.json', json_encode(arc_program_install_catalog(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+        $zipNative->addFromString('Arcoll.WinUI3/Assets/clean-catalog.json', json_encode([
+            'catalog'=>arc_clean_catalog(), 'registry'=>arc_clean_registry_checks(), 'health'=>arc_clean_health_sets(),
+            'tabs'=>arc_clean_tabs(), 'ages'=>arc_clean_age_options()
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+        foreach (['arcoll_clean.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py'] as $engineFile) {
+            $enginePath=dirname(__DIR__).'/agentes/windows/'.$engineFile;
+            if (!is_file($enginePath)) throw new RuntimeException('Motor Clean incompleto: '.$engineFile);
+            $zipNative->addFile($enginePath,'Arcoll.WinUI3/Assets/clean-engine/'.$engineFile);
+        }
+        $zipNative->addFile($nativeRoot.'/Worker/clean_worker.py','Arcoll.WinUI3/Assets/clean-engine/clean_worker.py');
+        $zipNative->addFromString('Arcoll.WinUI3/Assets/clean-engine/VERSION',arc_app_version());
+
         // Logos dos programas (mesmos PNG da plataforma): o catálogo do agente funciona sem internet.
         // Assets\** é copiado para a pasta de instalação pelo .csproj.
         foreach (glob(dirname(__DIR__) . '/assets/program-logos/*.png') ?: [] as $logo) {

@@ -1,6 +1,7 @@
 # Caminho: .github/workflows/windows-installer.yml
 name: Validar instalador Windows
 on:
+  pull_request:
   push:
     paths:
       - 'agentes/windows/Arcoll.WinUI3/**'
@@ -29,3 +30,19 @@ jobs:
       - name: Instalar e reinstalar tarefa real SYSTEM no runner
         shell: powershell
         run: .\tests\windows_boot_smoke.ps1
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Testar motor Clean e contratos de release
+        run: |
+          python tests/test_native_clean_worker.py
+          python tests/test_release_version.py
+          python tests/test_package_metadata.py
+          php -l api/api.php
+          php -l api/download-agent.php
+          php -l redes/_clean_ui_backup.php

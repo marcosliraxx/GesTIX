@@ -411,9 +411,9 @@ try {
         arc_json(['ok'=>true,'cancelled'=>$q->rowCount()>0]);
     }
     /* Canal de comandos: ações limitadas, agente aprovado, token da instalação. */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-command-authorize','agent-remote-authorize','agent-file-transfer','agent-file-browser-result','agent-support-code','agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-program-local-inventory','agent-devices','agent-device-save'],true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-command-authorize','agent-remote-authorize','agent-file-transfer','agent-file-browser-result','agent-support-code','agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-clean-local-settings','agent-program-local-inventory','agent-devices','agent-device-save'],true)) {
         $raw = file_get_contents('php://input');
-        if (!is_string($raw) || strlen($raw)>(in_array($action,['agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-program-local-inventory'],true)?6000000:($action==='agent-file-browser-result'?90000:($action==='agent-command-poll'?32768:($action==='agent-command-ack'?16384:8192))))) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
+        if (!is_string($raw) || strlen($raw)>(in_array($action,['agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-clean-local-settings','agent-program-local-inventory'],true)?6000000:($action==='agent-file-browser-result'?90000:($action==='agent-command-poll'?32768:($action==='agent-command-ack'?16384:8192))))) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
         $body=json_decode($raw,true);
         if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
         try {$agent=arc_agent_authenticate($pdo,$body);} catch (RuntimeException $e) {if($e->getCode()===403)arc_json(['ok'=>false,'error'=>'Agente sem autorização'],403);throw $e;}
@@ -458,6 +458,14 @@ try {
         }
         /* Execuções feitas na própria tela do agente (abas Clean/Programas do Windows): mesmo saneamento das execuções remotas,
            sem comando pendente. O resultado fica disponível na plataforma (sincronia nos dois sentidos). */
+        if($action==='agent-clean-local-settings'){
+            $acc=(int)$agent['account_id'];$net=(int)$agent['network_id'];
+            if(!empty($body['save'])){
+                try{$settings=arc_clean_validate_settings($body);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+                arc_clean_settings_save($pdo,$agentId,$net,$acc,$settings);
+            }
+            arc_json(['ok'=>true,'settings'=>arc_clean_settings_get($pdo,$agentId,$net,$acc)]);
+        }
         if($action==='agent-clean-local-result'){
             $report=$body['report']??null;if(!is_array($report))arc_json(['ok'=>false,'error'=>'Relatório inválido'],422);
             $mode=(string)($body['mode']??'tool');

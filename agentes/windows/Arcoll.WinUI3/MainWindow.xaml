@@ -19,11 +19,9 @@
     <NavigationView.MenuItems>
       <NavigationViewItem Content="Servidor" Icon="Home" Tag="server"/>
       <NavigationViewItem Content="Monitoramento" Icon="View" Tag="monitor"/>
-      <NavigationViewItem Content="Velocidade" Icon="World" Tag="speed"/>
+      <NavigationViewItem Content="Internet" Icon="World" Tag="speed"/>
       <NavigationViewItem Content="Dispositivos" Icon="AllApps" Tag="devices"/>
-      <NavigationViewItem Content="Ferramentas" Icon="Repair" Tag="tools"/>
       <NavigationViewItem Content="Mapa" Icon="Map" Tag="map"/>
-      <NavigationViewItem Content="Conexão" Icon="Link" Tag="connection"/>
       <NavigationViewItem Content="Clean" Icon="Delete" Tag="clean"/>
       <NavigationViewItem Content="Windows Update" Icon="Refresh" Tag="windows_update"/>
       <NavigationViewItem Content="Programas" Icon="Library" Tag="programs"/>
@@ -37,40 +35,9 @@
        <Button Grid.Column="1" Content="Atualizar" Click="RefreshButton_Click" VerticalAlignment="Center"/>
       </Grid>
       <ContentControl x:Name="PageHost" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" Visibility="Collapsed"/>
-      <StackPanel x:Name="ServerPanel" Spacing="12">
-       <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-        <Border x:Name="MachineCard" Grid.Column="0" CornerRadius="14" BorderThickness="1" Padding="16"><StackPanel Spacing="9"><TextBlock Text="Computador" Opacity="0.8"/><TextBlock x:Name="MachineValue" Text="—" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/></StackPanel></Border>
-        <Border x:Name="NetworkCard" Grid.Column="1" CornerRadius="14" BorderThickness="1" Padding="16"><StackPanel Spacing="9"><TextBlock Text="Endereço IP" Opacity="0.8"/><TextBlock x:Name="IpValue" Text="—" FontSize="18" FontWeight="SemiBold"/></StackPanel></Border>
-        <Border x:Name="GatewayCard" Grid.Column="2" CornerRadius="14" BorderThickness="1" Padding="16"><StackPanel Spacing="9"><TextBlock Text="Gateway" Opacity="0.8"/><TextBlock x:Name="GatewayValue" Text="—" FontSize="18" FontWeight="SemiBold"/></StackPanel></Border>
-       </Grid>
-      </StackPanel>
       <Border x:Name="DetailCard" Padding="18" CornerRadius="14" BorderThickness="1"><StackPanel Spacing="12">
-        <TextBlock x:Name="DetailHeading" Text="Estado" FontSize="17" FontWeight="SemiBold"/>
-        <TextBlock x:Name="DetailText" Text="Verificando..." TextWrapping="Wrap"/>
-        <StackPanel x:Name="NativePanel" Spacing="10" Visibility="Collapsed">
-          <TextBox x:Name="InventoryFilter" PlaceholderText="Pesquisar itens" TextChanged="InventoryFilter_TextChanged"/>
-          <TextBlock x:Name="InventoryCount" Text="0 registros" Opacity="0.7"/>
-          <ListView x:Name="InventoryList" MaxHeight="480" SelectionMode="None"><ListView.ItemTemplate><DataTemplate ><StackPanel Padding="6" Spacing="3"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.7"/></StackPanel></DataTemplate></ListView.ItemTemplate></ListView>
-        </StackPanel>
-        <StackPanel x:Name="ToolsPanel" Spacing="10" Visibility="Collapsed">
-          <TextBox x:Name="ToolInput" PlaceholderText="Host, nome DNS ou MAC"/>
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Ping" Click="ToolPing_Click"/>
-            <Button Content="DNS" Click="ToolDns_Click"/>
-            <Button Content="Portas" Click="ToolPorts_Click"/>
-            <Button Content="Wake-on-LAN" Click="ToolWol_Click"/>
-          </StackPanel>
-          <TextBlock x:Name="ToolOutput" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
-        </StackPanel>
-        <StackPanel x:Name="CleanPanel" Spacing="8" Visibility="Collapsed">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button x:Name="CleanScanButton" Content="Analisar" Click="CleanScan_Click"/>
-            <Button x:Name="CleanRunButton" Content="Limpar agora" IsEnabled="False" Click="CleanRun_Click"/>
-            <CheckBox x:Name="CleanRecycle" Content="Esvaziar lixeira"/>
-          </StackPanel>
-          <TextBlock x:Name="CleanText" TextWrapping="Wrap" Text="Analisa temporários com mais de 7 dias. Nada é removido sem confirmação."/>
-        </StackPanel>
-        <Button Content="Abrir funções existentes do agente" Click="OriginalButton_Click" HorizontalAlignment="Left"/>
+        <TextBlock x:Name="DetailHeading" Text="Tema global" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock x:Name="DetailText" Text="O tema é recebido da plataforma." TextWrapping="Wrap"/>
        </StackPanel></Border>
       <InfoBar x:Name="StatusBar" IsOpen="False" Severity="Informational" Title="Status" IsClosable="True"/>
      </StackPanel>

@@ -335,17 +335,43 @@ public sealed class AgentRuntime : IDisposable
             if (DateTime.UtcNow - last < TimeSpan.FromSeconds(1) && p.Percent < 100) return; last = DateTime.UtcNow;
             _ = _platform.SendEventAsync(new Dictionary<string, object?> { ["event"] = "speed_progress", ["command_id"] = id, ["percent"] = Math.Round(p.Percent, 1), ["message"] = p.Message, ["download_mbps"] = p.Download }, CancellationToken.None, 8);
         });
-        var r = await SpeedTestService.RunAsync(progress, ct);
-        await _platform.SendEventAsync(new Dictionary<string, object?> { ["event"] = "speed_test", ["command_id"] = id, ["download_mbps"] = r.Download, ["upload_mbps"] = r.Upload, ["latency_ms"] = r.LatencyMs, ["server"] = r.Server }, ct, 16);
-        await _platform.AckAsync(id, "completed", $"Download {r.Download} Mbps · Upload {r.Upload} Mbps", ct);
+        var r = await InternetNowAsync(progress, ct, id);
+        await _platform.AckAsync(id, "completed", $"Download {r.Speed.Download} Mbps · Upload {r.Speed.Upload} Mbps · conexão diagnosticada", ct);
     }
 
-    /// <summary>Teste de velocidade iniciado na própria interface: mede e publica o resultado na plataforma (evento speed_test).</summary>
-    public async Task<SpeedResult> SpeedNowAsync(IProgress<(double Percent, string Message, double? Download)> progress, CancellationToken ct)
+    public sealed record InternetResult(SpeedResult Speed, double Loss, int Sent, JsonElement Connection, string SyncWarning);
+
+    /// <summary>Um START mede banda, perdas e conexão, e publica os dois relatórios do painel Internet.</summary>
+    public async Task<InternetResult> InternetNowAsync(IProgress<(double Percent, string Message, double? Download)> progress, CancellationToken ct, long commandId = 0)
     {
-        var r = await SpeedTestService.RunAsync(progress, ct);
-        await _platform.SendEventAsync(new Dictionary<string, object?> { ["event"] = "speed_test", ["command_id"] = 0, ["download_mbps"] = r.Download, ["upload_mbps"] = r.Upload, ["latency_ms"] = r.LatencyMs, ["server"] = r.Server }, ct, 16);
-        return r;
+        if (!Allowed) throw new UnauthorizedAccessException("Agente sem autorização para medir a conexão.");
+        var speed = await SpeedTestService.RunAsync(progress, ct);
+        progress.Report((85, "Medindo perdas de pacotes…", speed.Download));
+        const int sent = 12; var lost = 0;
+        for (var i = 0; i < sent; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (await NetworkEngine.PingAsync("1.1.1.1", 700) is null) lost++;
+            await Task.Delay(120, ct);
+        }
+        var loss = Math.Round(lost * 100d / sent, 1);
+        progress.Report((92, "Identificando conexão, DNS, provedora e rota…", speed.Download));
+        Dictionary<string, object?> details;
+        try { details = await ToolkitService.ConnectionAsync(ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { details = new() { ["event"] = "diagnostic", ["schema"] = 1, ["interface"] = new { ip = NetworkEngine.Local().Ip, gateway = NetworkEngine.Local().Gateway }, ["errors"] = new[] { ex.Message } }; }
+        var warning = "";
+        try
+        {
+            await _platform.SendEventAsync(new Dictionary<string, object?> { ["event"] = "speed_test", ["command_id"] = commandId,
+                ["download_mbps"] = speed.Download, ["upload_mbps"] = speed.Upload, ["latency_ms"] = speed.LatencyMs,
+                ["packet_loss_pct"] = loss, ["packets_sent"] = sent, ["server"] = speed.Server }, ct, 16);
+            await _platform.SendEventAsync(details, ct, 20);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or PlatformException or TaskCanceledException)
+        { warning = "Resultado local preservado; sincronização pendente: " + ex.Message; }
+        progress.Report((100, "Medição e diagnóstico concluídos.", speed.Download));
+        return new InternetResult(speed, loss, sent, JsonSerializer.SerializeToElement(details), warning);
     }
 
     private async Task InventoryAsync(long id, JsonElement cmd, CancellationToken ct)
