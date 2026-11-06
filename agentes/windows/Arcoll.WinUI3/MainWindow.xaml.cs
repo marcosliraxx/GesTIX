@@ -1,12 +1,16 @@
 // Caminho: agentes/windows/Arcoll.WinUI3/MainWindow.xaml.cs
 using System.Diagnostics;
+using Arcoll.WinUI3.Controls;
 using Arcoll.WinUI3.Models;
 using Arcoll.WinUI3.Pages;
 using Arcoll.WinUI3.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-
+using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Windowing;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage.Streams;
 namespace Arcoll.WinUI3;
 
 public sealed partial class MainWindow : Window
@@ -25,187 +29,167 @@ public sealed partial class MainWindow : Window
     private readonly MapPage _mapPage;
     private readonly ProgramsPage _programsPage;
     private readonly CleanPage _cleanPage;
-    private readonly WindowsUpdatePage _windowsUpdatePage;
+    private readonly FilesPage _filesPage;
+    private readonly SupportPage _supportPage;
+    private readonly TicketsPage _ticketsPage;
     private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromSeconds(45) };
-    private readonly DispatcherTimer _themeTimer = new() { Interval = TimeSpan.FromMinutes(2) };
+    private readonly DispatcherTimer _themeTimer = new() { Interval = TimeSpan.FromSeconds(30) };
+    private DateTime _lastBrand = DateTime.MinValue;
+    private CommandProgressWindow? _commandWindow;
+    private bool _branding, _remoteDialog, _refreshing, _exiting;
+    private string _section = "panel", _brandSite = "";
     private CancellationTokenSource? _pending;
-    private bool _refreshing;
-    private string _section="server";
-    private bool _exiting;
 
     public MainWindow()
     {
         InitializeComponent();
-        _serverPage=new ServerPage(_hub,()=>FooterText.Text);
-        _monitorPage=new MonitorPage(_hub,()=>_runtime.MonitorEnabled);
-        _speedPage=new SpeedPage(_runtime);
-        _devicesPage=new DevicesPage(_runtime,m=>FooterText.Text=m);
-        _mapPage=new MapPage(_runtime,m=>FooterText.Text=m);
-        _programsPage=new ProgramsPage(_runtime,ConfirmAsync);
-        _cleanPage=new CleanPage(_runtime,ConfirmAsync);
-        _windowsUpdatePage=new WindowsUpdatePage(_runtime);
-        var brandIcon=Path.Combine(AppContext.BaseDirectory,"Assets","system.ico");
-        if(File.Exists(brandIcon))
+        _serverPage = new(_hub, () => FooterText.Text); _monitorPage = new(_hub, () => _runtime.MonitorEnabled);
+        _speedPage = new(_runtime); _devicesPage = new(_runtime, m => FooterText.Text = m); _mapPage = new(_runtime, m => FooterText.Text = m);
+        _programsPage = new(_runtime, ConfirmAsync); _cleanPage = new(_runtime, ConfirmAsync); _filesPage = new(_runtime);
+        _supportPage = new(_runtime, ShowRemoteCodeAsync, () => SelectSection("tickets")); _ticketsPage = new(_runtime);
+        var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "system.ico");
+        if (File.Exists(icon)) try { AppWindow.SetIcon(icon); } catch (Exception ex) { RuntimeLog.Write("Ícone da janela: " + ex.Message); }
+        var work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Min(940, work.Width - 24), Math.Min(700, work.Height - 40)));
+        _hub.Start(); SelectSection("panel"); ApplyTheme(_themes.Current);
+        _refreshTimer.Tick += async (_, _) => await RefreshAsync();
+        _themeTimer.Tick += async (_, _) => { await RefreshThemeAsync(); if (DateTime.UtcNow - _lastBrand > TimeSpan.FromMinutes(2)) await RefreshBrandAsync(); };
+        _refreshTimer.Start(); _themeTimer.Start();
+        _runtime.ProgramActivity += message => DispatcherQueue.TryEnqueue(() => { _programsPage.ShowActivity(message); });
+        _runtime.Changed += () => DispatcherQueue.TryEnqueue(UpdateRuntimeUi);
+        OperationProgress.Changed += OnOperation;
+        _runtime.Consent = message =>
         {
-            try { AppWindow.SetIcon(brandIcon); BrandBadge.Child=new Image{Source=new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(brandIcon)),Stretch=Stretch.Uniform}; }
-            catch(Exception ex){RuntimeLog.Write("Ícone da janela: "+ex.Message);}
-        }
-        _hub.Start();
-        Navigation.SelectedItem=Navigation.MenuItems[0];
-        _refreshTimer.Tick+= async (_,_)=>await RefreshAsync();
-        _themeTimer.Tick+= async (_,_)=>await RefreshThemeAsync();
-        _refreshTimer.Start();_themeTimer.Start();
-        Closed+=(_,_)=>{_refreshTimer.Stop();_themeTimer.Stop();_hub.Dispose();_pending?.Cancel();_agent.Dispose();_themes.Dispose();_presence.Dispose();_cleanPage.CancelOperations();_programsPage.CancelOperations();_runtime.Dispose();_tray.Dispose();};
-        _runtime.ProgramActivity+=message=>DispatcherQueue.TryEnqueue(()=>
-        {
-            ShowFromBackground();
-            Navigation.SelectedItem=Navigation.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(x=>x.Tag?.ToString()=="programs");
-            _programsPage.ShowActivity(message);
-        });
-        _runtime.Changed+=()=>DispatcherQueue.TryEnqueue(UpdateRuntimeUi);
-        _runtime.Consent=message=>
-        {
-            var tcs=new TaskCompletionSource<bool>();
-            if(!DispatcherQueue.TryEnqueue(async()=>{try{ShowFromBackground();tcs.TrySetResult(await ConfirmAsync("Solicitação do gestor",message,"Autorizar"));}catch(Exception ex){RuntimeLog.Write("Não foi possível apresentar o consentimento remoto: "+ex.GetType().Name);tcs.TrySetResult(false);}})) tcs.TrySetResult(false);
-            return tcs.Task;
+            var result = new TaskCompletionSource<bool>();
+            if (!DispatcherQueue.TryEnqueue(async () => { try { ShowFromBackground(); result.TrySetResult(await ConfirmAsync("Solicitação do gestor", message, "Autorizar")); } catch { result.TrySetResult(false); } })) result.TrySetResult(false);
+            return result.Task;
         };
-        _runtime.RequestExit=()=>DispatcherQueue.TryEnqueue(ExitAgent);
-        // Fechar a janela mantém o agente em segundo plano; "Encerrar" no rodapé finaliza o processo.
-        AppWindow.Closing+=(_,e)=>{ if(!_exiting){ e.Cancel=true; AppWindow.Hide(); } };
-        _tray.OnOpen=()=>DispatcherQueue.TryEnqueue(ShowFromBackground);
-        _tray.OnRestart=()=>DispatcherQueue.TryEnqueue(RestartAgent);
-        _tray.OnExit=()=>DispatcherQueue.TryEnqueue(()=>{ ShowFromBackground(); ExitButton_Click(this,new RoutedEventArgs()); });
-        _tray.Start();
-        _runtime.Start();
-        _presence.Start();
-        _=RefreshAsync();_ = RefreshThemeAsync();
+        _runtime.RequestExit = () => DispatcherQueue.TryEnqueue(ExitAgent);
+        AppWindow.Closing += (_, e) => { if (!_exiting) { e.Cancel = true; AppWindow.Hide(); } };
+        _tray.OnOpen = () => DispatcherQueue.TryEnqueue(ShowFromBackground);
+        _tray.OnRestart = () => DispatcherQueue.TryEnqueue(RestartAgent);
+        _tray.OnExit = () => DispatcherQueue.TryEnqueue(async () => { ShowFromBackground(); if (await ConfirmAsync("Encerrar agente", "Encerrar interrompe o monitoramento até a próxima inicialização. Continuar?", "Encerrar")) ExitAgent(); });
+        _tray.Start(); _runtime.Start(); _presence.Start();
+        Closed += (_, _) =>
+        {
+            _exiting = true; OperationProgress.Changed -= OnOperation; _commandWindow?.Shutdown();
+            _refreshTimer.Stop(); _themeTimer.Stop(); _pending?.Cancel(); _hub.Dispose(); _agent.Dispose(); _themes.Dispose(); _presence.Dispose(); _cleanPage.CancelOperations(); _programsPage.CancelOperations(); _runtime.Dispose(); _tray.Dispose();
+        };
+        _ = RefreshAsync(); _ = RefreshThemeAsync();
     }
-    public void ShowFromBackground(){ AppWindow.Show(); Activate(); }
-    /// <summary>Reinicia o agente: um processo auxiliar oculto espera este encerrar (instância única) e reabre em segundo plano.</summary>
+    private void OnOperation(OperationNotice notice)
+    {
+        if (_exiting || !Environment.UserInteractive || Process.GetCurrentProcess().SessionId == 0) return;
+        DispatcherQueue.TryEnqueue(() => { if (_exiting) return; _commandWindow ??= new(); _commandWindow.ApplyPalette(Palette.From(_themes.Current)); _commandWindow.ShowNotice(notice); });
+    }
+    public void ShowFromBackground() { AppWindow.Show(); Activate(); }
+    private void ExitAgent() { _exiting = true; Close(); Application.Current.Exit(); }
     private void RestartAgent()
     {
-        var exe=Environment.ProcessPath;
-        if (string.IsNullOrEmpty(exe)) return;
-        try
-        {
-            Process.Start(new ProcessStartInfo("cmd.exe",$"/c ping -n 4 127.0.0.1 >nul & start \"\" \"{exe}\" --background"){UseShellExecute=false,CreateNoWindow=true});
-            RuntimeLog.Write("Reinício solicitado pela bandeja");
-            ExitAgent();
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { RuntimeLog.Write("Falha ao reiniciar: "+ex.Message); }
-    }
-    private void ExitAgent(){ _exiting=true; Close(); Application.Current.Exit(); }
-    private async void ExitButton_Click(object sender,RoutedEventArgs e)
-    {
-        if (await ConfirmAsync("Encerrar o agente","Encerrar o agente interrompe o monitoramento e o acesso do gestor a este computador até a próxima inicialização do Windows. Continuar?","Encerrar")) ExitAgent();
+        var exe = Environment.ProcessPath; if (string.IsNullOrEmpty(exe)) return;
+        try { Process.Start(new ProcessStartInfo("cmd.exe", $"/c ping -n 4 127.0.0.1 >nul & start \"\" \"{exe}\" --background") { UseShellExecute = false, CreateNoWindow = true }); ExitAgent(); }
+        catch (Exception ex) { RuntimeLog.Write("Falha ao reiniciar: " + ex.Message); }
     }
     private async Task RefreshThemeAsync()
     {
-        try { using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(12)); await _themes.RefreshAsync(cancel.Token); }
-        catch (Exception) { /* mantém último tema válido durante falhas de rede */ }
-        ApplyTheme(ThemeService.Palette(_themes.Current.Id,_themes.Current.Mode));
+        try { using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12)); await _themes.RefreshAsync(timeout.Token); } catch { }
+        ApplyTheme(_themes.Current);
     }
+    private Button[] Menus => new[] { CleanMenu, ProgramsMenu, DevicesMenu, MapMenu, FilesMenu, ServerMenu, InternetMenu, PanelMenu, SupportMenu, TicketsMenu };
     private void ApplyTheme(AgentTheme t)
     {
-        ThemeLabel.Text=t.Id+" · "+t.Mode;
-        RootGrid.Background=ThemeService.Brush(t.Background);
-        foreach (var card in new[]{DetailCard}) card.Background=ThemeService.Brush(t.Surface);
-        // Brushes locais são usados também nos textos para evitar recursos não resolvidos entre claro/escuro.
-        foreach (var label in new[]{PageTitle,PageSubtitle,DetailHeading,DetailText,ConnectionLabel,FooterText}) label.Foreground=ThemeService.Brush(t.Text);
-        foreach (var label in new[]{ThemeLabel}) label.Foreground=ThemeService.Brush(t.Muted);
-        Navigation.Background=ThemeService.Brush(t.Background);
-        // Mesma identidade da plataforma web: cards com raio 14, borda sutil e cor de destaque do tema administrativo.
-        BrandTitle.Foreground=ThemeService.Brush(t.Text); BrandSub.Foreground=ThemeService.Brush(t.Muted);
-        BrandBadge.Background=ThemeService.Brush(t.Accent);
-        var line=ThemeService.Brush(ThemeService.IsLight(t)?"#d6e1ee":"#2b3a4f");
-        foreach (var card in new[]{DetailCard}) card.BorderBrush=line;
-        var palette=Palette.From(t); _serverPage.ApplyPalette(palette); _monitorPage.ApplyPalette(palette); _speedPage.ApplyPalette(palette); _devicesPage.ApplyPalette(palette); _mapPage.ApplyPalette(palette); _programsPage.ApplyPalette(palette); _cleanPage.ApplyPalette(palette); _windowsUpdatePage.ApplyPalette(palette);
-        StatusBar.Background=ThemeService.Brush(t.Surface);
-        var light=ThemeService.IsLight(t);
-        RootGrid.RequestedTheme=light?ElementTheme.Light:ElementTheme.Dark;
+        var p = Palette.From(t); RootGrid.Background = p.Alt; RootGrid.RequestedTheme = p.Light ? ElementTheme.Light : ElementTheme.Dark;
+        TopBar.Background = BottomBar.Background = p.Surface; TopBar.BorderBrush = BottomBar.BorderBrush = p.Line;
+        foreach (var separator in new[] { TopSeparator1, TopSeparator2, TopSeparator3, TopSeparator4, TopSeparator5, BottomSeparator1, BottomSeparator2, BottomSeparator3, BottomSeparator4 }) separator.BorderBrush = p.Line;
+        foreach (var menu in Menus) { var selected = menu.Tag?.ToString() == _section; menu.Background = selected ? p.Alt : p.Surface; menu.Foreground = selected ? p.Accent : p.Text; }
+        RemoteButton.Foreground = p.Accent; NetworkBadge.Background = p.Surface; NetworkBadge.BorderBrush = p.Accent;
+        ConnectionLabel.Foreground = FooterText.Foreground = p.Muted;
+        _serverPage.ApplyPalette(p); _monitorPage.ApplyPalette(p); _speedPage.ApplyPalette(p); _devicesPage.ApplyPalette(p); _mapPage.ApplyPalette(p);
+        _programsPage.ApplyPalette(p); _cleanPage.ApplyPalette(p); _filesPage.ApplyPalette(p); _supportPage.ApplyPalette(p); _ticketsPage.ApplyPalette(p); _commandWindow?.ApplyPalette(p);
     }
-    private void Navigation_SelectionChanged(NavigationView sender,NavigationViewSelectionChangedEventArgs args)
+    private void Menu_Click(object sender, RoutedEventArgs e) { if (sender is Button menu) SelectSection(menu.Tag?.ToString() ?? "panel"); }
+    private void SelectSection(string section)
     {
-        if (args.SelectedItem is not NavigationViewItem item) return;
-        _section=item.Tag?.ToString()??"server";
-        var native=_section is "server" or "monitor" or "speed" or "devices" or "map" or "programs" or "windows_update" or "clean";
-        PageHost.Content=_section switch{"server"=>_serverPage,"monitor"=>_monitorPage,"speed"=>_speedPage,"devices"=>_devicesPage,"map"=>_mapPage,"programs"=>_programsPage,"clean"=>_cleanPage,"windows_update"=>_windowsUpdatePage,_=>(object?)null};
-        PageHost.Visibility=native?Visibility.Visible:Visibility.Collapsed;
-        PageHeader.Visibility=native?Visibility.Collapsed:Visibility.Visible;
-        DetailCard.Visibility=native?Visibility.Collapsed:Visibility.Visible;
-        (PageTitle.Text,PageSubtitle.Text,DetailHeading.Text,DetailText.Text)=_section switch
-        {
-            "server"=>("Servidor","Visão geral do computador gerenciado","Estado do agente","Consultando informações locais..."),
-            "speed"=>("Internet","Velocidade e diagnóstico da conexão","Velocidade da internet","O teste mede a banda real; a velocidade de enlace dos adaptadores (abaixo) não equivale à velocidade contratada."),
-            "devices"=>("Dispositivos","Vizinhos detectados na rede local","Inventário de vizinhos","Consultando registros observados pelo Windows..."),
-            "map"=>("Mapa","Dispositivos observados","Topologia local","Nós observados pelo cache de vizinhos; mapas e edições persistentes permanecem no núcleo existente."),
-            "clean"=>("Clean","Manutenção do computador","Clean","Mesmas categorias e relatórios da plataforma."),
-            "windows_update"=>("Windows Update","Atualizações oficiais do Windows","Atualizações do Windows","Verificação e instalação nativas pelo Windows Update Agent."),
-            "programs"=>("Programas","Aplicativos instalados no Windows","Inventário de programas","Selecione um programa para desinstalar com o desinstalador oficial dele. Nada é removido sem sua confirmação."),
-            "appearance"=>("Aparência","Tema controlado pelas Configurações Administrativas","Tema global","O tema é recebido da plataforma. Alterações locais não substituem a escolha administrativa."),
-            _=>("Servidor","","Estado",""),
-        };
-        _=RefreshAsync();
+        _section = section;
+        PageHost.Content = section switch { "clean" => _cleanPage, "programs" => _programsPage, "devices" => _devicesPage, "map" => _mapPage, "files" => _filesPage, "server" => _serverPage, "speed" => _speedPage, "support" => _supportPage, "tickets" => _ticketsPage, _ => _monitorPage };
+        if (_serverPage is not null) ApplyTheme(_themes.Current);
     }
-    private async void RefreshButton_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
     private async Task RefreshAsync()
     {
-        if (_refreshing) return;
-        _refreshing=true;
-        _pending?.Cancel();_pending?.Dispose();_pending=new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        if (_refreshing) return; _refreshing = true;
+        _pending?.Cancel(); _pending?.Dispose(); _pending = new(TimeSpan.FromSeconds(12));
+        try { var info = await _agent.HealthAsync(_pending.Token); FooterText.Text = info.Host + " · " + info.Ip + " · v" + info.Version; }
+        catch (Exception ex) { FooterText.Text = ex.Message; }
+        finally { _refreshing = false; }
+    }
+    private async Task RefreshBrandAsync()
+    {
+        if (_branding || !_runtime.Allowed) return; _branding = true;
         try
         {
-            var result=await _agent.HealthAsync(_pending.Token);
-            ConnectionLabel.Text="Agente conectado";
-            FooterText.Text=$"Versão do núcleo: {result.Version} · {result.Os}";
-            StatusBar.IsOpen=false;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            if (_brandSite != _runtime.Platform.Config.SiteCode) { _brandSite = _runtime.Platform.Config.SiteCode; NetworkBadge.Child = new TextBlock { Text = "REDE", FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }; }
+            var info = await WorkspaceService.GetAsync(_runtime, "info", timeout.Token);
+            var logo = info.GetProperty("logo_base64").GetString() ?? "";
+            if (logo.Length > 0)
+            {
+                var bytes = Convert.FromBase64String(logo); using var stream = new InMemoryRandomAccessStream();
+                using (var writer = new DataWriter(stream)) { writer.WriteBytes(bytes); await writer.StoreAsync(); writer.DetachStream(); }
+                stream.Seek(0); var bitmap = new BitmapImage(); await bitmap.SetSourceAsync(stream);
+                NetworkBadge.Child = new Image { Source = bitmap, Stretch = Stretch.Uniform };
+            }
+            else NetworkBadge.Child = new TextBlock { Text = info.GetProperty("network_name").ToString()[..Math.Min(2, info.GetProperty("network_name").ToString().Length)].ToUpperInvariant(), FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            ToolTipService.SetToolTip(PanelMenu, "Painel · " + info.GetProperty("network_name"));
+            _lastBrand = DateTime.UtcNow;
         }
-        catch (Exception ex) when (ex is not null)
-        {
-            ConnectionLabel.Text="Rede indisponível";
-            StatusBar.Title="Não foi possível consultar a rede local";
-            StatusBar.Message=ex is OperationCanceledException ? "A consulta excedeu o tempo limite. Tente atualizar novamente." : ex.Message;
-            StatusBar.Severity=InfoBarSeverity.Warning;StatusBar.IsOpen=true;
-        }
-        finally {_refreshing=false;}
+        catch (Exception ex) { RuntimeLog.Write("Logo da rede: " + ex.Message); _lastBrand = DateTime.UtcNow; }
+        finally { _branding = false; }
     }
     private void UpdateRuntimeUi()
     {
         if (!_runtime.Allowed) { _cleanPage.CancelOperations(); _programsPage.CancelOperations(); }
-        GateOverlay.Visibility=_runtime.Gated?Visibility.Visible:Visibility.Collapsed;
-        GateText.Text=_runtime.StateNotice;
-        ConnectionLabel.Text=_runtime.State switch
-        {
-            AuthState.Approved or AuthState.UiLocked=>"Autorizado"+(_runtime.NetworkName.Length>0?" · "+_runtime.NetworkName:""),
-            AuthState.Pending=>"Aguardando liberação",
-            AuthState.Checking=>"Verificando…",
-            AuthState.Unavailable=>"Sem confirmação",
-            _=>"Bloqueado",
-        };
-        var trayState=_runtime.State switch
-        {
-            AuthState.Approved or AuthState.UiLocked=>TrayState.Connected,
-            AuthState.Pending or AuthState.Checking=>TrayState.Pending,
-            _=>TrayState.Offline,
-        };
-        _tray.SetState(trayState,ConnectionLabel.Text);
-        if (_runtime.State!=_trayLast)
-        {
-            var first=_trayLast==AuthState.Checking; _trayLast=_runtime.State;
-            if (!first || trayState!=TrayState.Pending) _tray.Notify("T.I Digital",trayState switch
-            {
-                TrayState.Connected=>"Agente conectado à plataforma.",
-                TrayState.Pending=>"Aguardando liberação do gestor.",
-                _=>"Sem conexão autorizada com a plataforma.",
-            });
-        }
-        if (_runtime.LastActivity.Length>0 && _runtime.Allowed) FooterText.Text=_runtime.LastActivity;
-        else if (_runtime.Detail.Length>0) FooterText.Text=_runtime.Detail;
+        GateOverlay.Visibility = _runtime.Gated ? Visibility.Visible : Visibility.Collapsed; GateText.Text = _runtime.StateNotice;
+        ConnectionLabel.Text = _runtime.State switch { AuthState.Approved or AuthState.UiLocked => "Conectado · " + _runtime.NetworkName, AuthState.Pending => "Aguardando liberação", AuthState.Checking => "Verificando…", _ => "Sem confirmação" };
+        Title = _runtime.SystemName + " — Agente Windows";
+        var state = _runtime.Allowed ? TrayState.Connected : _runtime.State is AuthState.Pending or AuthState.Checking ? TrayState.Pending : TrayState.Offline;
+        _tray.SetState(state, ConnectionLabel.Text);
+        if (_trayLast != _runtime.State) { _trayLast = _runtime.State; if (_runtime.Allowed) _ = RefreshBrandAsync(); }
+        if (_runtime.LastActivity.Length > 0 && _runtime.Allowed) FooterText.Text = _runtime.LastActivity;
     }
-    private async void GateRetry_Click(object sender,RoutedEventArgs e){await _runtime.RecheckAsync();GateText.Text=_runtime.StateNotice+"\n\nNova verificação solicitada…\nRegistro: "+RuntimeLog.PathName;}
-    private async Task<bool> ConfirmAsync(string title,string message,string primary)
+    private async void GateRetry_Click(object sender, RoutedEventArgs e) { await _runtime.RecheckAsync(); GateText.Text = _runtime.StateNotice; }
+    private async void RemoteAccess_Click(object sender, RoutedEventArgs e) => await ShowRemoteCodeAsync();
+    private async Task ShowRemoteCodeAsync()
     {
-        var dialog=new ContentDialog{Title=title,Content=new ScrollViewer{MaxHeight=420,Content=new TextBlock{Text=message,TextWrapping=TextWrapping.Wrap}},PrimaryButtonText=primary,CloseButtonText="Cancelar",DefaultButton=ContentDialogButton.Close,XamlRoot=Content.XamlRoot};
-        return await dialog.ShowAsync()==ContentDialogResult.Primary;
+        if (_remoteDialog || !_runtime.Allowed) return; _remoteDialog = true;
+        try
+        {
+            ShowFromBackground(); string code; int seconds;
+            using (var operation = OperationProgress.Begin("Gerar código de acesso remoto"))
+            {
+                try
+                {
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    var result = await _runtime.Platform.PostAsync("agent-support-code", _runtime.Platform.WithCredentials(), timeout.Token, 12);
+                    code = result.GetProperty("code").GetString() ?? ""; seconds = result.GetProperty("expires_in").GetInt32(); operation.Succeed("Código temporário gerado");
+                }
+                catch (Exception ex) { operation.Fail(ex.Message); throw; }
+            }
+            var content = new StackPanel { Spacing = 12 };
+            content.Children.Add(new TextBlock { Text = code, FontSize = 34, FontWeight = Microsoft.UI.Text.FontWeights.Bold, IsTextSelectionEnabled = true, HorizontalAlignment = HorizontalAlignment.Center });
+            var expiry = new TextBlock { TextWrapping = TextWrapping.Wrap }; content.Children.Add(expiry);
+            var until = DateTime.UtcNow.AddSeconds(seconds); var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            void Tick() { var left = Math.Max(0, (int)Math.Ceiling((until - DateTime.UtcNow).TotalSeconds)); expiry.Text = left > 0 ? "Compartilhe este código. Expira em " + left + " segundos; uso único." : "Código expirado. Feche e gere um novo código."; }
+            var dialog = new ContentDialog { Title = "Acesso remoto", XamlRoot = Content.XamlRoot, Content = content, PrimaryButtonText = "Copiar código", CloseButtonText = "Fechar" };
+            dialog.PrimaryButtonClick += (_, e) => { e.Cancel = true; if (DateTime.UtcNow < until) { var package = new DataPackage(); package.SetText(code); try { Clipboard.SetContent(package); } catch { expiry.Text = "Não foi possível copiar. Selecione o código e copie manualmente."; } } };
+            timer.Tick += (_, _) => { Tick(); dialog.IsPrimaryButtonEnabled = DateTime.UtcNow < until; }; Tick(); timer.Start();
+            try { await dialog.ShowAsync(); } finally { timer.Stop(); }
+        }
+        catch (Exception ex) { StatusBar.Title = "Acesso remoto"; StatusBar.Message = ex.Message; StatusBar.Severity = InfoBarSeverity.Warning; StatusBar.IsOpen = true; }
+        finally { _remoteDialog = false; }
+    }
+    private async Task<bool> ConfirmAsync(string title, string message, string primary)
+    {
+        var dialog = new ContentDialog { Title = title, Content = new ScrollViewer { MaxHeight = 360, Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap } }, PrimaryButtonText = primary, CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 }

@@ -49,6 +49,10 @@ public sealed class PlatformClient : IDisposable
     /// <summary>POST JSON em api.php?action=... e devolve a resposta já validada (ok=true).</summary>
     public async Task<JsonElement> PostAsync(string action, object body, CancellationToken ct, int timeoutSeconds = 12)
     {
+        using var operation = action is "agent-device-save" or "agent-clean-local-settings" ? OperationProgress.Begin(action == "agent-device-save" ? "Salvar dispositivo" : "Configurações do Clean") : null;
+        try
+        {
+        operation?.Report(20, "Enviando solicitação à plataforma");
         if (Config.Origin.Length == 0) throw new PlatformException("Servidor HTTPS não configurado. Reinstale pelo painel.");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
@@ -63,7 +67,9 @@ public sealed class PlatformClient : IDisposable
             var message = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString()! : $"HTTP {(int)response.StatusCode}";
             throw new PlatformException(message, response.StatusCode);
         }
+        operation?.Succeed("Solicitação confirmada");
         return root;
+        } catch (Exception ex) { operation?.Fail(ex.Message); throw; }
     }
 
     public Dictionary<string, object?> WithCredentials(params (string Key, object? Value)[] extra)
@@ -80,9 +86,13 @@ public sealed class PlatformClient : IDisposable
         return PostAsync("agent-data", WithCredentials(("machine_name", Environment.MachineName), ("event", evt), ("captured_at", DateTimeOffset.UtcNow.ToUnixTimeSeconds())), ct, timeoutSeconds);
     }
 
-    public Task<JsonElement> AckAsync(long commandId, string status, string result, CancellationToken ct) =>
-        PostAsync("agent-command-ack", WithCredentials(("command_id", commandId), ("status", status), ("result", result.Length > 480 ? result[..480] : result),
+    public Task<JsonElement> AckAsync(long commandId, string status, string result, CancellationToken ct)
+    {
+        if (status == "running") OperationProgress.Current?.ReportText(result);
+        if (status == "failed") OperationProgress.Current?.FlagFailure(result);
+        return PostAsync("agent-command-ack", WithCredentials(("command_id", commandId), ("status", status), ("result", result.Length > 480 ? result[..480] : result),
             ("error_detail", status == "failed" ? ErrorDiagnostic.Sanitize(result) : null)), ct, 10);
+    }
 
     public Task<JsonElement> AckFailureAsync(long commandId, Exception error, CancellationToken ct) =>
         PostAsync("agent-command-ack", WithCredentials(("command_id", commandId), ("status", "failed"),

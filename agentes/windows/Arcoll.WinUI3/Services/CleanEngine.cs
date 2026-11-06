@@ -61,6 +61,8 @@ public static class CleanEngine
     }
     public static async Task<JsonElement> RunAsync(string mode, object payload, AgentConfig config, IProgress<string>? progress, CancellationToken ct)
     {
+        using var operation = OperationProgress.Begin(mode is "backup_run" or "backup_status" ? "Backup em Nuvem" : mode == "scan" ? "Analisar limpeza" : mode == "execute" ? "Limpar arquivos" : "Executar Clean");
+        operation.Report(5, "Preparando comando");
         await Gate.WaitAsync(ct);
         try
         {
@@ -82,17 +84,21 @@ public static class CleanEngine
                 {
                     if (line.Length > 8 * 1024 * 1024) throw new InvalidDataException("Relatório Clean excede o limite.");
                     using var doc = JsonDocument.Parse(line); var item = doc.RootElement;
-                    if (item.TryGetProperty("progress", out var message)) progress?.Report(message.GetString() ?? "");
+                    if (item.TryGetProperty("progress", out var message)) { var text = message.GetString() ?? ""; operation.ReportText(text); progress?.Report(text); }
                     if (item.TryGetProperty("error", out var error)) throw new InvalidOperationException(error.GetString());
                     if (item.TryGetProperty("result", out var report)) result = report.Clone();
                 }
                 await process.WaitForExitAsync(deadline.Token);
                 var stderr = await errors;
                 if (process.ExitCode != 0 || result.ValueKind == JsonValueKind.Undefined) throw new InvalidOperationException("Clean não confirmou a operação. " + (stderr.Length > 500 ? stderr[^500..] : stderr));
+                if (result.TryGetProperty("errors", out var failures) && failures.ValueKind == JsonValueKind.Number && failures.GetDouble() > 0) operation.FlagFailure("Operação encerrada com itens não alterados: " + failures);
+                if (result.TryGetProperty("failed", out failures) && failures.ValueKind == JsonValueKind.Number && failures.GetDouble() > 0) operation.FlagFailure("Operação parcial; falhas: " + failures);
+                operation.Succeed("Operação Clean aplicada");
                 return result;
             }
             finally { if (!process.HasExited) { try { process.Kill(true); } catch (InvalidOperationException) { } } }
         }
+        catch (Exception ex) { operation.Fail(ex.Message); throw; }
         finally { Gate.Release(); }
     }
 }

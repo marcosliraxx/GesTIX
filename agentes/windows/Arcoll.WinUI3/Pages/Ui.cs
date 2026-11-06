@@ -35,14 +35,14 @@ public static class Ui
         TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap, TextTrimming = wrap ? TextTrimming.None : TextTrimming.CharacterEllipsis,
     };
 
-    public static Border Card(UIElement child, Palette p, double padding = 14) => new()
+    public static Border Card(UIElement child, Palette p, double padding = 10) => new()
     {
         Background = p.Surface, BorderBrush = p.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14),
         Padding = new Thickness(padding), Child = child,
     };
 
     /// <summary>Indicador (KPI) com título em caixa alta e valor grande, como nos cards da plataforma.</summary>
-    public static (Border Card, TextBlock Value, TextBlock Caption) Stat(string title, Palette p, double valueSize = 20)
+    public static (Border Card, TextBlock Value, TextBlock Caption) Stat(string title, Palette p, double valueSize = 18)
     {
         var caption = Label(title.ToUpperInvariant(), p.Muted, 10, true);
         var value = Label("—", p.Text, valueSize, true);

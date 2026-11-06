@@ -31,7 +31,7 @@ public sealed class DevicesPage : UserControl
     public DevicesPage(AgentRuntime runtime, Action<string> notify)
     {
         _runtime = runtime; _notify = notify;
-        var search = new TextBox { PlaceholderText = "Buscar dispositivo", MinWidth = 260, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var search = new TextBox { PlaceholderText = "Buscar dispositivo", MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
         search.TextChanged += (_, _) => { _search = search.Text.Trim(); RenderTable(); };
         var filters = new Button { Content = "Filtros" }; filters.Click += async (_, _) => await FiltersAsync();
         var export = new Button { Content = "Baixar lista" }; export.Click += async (_, _) => await ExportAsync();
@@ -40,6 +40,13 @@ public sealed class DevicesPage : UserControl
         bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         for (var i = 0; i < 3; i++) bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         bar.Children.Add(search); Grid.SetColumn(filters, 1); bar.Children.Add(filters); Grid.SetColumn(export, 2); bar.Children.Add(export); Grid.SetColumn(_scan, 3); bar.Children.Add(_scan);
+        bar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); bar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        SizeChanged += (_, e) => {
+            var compact = e.NewSize.Width < 700;
+            Grid.SetColumnSpan(search, compact ? 4 : 1);
+            Grid.SetRow(filters, compact ? 1 : 0); Grid.SetRow(export, compact ? 1 : 0); Grid.SetRow(_scan, compact ? 1 : 0);
+            Grid.SetColumn(filters, compact ? 0 : 1); Grid.SetColumn(export, compact ? 1 : 2); Grid.SetColumn(_scan, compact ? 2 : 3);
+        };
         _root.Children.Add(bar); _root.Children.Add(_summary); _root.Children.Add(_bulkHost); _root.Children.Add(_tableHost); _root.Children.Add(_feedback);
         Content = _root;
         _timer.Tick += async (_, _) => await LoadAsync();
