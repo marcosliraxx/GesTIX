@@ -411,9 +411,10 @@ try {
         arc_json(['ok'=>true,'cancelled'=>$q->rowCount()>0]);
     }
     /* Canal de comandos: ações limitadas, agente aprovado, token da instalação. */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-command-authorize','agent-remote-authorize','agent-file-transfer','agent-file-browser-result','agent-support-code','agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-clean-local-settings','agent-program-local-inventory','agent-devices','agent-device-save'],true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['agent-command-poll','agent-command-ack','agent-command-output','agent-config','agent-terminal-local-start','agent-power-authorize','agent-command-authorize','agent-remote-authorize','agent-file-transfer','agent-file-browser-result','agent-support-code','agent-workspace','agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-clean-local-settings','agent-program-local-inventory','agent-devices','agent-device-save'],true)) {
         $raw = file_get_contents('php://input');
-        if (!is_string($raw) || strlen($raw)>(in_array($action,['agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-clean-local-settings','agent-program-local-inventory'],true)?6000000:($action==='agent-file-browser-result'?90000:($action==='agent-command-poll'?32768:($action==='agent-command-ack'?16384:8192))))) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
+        if ($action==='agent-workspace' && (!is_string($raw)||strlen($raw)>131072)) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
+        if ($action!=='agent-workspace' && (!is_string($raw) || strlen($raw)>(in_array($action,['agent-program-inventory','agent-clean-result','agent-clean-local-result','agent-clean-local-settings','agent-program-local-inventory'],true)?6000000:($action==='agent-file-browser-result'?90000:($action==='agent-command-poll'?32768:($action==='agent-command-ack'?16384:8192)))))) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
         $body=json_decode($raw,true);
         if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
         try {$agent=arc_agent_authenticate($pdo,$body);} catch (RuntimeException $e) {if($e->getCode()===403)arc_json(['ok'=>false,'error'=>'Agente sem autorização'],403);throw $e;}
@@ -541,6 +542,11 @@ try {
             $json=json_encode(['entries'=>$clean,'truncated'=>!empty($body['truncated']),'path'=>mb_substr((string)($body['path']??''),0,1024),'error'=>$error],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
             $q=$pdo->prepare('UPDATE '.arc_table('file_browser_requests').' r JOIN '.arc_table('agent_commands')." c ON c.id=r.command_id SET r.result_json=?,r.status=?,r.updated_at=NOW() WHERE r.command_id=? AND r.agent_id=? AND r.network_id=? AND r.account_id=? AND c.status='running' AND r.status='pending'");
             $q->execute([$json,$error!==''?'failed':'completed',$id,$agentId,(int)$agent['network_id'],(int)$agent['account_id']]);arc_json(['ok'=>true,'saved'=>$q->rowCount()>0]);
+        }
+        if($action==='agent-workspace'){
+            require_once __DIR__.'/../includes/agent-workspace.php';
+            try{arc_json(arc_agent_workspace($pdo,$agent,$body));}
+            catch(DomainException|InvalidArgumentException $e){$code=(int)$e->getCode();arc_json(['ok'=>false,'error'=>$e->getMessage()],in_array($code,[403,404,429],true)?$code:422);}
         }
         if($action==='agent-support-code')arc_json(['ok'=>true,'code'=>arc_support_guest_code($pdo,$agentId),'expires_in'=>180]);
         if($action==='agent-file-transfer'){

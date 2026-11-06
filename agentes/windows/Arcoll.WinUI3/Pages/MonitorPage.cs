@@ -17,7 +17,7 @@ public sealed class MonitorPage : UserControl
     private readonly Border _badge = new();
     private readonly TextBlock _badgeText;
     private readonly (Border Card, TextBlock Value, TextBlock Caption)[] _kpi = new (Border, TextBlock, TextBlock)[4];
-    private readonly ChartCanvas _chart = new() { Height = 320 };
+    private readonly ChartCanvas _chart = new() { Height = 200 };
     private readonly ComboBox _style = new() { MinWidth = 120 };
     private readonly Dictionary<string, CheckBox> _flags = new();
     private readonly TextBlock _legend, _message, _caption, _sub;
@@ -41,7 +41,7 @@ public sealed class MonitorPage : UserControl
         _legend = Ui.Label("", _p.Muted, 11, false, true); _message = Ui.Label("", _p.Muted, 11, false, true);
         Content = Build();
         _hub.Updated += OnUpdated; Unloaded += (_, _) => _hub.Updated -= OnUpdated;
-        _ = ScanAsync(false); Render();
+        Render();
     }
 
     private UIElement Build()
@@ -90,14 +90,14 @@ public sealed class MonitorPage : UserControl
 
     private async Task ScanAsync(bool refresh)
     {
-        if (_scanning) return; _scanning = true; _scan.IsEnabled = false;
+        if (_scanning) return; using var operation = OperationProgress.Begin("Examinar rede no Painel"); _scanning = true; _scan.IsEnabled = false;
         try
         {
             using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             var found = await NetworkEngine.ScanAsync(null, refresh, cancel.Token);
-            _devices = found.Count;
+            _devices = found.Count; operation.Succeed("Rede examinada");
         }
-        catch (Exception ex) { _message.Text = "Varredura indisponível: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); }
+        catch (Exception ex) { operation.Fail(ex.Message); _message.Text = "Varredura indisponível: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); }
         finally { _scanning = false; _scan.IsEnabled = true; Render(); }
     }
 

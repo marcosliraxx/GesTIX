@@ -16,8 +16,18 @@ public static class WindowsUpdateService
     private static readonly HashSet<string> Modes = new(StringComparer.Ordinal)
     { "scan", "install", "history", "pause", "resume", "settings", "advanced", "insider", "latest_on", "latest_off" };
 
-    public static Task<Dictionary<string, object?>> RunAsync(string requestText, CancellationToken ct) =>
-        Task.Run(() => Run(requestText, ct), ct);
+    public static async Task<Dictionary<string, object?>> RunAsync(string requestText, CancellationToken ct)
+    {
+        using var operation = OperationProgress.Begin("Windows Update");
+        try
+        {
+            operation.Report(15, "Consultando o serviço do Windows");
+            var result = await Task.Run(() => Run(requestText, ct), ct);
+            if (result.TryGetValue("result", out var code) && code is int n && n != 2) operation.FlagFailure("Instalação do Windows Update não foi concluída integralmente");
+            operation.Succeed("Comando Windows Update aplicado"); return result;
+        }
+        catch (Exception ex) { operation.Fail(ex.Message); throw; }
+    }
 
     private static Dictionary<string, object?> Run(string requestText, CancellationToken ct)
     {
@@ -131,10 +141,12 @@ public static class WindowsUpdateService
         if ((int)collection.Count != selected.Count) throw new InvalidOperationException("As atualizações mudaram; execute uma nova verificação.");
         ct.ThrowIfCancellationRequested();
         dynamic downloader = session.CreateUpdateDownloader(); downloader.Updates = collection;
+        OperationProgress.Current?.Report(40, "Baixando atualizações selecionadas");
         dynamic downloaded = downloader.Download();
         if ((int)downloaded.ResultCode != 2) throw new InvalidOperationException("Falha ao baixar o conjunto completo de atualizações; instalação não iniciada.");
         ct.ThrowIfCancellationRequested();
         dynamic installer = session.CreateUpdateInstaller(); installer.Updates = collection; installer.AllowSourcePrompts = false;
+        OperationProgress.Current?.Report(70, "Instalando atualizações selecionadas");
         dynamic installed = installer.Install();
         var result = new List<object>();
         for (var i = 0; i < (int)collection.Count; ++i)

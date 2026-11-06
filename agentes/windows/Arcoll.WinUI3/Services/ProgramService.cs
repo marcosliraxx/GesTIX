@@ -73,11 +73,18 @@ public static class ProgramService
     public static bool SuccessfulExit(int code)=>code is 0 or 1641 or 3010;
     public static async Task<int> UninstallAsync(InstalledApplication app,bool silent,CancellationToken ct)
     {
+        using var operation = OperationProgress.Begin("Desinstalar " + app.Name);
+        operation.Report(15, "Preparando instalador oficial");
+        try
+        {
         var command=silent&&app.QuietUninstall.Length>0?app.QuietUninstall:app.Uninstall.Length>0?app.Uninstall:app.QuietUninstall;
         var(file,args)=Split(command);
         if(file.Length==0)throw new InvalidOperationException("Este programa não informa um desinstalador.");
         using var process=Process.Start(new ProcessStartInfo(file,args){UseShellExecute=true,Verb="runas"})??throw new InvalidOperationException("Não foi possível iniciar o desinstalador.");
-        await process.WaitForExitAsync(ct);return process.ExitCode;
+        await process.WaitForExitAsync(ct);
+        if (!SuccessfulExit(process.ExitCode)) operation.FlagFailure("Desinstalador retornou código " + process.ExitCode);
+        operation.Succeed("Desinstalador finalizado"); return process.ExitCode;
+        } catch (Exception ex) { operation.Fail(ex.Message); throw; }
     }
     public static string[] PackageArguments(string id,bool installed,IReadOnlyList<CatalogApplication> catalog)
     {
@@ -102,7 +109,12 @@ public static class ProgramService
     }
     public static async Task<int> PackageAsync(string id,bool installed,IReadOnlyList<CatalogApplication> catalog,CancellationToken ct)
     {
+        using var operation = OperationProgress.Begin((installed ? "Atualizar " : "Instalar ") + id);
+        operation.Report(15, "Preparando instalador oficial");
+        try
+        {
         using var process=Process.Start(PackageStart(id,installed,catalog))??throw new InvalidOperationException("Não foi possível iniciar o WinGet.");
+        operation.Report(30, "Instalador iniciado; aguardando conclusão");
         var stdout=process.StandardOutput.ReadToEndAsync(ct);
         var stderr=process.StandardError.ReadToEndAsync(ct);
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -119,7 +131,9 @@ public static class ProgramService
                     : "";
             throw new InvalidOperationException(reason + "WinGet " + process.ExitCode + " (0x" + unchecked((uint)process.ExitCode).ToString("X8") + "): " + (output.Length>320?output[^320..]:output));
         }
+        operation.Succeed("Instalador finalizado");
         return process.ExitCode;
+        } catch (Exception ex) { operation.Fail(ex.Message); throw; }
     }
 
 }

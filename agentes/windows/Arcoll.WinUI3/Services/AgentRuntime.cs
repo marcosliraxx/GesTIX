@@ -99,7 +99,7 @@ public sealed class AgentRuntime : IDisposable
                     if (MonitorEnabled && !_busy && DateTime.UtcNow - _lastNetworkScan > TimeSpan.FromMinutes(3))
                     {
                         _lastNetworkScan = DateTime.UtcNow;
-                        try { await ScanNowAsync(ct); }
+                        try { await ScanNowAsync(ct, false); }
                         catch (Exception ex) when (!ct.IsCancellationRequested) { RuntimeLog.Write("Inventário de rede: " + ex.Message); }
                     }
                 }
@@ -142,6 +142,7 @@ public sealed class AgentRuntime : IDisposable
         var name = cmd.TryGetProperty("command_name", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? "" : "";
         if (id < 1 || name.Length == 0) return;
         LastActivity = "Solicitação da plataforma: " + name.Replace('_', ' '); Changed?.Invoke();
+        using var operation = name == "agent_update" ? null : OperationProgress.Begin(OperationProgress.Title(name), "Remoto");
         if (!Native.Contains(name))
         {
             await _platform.AckAsync(id, "failed", "Recurso ainda não disponível no agente nativo; mantenha o agente Python instalado para esta função.", ct);
@@ -149,6 +150,7 @@ public sealed class AgentRuntime : IDisposable
         }
         try
         {
+            operation?.Report(15, "Comando recebido e autorizado; executando");
             switch (name)
             {
                 case "remote_assistance": await RemoteAssistanceAsync(id, cmd, ct); break;
@@ -169,9 +171,11 @@ public sealed class AgentRuntime : IDisposable
                 case string t when t.StartsWith("toolkit", StringComparison.Ordinal): await ToolkitAsync(id, t, ct); break;
                 case string q when ToolkitService.QuickTitles.ContainsKey(q): await QuickAsync(id, q, ct); break;
             }
+            operation?.Succeed();
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
+            operation?.Fail(ex.Message);
             RuntimeLog.Write("Comando remoto #" + id + " (" + name + ") falhou: " + ErrorDiagnostic.FromException(ex));
             try { await _platform.AckFailureAsync(id, ex, CancellationToken.None); } catch (Exception ackEx) { RuntimeLog.Write("Erro ao comunicar falha: " + ackEx.GetType().Name); }
         }
@@ -313,8 +317,12 @@ public sealed class AgentRuntime : IDisposable
     }
 
     /// <summary>Varredura da sub-rede e sincronização do inventário na plataforma (comando remoto e botão da interface usam o mesmo caminho).</summary>
-    public async Task<int> ScanNowAsync(CancellationToken ct)
+    public async Task<int> ScanNowAsync(CancellationToken ct, bool notify = true)
     {
+        using var operation = notify ? OperationProgress.Begin("Examinar dispositivos") : null;
+        operation?.Report(15, "Examinando a rede local");
+        try
+        {
         var rows = await NetworkEngine.ScanAsync(null, true, ct);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var devices = rows.Take(180).Select(d => new Dictionary<string, object?>
@@ -324,7 +332,9 @@ public sealed class AgentRuntime : IDisposable
             ["agent_installed"] = d.Ip == NetworkEngine.Local().Ip,
         }).ToList();
         await _platform.SendEventAsync(new Dictionary<string, object?> { ["event"] = "network_scan", ["device_count"] = devices.Count, ["devices"] = devices, ["groups"] = new List<object>() }, ct, 20);
+        operation?.Succeed("Inventário sincronizado");
         return devices.Count;
+        } catch (Exception ex) { operation?.Fail(ex.Message); throw; }
     }
 
     private async Task SpeedAsync(long id, CancellationToken ct)
@@ -344,6 +354,11 @@ public sealed class AgentRuntime : IDisposable
     /// <summary>Um START mede banda, perdas e conexão, e publica os dois relatórios do painel Internet.</summary>
     public async Task<InternetResult> InternetNowAsync(IProgress<(double Percent, string Message, double? Download)> progress, CancellationToken ct, long commandId = 0)
     {
+        using var operation = OperationProgress.Begin("Testar Internet");
+        try
+        {
+        var next = progress;
+        progress = new Progress<(double Percent, string Message, double? Download)>(value => { operation.Report((int)value.Percent, value.Message); next.Report(value); });
         if (!Allowed) throw new UnauthorizedAccessException("Agente sem autorização para medir a conexão.");
         var speed = await SpeedTestService.RunAsync(progress, ct);
         progress.Report((85, "Medindo perdas de pacotes…", speed.Download));
@@ -371,7 +386,9 @@ public sealed class AgentRuntime : IDisposable
         catch (Exception ex) when (ex is HttpRequestException or PlatformException or TaskCanceledException)
         { warning = "Resultado local preservado; sincronização pendente: " + ex.Message; }
         progress.Report((100, "Medição e diagnóstico concluídos.", speed.Download));
+        operation.Succeed("Medição e diagnóstico aplicados");
         return new InternetResult(speed, loss, sent, JsonSerializer.SerializeToElement(details), warning);
+        } catch (Exception ex) { operation.Fail(ex.Message); throw; }
     }
 
     private async Task InventoryAsync(long id, JsonElement cmd, CancellationToken ct)

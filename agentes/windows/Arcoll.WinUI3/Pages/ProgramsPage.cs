@@ -33,7 +33,7 @@ public sealed class ProgramsPage : UserControl
     public ProgramsPage(AgentRuntime runtime, Func<string,string,string,Task<bool>> confirm, bool inventoryMode = false)
     {
         _runtime = runtime; _confirm = confirm; _inventoryMode = inventoryMode; Content = _root;
-        _root.Children.Add(new TextBlock { Text = inventoryMode ? "Desinstalador" : "Programas", FontSize = 24, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        _root.Children.Add(new TextBlock { Text = inventoryMode ? "Desinstalador" : "Programas", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         var controls = new Grid { ColumnSpacing = 10, RowSpacing = 8 };
         controls.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         controls.ColumnDefinitions.Add(new() { Width = new GridLength(220) });
@@ -71,7 +71,7 @@ public sealed class ProgramsPage : UserControl
     public void ApplyPalette(Palette p) { _p = p; Render(); }
     public async Task RefreshAsync()
     {
-        if (_busy) return; _busy = true; Render();
+        if (_busy) return; using var notice = OperationProgress.Begin(_inventoryMode ? "Atualizar inventário de programas" : "Carregar catálogo de programas"); _busy = true; Render();
         try
         {
             _catalog = ProgramService.Catalog();
@@ -79,9 +79,9 @@ public sealed class ProgramsPage : UserControl
             var selected = _category.SelectedItem?.ToString(); _category.Items.Clear(); _category.Items.Add("Todas as categorias");
             foreach (var group in _catalog.Select(x => x.Category).Distinct()) _category.Items.Add(group);
             _category.SelectedItem = selected is not null && _category.Items.Contains(selected) ? selected : "Todas as categorias";
-            _loaded = true;
+            _loaded = true; notice.Succeed("Consulta local concluída");
         }
-        catch (Exception ex) { _status.Text = "Não foi possível carregar: " + ex.Message; }
+        catch (Exception ex) { notice.Fail(ex.Message); _status.Text = "Não foi possível carregar: " + ex.Message; }
         finally { _busy = false; Render(); }
     }
     private async Task PublishInventoryAsync()
