@@ -29,6 +29,7 @@ public sealed class CleanPage : UserControl
     private JsonElement _config, _settings;
     private string _section = "health", _tab = "junk", _scanSignature = "", _drive = "C:", _startupTab = "run", _perfTab = "active", _driverTab = "outdated";
     private int _age = 7;
+    private long _networkId, _agentId;
     private Palette _p = new();
     private bool _busy, _initialized;
     private CancellationTokenSource? _operation;
@@ -71,7 +72,7 @@ public sealed class CleanPage : UserControl
     }
     private void Navigate(string section)
     {
-        if (_busy) return; _section = section; _items.Clear(); Render();
+        if (_busy || _section == section) return; _section = section; _items.Clear(); Render();
     }
     public void CancelOperations() => _operation?.Cancel();
     public void ApplyPalette(Palette p)
@@ -107,6 +108,12 @@ public sealed class CleanPage : UserControl
     private void Render()
     {
         _view.Children.Clear();
+        var selected = Array.FindIndex(Sections, x => x.Key == _section);
+        _compactNav.SelectedIndex = selected;
+        for (var i = 0; i < _nav.Children.Count; i++)
+        {
+            if (_nav.Children[i] is Button button) { button.Background = i == selected ? _p.Alt : _p.Surface; button.BorderBrush = i == selected ? _p.Accent : _p.Line; }
+        }
         Text(Sections.First(x => x.Key == _section).Label, true); _status.Foreground = _p.Text; _view.Children.Add(_status);
         foreach (var button in _nav.Children.OfType<Button>()) button.IsEnabled = !_busy;
         _compactNav.IsEnabled = !_busy;
@@ -132,6 +139,7 @@ public sealed class CleanPage : UserControl
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var response = await _runtime.Platform.PostAsync("agent-clean-local-settings", _runtime.Platform.WithCredentials(), timeout.Token, 12);
         _settings = response.GetProperty("settings").Clone();
+        _networkId = response.GetProperty("network_id").GetInt64(); _agentId = response.GetProperty("agent_id").GetInt64();
     }
     private string[] Setting(string key) => Rows(_settings, key).Select(x => x.GetString() ?? "").ToArray();
     private Dictionary<string, object?> CleanPayload() => new() { ["categories"] = _categories.OrderBy(x => x).ToArray(), ["age_days"] = _age, ["exclusions"] = Setting("exclusions"), ["custom_folders"] = Setting("custom_folders") };
@@ -320,7 +328,7 @@ public sealed class CleanPage : UserControl
     {
         Text("Mesmo destino e pastas definidos na plataforma. O provedor é conectado pelo login oficial no navegador; credenciais do provedor não ficam no agente.");
         Actions(Action("Atualizar estado", () => RunAsync("backup_status", new(), "backup")), Action("Executar backup agora", () => RunAsync("backup_run", new(), "backup")),
-            Action("Configurar destino e pastas", () => { Process.Start(new ProcessStartInfo(_runtime.Platform.Config.Origin + "/redes/clean.php?section=backup") { UseShellExecute = true }); return Task.CompletedTask; }));
+            Action("Configurar destino e pastas", async () => { await LoadSettingsAsync(); Process.Start(new ProcessStartInfo(_runtime.Platform.Config.Origin + "/redes/clean.php?network=" + _networkId + "&agent=" + _agentId + "&section=backup") { UseShellExecute = true }); }));
         var report = Report("backup");
         if (report.ValueKind == JsonValueKind.Object)
         {

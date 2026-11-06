@@ -464,7 +464,7 @@ try {
                 try{$settings=arc_clean_validate_settings($body);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
                 arc_clean_settings_save($pdo,$agentId,$net,$acc,$settings);
             }
-            arc_json(['ok'=>true,'settings'=>arc_clean_settings_get($pdo,$agentId,$net,$acc)]);
+            arc_json(['ok'=>true,'network_id'=>$net,'agent_id'=>$agentId,'settings'=>arc_clean_settings_get($pdo,$agentId,$net,$acc)]);
         }
         if($action==='agent-clean-local-result'){
             $report=$body['report']??null;if(!is_array($report))arc_json(['ok'=>false,'error'=>'Relatório inválido'],422);

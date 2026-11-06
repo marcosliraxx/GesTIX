@@ -22,6 +22,9 @@ jobs:
       - name: Sintaxe e politica de instalacao sem interacao
         shell: powershell
         run: .\tests\windows_installer_policy.ps1
+      - name: Validar dependencia oficial do Clean e arquivos sinteticos
+        shell: powershell
+        run: .\tests\windows_clean_runtime.ps1
       - name: Compilar WinUI com runtime incluido
         shell: powershell
         run: |

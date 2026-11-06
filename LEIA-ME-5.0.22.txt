@@ -55,7 +55,9 @@ Em Programas selecione poucos itens, confira os resultados individuais e teste
 cancelamento. Alterne os temas claro/escuro/automatico e reduza a janela para
 conferir o menu compacto e grupos do catalogo.
 Os testes do motor usam somente arquivos sinteticos em diretorios temporarios.
-Os resultados de compilacao Windows estao no GitHub Actions.
+A compilacao WinUI, a sintaxe PHP, os testes de versao e a instalacao/reinstalacao
+da tarefa SYSTEM passaram no Windows/GitHub Actions. O teste em runner nao
+substitui conferir a interface e reiniciar o seu proprio servidor.
 
 DESFAZER
 Restaure a copia dos arquivos 5.0.21, inclusive VERSION e o CleanService.cs
