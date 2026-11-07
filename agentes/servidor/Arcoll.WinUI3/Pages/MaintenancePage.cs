@@ -20,6 +20,7 @@ public abstract class MaintenancePage : UserControl
     protected JsonElement Report, Settings;
     protected bool Busy { get; private set; }
     protected string SyncNotice { get; private set; }="";
+    protected bool CancellationRequested { get; private set; }
     protected readonly string Kind;
     private readonly Grid _root = new() { RowSpacing = 6 };
     private readonly TextBlock _heading, _description, _status = new() { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, _summary = new() { TextWrapping = TextWrapping.Wrap };
@@ -73,7 +74,7 @@ public abstract class MaintenancePage : UserControl
     }
     protected async Task SaveSnapshotAsync(object report)
     {
-        StoreReport(report);PersistSnapshot();
+        SyncNotice="";StoreReport(report);PersistSnapshot();
         try{using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(40));if(!Runtime.Allowed)throw new UnauthorizedAccessException("Autorização indisponível para sincronizar.");await Runtime.Platform.PostAsync("agent-clean-local-result",Runtime.Platform.WithCredentials(("mode","tool"),("tool",Kind),("report",Report)),timeout.Token,35);}
         catch(Exception ex){SyncNotice="Envio pendente: "+ex.Message;Status(_status.Text+" Relatório local preservado; "+SyncNotice);}
     }
@@ -128,7 +129,7 @@ public abstract class MaintenancePage : UserControl
     }
     protected async Task<bool> RunAsync(string mode,Dictionary<string,object?> payload)
     {
-        if(Busy||!Runtime.Allowed)return false;SyncNotice="";Busy=true;_operation=new();Status("Preparando operação…");Render();
+        if(Busy||!Runtime.Allowed)return false;SyncNotice="";CancellationRequested=false;Busy=true;_operation=new();Status("Preparando operação…");Render();
         try {
             var progress=new Progress<string>(message=>Status(message));
             Report=await CleanEngine.RunAsync(mode,payload,Runtime.Platform.Config,progress,_operation.Token);_collected=DateTime.Now;Selected.Clear();
@@ -139,7 +140,7 @@ public abstract class MaintenancePage : UserControl
             return true;
         }catch(OperationCanceledException){Status("Operação interrompida. Alterações concluídas não foram desfeitas.");return false;}
         catch(Exception ex){Status("Falha: "+ex.Message);return false;}
-        finally{_operation.Dispose();_operation=null;Busy=false;Render();}
+        finally{CancellationRequested=_operation.IsCancellationRequested;_operation.Dispose();_operation=null;Busy=false;Render();}
     }
     protected async Task ExecuteLocalAsync(Func<CancellationToken,Task> action)
     {
