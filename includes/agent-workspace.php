@@ -4,7 +4,7 @@ declare(strict_types=1);
 /** Dados do agente autenticado: nunca aceita conta/rede/computador vindos do corpo. */
 function arc_agent_workspace(PDO $pdo, array $agent, array $body): array {
     $account=(int)$agent['account_id'];$network=(int)$agent['network_id'];$id=(int)$agent['id'];
-    $q=$pdo->prepare('SELECT name,logo_file FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=?');
+    $q=$pdo->prepare('SELECT name,logo_file,address FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=?');
     $q->execute([$network,$account]);$net=$q->fetch(PDO::FETCH_ASSOC);
     if(!$net)throw new DomainException('Rede indisponível.',403);
     $op=(string)($body['op']??'info');
@@ -26,7 +26,7 @@ function arc_agent_workspace(PDO $pdo, array $agent, array $body): array {
     if($op==='connection-map'){
         $points=[];
         try{$q=$pdo->prepare('SELECT kind,agent_id,latitude,longitude,accuracy_m,source,updated_at FROM '.arc_table('network_geo_points').' WHERE network_id=? AND account_id=? AND (agent_id=0 OR agent_id=?) ORDER BY updated_at DESC');$q->execute([$network,$account,$id]);foreach($q->fetchAll(PDO::FETCH_ASSOC) as $point)if(!isset($points[$point['kind']]))$points[$point['kind']]=$point;}catch(PDOException $e){/* Sem ponto confirmado: a interface informa a ausência. */}
-        return ['ok'=>true,'network_name'=>(string)$net['name'],'points'=>$points];
+        return ['ok'=>true,'network_name'=>(string)$net['name'],'address'=>(string)($net['address']??''),'points'=>$points];
     }
     if($op==='ticket-create'){
         $title=trim((string)($body['title']??''));$description=trim((string)($body['description']??''));$priority=(string)($body['priority']??'normal');

@@ -6,7 +6,7 @@
  <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
   <Grid.Resources>
    <Style x:Key="RibbonTab" TargetType="Button"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="CornerRadius" Value="3,3,0,0"/><Setter Property="Padding" Value="9,3"/><Setter Property="MinWidth" Value="0"/><Setter Property="MinHeight" Value="28"/><Setter Property="FontSize" Value="12"/></Style>
-   <Style x:Key="QuickButton" TargetType="Button"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="7,4"/><Setter Property="MinWidth" Value="28"/><Setter Property="MinHeight" Value="30"/></Style>
+   <Style x:Key="QuickButton" TargetType="Button"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="7,2"/><Setter Property="MinWidth" Value="28"/><Setter Property="MinHeight" Value="30"/></Style>
    <Style TargetType="TextBox"><Setter Property="FontSize" Value="14"/><Setter Property="MinHeight" Value="30"/><Setter Property="Padding" Value="8,4"/></Style>
    <Style TargetType="ComboBox"><Setter Property="FontSize" Value="14"/><Setter Property="MinHeight" Value="30"/></Style>
   </Grid.Resources>

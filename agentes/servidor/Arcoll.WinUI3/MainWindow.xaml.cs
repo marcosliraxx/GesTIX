@@ -205,7 +205,7 @@ public sealed partial class MainWindow : Window
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             if (_brandSite != _runtime.Platform.Config.SiteCode) { _brandSite = _runtime.Platform.Config.SiteCode; NetworkBadge.Child = new TextBlock { Text = "REDE", FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }; }
             var info = await WorkspaceService.GetAsync(_runtime, "info", timeout.Token);
-            NetworkTitle.Text = info.GetProperty("network_name").ToString();
+            NetworkTitle.Text = info.GetProperty("network_name").ToString(); ToolTipService.SetToolTip(NetworkTitle,NetworkTitle.Text);
             var logo = info.GetProperty("logo_base64").GetString() ?? "";
             if (logo.Length > 0)
             {

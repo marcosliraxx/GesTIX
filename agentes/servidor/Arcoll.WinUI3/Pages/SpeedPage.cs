@@ -17,6 +17,7 @@ public sealed class SpeedPage : UserControl
     private readonly AgentRuntime _runtime;
     private Palette _p = new();
     private JsonElement _mapInfo;
+    private ConnectionMap.Point? _destination;
     private bool _running;
     private double _progress; private string _caption = "", _live = "";
     private readonly StackPanel _root = new() { Spacing = 16, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -35,7 +36,7 @@ public sealed class SpeedPage : UserControl
             var progress = new Progress<(double Percent, string Message, double? Download)>(v => { if (v.Percent < 100 && DateTime.UtcNow - lastDraw < TimeSpan.FromMilliseconds(200)) return; lastDraw = DateTime.UtcNow; _progress = v.Percent; _caption = v.Message; _live = v.Download is double d ? d.ToString("0.0") : _live; Render(); });
             using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(180));
             var result = await _runtime.InternetNowAsync(progress, cancel.Token);
-            try { _mapInfo=await WorkspaceService.GetAsync(_runtime,"connection-map",cancel.Token); } catch(Exception ex) { _caption="Mapa: "+ex.Message; }
+            try { _mapInfo=await WorkspaceService.GetAsync(_runtime,"connection-map",cancel.Token);_destination=Part(Part(_mapInfo,"points"),"dest").ValueKind==JsonValueKind.Object?null:await ConnectionMap.GeocodeAsync(V(_mapInfo,"address"),cancel.Token); } catch(Exception ex) { _caption="Mapa: "+ex.Message; }
             _last = new Last(result.Speed, result.Loss, result.Sent, DateTime.Now, result.Connection);
             _caption = result.SyncWarning.Length > 0 ? result.SyncWarning : "Velocidade e conexão atualizadas na plataforma.";
         }
@@ -60,7 +61,8 @@ public sealed class SpeedPage : UserControl
         var map=new StackPanel{Spacing=7};map.Children.Add(Ui.Label("MAPA DA CONEXÃO",_p.Text,16,true));var points=new List<ConnectionMap.Point>();var saved=Part(_mapInfo,"points");
         foreach(var (key,label) in new[]{("origin","Origem confirmada"),("dest","Destino confirmado")}){var pt=Part(saved,key);if(double.TryParse(V(pt,"latitude"),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var lat)&&double.TryParse(V(pt,"longitude"),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var lon))points.Add(new(lat,lon,label));}
         if(!points.Any(p=>p.Label.StartsWith("Origem"))&&double.TryParse(V(provider,"latitude"),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var la)&&double.TryParse(V(provider,"longitude"),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var lo))points.Insert(0,new(la,lo,"Provedora · IP aproximado"));
-        map.Children.Add(new ConnectionMap(points,_p));map.Children.Add(Ui.Label("Origem: "+V(provider,"isp")+" · "+V(provider,"city")+" · "+V(provider,"country")+"\nDestino cadastrado: "+V(_mapInfo,"network_name"),_p.Text,13,wrap:true));map.Children.Add(Ui.Label("ROTA MEDIDA ATÉ 1.1.1.1",_p.Text,13,true));
+        if(!points.Any(p=>p.Label.StartsWith("Destino"))&&_destination is not null)points.Add(_destination);
+        map.Children.Add(new ConnectionMap(points,_p));map.Children.Add(Ui.Label("Origem: "+V(provider,"isp")+" · "+V(provider,"city")+" · "+V(provider,"country")+"\nDestino cadastrado: "+V(_mapInfo,"network_name")+" · "+V(_mapInfo,"address"),_p.Text,13,wrap:true));map.Children.Add(Ui.Label("ROTA MEDIDA ATÉ 1.1.1.1",_p.Text,13,true));
         var hops=Part(connection,"route");if(hops.ValueKind==JsonValueKind.Array)foreach(var hop in hops.EnumerateArray())map.Children.Add(Ui.Label("↓ "+V(hop,"hop")+" · "+(V(hop,"ip").Length>0?V(hop,"ip"):"Sem resposta"),_p.Text,12,wrap:true));
         map.Children.Add(Ui.Label("Saltos sem resposta podem bloquear ICMP. IP não é GPS. O mapa não comprova o trajeto físico dos pacotes.",_p.Muted,12,wrap:true));var left=Ui.Card(measurements,_p);var right=Ui.Card(map,_p);grid.Children.Add(left);Grid.SetColumn(right,compact?0:1);Grid.SetRow(right,compact?1:0);grid.Children.Add(right);_root.Children.Add(grid);
     }

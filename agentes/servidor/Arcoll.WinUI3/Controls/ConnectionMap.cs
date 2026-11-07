@@ -1,5 +1,6 @@
 // Caminho: agentes/servidor/Arcoll.WinUI3/Controls/ConnectionMap.cs
 using System.Net.Http;
+using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -15,6 +16,17 @@ public sealed class ConnectionMap : UserControl
     public sealed record Point(double Latitude,double Longitude,string Label);
     private readonly Canvas _canvas=new(){Height=260};private readonly Point[] _points;private readonly Palette _p;private readonly Dictionary<string,BitmapImage> _cache=new();private CancellationTokenSource? _cancel;private int _zoom=4;private bool _fit=true;
     private static readonly HttpClient Http=CreateHttp();
+    private static readonly SemaphoreSlim GeoGate=new(1,1);
+    private static readonly Dictionary<string,Point> GeoCache=new();
+    public static async Task<Point?> GeocodeAsync(string address,CancellationToken ct)
+    {
+        if(string.IsNullOrWhiteSpace(address)||address.Length>500)return null;
+        await GeoGate.WaitAsync(ct);
+        try{if(GeoCache.TryGetValue(address,out var cached))return cached;await Task.Delay(1100,ct);var raw=await Http.GetStringAsync("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q="+Uri.EscapeDataString(address),ct);if(raw.Length>65536)return null;using var doc=JsonDocument.Parse(raw);if(doc.RootElement.ValueKind!=JsonValueKind.Array||doc.RootElement.GetArrayLength()==0)return null;var item=doc.RootElement[0];if(!double.TryParse(item.GetProperty("lat").ToString(),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var lat)||!double.TryParse(item.GetProperty("lon").ToString(),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var lon)||Math.Abs(lat)>85||Math.Abs(lon)>180)return null;var point=new Point(lat,lon,"Destino · endereço estimado");if(GeoCache.Count>=50)GeoCache.Clear();GeoCache[address]=point;return point;}
+        catch(Exception ex) when(ex is HttpRequestException or JsonException or KeyNotFoundException){return null;}
+        finally{GeoGate.Release();}
+    }
+
     private static HttpClient CreateHttp(){var h=new HttpClient{Timeout=TimeSpan.FromSeconds(12)};h.DefaultRequestHeaders.UserAgent.ParseAdd("TIDigital/"+AppInfo.Version);return h;}
     public ConnectionMap(IEnumerable<Point> points,Palette p)
     {
