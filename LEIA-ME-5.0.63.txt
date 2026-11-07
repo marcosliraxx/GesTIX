@@ -1,0 +1,57 @@
+Caminho: LEIA-ME-5.0.63.txt
+ATUALIZACAO 5.0.63 — SAUDE CONFORME O PDF CORRETO
+Base: 5.0.62. Referencia: Especificacao_Health_Check_Padrao_Agente (1).pdf.
+Este documento substitui a interpretacao funcional baseada no PDF anterior. Os ajustes de topo, Painel, Monitoramento, Servidor e Internet da 5.0.62 permanecem.
+
+COMPORTAMENTO CORRIGIDO
+- Saude permanece em Inicio, dentro de MaintenancePage, com titulo, descricao, filtro, status real, corpo rolavel e rodape de acoes.
+- A tela-resumo apresenta Espaco recuperavel, Privacidade, Registro e Inicializacao, com cards arredondados, paleta administrativa e acoes principais na cor de destaque azul do tema padrao.
+- Verificar saude somente analisa. Nao exclui arquivos, nao corrige o registro, nao desativa entradas e nao instala aplicativos.
+- Revisar espaco abre Limpeza com categorias herdadas, idade 7 dias e guia de arquivos. Revisar privacidade abre Limpeza com categorias herdadas, idade 0 e guia de navegacao/aplicativos. A pagina Limpeza conserva analise previa obrigatoria quando muda selecao, idade ou exclusoes.
+- Revisar registro abre a pagina Registro, sem aplicar correcao. Gerenciar inicializacao abre Inicializacao, onde a alteracao e revisada e reversivel. Aplicativos em segundo plano abre Desempenho, separado do boot.
+- Atualizacoes de aplicativos deixam de compor o nucleo do Saude nesta especificacao. Continuam disponiveis em Aplicativos > Atualizacoes.
+
+OTIMIZAR AGORA
+Somente os blocos Espaco e Privacidade marcados pelo usuario sao incluidos. A confirmacao apresenta os grupos, categorias, idades, itens e estimativas. Cookies podem encerrar logins; a exclusao e permanente. Nenhum grupo vem marcado automaticamente.
+A acao executa as categorias da analise em duas etapas independentes: espaco com idade 7 dias; privacidade com idade 0. Nao corrige problemas de registro nem altera entradas de inicializacao. Rastros do Windows armazenados no registro, como historico de Executar, pertencem as categorias de privacidade expressamente selecionadas; nao sao o limpador de problemas do Registro.
+Exclusoes sao revalidadas antes de cada etapa. Se mudarem, e exigida nova verificacao. Se o usuario cancelar, nao se inicia outra etapa; cancelar nao desfaz alteracoes ja realizadas.
+Apos otimizar, nova verificacao e exigida antes de outra otimizacao. Resultados historicos restaurados tambem nao autorizam uma limpeza sem novo scan.
+
+CATEGORIAS DO DOCUMENTO
+Espaco: user_temp, windows_temp, thumbnails, system_logs, error_reports, windows_update, gpu_shader_cache, chkdsk_fragments.
+Privacidade: recent_docs, jump_lists, run_history, search_history, clipboard e historicos/cookies dos navegadores suportados.
+Senhas salvas nao sao aceitas na automacao de Saude. As chaves sao validadas pelo motor e o catalogo e compartilhado com a plataforma.
+Registro: leitura de REGISTRY_CHECKS e contagem de problemas. Inicializacao: _startup_items, total e entradas ativas. Falhas de consulta sao identificadas; nao sao convertidas em garantia de computador sem problemas.
+
+RESULTADOS, CANCELAMENTO E FALHAS
+O relatorio distingue analise de execucao, preserva data/hora e informa itens removidos confirmados, bytes dos arquivos efetivamente removidos e falhas confirmadas. Tambem informa a variacao observada de espaco livre da unidade do sistema quando disponivel; outras atividades, compressao e particularidades do sistema de arquivos podem afetar essa variacao.
+Resultados truncados, incompletos ou interrompidos aparecem como Operacao parcial. Se um worker for interrompido antes de devolver o resultado, nao e inventada uma contagem: os totais consolidados incluem apenas etapas confirmadas, com aviso de que a etapa interrompida pode ter aplicado alteracoes nao contabilizadas.
+A limpeza de arquivos nao solicita reinicio automaticamente. O relatorio registra essa condicao explicitamente.
+Copiar relatorio usa o JSON real. Sincronizar relatorio salvo permite tentar novamente o envio sem executar outra limpeza.
+
+PERSISTENCIA LOCAL
+O ultimo relatorio de Saude e salvo atomicamente em:
+%LOCALAPPDATA%\TI-Digital\Reports\<hash da origem/rede/fingerprint>\health.json
+A separacao por identidade impede misturar relatorios entre instalacoes. O arquivo nao guarda chave de download nem credenciais. A leitura ocorre somente com o agente autorizado e respeita limite de tamanho.
+Se uma gravacao local falhar, o resultado permanece em memoria e a falha e exibida. Se o envio a agent-clean-local-result falhar, o erro e exibido sem apagar o relatorio local. O reenvio e uma acao explicita; ele nao repete operacoes de manutencao.
+A plataforma conserva campos higienizados do resumo, da otimizacao e das etapas. O arquivo local inclui os detalhes consolidados de etapas para consulta posterior.
+
+INSTALAR NO CPANEL
+1. Faca backup dos arquivos da 5.0.62 que serao substituidos.
+2. Envie todos os arquivos do ZIP preservando as pastas. Fonte nativo, motor Python e contrato PHP devem ser enviados juntos.
+3. Nao execute SQL: nao ha alteracao de tabelas. Nao substitua includes/config.php, uploads ou dados de producao.
+4. Atualize o agente Windows pela plataforma ou pelo instalador atualizado. Publicar no GitHub ou enviar ao cPanel nao atualiza sozinho os computadores.
+Nao ha arquivos destinados a exclusao nesta entrega. VERSION e o unico arquivo de metadados sem sintaxe de comentario; seu caminho relativo e VERSION.
+
+VALIDAR
+- Verificar saude sem modificacoes e conferir os quatro cards.
+- Revisar espaco/privacidade e conferir categorias, idade e guia na Limpeza.
+- Alterar a selecao/idade/exclusoes e confirmar que nova analise e exigida.
+- Revisar Registro, Inicializacao e Desempenho sem acao automatica.
+- Otimizar apenas grupos explicitamente marcados, ler a confirmacao e conferir resultados e eventuais falhas.
+- Cancelar uma etapa de teste em ambiente apropriado e conferir que a seguinte nao inicia.
+- Copiar o relatorio, reabrir o agente e conferir o historico salvo; reenvio nao deve repetir limpeza.
+A validacao automatica utiliza compilacao WinUI/BootWorker, UI Automation sem imagens, contratos PHP e 13 testes Python com dados sinteticos/chamadas Windows simuladas. Nao foram limpos dados de usuarios nem aplicadas mudancas em computadores de producao. Os testes persistentes sao atualizados no GitHub e nao entram no pacote de producao do cPanel.
+
+DESFAZER
+Restaure os arquivos substituidos da 5.0.62, inclusive VERSION, e reinstale o agente correspondente. Nao ha migracao de banco a reverter nem novos arquivos de codigo a excluir. O arquivo local de relatorio pode ser preservado; ele nao e executavel e nao aciona limpezas.
