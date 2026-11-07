@@ -1624,6 +1624,7 @@ def _tool_health(payload, progress):
     report['privacy'] = execute_clean(privacy, False, 0, _scaled(progress, 2, 40), payload.get('exclusions'), payload.get('custom_folders')) if privacy else empty
     _step(progress, 40, 'Coletando alguns arquivos inúteis antigos...')
     report['space'] = execute_clean(space, False, 7, _scaled(progress, 40, 80), payload.get('exclusions'), payload.get('custom_folders')) if space else empty
+    report['incomplete'] = any(report[p].get('errors', 0) or report[p].get('truncated', False) for p in ('space', 'privacy'))
     _step(progress, 80, 'Verificando aplicativos de inicialização...')
     items = [i for i in _startup_catalog() if i.get('kind') in ('run', 'folder')]
     report['speed'] = {'startup_total': len(items), 'startup_enabled': sum(1 for i in items if i.get('enabled')), 'items': _public_startup(items)}

@@ -5,11 +5,12 @@ namespace Arcoll.WinUI3.Pages;
 /// <summary>Fluxo integrado dos quatro domínios documentados do Health Check, com seleção e confirmação por etapa.</summary>
 public sealed class HealthPage : MaintenancePage
 {
-    private JsonElement _analysis;private string _stage="privacy";private readonly Action<string> _open;
+    private JsonElement _analysis;private string _settingsSignature="",_lastAction="";private string _stage="privacy";private readonly Action<string> _open;
     public HealthPage(AgentRuntime runtime,Func<string,string,string,Task<bool>> confirm,Action<string> open,Action<IEnumerable<string>,int,string> review):base(runtime,confirm,"health","Saúde do computador","Privacidade, espaço, inicialização e atualizações de aplicativos suportados. Diagnosticar não altera arquivos; aplicar exige seleção e confirmação."){_open=open;}
     protected override void Build()
     {
-        Actions(Action("Verificar saúde",async()=>{await LoadSettingsAsync();if(await RunAsync("tool",new(){{"tool","health"},{"action","scan"},{"space",Rows(Part(Catalog,"health"),"space").Select(x=>x.ToString()).ToArray()},{"privacy",Rows(Part(Catalog,"health"),"privacy").Select(x=>x.ToString()).ToArray()},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}}))_analysis=Report;}));
+        if(_lastAction.Length>0)Text(_lastAction,true);
+        Actions(Action("Verificar saúde",async()=>{await LoadSettingsAsync();_settingsSignature=JsonSerializer.Serialize(Settings);if(await RunAsync("tool",new(){{"tool","health"},{"action","scan"},{"space",Rows(Part(Catalog,"health"),"space").Select(x=>x.ToString()).ToArray()},{"privacy",Rows(Part(Catalog,"health"),"privacy").Select(x=>x.ToString()).ToArray()},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}}))_analysis=Report;}));
         if(_analysis.ValueKind!=JsonValueKind.Object){Text("Inicie a verificação para revisar as quatro áreas. Registro, drivers e suspensão de processos têm ferramentas próprias.");return;}
         Choices(new[]{("privacy","1 · Mais privacidade"),("space","2 · Mais espaço"),("speed","3 · Inicialização"),("security","4 · Aplicativos desatualizados")},_stage,value=>_stage=value);
         if(_stage is "privacy" or "space"){
@@ -20,8 +21,8 @@ public sealed class HealthPage : MaintenancePage
             Actions(Action("Aplicar limpeza selecionada",async()=>{
                 if(Selected.Count==0){Status("Selecione as categorias que deseja limpar.");return;}var ids=Selected.OrderBy(x=>x).ToArray();
                 if(!await Confirm("Revisar limpeza","Excluir permanentemente as categorias selecionadas? Cookies podem encerrar sessões. Arquivos em uso e exclusões serão respeitados.","Aplicar")||!Runtime.Allowed)return;
-                await LoadSettingsAsync();await RunAsync("execute",new(){{"categories",ids},{"age_days",_stage=="privacy"?0:7},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}});
-                Text("Resultado aplicado: "+Get(Report,"file_count")+" itens · "+Ui.Size(Number(Report,"bytes")));_analysis=default;
+                await LoadSettingsAsync();if(_settingsSignature!=JsonSerializer.Serialize(Settings)){_analysis=default;Status("As configurações mudaram. Verifique a saúde novamente antes de limpar.");return;}await RunAsync("execute",new(){{"categories",ids},{"age_days",_stage=="privacy"?0:7},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}});
+                _lastAction="Resultado informado: "+Get(Report,"file_count")+" itens · "+Ui.Size(Number(Report,"bytes"))+" · "+Get(Report,"errors")+" falhas";_analysis=default;
             }));
         }else if(_stage=="speed"){
             Text(Get(Part(_analysis,"speed"),"startup_enabled")+" entradas ativas; não há ganho de velocidade garantido.");foreach(var item in Rows(Part(_analysis,"speed"),"items").Where(x=>Yes(x,"enabled")))Select(item,Get(item,"name"),Get(item,"source")+" · "+Get(item,"command"));

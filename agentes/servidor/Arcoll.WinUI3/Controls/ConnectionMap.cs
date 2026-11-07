@@ -13,19 +13,20 @@ namespace Arcoll.WinUI3.Controls;
 public sealed class ConnectionMap : UserControl
 {
     public sealed record Point(double Latitude,double Longitude,string Label);
-    private readonly Canvas _canvas=new(){Height=260};private readonly Point[] _points;private readonly Palette _p;private readonly Dictionary<string,BitmapImage> _cache=new();private CancellationTokenSource? _cancel;private int _zoom=4;
+    private readonly Canvas _canvas=new(){Height=260};private readonly Point[] _points;private readonly Palette _p;private readonly Dictionary<string,BitmapImage> _cache=new();private CancellationTokenSource? _cancel;private int _zoom=4;private bool _fit=true;
     private static readonly HttpClient Http=CreateHttp();
     private static HttpClient CreateHttp(){var h=new HttpClient{Timeout=TimeSpan.FromSeconds(12)};h.DefaultRequestHeaders.UserAgent.ParseAdd("TIDigital/"+AppInfo.Version);return h;}
     public ConnectionMap(IEnumerable<Point> points,Palette p)
     {
         _points=points.Where(x=>double.IsFinite(x.Latitude)&&double.IsFinite(x.Longitude)&&Math.Abs(x.Latitude)<=85&&Math.Abs(x.Longitude)<=180).ToArray();_p=p;
-        var root=new StackPanel{Spacing=4};var bar=new StackPanel{Orientation=Orientation.Horizontal,Spacing=5};foreach(var (text,delta) in new[]{("+",1),("−",-1)}){var b=new Button{Content=text,MinWidth=28,MinHeight=28};b.Click+=async(_,_)=>{_zoom=Math.Clamp(_zoom+delta,1,15);await DrawAsync();};bar.Children.Add(b);}root.Children.Add(bar);root.Children.Add(_canvas);root.Children.Add(Ui.Label("© OpenStreetMap contributors · Localização por IP é aproximada. A linha não representa o caminho físico da conexão.",p.Muted,11,wrap:true));Content=root;Loaded+=async(_,_)=>await DrawAsync();SizeChanged+=async(_,e)=>{if(Math.Abs(e.NewSize.Width-e.PreviousSize.Width)>10)await DrawAsync();};Unloaded+=(_,_)=>_cancel?.Cancel();
+        var root=new StackPanel{Spacing=4};var bar=new StackPanel{Orientation=Orientation.Horizontal,Spacing=5};foreach(var (text,delta) in new[]{("+",1),("−",-1)}){var b=new Button{Content=text,MinWidth=28,MinHeight=28};b.Click+=async(_,_)=>{_fit=false;_zoom=Math.Clamp(_zoom+delta,1,15);await DrawAsync();};bar.Children.Add(b);}root.Children.Add(bar);root.Children.Add(_canvas);root.Children.Add(Ui.Label("© OpenStreetMap contributors · Localização por IP é aproximada. A linha não representa o caminho físico da conexão.",p.Muted,11,wrap:true));Content=root;Loaded+=async(_,_)=>await DrawAsync();SizeChanged+=async(_,e)=>{if(Math.Abs(e.NewSize.Width-e.PreviousSize.Width)>10)await DrawAsync();};Unloaded+=(_,_)=>_cancel?.Cancel();
     }
     private static (double X,double Y) Project(Point p,int z){var size=256*Math.Pow(2,z);var lat=p.Latitude*Math.PI/180;return((p.Longitude+180)/360*size,(1-Math.Log(Math.Tan(lat)+1/Math.Cos(lat))/Math.PI)/2*size);}
     private async Task DrawAsync()
     {
         _cancel?.Cancel();_cancel=new();var ct=_cancel.Token;_canvas.Children.Clear();var width=Math.Max(200,ActualWidth);_canvas.Clip=new RectangleGeometry{Rect=new Windows.Foundation.Rect(0,0,width,260)};_canvas.Background=_p.Alt;
         if(_points.Length==0){_canvas.Children.Add(Ui.Label("Localização não confirmada. Defina os pontos na plataforma; os saltos medidos continuam listados abaixo.",_p.Muted,13,wrap:true));return;}
+        if(_fit){_zoom=_points.Length==1?6:15;while(_zoom>1){var projected=_points.Select(p=>Project(p,_zoom)).ToArray();if(projected.Max(p=>p.X)-projected.Min(p=>p.X)<width-100&&projected.Max(p=>p.Y)-projected.Min(p=>p.Y)<160)break;_zoom--;}}
         var positions=_points.Select(p=>Project(p,_zoom)).ToArray();var cx=positions.Average(p=>p.X);var cy=positions.Average(p=>p.Y);var left=cx-width/2;var top=cy-130;var n=1<<_zoom;
         var tasks=new List<Task>();var count=0;
         for(var x=(int)Math.Floor(left/256);x<=(int)Math.Floor((left+width)/256);x++)for(var y=(int)Math.Floor(top/256);y<=(int)Math.Floor((top+260)/256);y++){
