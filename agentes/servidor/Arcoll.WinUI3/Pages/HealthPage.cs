@@ -46,7 +46,11 @@ public sealed class HealthPage : MaintenancePage
     private async Task OptimizeAsync()
     {
         if(!_space&&!_privacy)return;
-        if(!await Confirm("Otimizar agora","Executar somente os grupos de espaço e privacidade marcados? Temporários, caches e rastros selecionados serão excluídos permanentemente. Cookies podem encerrar logins. Arquivos em uso e exclusões serão respeitados. Problemas de registro não serão corrigidos e entradas de inicialização não serão alteradas. Cancelar não desfaz alterações já aplicadas.","Otimizar")||!Runtime.Allowed)return;
+        var scope=new List<string>();
+        foreach(var (key,label,enabled,age) in new[]{("space","Espaço",_space,7),("privacy","Privacidade",_privacy,0)}){
+            if(!enabled)continue;scope.Add(label+" · idade mínima "+age+" dia(s)");var categories=Part(Part(_analysis,key),"categories");if(categories.ValueKind==JsonValueKind.Object)foreach(var item in categories.EnumerateObject())scope.Add("• "+Get(Part(Part(Catalog,"catalog"),item.Name),"label")+" · "+Get(item.Value,"file_count")+" itens · "+Ui.Size(Number(item.Value,"bytes")));
+        }
+        if(!await Confirm("Otimizar agora",string.Join("\n",scope)+"\n\nExecutar somente o escopo acima? Temporários, caches e rastros selecionados serão excluídos permanentemente. Cookies podem encerrar logins. Arquivos em uso e exclusões serão respeitados. Problemas de registro não serão corrigidos e entradas de inicialização não serão alteradas. Cancelar não desfaz alterações já aplicadas.","Otimizar")||!Runtime.Allowed)return;
         await LoadSettingsAsync();if(_settingsSignature!=JsonSerializer.Serialize(Settings)){_settingsSignature="";Status("As configurações mudaram. Verifique a saúde novamente.");return;}
         var reports=new Dictionary<string,JsonElement>();var completed=new List<string>();var syncErrors=new List<string>();var incomplete=false;var before=FreeSpace();
         try{foreach(var (key,age,enabled) in new[]{("space",7,_space),("privacy",0,_privacy)}){
