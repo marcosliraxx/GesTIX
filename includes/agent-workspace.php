@@ -19,6 +19,15 @@ function arc_agent_workspace(PDO $pdo, array $agent, array $body): array {
         }
         return ['ok'=>true,'network_id'=>$network,'agent_id'=>$id,'network_name'=>(string)$net['name'],'logo_base64'=>$logo];
     }
+    if($op==='dashboard'){
+        require_once __DIR__.'/network-inventory.php';
+        return ['ok'=>true,'name'=>(string)$net['name']]+arc_inventory_dashboard($pdo,$account,$network);
+    }
+    if($op==='connection-map'){
+        $points=[];
+        try{$q=$pdo->prepare('SELECT kind,agent_id,latitude,longitude,accuracy_m,source,updated_at FROM '.arc_table('network_geo_points').' WHERE network_id=? AND account_id=? AND (agent_id=0 OR agent_id=?) ORDER BY updated_at DESC');$q->execute([$network,$account,$id]);foreach($q->fetchAll(PDO::FETCH_ASSOC) as $point)if(!isset($points[$point['kind']]))$points[$point['kind']]=$point;}catch(PDOException $e){/* Sem ponto confirmado: a interface informa a ausência. */}
+        return ['ok'=>true,'network_name'=>(string)$net['name'],'points'=>$points];
+    }
     if($op==='ticket-create'){
         $title=trim((string)($body['title']??''));$description=trim((string)($body['description']??''));$priority=(string)($body['priority']??'normal');
         if($title===''||mb_strlen($title)>160||$description===''||mb_strlen($description)>12000||!in_array($priority,['low','normal','high','urgent'],true))throw new InvalidArgumentException('Informe título, descrição e prioridade válidos.');

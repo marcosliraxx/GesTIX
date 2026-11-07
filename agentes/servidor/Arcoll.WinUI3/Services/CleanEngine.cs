@@ -62,6 +62,7 @@ public static class CleanEngine
     public static bool HasFailures(JsonElement report)
     {
         if (report.ValueKind != JsonValueKind.Object) return true;
+        if (report.TryGetProperty("incomplete", out var incomplete) && incomplete.ValueKind == JsonValueKind.True) return true;
         foreach (var key in new[] { "complete", "created" }) if (report.TryGetProperty(key, out var flag) && flag.ValueKind == JsonValueKind.False) return true;
         if (report.TryGetProperty("truncated", out var truncated) && truncated.ValueKind == JsonValueKind.True) return true;
         foreach (var key in new[] { "errors", "failed" }) if (report.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && number > 0) return true;

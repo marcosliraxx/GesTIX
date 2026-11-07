@@ -330,6 +330,7 @@ try {
                 $toolName=(string)($body['tool']??'');
                 $last=isset(arc_clean_tools()[$toolName])?(arc_clean_report_get($pdo,$agentId,$network,$account,$toolName)['report']??null):null;
                 $request=arc_clean_validate_tool($body,$last);
+                if(($request['tool']??'')==='health'){$healthSettings=arc_clean_settings_get($pdo,$agentId,$network,$account);$request['exclusions']=$healthSettings['exclusions'];$request['custom_folders']=$healthSettings['custom_folders'];}
             }elseif($isClean){
                 [$request['categories'],$request['age_days']]=arc_clean_validate_request($body['categories']??null,$body['age_days']??7);
                 $settings=arc_clean_settings_get($pdo,$agentId,$network,$account);

@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window
     private AuthState _trayLast = AuthState.Checking;
     private readonly ServerPage _serverPage;
     private readonly MonitorPage _monitorPage;
+    private readonly DashboardPage _dashboardPage;
     private readonly SpeedPage _speedPage;
     private readonly DevicesPage _devicesPage;
     private readonly MapPage _mapPage;
@@ -41,7 +42,7 @@ public sealed partial class MainWindow : Window
     private sealed record MenuItem(string Key, string Label, Symbol Icon);
     private sealed record MenuGroup(string Key, string Label, Symbol Icon, MenuItem[] Items);
     private static readonly MenuGroup[] Groups = {
-        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.Home), new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("speed", "Internet", Symbol.World), new MenuItem("health", "Saúde", Symbol.Important) }),
+        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.Home), new MenuItem("monitor", "Monitoramento", Symbol.View), new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("speed", "Internet", Symbol.World), new MenuItem("health", "Saúde", Symbol.Important) }),
         new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("clean", "Limpeza", Symbol.Delete), new MenuItem("registry", "Registro", Symbol.Repair), new MenuItem("startup", "Inicialização", Symbol.Play), new MenuItem("performance", "Desempenho", Symbol.View), new MenuItem("restore", "Restauração", Symbol.Undo), new MenuItem("options", "Configurações", Symbol.Setting) }),
         new("software", "Aplicativos", Symbol.Library, new[] { new MenuItem("programs", "Programas", Symbol.Library), new MenuItem("uninstall", "Desinstalar", Symbol.Remove), new MenuItem("updater", "Atualizações", Symbol.Refresh), new MenuItem("drivers", "Drivers", Symbol.AllApps), new MenuItem("windows_update", "Windows Update", Symbol.Download) }),
         new("storage", "Armazenamento", Symbol.Folder, new[] { new MenuItem("disk", "Disco", Symbol.Folder), new MenuItem("duplicates", "Duplicados", Symbol.Copy), new MenuItem("cloud", "Sincronizados", Symbol.World), new MenuItem("backup", "Backup", Symbol.Save) }),
@@ -61,7 +62,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         BuildCategories();
-        _serverPage = new(_hub, () => FooterText.Text); _monitorPage = new(_hub, () => _runtime.MonitorEnabled);
+        _dashboardPage = new(_runtime); _serverPage = new(_hub, () => FooterText.Text); _monitorPage = new(_hub, () => _runtime.MonitorEnabled);
         _speedPage = new(_runtime); _devicesPage = new(_runtime, m => FooterText.Text = m); _mapPage = new(_runtime, m => FooterText.Text = m);
         _programsPage = new(_runtime, ConfirmAsync); _filesPage = new(_runtime); _windowsUpdatePage = new(_runtime);
         var clean = new CleanPage(_runtime, ConfirmAsync); _tools.Add("clean", clean);
@@ -135,10 +136,10 @@ public sealed partial class MainWindow : Window
         RibbonMenus.Children.Clear(); _menus.Clear(); _separators.Clear();
         foreach (var item in group.Items)
         {
-            var content = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
-            content.Children.Add(new SymbolIcon(item.Icon) { Width = 28, Height = 28 });
+            var content = new StackPanel { Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center };
+            content.Children.Add(new SymbolIcon(item.Icon) { Width = 23, Height = 23 });
             content.Children.Add(new TextBlock { Text = item.Label, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center });
-            var button = new Button { Tag = item.Key, Content = content, MinWidth = 84, Height = 64, Padding = new Thickness(7, 3, 7, 3), BorderThickness = new Thickness(0, 0, 0, 2), CornerRadius = new CornerRadius(3) };
+            var button = new Button { Tag = item.Key, Content = content, MinWidth = 84, Height = 54, Padding = new Thickness(7, 3, 7, 3), BorderThickness = new Thickness(0, 0, 0, 2), CornerRadius = new CornerRadius(3) };
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(button, "nav-" + (item.Key == "speed" ? "internet" : item.Key));
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, item.Label); ToolTipService.SetToolTip(button, item.Label);
             button.Click += Menu_Click; _menus.Add(item.Key, button);
@@ -158,9 +159,9 @@ public sealed partial class MainWindow : Window
         foreach (var (key, menu) in _menus) { var selected = key == _section; menu.Background = selected ? p.Alt : p.Surface; menu.Foreground = selected ? p.Accent : p.Text; menu.BorderBrush = selected ? p.Accent : p.Surface; Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(menu, selected ? "Página selecionada" : "Abrir página"); }
         foreach (var separator in _separators) separator.BorderBrush = p.Line;
         RemoteButton.Foreground = RefreshButton.Foreground = p.Accent; NetworkBadge.Background = p.Surface; NetworkBadge.BorderBrush = p.Accent;
-        ConnectionLabel.Foreground = FooterText.Foreground = p.Muted;
+        NetworkTitle.Foreground = p.Text; ConnectionLabel.Foreground = FooterText.Foreground = p.Muted;
         if (_appliedTheme == t && _paletteState == _runtime.State) return; _appliedTheme = t; _paletteState = _runtime.State;
-        _serverPage.ApplyPalette(p); _monitorPage.ApplyPalette(p); _speedPage.ApplyPalette(p); _devicesPage.ApplyPalette(p); _mapPage.ApplyPalette(p);
+        _dashboardPage.ApplyPalette(p); _serverPage.ApplyPalette(p); _monitorPage.ApplyPalette(p); _speedPage.ApplyPalette(p); _devicesPage.ApplyPalette(p); _mapPage.ApplyPalette(p);
         _programsPage.ApplyPalette(p); foreach (var page in _tools.Values) page.ApplyPalette(p); _windowsUpdatePage.ApplyPalette(p); _filesPage.ApplyPalette(p); _supportPage.ApplyPalette(p); _ticketsPage.ApplyPalette(p);
     }
     private void Menu_Click(object sender, RoutedEventArgs e) { if (sender is Button menu) SelectSection(menu.Tag?.ToString() ?? "panel"); }
@@ -172,10 +173,11 @@ public sealed partial class MainWindow : Window
         if (_group != group.Key || _menus.Count == 0) { _group = group.Key; BuildRibbon(group); }
         // Cada ferramenta tem sua página e seu estado; trocar menus não cancela nem reinicia operações.
         PageHost.Content = null; CompactHost.Content = null;
-        var bounded = section == "programs" || _tools.ContainsKey(section);
+        var bounded = section is "programs" or "panel" || _tools.ContainsKey(section);
         PageScroll.Visibility = bounded ? Visibility.Collapsed : Visibility.Visible;
         CompactHost.Visibility = bounded ? Visibility.Visible : Visibility.Collapsed;
-        if (section == "programs") CompactHost.Content = _programsPage;
+        if (section == "panel") CompactHost.Content = _dashboardPage;
+        else if (section == "programs") CompactHost.Content = _programsPage;
         else if (_tools.TryGetValue(section, out var tool)) CompactHost.Content = tool;
         else PageHost.Content = section switch { "windows_update" => _windowsUpdatePage, "devices" => _devicesPage, "map" => _mapPage, "files" => _filesPage, "server" => _serverPage, "speed" => _speedPage, "support" => _supportPage, "tickets" => _ticketsPage, _ => _monitorPage };
         ApplyTheme(_themes.Current);
@@ -203,6 +205,7 @@ public sealed partial class MainWindow : Window
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             if (_brandSite != _runtime.Platform.Config.SiteCode) { _brandSite = _runtime.Platform.Config.SiteCode; NetworkBadge.Child = new TextBlock { Text = "REDE", FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }; }
             var info = await WorkspaceService.GetAsync(_runtime, "info", timeout.Token);
+            NetworkTitle.Text = info.GetProperty("network_name").ToString();
             var logo = info.GetProperty("logo_base64").GetString() ?? "";
             if (logo.Length > 0)
             {
@@ -224,6 +227,7 @@ public sealed partial class MainWindow : Window
         if (_paletteState != _runtime.State) ApplyTheme(_themes.Current);
         GateOverlay.Visibility = _runtime.Gated ? Visibility.Visible : Visibility.Collapsed; GateText.Text = _runtime.StateNotice;
         ConnectionLabel.Text = _runtime.State switch { AuthState.Approved or AuthState.UiLocked => "Conectado · " + _runtime.NetworkName, AuthState.Pending => "Aguardando liberação", AuthState.Checking => "Verificando…", _ => "Sem confirmação" };
+        NetworkTitle.Text = string.IsNullOrWhiteSpace(_runtime.NetworkName) ? NetworkTitle.Text : _runtime.NetworkName;
         Title = _runtime.SystemName + " — Agente Windows";
         var state = _runtime.Allowed ? TrayState.Connected : _runtime.State is AuthState.Pending or AuthState.Checking ? TrayState.Pending : TrayState.Offline;
         _tray.SetState(state, ConnectionLabel.Text);
