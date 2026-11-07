@@ -127,7 +127,7 @@ VIEWS.health=b=>{const r=reports.health;
  if(hstate==='done')return void b.append(h('div',{class:'cc-center'},ill('\uf00c','#1f6b45'),h('h2',{},'Tudo pronto!'),h('p',{class:'mut'},hfreed.files>0?fmt(hfreed.files)+' arquivos removidos · '+size(hfreed.bytes)+' liberados.':'Nenhuma limpeza foi aplicada nesta verificação.'),h('button',{class:'cc-pill blue',disabled:!can(),onclick:startHealth},'Verificar novamente')));
  if(r.incomplete)b.append(h('div',{style:'margin:12px 20px;padding:12px;border:1px solid #d9a358;border-radius:10px;color:#f4cc85'},
      h('b',{},'Verificação parcial do agente nativo'),h('p',{},r.note||'Algumas categorias não foram verificadas.'),
-     h('small',{},(r.missing||[]).length+' categoria(s) não verificadas. O registro não foi auditado.')));
+     h('small',{},r.registry?.complete===false?'Consulta do registro não confirmada.':'Revise falhas e limites por categoria; o registro não é corrigido automaticamente.')));
  const labels=['Mais privacidade','Mais espaço','Resolver problemas'],st=h('div',{class:'cc-steps'});
  labels.forEach((l,i)=>{if(i)st.append(h('div',{class:'cc-ln'}));st.append(h('div',{class:'cc-st '+(i<hstep?'done':i===hstep?'on':'dot')},h('i',{},i<hstep?'✓':i===hstep?'!':''),l))});b.append(st);
  if(hstep<2){const part=hstep===0?'privacy':'space',cats=Object.entries(r[part].categories||{}).filter(([k,v])=>v.file_count>0&&catalog[k]);

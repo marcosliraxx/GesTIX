@@ -14,7 +14,7 @@ public sealed class HealthPage : MaintenancePage
     protected override void Build()
     {
         RestoreSnapshot();if(_analysis.ValueKind!=JsonValueKind.Object&&Report.ValueKind==JsonValueKind.Object)_analysis=Yes(Report,"optimization")?Part(Report,"analysis"):Report;
-        Actions(Action("Verificar saúde",async()=>{
+        Actions(PrimaryAction("Verificar saúde",async()=>{
             await LoadSettingsAsync();_settingsSignature=JsonSerializer.Serialize(Settings);_space=_privacy=false;
             if(await RunAsync("tool",new(){{"tool","health"},{"action","scan"},{"space",Rows(Part(Catalog,"health"),"space").Select(x=>x.ToString()).ToArray()},{"privacy",Rows(Part(Catalog,"health"),"privacy").Select(x=>x.ToString()).ToArray()},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}}))_analysis=Report;else _settingsSignature="";
         }));
@@ -29,7 +29,7 @@ public sealed class HealthPage : MaintenancePage
         }
         var registry=Part(_analysis,"registry");Summary("Registro",Part(registry,"complete").ValueKind==JsonValueKind.False?"Consulta não confirmada: "+Get(registry,"message"):Get(registry,"issues")+" problemas encontrados", "Revisar registro","registry");
         var startup=Part(_analysis,"speed");Summary("Inicialização",Get(startup,"startup_enabled")+" de "+Get(startup,"startup_total")+" entradas ativas","Gerenciar inicialização","startup");
-        Actions(Action("Ver aplicativos em segundo plano",()=>{_open("performance");return Task.CompletedTask;}),Action("Otimizar agora",OptimizeAsync,_settingsSignature.Length>0&&(_space||_privacy)));
+        Actions(Action("Ver aplicativos em segundo plano",()=>{_open("performance");return Task.CompletedTask;}),PrimaryAction("Otimizar agora",OptimizeAsync,_settingsSignature.Length>0&&(_space||_privacy)));
         if(_settingsSignature.Length==0)Text("Relatório histórico ou configuração alterada. Faça nova verificação antes de otimizar.");
         if(Yes(Report,"optimization")){
             Text(Yes(Report,"incomplete")?"Operação parcial":"Resultado da otimização",true);Text(Get(Report,"removed")+" itens removidos confirmados · "+Ui.Size(Number(Report,"freed_bytes"))+" em arquivos removidos · "+Get(Report,"errors")+" falhas confirmadas");
@@ -37,6 +37,11 @@ public sealed class HealthPage : MaintenancePage
             foreach(var issue in Rows(Report,"sync_errors"))Text(issue.ToString());
             Text(Yes(Report,"reboot")?"Há exigência de reinício; nenhum reinício foi iniciado.":"Reinício não solicitado por esta otimização.");
         }
+    }
+    private Button PrimaryAction(string title,Func<Task> action,bool enabled=true)
+    {
+        var button=Action(title,action,enabled);button.Background=P.Accent;button.BorderBrush=P.Accent;
+        if(button.Content is TextBlock text)text.Foreground=ThemeService.Brush("#ffffff");return button;
     }
     private void Summary(string title,string value,string action,string route)
     {
