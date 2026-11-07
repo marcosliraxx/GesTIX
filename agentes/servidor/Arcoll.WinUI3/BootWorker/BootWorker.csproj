@@ -7,6 +7,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>TIDigital.BootPresence</AssemblyName>
-    <Version>5.0.62</Version>
+    <Version>5.0.63</Version>
   </PropertyGroup>
 </Project>

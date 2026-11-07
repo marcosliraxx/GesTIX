@@ -324,6 +324,10 @@ def _prune_empty(root, cutoff, policy):
 def _scan_targets(category, targets, execute, cutoff, policy, notify, prune=False, temp_kind=False):
     count, size, errors = 0, 0, 0
 
+    def walk_error(_error):
+        nonlocal errors
+        errors += 1
+
     def result(truncated=False):
         return {'file_count': count, 'bytes': size, 'errors': errors, 'truncated': truncated}
 
@@ -370,7 +374,7 @@ def _scan_targets(category, targets, execute, cutoff, policy, notify, prune=Fals
             continue
         root = target.resolve()
         recursive = mode in ('tree', 'treematch')
-        for folder, dirs, files in os.walk(root, topdown=True, followlinks=False, onerror=lambda _e: None):
+        for folder, dirs, files in os.walk(root, topdown=True, followlinks=False, onerror=walk_error):
             current = Path(folder)
             relative = current.relative_to(root).parts
             dirs[:] = [d for d in dirs if not _is_link(current / d) and not policy.excluded(current / d)
@@ -698,7 +702,7 @@ def execute_clean(categories, execute=False, age_days=DEFAULT_AGE_DAYS, progress
     policy = Policy(exclusions)
     custom = [p for p in (custom_folders or []) if isinstance(p, str)]
     verb = 'Limpando' if execute else 'Analisando'
-    result = {'categories': {}, 'file_count': 0, 'bytes': 0, 'errors': 0, 'execute': bool(execute), 'age_days': age_days}
+    result = {'categories': {}, 'file_count': 0, 'bytes': 0, 'errors': 0, 'execute': bool(execute), 'age_days': age_days, 'truncated': False}
     last = [0.0]
     for position, category in enumerate(categories, 1):
         label = _label(category)
@@ -721,6 +725,7 @@ def execute_clean(categories, execute=False, age_days=DEFAULT_AGE_DAYS, progress
         result['file_count'] += item['file_count']
         result['bytes'] += item['bytes']
         result['errors'] += item['errors']
+        result['truncated'] = result['truncated'] or bool(item.get('truncated'))
     disk = _disk()
     if disk:
         result['disk'] = disk
@@ -1613,10 +1618,14 @@ def _tool_updater(payload, progress):
 # ----------------------------------------------------------------------------------------------------------------
 # Verificação de integridade
 # ----------------------------------------------------------------------------------------------------------------
+HEALTH_SPACE = ('user_temp', 'windows_temp', 'thumbnails', 'system_logs', 'error_reports', 'windows_update', 'gpu_shader_cache', 'chkdsk_fragments')
+HEALTH_PRIVACY = ('recent_docs', 'jump_lists', 'run_history', 'search_history', 'clipboard', 'firefox_history', 'firefox_cookies') + tuple('%s_%s' % (browser, facet) for browser in _CHROMIUM for facet in ('history', 'cookies'))
+
+
 def _tool_health(payload, progress):
     space, privacy = payload.get('space') or [], payload.get('privacy') or []
-    for group in (space, privacy):
-        if not isinstance(group, list) or any(c not in CATEGORIES for c in group):
+    for group, allowed in ((space, HEALTH_SPACE), (privacy, HEALTH_PRIVACY)):
+        if not isinstance(group, list) or len(set(group)) != len(group) or any(c not in allowed or c not in CATEGORIES for c in group):
             raise ValueError('Categorias de verificação inválidas.')
     empty = {'categories': {}, 'file_count': 0, 'bytes': 0, 'errors': 0}
     report = {'tool': 'health'}
@@ -1625,21 +1634,20 @@ def _tool_health(payload, progress):
     _step(progress, 40, 'Coletando alguns arquivos inúteis antigos...')
     report['space'] = execute_clean(space, False, 7, _scaled(progress, 40, 80), payload.get('exclusions'), payload.get('custom_folders')) if space else empty
     report['incomplete'] = any(report[p].get('errors', 0) or report[p].get('truncated', False) for p in ('space', 'privacy'))
-    _step(progress, 80, 'Verificando aplicativos de inicialização...')
-    items = [i for i in _startup_catalog() if i.get('kind') in ('run', 'folder')]
-    report['speed'] = {'startup_total': len(items), 'startup_enabled': sum(1 for i in items if i.get('enabled')), 'items': _public_startup(items)}
-    report['registry'] = {'issues': 0, 'separate': True}
-    _step(progress, 90, 'Verificando atualizações de aplicativos suportados...')
+    _step(progress, 80, 'Inventariando inicialização...')
+    items = _startup_items()
+    report['speed'] = {'startup_total': len(items), 'startup_enabled': sum(1 for i in items if i.get('enabled'))}
+    _step(progress, 90, 'Analisando o registro, sem corrigir...')
     try:
-        query = _run([_winget_exe(), 'upgrade', '--accept-source-agreements', '--disable-interactivity'], 180)
-        if query.returncode & 0xffffffff not in (0, 0x8A15002B):
-            raise RuntimeError('O WinGet não confirmou a consulta de atualizações.')
-        updates = _parse_winget_table(query.stdout)[:200]
-        report['security'] = {'complete': True, 'items': updates, 'available': len(updates), 'message': 'Somente aplicativos reconhecidos pelo WinGet são cobertos.'}
+        issues = _scan_registry(REGISTRY_CHECKS, _scaled(progress, 90, 99))
+        report['registry'] = {'issues': len(issues), 'complete': True}
     except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
-        report['security'] = {'complete': False, 'items': [], 'available': 0, 'message': str(exc)[:250]}
+        report['registry'] = {'issues': 0, 'complete': False, 'message': str(exc)[:250]}
         report['incomplete'] = True
-    _step(progress, 100, 'Verificação concluída. Revise as quatro áreas antes de aplicar alterações.')
+    report['created'] = True
+    report['captured_at'] = int(time.time())
+    report['message'] = 'Análise concluída, sem alterações. Revise espaço, privacidade, registro e inicialização.'
+    _step(progress, 100, 'Análise concluída. Nenhuma correção foi aplicada.')
     return report
 
 

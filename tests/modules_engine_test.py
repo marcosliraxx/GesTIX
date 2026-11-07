@@ -62,16 +62,27 @@ class EngineTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as folder,patch.object(clean,'DATA_DIR',Path(folder)),patch.dict(sys.modules,{'arcoll_clean':clean,'arcoll_cloud':types.SimpleNamespace(CloudBackup=Backup)}):
    result=worker.run({'mode':'backup_status','config':{'origin':'https://example.test','fingerprint':'synthetic','site_code':'TEST','download_key':'synthetic'}})
   self.assertEqual(calls,[('agent-state',{})]);self.assertEqual(result['status']['state'],'uploading');self.assertEqual(result['status']['files_done'],9)
- def test_health_four_domains_no_registry_mutation(self):
+ def test_health_is_read_only_and_includes_registry(self):
   empty={'categories':{},'file_count':0,'bytes':0,'errors':0}
-  with patch.object(clean,'execute_clean',return_value=empty) as scan,patch.object(clean,'_startup_catalog',return_value=[]),patch.object(clean,'_scan_registry',side_effect=AssertionError('Registro nao pertence ao nucleo')),patch.object(clean,'_winget_exe',return_value='synthetic'),patch.object(clean,'_run',return_value=subprocess.CompletedProcess([],0,'','')),patch.object(clean,'_parse_winget_table',return_value=[{'id':'Test.App','name':'Synthetic','version':'1','available':'2'}]):
+  items=[{'enabled':True},{'enabled':False}]
+  with patch.object(clean,'execute_clean',return_value=empty) as scan,patch.object(clean,'_startup_items',return_value=items),patch.object(clean,'_scan_registry',return_value=[{},{}]) as registry,patch.object(clean,'_fix_registry',side_effect=AssertionError('Sem correcao automatica')),patch.object(clean,'_winget_exe',side_effect=AssertionError('Sem atualizador no resumo')):
    result=clean._tool_health({'space':['user_temp'],'privacy':['recent_docs'],'exclusions':['synthetic exclusion']},None)
-   self.assertEqual(result['security']['available'],1);self.assertTrue(result['security']['complete']);self.assertEqual(result['registry']['issues'],0)
-   self.assertEqual(scan.call_args_list[0].args[4],['synthetic exclusion'])
- def test_health_unavailable_updates_not_secure_zero(self):
-  with patch.object(clean,'_startup_catalog',return_value=[]),patch.object(clean,'_winget_exe',side_effect=RuntimeError('missing')):
-   result=clean._tool_health({'space':[],'privacy':[]},None)
-  self.assertFalse(result['security']['complete']);self.assertTrue(result['incomplete'])
+   self.assertEqual(result['registry']['issues'],2);self.assertTrue(result['registry']['complete']);self.assertEqual(result['speed']['startup_enabled'],1)
+   self.assertEqual([c.args[1] for c in scan.call_args_list],[False,False]);self.assertEqual([c.args[2] for c in scan.call_args_list],[0,7]);self.assertEqual(scan.call_args_list[0].args[4],['synthetic exclusion']);registry.assert_called_once()
+ def test_health_never_includes_passwords(self):
+  self.assertFalse(any('password' in x for x in clean.HEALTH_PRIVACY))
+  with self.assertRaises(ValueError):clean._tool_health({'privacy':['chrome_passwords'],'space':[]},None)
+ def test_health_registry_failure_is_partial(self):
+  with patch.object(clean,'_startup_items',return_value=[]),patch.object(clean,'_scan_registry',side_effect=OSError('denied')):
+   result=clean._tool_health({'privacy':[],'space':[]},None)
+  self.assertTrue(result['incomplete']);self.assertFalse(result['registry']['complete'])
+ def test_cleanup_counts_only_successful_removals(self):
+  with tempfile.TemporaryDirectory() as folder:
+   path=Path(folder)/'synthetic.tmp';path.write_bytes(b'x'*64)
+   policy=clean.Policy([])
+   with patch.object(clean,'_remove_file',side_effect=OSError('locked')):
+    r=clean._scan_targets('user_temp',[(Path(folder),'tree',())],True,10**15,policy,lambda *_:None)
+   self.assertEqual(r['file_count'],0);self.assertEqual(r['bytes'],0);self.assertEqual(r['errors'],1);self.assertTrue(path.exists())
  def test_unknown_tool_rejected(self):
   with self.assertRaises(ValueError):clean.execute_tool({'tool':'arbitrary_shell','action':'run'})
 
