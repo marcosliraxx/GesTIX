@@ -125,12 +125,9 @@ function arc_clean_catalog(): array
 /** Grupos da Verificação de integridade (somente chaves do catálogo). */
 function arc_clean_health_sets(): array
 {
-    $space = ['user_temp', 'windows_temp', 'thumbnails', 'error_reports', 'system_logs', 'memory_dumps', 'gpu_shader_cache', 'windows_update', 'delivery_optimization', 'firefox_cache'];
-    $privacy = ['recent_docs', 'run_history', 'search_history', 'firefox_cookies', 'firefox_history'];
-    foreach (['chrome', 'edge', 'brave', 'opera', 'vivaldi'] as $b) {
-        $space[] = $b . '_cache';
-        array_push($privacy, $b . '_cookies', $b . '_history');
-    }
+    $space = ['user_temp', 'windows_temp', 'thumbnails', 'system_logs', 'error_reports', 'windows_update', 'gpu_shader_cache', 'chkdsk_fragments'];
+    $privacy = ['recent_docs', 'jump_lists', 'run_history', 'search_history', 'clipboard', 'firefox_cookies', 'firefox_history'];
+    foreach (['chrome', 'edge', 'brave', 'opera', 'vivaldi'] as $b) array_push($privacy, $b . '_cookies', $b . '_history');
     return ['space' => $space, 'privacy' => $privacy];
 }
 
@@ -335,7 +332,7 @@ function arc_clean_sanitize_report(array $report, bool $execute): array
 {
     $age = (int)($report['age_days'] ?? 7);
     $clean = [
-        'file_count' => 0, 'bytes' => 0, 'errors' => 0,
+        'file_count' => 0, 'bytes' => 0, 'errors' => 0, 'truncated' => false,
         'execute'    => $execute,
         'age_days'   => in_array($age, arc_clean_age_options(), true) ? $age : 7,
         'categories' => [],
@@ -354,6 +351,7 @@ function arc_clean_sanitize_report(array $report, bool $execute): array
         $clean['file_count'] += $item['file_count'];
         $clean['bytes']      += $item['bytes'];
         $clean['errors']     += $item['errors'];
+        $clean['truncated'] = $clean['truncated'] || $item['truncated'];
     }
     $disk = $report['disk'] ?? null;
     if (is_array($disk) && isset($disk['total'], $disk['free'])) {
@@ -473,11 +471,14 @@ function arc_clean_sanitize_tool_report(string $tool, array $r): array
                 $out[$part] = ['file_count' => $san['file_count'], 'bytes' => $san['bytes'], 'errors' => $san['errors'], 'categories' => $san['categories']];
             }
             $out['speed'] = ['startup_total' => arc_clean_count($r['speed']['startup_total'] ?? 0), 'startup_enabled' => arc_clean_count($r['speed']['startup_enabled'] ?? 0)];
-            [, $startup]=arc_clean_sanitize_tool_report('startup',['items'=>$r['speed']['items']??[]]);$out['speed']['items']=$startup['items'];
-            [, $updates]=arc_clean_sanitize_tool_report('updater',['items'=>$r['security']['items']??[]]);
-            $out['security']=['complete'=>!empty($r['security']['complete']),'items'=>$updates['items'],'available'=>count($updates['items']),'message'=>arc_clean_text($r['security']['message']??'Atualizações não verificadas por este agente.',250)];
-
-            $out['registry'] = ['issues' => arc_clean_count($r['registry']['issues'] ?? 0)];
+            $out['registry'] = ['issues'=>arc_clean_count($r['registry']['issues']??0),'complete'=>!isset($r['registry']['complete'])||!empty($r['registry']['complete']),'message'=>arc_clean_text($r['registry']['message']??'',250)];
+            $out['sync_errors']=array_slice(array_map(static fn($text)=>arc_clean_text($text,300),array_filter((array)($r['sync_errors']??[]),'is_string')),0,4);
+            $out['optimization'] = !empty($r['optimization']);
+            $out['removed'] = arc_clean_count($r['removed']??0); $out['freed_bytes'] = arc_clean_count($r['freed_bytes']??0); $out['errors'] = arc_clean_count($r['errors']??0);
+            $out['reboot'] = !empty($r['reboot']);$out['created'] = !isset($r['created'])||!empty($r['created']);$out['captured_at'] = arc_clean_count($r['captured_at']??0);
+            $out['message'] = arc_clean_text($r['message']??'',500);
+            $out['steps'] = array_values(array_intersect((array)($r['steps']??[]),['space','privacy']));
+            $out['free_space_delta'] = isset($r['free_space_delta'])&&is_numeric($r['free_space_delta'])?(int)$r['free_space_delta']:null;
             break;
     }
     return [$tool, $out];

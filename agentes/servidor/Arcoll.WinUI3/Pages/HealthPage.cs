@@ -1,38 +1,72 @@
 // Caminho: agentes/servidor/Arcoll.WinUI3/Pages/HealthPage.cs
 using System.Text.Json;
 using Arcoll.WinUI3.Services;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 namespace Arcoll.WinUI3.Pages;
-/// <summary>Fluxo integrado dos quatro domínios documentados do Health Check, com seleção e confirmação por etapa.</summary>
+/// <summary>Painel orquestrador: espaço, privacidade, registro e inicialização; otimização somente de arquivos.</summary>
 public sealed class HealthPage : MaintenancePage
 {
-    private JsonElement _analysis;private string _settingsSignature="",_lastAction="";private string _stage="privacy";private readonly Action<string> _open;
-    public HealthPage(AgentRuntime runtime,Func<string,string,string,Task<bool>> confirm,Action<string> open,Action<IEnumerable<string>,int,string> review):base(runtime,confirm,"health","Saúde do computador","Privacidade, espaço, inicialização e atualizações de aplicativos suportados. Diagnosticar não altera arquivos; aplicar exige seleção e confirmação."){_open=open;}
+    private JsonElement _analysis;private string _settingsSignature="";
+    private readonly Action<string> _open;private readonly Action<IEnumerable<string>,int,string> _review;
+    public HealthPage(AgentRuntime runtime,Func<string,string,string,Task<bool>> confirm,Action<string> open,Action<IEnumerable<string>,int,string> review):base(runtime,confirm,"health","Saúde do computador","Verifique sem alterar arquivos. Revise espaço, privacidade, registro e inicialização antes de aplicar qualquer ação."){_open=open;_review=review;}
     protected override void Build()
     {
-        if(_lastAction.Length>0)Text(_lastAction,true);
-        Actions(Action("Verificar saúde",async()=>{await LoadSettingsAsync();_settingsSignature=JsonSerializer.Serialize(Settings);if(await RunAsync("tool",new(){{"tool","health"},{"action","scan"},{"space",Rows(Part(Catalog,"health"),"space").Select(x=>x.ToString()).ToArray()},{"privacy",Rows(Part(Catalog,"health"),"privacy").Select(x=>x.ToString()).ToArray()},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}}))_analysis=Report;}));
-        if(_analysis.ValueKind!=JsonValueKind.Object){Text("Inicie a verificação para revisar as quatro áreas. Registro, drivers e suspensão de processos têm ferramentas próprias.");return;}
-        Choices(new[]{("privacy","1 · Mais privacidade"),("space","2 · Mais espaço"),("speed","3 · Inicialização"),("security","4 · Aplicativos desatualizados")},_stage,value=>_stage=value);
-        if(_stage is "privacy" or "space"){
-            var part=Part(_analysis,_stage);Text(Get(part,"file_count")+" itens encontrados · "+Ui.Size(Number(part,"bytes")),true);var categories=Part(part,"categories");
-            if(categories.ValueKind==JsonValueKind.Object)foreach(var category in categories.EnumerateObject()){
-                var item=JsonSerializer.SerializeToElement(new{id=category.Name});var definition=Part(Part(Catalog,"catalog"),category.Name);Select(item,Get(definition,"label"),Get(category.Value,"file_count")+" itens · "+Ui.Size(Number(category.Value,"bytes"))+" · "+Get(definition,"hint"));
-            }
-            Actions(Action("Aplicar limpeza selecionada",async()=>{
-                if(Selected.Count==0){Status("Selecione as categorias que deseja limpar.");return;}var ids=Selected.OrderBy(x=>x).ToArray();
-                if(!await Confirm("Revisar limpeza","Excluir permanentemente as categorias selecionadas? Cookies podem encerrar sessões. Arquivos em uso e exclusões serão respeitados.","Aplicar")||!Runtime.Allowed)return;
-                await LoadSettingsAsync();if(_settingsSignature!=JsonSerializer.Serialize(Settings)){_analysis=default;Status("As configurações mudaram. Verifique a saúde novamente antes de limpar.");return;}await RunAsync("execute",new(){{"categories",ids},{"age_days",_stage=="privacy"?0:7},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}});
-                _lastAction="Resultado informado: "+Get(Report,"file_count")+" itens · "+Ui.Size(Number(Report,"bytes"))+" · "+Get(Report,"errors")+" falhas";_analysis=default;
-            }));
-        }else if(_stage=="speed"){
-            Text(Get(Part(_analysis,"speed"),"startup_enabled")+" entradas ativas; não há ganho de velocidade garantido.");foreach(var item in Rows(Part(_analysis,"speed"),"items").Where(x=>Yes(x,"enabled")))Select(item,Get(item,"name"),Get(item,"source")+" · "+Get(item,"command"));
-            Actions(Action("Desativar selecionados",async()=>{if(Selected.Count is <1 or >100){Status("Selecione de 1 a 100 entradas.");return;}var ids=Selected.ToArray();if(await Confirm("Inicialização","Desativar somente as entradas escolhidas? Preserve antivírus, ferramentas corporativas, acessibilidade e backup. A operação pode ser revertida em Inicialização.","Desativar")&&Runtime.Allowed){await RunAsync("tool",new(){{"tool","startup"},{"action","apply"},{"operations",ids.Select(id=>new{id,op="disable"}).ToArray()}});_analysis=default;}}));
-        }else{
-            var security=Part(_analysis,"security");Text(Get(security,"message"));if(!Yes(security,"complete")){Text("Segurança não verificada. Não equivale a ausência de atualizações.");return;}
-            Text(Get(security,"available")+" atualizações disponíveis",true);foreach(var item in Rows(security,"items"))Select(item,Get(item,"name"),Get(item,"version")+" → "+Get(item,"available"));
-            Actions(Action("Atualizar aplicativos selecionados",async()=>{if(Selected.Count is <1 or >30){Status("Selecione de 1 a 30 aplicativos.");return;}var ids=Selected.ToArray();if(await Confirm("Atualizar aplicativos","Aplicar apenas os pacotes selecionados pelo WinGet?","Atualizar")&&Runtime.Allowed){await RunAsync("tool",new(){{"tool","updater"},{"action","apply"},{"ids",ids}});_analysis=default;}}));
+        RestoreSnapshot();if(_analysis.ValueKind!=JsonValueKind.Object&&Report.ValueKind==JsonValueKind.Object)_analysis=Yes(Report,"optimization")?Part(Report,"analysis"):Report;
+        Actions(PrimaryAction("Verificar saúde",async()=>{
+            await LoadSettingsAsync();_settingsSignature=JsonSerializer.Serialize(Settings);Selected.Clear();
+            if(await RunAsync("tool",new(){{"tool","health"},{"action","scan"},{"space",Rows(Part(Catalog,"health"),"space").Select(x=>x.ToString()).ToArray()},{"privacy",Rows(Part(Catalog,"health"),"privacy").Select(x=>x.ToString()).ToArray()},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}}))_analysis=Report;else _settingsSignature="";
+        }));
+        if(_analysis.ValueKind!=JsonValueKind.Object){View.Children.Add(Ui.Card(Ui.Label("Seu computador merece atenção. Clique em Verificar saúde para obter uma análise real; nenhuma limpeza começa automaticamente.",P.Text,14,wrap:true),P,16));return;}
+        Text("Resumo da última análise — sem alterações",true);
+        if(Number(_analysis,"captured_at")>0)Text("Analisado em "+DateTimeOffset.FromUnixTimeSeconds((long)Number(_analysis,"captured_at")).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss"));
+        Actions(Action("Sincronizar relatório salvo",async()=>{Status("Reenviando o relatório salvo, sem repetir operações.");await SaveSnapshotAsync(Report.Clone());if(SyncNotice.Length==0)Status("Relatório sincronizado sem repetir operações.");}));
+        foreach(var (key,title,button,age,tab) in new[]{("space","Espaço recuperável","Revisar espaço",7,"junk"),("privacy","Privacidade","Revisar privacidade",0,"browser")}){
+            var part=Part(_analysis,key);if(!Matches(title))continue;var card=new StackPanel{Spacing=6};card.Children.Add(Ui.Label(title,P.Text,16,true));card.Children.Add(Ui.Label(Ui.Size(Number(part,"bytes"))+" · "+Get(part,"file_count")+" itens · "+Get(part,"errors")+" falhas",P.Muted,13,wrap:true));
+            card.Children.Add(Action(button,()=>{var cats=Part(part,"categories");_review(cats.ValueKind==JsonValueKind.Object?cats.EnumerateObject().Select(x=>x.Name):Array.Empty<string>(),age,tab);return Task.CompletedTask;}));
+            var include=new CheckBox{Content="Incluir "+title.ToLowerInvariant()+" na otimização",IsChecked=Selected.Contains(key),IsEnabled=!Busy&&_settingsSignature.Length>0};include.Click+=(_,_)=>{if(include.IsChecked==true)Selected.Add(key);else Selected.Remove(key);Render();};card.Children.Add(include);View.Children.Add(Ui.Card(card,P,12));
         }
-        Actions(Action("Configurar exclusões",()=>{_open("options");return Task.CompletedTask;}));
-        Text("Após aplicar, execute nova verificação. Contagens são de itens elegíveis, não de rastreadores comprovados; a limpeza local não remove registros dos provedores.");
+        var registry=Part(_analysis,"registry");Summary("Registro",Part(registry,"complete").ValueKind==JsonValueKind.False?"Consulta não confirmada: "+Get(registry,"message"):Get(registry,"issues")+" problemas encontrados", "Revisar registro","registry");
+        var startup=Part(_analysis,"speed");Summary("Inicialização",Get(startup,"startup_enabled")+" de "+Get(startup,"startup_total")+" entradas ativas","Gerenciar inicialização","startup");
+        Actions(Action("Ver aplicativos em segundo plano",()=>{_open("performance");return Task.CompletedTask;}),PrimaryAction("Otimizar agora",OptimizeAsync,_settingsSignature.Length>0&&(Selected.Contains("space")||Selected.Contains("privacy"))));
+        if(_settingsSignature.Length==0)Text("Relatório histórico ou configuração alterada. Faça nova verificação antes de otimizar.");
+        if(Yes(Report,"optimization")){
+            Text(Yes(Report,"incomplete")?"Operação parcial":"Resultado da otimização",true);Text(Get(Report,"removed")+" itens removidos confirmados · "+Ui.Size(Number(Report,"freed_bytes"))+" em arquivos removidos · "+Get(Report,"errors")+" falhas confirmadas");
+            if(Part(Report,"free_space_delta").ValueKind==JsonValueKind.Number)Text("Variação observada de espaço livre na unidade do sistema: "+Get(Report,"free_space_delta")+" bytes. Outras atividades do computador podem influenciar este valor.");
+            foreach(var issue in Rows(Report,"sync_errors"))Text(issue.ToString());
+            Text(Yes(Report,"reboot")?"Há exigência de reinício; nenhum reinício foi iniciado.":"Reinício não solicitado por esta otimização.");
+        }
+    }
+    private Button PrimaryAction(string title,Func<Task> action,bool enabled=true)
+    {
+        var button=Action(title,action,enabled);button.Background=P.Accent;button.BorderBrush=P.Accent;
+        if(button.Content is TextBlock text)text.Foreground=ThemeService.Brush("#ffffff");return button;
+    }
+    private void Summary(string title,string value,string action,string route)
+    {
+        if(!Matches(title,value))return;var card=new StackPanel{Spacing=6};card.Children.Add(Ui.Label(title,P.Text,16,true));card.Children.Add(Ui.Label(value,P.Muted,13,wrap:true));card.Children.Add(Action(action,()=>{_open(route);return Task.CompletedTask;}));View.Children.Add(Ui.Card(card,P,12));
+    }
+    private static long? FreeSpace(){try{return new DriveInfo(Path.GetPathRoot(Environment.SystemDirectory)!).AvailableFreeSpace;}catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException){return null;}}
+    private async Task OptimizeAsync()
+    {
+        var doSpace=Selected.Contains("space");var doPrivacy=Selected.Contains("privacy");if(!doSpace&&!doPrivacy)return;
+        var scope=new List<string>();
+        foreach(var (key,label,enabled,age) in new[]{("space","Espaço",doSpace,7),("privacy","Privacidade",doPrivacy,0)}){
+            if(!enabled)continue;scope.Add(label+" · idade mínima "+age+" dia(s)");var categories=Part(Part(_analysis,key),"categories");if(categories.ValueKind==JsonValueKind.Object)foreach(var item in categories.EnumerateObject())scope.Add("• "+Get(Part(Part(Catalog,"catalog"),item.Name),"label")+" · "+Get(item.Value,"file_count")+" itens · "+Ui.Size(Number(item.Value,"bytes")));
+        }
+        if(!await Confirm("Otimizar agora",string.Join("\n",scope)+"\n\nExecutar somente o escopo acima? Temporários, caches e rastros selecionados serão excluídos permanentemente. Cookies podem encerrar logins. Arquivos em uso e exclusões serão respeitados. Problemas de registro não serão corrigidos e entradas de inicialização não serão alteradas. Cancelar não desfaz alterações já aplicadas.","Otimizar")||!Runtime.Allowed)return;
+        await LoadSettingsAsync();if(_settingsSignature!=JsonSerializer.Serialize(Settings)){_settingsSignature="";Status("As configurações mudaram. Verifique a saúde novamente.");return;}
+        var reports=new Dictionary<string,JsonElement>();var completed=new List<string>();var syncErrors=new List<string>();var incomplete=false;var before=FreeSpace();
+        try{foreach(var (key,age,enabled) in new[]{("space",7,doSpace),("privacy",0,doPrivacy)}){
+            if(!enabled)continue;if(!Runtime.Allowed){incomplete=true;break;}
+            await LoadSettingsAsync();if(_settingsSignature!=JsonSerializer.Serialize(Settings)){incomplete=true;syncErrors.Add("Configurações alteradas entre etapas; nenhuma outra etapa foi iniciada.");break;}
+            var categories=Part(Part(_analysis,key),"categories");var ids=categories.ValueKind==JsonValueKind.Object?categories.EnumerateObject().Select(x=>x.Name).ToArray():Array.Empty<string>();if(ids.Length==0)continue;
+            if(!await RunAsync("execute",new(){{"categories",ids},{"age_days",age},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}})){incomplete=true;break;}
+            reports[key]=Report.Clone();if(SyncNotice.Length>0)syncErrors.Add(key+": "+SyncNotice);completed.Add(key);incomplete|=CleanEngine.HasFailures(Report);if(CancellationRequested){incomplete=true;break;}
+        }
+        }catch(Exception ex){incomplete=true;syncErrors.Add("Etapas restantes interrompidas: "+ex.Message);}
+        var after=FreeSpace();_settingsSignature="";Selected.Clear();
+        var result=new{tool="health",optimization=true,analysis=_analysis,space=reports.TryGetValue("space",out var space)?(JsonElement?)space:null,privacy=reports.TryGetValue("privacy",out var privacy)?(JsonElement?)privacy:null,speed=Part(_analysis,"speed"),registry=Part(_analysis,"registry"),removed=reports.Values.Sum(x=>Number(x,"file_count")),freed_bytes=reports.Values.Sum(x=>Number(x,"bytes")),errors=reports.Values.Sum(x=>Number(x,"errors")),incomplete,sync_errors=syncErrors,steps=completed,captured_at=DateTimeOffset.Now.ToUnixTimeSeconds(),free_space_delta=before.HasValue&&after.HasValue?(long?)(after.Value-before.Value):null,reboot=false,message=incomplete?"Operação parcial. Totais incluem somente etapas confirmadas; uma etapa interrompida pode ter aplicado alterações não contabilizadas.":"Otimização concluída somente em espaço e privacidade. Registro e inicialização preservados."};
+        Status(result.message+(syncErrors.Count>0?" "+string.Join("; ",syncErrors):""));await SaveSnapshotAsync(result);
     }
 }

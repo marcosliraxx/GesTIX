@@ -1,5 +1,7 @@
 // Caminho: agentes/servidor/Arcoll.WinUI3/Pages/MaintenancePage.cs
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using Arcoll.WinUI3.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -17,6 +19,8 @@ public abstract class MaintenancePage : UserControl
     protected Palette P = new();
     protected JsonElement Report, Settings;
     protected bool Busy { get; private set; }
+    protected string SyncNotice { get; private set; }="";
+    protected bool CancellationRequested { get; private set; }
     protected readonly string Kind;
     private readonly Grid _root = new() { RowSpacing = 6 };
     private readonly TextBlock _heading, _description, _status = new() { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, _summary = new() { TextWrapping = TextWrapping.Wrap };
@@ -26,6 +30,7 @@ public abstract class MaintenancePage : UserControl
     private JsonElement _catalog;
     private DateTime? _collected;
     private bool _dispatching;
+    private string _restoredIdentity="";
     protected MaintenancePage(AgentRuntime runtime, Func<string,string,string,Task<bool>> confirm, string kind, string title, string description)
     {
         Runtime = runtime; Confirm = confirm; Kind = kind; Content = _root;
@@ -48,6 +53,31 @@ public abstract class MaintenancePage : UserControl
     public void CancelOperations() => _operation?.Cancel();
     public void ApplyPalette(Palette palette) { P = palette; Render(); }
     protected void StoreReport(object report) { Report=JsonSerializer.SerializeToElement(report);_collected=DateTime.Now; }
+    private string SnapshotPath()
+    {
+        var config=Runtime.Platform.Config;
+        var identity=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(config.Origin+"|"+config.SiteCode+"|"+config.Fingerprint)));
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"TI-Digital","Reports",identity,"health.json");
+    }
+    protected void RestoreSnapshot()
+    {
+        if(Kind!="health"||!Runtime.Allowed)return;var path=SnapshotPath();if(_restoredIdentity==path)return;_restoredIdentity=path;
+        try{if(!File.Exists(path)||new FileInfo(path).Length>8*1024*1024)return;using var doc=JsonDocument.Parse(File.ReadAllText(path));var envelope=doc.RootElement;if(envelope.GetProperty("report").ValueKind!=JsonValueKind.Object)return;Report=envelope.GetProperty("report").Clone();if(envelope.TryGetProperty("saved_at",out var at)&&at.TryGetInt64(out var stamp))_collected=DateTimeOffset.FromUnixTimeSeconds(stamp).LocalDateTime;}
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException or ArgumentOutOfRangeException or InvalidOperationException){Status("Não foi possível ler o relatório local: "+ex.Message);}
+    }
+    private void PersistSnapshot()
+    {
+        if(Kind!="health"||Report.ValueKind!=JsonValueKind.Object||Get(Report,"tool")!="health")return;var path=SnapshotPath();var temp=path+"."+Guid.NewGuid().ToString("N")+".tmp";
+        try{Directory.CreateDirectory(Path.GetDirectoryName(path)!);var data=JsonSerializer.Serialize(new{saved_at=DateTimeOffset.Now.ToUnixTimeSeconds(),report=Report});if(Encoding.UTF8.GetByteCount(data)>8*1024*1024)throw new IOException("Relatório excede o limite local.");File.WriteAllText(temp,data,Encoding.UTF8);File.Move(temp,path,true);}
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException){Status(_status.Text+" Relatório preservado em memória; gravação local pendente: "+ex.Message);}
+        finally{try{if(File.Exists(temp))File.Delete(temp);}catch(IOException){}catch(UnauthorizedAccessException){}}
+    }
+    protected async Task SaveSnapshotAsync(object report)
+    {
+        SyncNotice="";StoreReport(report);PersistSnapshot();
+        try{using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(40));if(!Runtime.Allowed)throw new UnauthorizedAccessException("Autorização indisponível para sincronizar.");await Runtime.Platform.PostAsync("agent-clean-local-result",Runtime.Platform.WithCredentials(("mode","tool"),("tool",Kind),("report",Report)),timeout.Token,35);}
+        catch(Exception ex){SyncNotice="Envio pendente: "+ex.Message;Status(_status.Text+" Relatório local preservado; "+SyncNotice);}
+    }
     protected void Status(string message) { _status.Text = message; _status.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible; }
     protected abstract void Build();
     protected void Render()
@@ -99,17 +129,18 @@ public abstract class MaintenancePage : UserControl
     }
     protected async Task<bool> RunAsync(string mode,Dictionary<string,object?> payload)
     {
-        if(Busy||!Runtime.Allowed)return false;Busy=true;_operation=new();Status("Preparando operação…");Render();
+        if(Busy||!Runtime.Allowed)return false;SyncNotice="";CancellationRequested=false;Busy=true;_operation=new();Status("Preparando operação…");Render();
         try {
             var progress=new Progress<string>(message=>Status(message));
             Report=await CleanEngine.RunAsync(mode,payload,Runtime.Platform.Config,progress,_operation.Token);_collected=DateTime.Now;Selected.Clear();
             var partial=CleanEngine.HasFailures(Report)||Number(Part(Report,"status"),"errors")>0;
             Status(partial?"Operação parcial. Revise as falhas e limitações do relatório.":"Execução concluída. Revise o relatório.");
-            if(!mode.StartsWith("backup",StringComparison.Ordinal))try{await Runtime.Platform.PostAsync("agent-clean-local-result",Runtime.Platform.WithCredentials(("mode",mode),("tool",Get(Report,"tool").Length>0?Get(Report,"tool"):Kind),("report",Report)),_operation.Token,40);}catch(Exception ex){Status(_status.Text+" Relatório local preservado; envio pendente: "+ex.Message);}
+            PersistSnapshot();
+            if(!mode.StartsWith("backup",StringComparison.Ordinal))try{await Runtime.Platform.PostAsync("agent-clean-local-result",Runtime.Platform.WithCredentials(("mode",mode),("tool",Get(Report,"tool").Length>0?Get(Report,"tool"):Kind),("report",Report)),_operation.Token,40);}catch(Exception ex){SyncNotice="Envio pendente: "+ex.Message;Status(_status.Text+" Relatório local preservado; "+SyncNotice);}
             return true;
         }catch(OperationCanceledException){Status("Operação interrompida. Alterações concluídas não foram desfeitas.");return false;}
         catch(Exception ex){Status("Falha: "+ex.Message);return false;}
-        finally{_operation.Dispose();_operation=null;Busy=false;Render();}
+        finally{CancellationRequested=_operation.IsCancellationRequested;_operation.Dispose();_operation=null;Busy=false;Render();}
     }
     protected async Task ExecuteLocalAsync(Func<CancellationToken,Task> action)
     {
