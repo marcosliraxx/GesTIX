@@ -105,7 +105,7 @@ public abstract class MaintenancePage : UserControl
             Report=await CleanEngine.RunAsync(mode,payload,Runtime.Platform.Config,progress,_operation.Token);_collected=DateTime.Now;Selected.Clear();
             var partial=CleanEngine.HasFailures(Report)||Number(Part(Report,"status"),"errors")>0;
             Status(partial?"Operação parcial. Revise as falhas e limitações do relatório.":"Execução concluída. Revise o relatório.");
-            if(!mode.StartsWith("backup",StringComparison.Ordinal))try{await Runtime.Platform.PostAsync("agent-clean-local-result",Runtime.Platform.WithCredentials(("mode",mode),("tool",Kind),("report",Report)),_operation.Token,40);}catch(Exception ex){Status(_status.Text+" Relatório local preservado; envio pendente: "+ex.Message);}
+            if(!mode.StartsWith("backup",StringComparison.Ordinal))try{await Runtime.Platform.PostAsync("agent-clean-local-result",Runtime.Platform.WithCredentials(("mode",mode),("tool",Get(Report,"tool").Length>0?Get(Report,"tool"):Kind),("report",Report)),_operation.Token,40);}catch(Exception ex){Status(_status.Text+" Relatório local preservado; envio pendente: "+ex.Message);}
             return true;
         }catch(OperationCanceledException){Status("Operação interrompida. Alterações concluídas não foram desfeitas.");return false;}
         catch(Exception ex){Status("Falha: "+ex.Message);return false;}

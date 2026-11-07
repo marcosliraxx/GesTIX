@@ -473,6 +473,10 @@ function arc_clean_sanitize_tool_report(string $tool, array $r): array
                 $out[$part] = ['file_count' => $san['file_count'], 'bytes' => $san['bytes'], 'errors' => $san['errors'], 'categories' => $san['categories']];
             }
             $out['speed'] = ['startup_total' => arc_clean_count($r['speed']['startup_total'] ?? 0), 'startup_enabled' => arc_clean_count($r['speed']['startup_enabled'] ?? 0)];
+            [, $startup]=arc_clean_sanitize_tool_report('startup',['items'=>$r['speed']['items']??[]]);$out['speed']['items']=$startup['items'];
+            [, $updates]=arc_clean_sanitize_tool_report('updater',['items'=>$r['security']['items']??[]]);
+            $out['security']=['complete'=>!empty($r['security']['complete']),'items'=>$updates['items'],'available'=>count($updates['items']),'message'=>arc_clean_text($r['security']['message']??'Atualizações não verificadas por este agente.',250)];
+
             $out['registry'] = ['issues' => arc_clean_count($r['registry']['issues'] ?? 0)];
             break;
     }

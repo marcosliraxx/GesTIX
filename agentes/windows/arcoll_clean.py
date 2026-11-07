@@ -1621,15 +1621,25 @@ def _tool_health(payload, progress):
     empty = {'categories': {}, 'file_count': 0, 'bytes': 0, 'errors': 0}
     report = {'tool': 'health'}
     _step(progress, 2, 'Coletando e analisando arquivos...')
-    report['privacy'] = execute_clean(privacy, False, 0, _scaled(progress, 2, 40)) if privacy else empty
+    report['privacy'] = execute_clean(privacy, False, 0, _scaled(progress, 2, 40), payload.get('exclusions'), payload.get('custom_folders')) if privacy else empty
     _step(progress, 40, 'Coletando alguns arquivos inúteis antigos...')
-    report['space'] = execute_clean(space, False, 7, _scaled(progress, 40, 80)) if space else empty
-    _step(progress, 80, 'Verificando inicialização e registro...')
-    items = _startup_items()
-    report['speed'] = {'startup_total': len(items), 'startup_enabled': sum(1 for i in items if i['enabled'])}
-    issues = _scan_registry(REGISTRY_CHECKS)
-    report['registry'] = {'issues': len(issues)}
-    _step(progress, 100, 'Verificação concluída.')
+    report['space'] = execute_clean(space, False, 7, _scaled(progress, 40, 80), payload.get('exclusions'), payload.get('custom_folders')) if space else empty
+    report['incomplete'] = any(report[p].get('errors', 0) or report[p].get('truncated', False) for p in ('space', 'privacy'))
+    _step(progress, 80, 'Verificando aplicativos de inicialização...')
+    items = [i for i in _startup_catalog() if i.get('kind') in ('run', 'folder')]
+    report['speed'] = {'startup_total': len(items), 'startup_enabled': sum(1 for i in items if i.get('enabled')), 'items': _public_startup(items)}
+    report['registry'] = {'issues': 0, 'separate': True}
+    _step(progress, 90, 'Verificando atualizações de aplicativos suportados...')
+    try:
+        query = _run([_winget_exe(), 'upgrade', '--accept-source-agreements', '--disable-interactivity'], 180)
+        if query.returncode & 0xffffffff not in (0, 0x8A15002B):
+            raise RuntimeError('O WinGet não confirmou a consulta de atualizações.')
+        updates = _parse_winget_table(query.stdout)[:200]
+        report['security'] = {'complete': True, 'items': updates, 'available': len(updates), 'message': 'Somente aplicativos reconhecidos pelo WinGet são cobertos.'}
+    except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+        report['security'] = {'complete': False, 'items': [], 'available': 0, 'message': str(exc)[:250]}
+        report['incomplete'] = True
+    _step(progress, 100, 'Verificação concluída. Revise as quatro áreas antes de aplicar alterações.')
     return report
 
 

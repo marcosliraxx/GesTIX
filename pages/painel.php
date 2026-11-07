@@ -192,42 +192,12 @@ if (($_GET['ajax'] ?? '') === 'network_devices') {
         $net=$q->fetch(PDO::FETCH_ASSOC);
         if(!$net) arc_json(['ok'=>false,'error'=>'Rede não encontrada.'],404);
         $acc=(int)$net['account_id'];
-        $now=time();
-        $q=$pdo->prepare('SELECT id,UNIX_TIMESTAMP(last_seen_at) AS seen FROM '.arc_table('network_agents').' WHERE network_id=? AND account_id=? AND status=\'approved\' ORDER BY id');
-        $q->execute([$netId,$acc]);
-        $items=[];$agents=[];
-        foreach($q->fetchAll(PDO::FETCH_ASSOC) as $agent){
-            $seen=(int)$agent['seen'];
-            $agentOnline=$seen>0 && $seen>=$now-12;
-            $agents[]=['id'=>(int)$agent['id'],'online'=>$agentOnline?1:0];
-            foreach(arc_inventory_list($pdo,$acc,$netId,(int)$agent['id']) as $d){
-                $key=(string)$d['identity_key'];
-                $raw=(string)$d['status']==='online';
-                $on=$agentOnline && $raw;
-                $stale=$raw && !$agentOnline; // agente sem comunicação: o estado salvo pode estar desatualizado
-                $ls=(int)$d['last_seen'];$lc=(int)$d['last_change'];$fs=(int)$d['first_seen'];
-                // Desde quando o dispositivo está no estado exibido.
-                if($on) $since=$lc>0?$lc:($fs>0?$fs:$ls);
-                elseif(!$raw) $since=$lc>0?$lc:$ls;
-                else $since=$ls>0?$ls:$seen;
-                if($since>$now) $since=$now;
-                $name=trim((string)($d['custom_name']!==''?$d['custom_name']:$d['detected_name']));
-                if($name==='')$name=trim((string)$d['ip']);
-                if($name==='')$name='Dispositivo';
-                $row=['n'=>$name,'t'=>(string)($d['custom_type']!==''?$d['custom_type']:$d['detected_type']),'o'=>$on?1:0,'x'=>$stale?1:0,
-                      'ip'=>(string)$d['ip'],'m'=>(string)$d['mac'],'g'=>trim((string)$d['group_name']),'s'=>max(0,$since),'l'=>max(0,$ls),'f'=>max(0,$fs),'c'=>max(0,$lc)];
-                // O mesmo equipamento visto por mais de um agente: prevalece o estado online (ou o contato mais recente).
-                if(!isset($items[$key]) || ($on && !$items[$key]['o']) || (!$on && !$items[$key]['o'] && $ls>$items[$key]['l'])) $items[$key]=$row;
-            }
-        }
-        $q=$pdo->prepare('SELECT UNIX_TIMESTAMP(MAX(updated_at)) FROM '.arc_inventory_table().' WHERE account_id=? AND network_id=?');
-        $q->execute([$acc,$netId]);
-        $updated=(int)$q->fetchColumn();
+        $dashboard=arc_inventory_dashboard($pdo,$acc,$netId);
         // A varredura segue a mesma regra da API de comandos: apenas o titular, rede ativa e com monitoramento.
         $canScan=$uid!==null && (int)$net['account_id']===(int)$uid && (int)$net['is_active']===1 && (int)$net['monitoring_enabled']===1;
         $reason='';
         if(!$canScan) $reason=(int)$net['is_active']!==1?'Rede arquivada.':((int)$net['monitoring_enabled']!==1?'Monitoramento desativado para esta rede.':'Somente o titular da rede pode solicitar a varredura.');
-        arc_json(['ok'=>true,'name'=>(string)$net['name'],'now'=>$now,'updated'=>$updated,'can_scan'=>$canScan,'scan_reason'=>$reason,'agents'=>$agents,'devices'=>array_values($items)]);
+        arc_json(['ok'=>true,'name'=>(string)$net['name'],'can_scan'=>$canScan,'scan_reason'=>$reason]+$dashboard);
     } catch(Throwable $e) {
         error_log('Painel dispositivos da rede: '.$e->getMessage());
         arc_json(['ok'=>false,'error'=>'Não foi possível carregar os dispositivos.'],503);
