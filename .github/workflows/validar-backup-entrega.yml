@@ -20,7 +20,7 @@ jobs:
         run: dotnet run --project validation-source/BackupTests/BackupTests.csproj -c Release
       - name: Compilar agente completo WinUI 3 x64
         shell: pwsh
-        run: dotnet build validation-source/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.107 --self-contained true
+        run: dotnet build validation-source/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.108 --self-contained true
       - name: Publicar executor independente x64
         shell: pwsh
         run: dotnet publish validation-source/Arcoll.WinUI3/BackupWorker/BackupWorker.csproj -c Release -r win-x64 --self-contained true -o validation-worker
