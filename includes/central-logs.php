@@ -9,21 +9,28 @@ function arc_log_accept_batch(array $body,array $owner,string $kind='gestor'): a
     $scope='gestores/account-'.$account.'/network-'.$network.'/'.$kind.'-'.$gestor;
     if($kind==='installer')$scope='instaladores/account-'.$account.'/network-'.$network.'/key-'.substr((string)$owner['token_hash'],0,20);
     $dir=arc_log_directory($scope);if($dir===null)throw new RuntimeException('Armazenamento de diagnóstico indisponível.',503);
-    $receipt=arc_log_directory($scope.'/receipts');if($receipt===null)throw new RuntimeException('Armazenamento indisponível.',503);
     $lock=@fopen($dir.'/.batch.lock','c');if(!$lock||!flock($lock,LOCK_EX))throw new RuntimeException('Diagnóstico temporariamente ocupado.',503);
     try{
-        $done=$receipt.'/'.$id.'.ok';if(is_file($done))return ['ok'=>true,'batch_id'=>$id,'duplicate'=>true,'accepted'=>count($events)];
-        $rateFile=$dir.'/.rate.json';$rate=is_file($rateFile)?json_decode((string)file_get_contents($rateFile),true):[];$window=intdiv(time(),60);
-        if(($rate['window']??0)!==$window)$rate=['window'=>$window,'count'=>0];if(($rate['count']??0)>=30)throw new RuntimeException('Limite de diagnóstico por minuto atingido.',429);
         $clean=[];foreach($events as $event){
             if(!is_array($event)||!is_string($event['message']??null)||strlen($event['message'])>12000)throw new InvalidArgumentException('Evento inválido.');
             $source=(string)($event['source']??'runtime');if(strlen($source)>160||preg_match('/[\x00-\x1f]/',$source))throw new InvalidArgumentException('Origem inválida.');
-            $clean[]=['source'=>arc_log_redact($source),'level'=>(string)($event['level']??'INFO'),'message'=>arc_log_redact($event['message'])];
+            $level=strtoupper((string)($event['level']??'INFO'));if(!in_array($level,['DEBUG','INFO','WARNING','ERROR','CRITICAL'],true))$level='INFO';
+            $clean[]=['source'=>arc_log_redact($source),'level'=>$level,'message'=>arc_log_redact($event['message'])];
         }
-        foreach($clean as $event)if(!arc_log_write($event['source'],$event['level'],$event['message'],['batch_id'=>$id,'account_id'=>$account,'network_id'=>$network,'gestor_id'=>$gestor],$scope))throw new RuntimeException('Não foi possível preservar o diagnóstico.',503);
-        // ACK somente depois da gravação. Identidade do arquivo é derivada pelo servidor.
-        if(@file_put_contents($done,gmdate('c'),LOCK_EX)===false)throw new RuntimeException('Não foi possível confirmar o lote.',503);@chmod($done,0600);
-        $rate['count']++;@file_put_contents($rateFile,json_encode($rate),LOCK_EX);@chmod($rateFile,0600);
+        $digest=hash('sha256',(string)json_encode($clean,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE));
+        // O próprio arquivo atômico é o recibo; uma interrupção não deixa meio lote gravado.
+        $existing=glob($dir.'/????-??-??/'.$id.'.jsonl')?:[];
+        if($existing){$saved=json_decode((string)file_get_contents($existing[0]),true);if(!is_array($saved)||($saved['payload_hash']??'')!==$digest)throw new InvalidArgumentException('Identificador de lote reutilizado com outros dados.');return ['ok'=>true,'batch_id'=>$id,'duplicate'=>true,'accepted'=>count($saved['events'])];}
+        $rateFile=$dir.'/.rate.json';$rate=is_file($rateFile)?json_decode((string)file_get_contents($rateFile),true):[];$window=intdiv(time(),60);
+        if(($rate['window']??0)!==$window)$rate=['window'=>$window,'count'=>0];if(($rate['count']??0)>=30)throw new RuntimeException('Limite de diagnóstico por minuto atingido.',429);
+        $day=gmdate('Y-m-d');$quotaFile=$dir.'/.quota.json';$quota=is_file($quotaFile)?json_decode((string)file_get_contents($quotaFile),true):[];if(($quota['day']??'')!==$day)$quota=['day'=>$day,'bytes'=>0];
+        $record=['received_at'=>gmdate('c'),'batch_id'=>$id,'payload_hash'=>$digest,'account_id'=>$account,'network_id'=>$network,'gestor_id'=>$gestor,'events'=>$clean];
+        $bytes=json_encode($record,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_INVALID_UTF8_SUBSTITUTE)."\n";
+        if(($quota['bytes']??0)+strlen($bytes)>20971520)throw new RuntimeException('Limite diário de diagnóstico atingido.',429);
+        $dayDir=arc_log_directory($scope.'/'.$day);if($dayDir===null)throw new RuntimeException('Armazenamento indisponível.',503);
+        $temp=tempnam($dayDir,'.batch-');if($temp===false)throw new RuntimeException('Armazenamento indisponível.',503);
+        try{$file=fopen($temp,'wb');if(!$file)throw new RuntimeException('Armazenamento indisponível.',503);try{if(fwrite($file,$bytes)!==strlen($bytes))throw new RuntimeException('Gravação incompleta.',503);fflush($file);if(function_exists('fsync'))fsync($file);}finally{fclose($file);}@chmod($temp,0600);if(!rename($temp,$dayDir.'/'.$id.'.jsonl'))throw new RuntimeException('Confirmação indisponível.',503);}finally{if(is_file($temp))@unlink($temp);}
+        $rate['count']++;$quota['bytes']+=strlen($bytes);@file_put_contents($rateFile,json_encode($rate),LOCK_EX);@file_put_contents($quotaFile,json_encode($quota),LOCK_EX);@chmod($rateFile,0600);@chmod($quotaFile,0600);
         return ['ok'=>true,'batch_id'=>$id,'duplicate'=>false,'accepted'=>count($clean)];
     }finally{if(is_resource($lock)){flock($lock,LOCK_UN);fclose($lock);}}
 }

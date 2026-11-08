@@ -3,7 +3,7 @@
 param([switch]$ValidateOnly,[switch]$Preview,[string]$RenderPreview='',
       [ValidateSet('preparing','download','verify','compile','install','ready','failed')][string]$PreviewState='compile',
       [string]$ThemeOverrideBase64='')
-trap {if($ValidateOnly){Write-Output $_.ScriptStackTrace};throw}
+trap {if($ValidateOnly){Write-Output $_.Exception.ToString();Write-Output $_.ScriptStackTrace};throw $_}
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
@@ -145,8 +145,8 @@ $xaml=@'
  </Border>
 </Window>
 '@
+foreach($key in @('Bg','Surface','Alt','Text','Muted','Accent','Line')){$xaml=[regex]::Replace($xaml,('(<SolidColorBrush x:Key="'+$key+'" Color=")[^"]+("/>)'),('${1}'+$t[$key]+'${2}'))}
 $window=[Windows.Markup.XamlReader]::Parse($xaml)
-foreach($key in @('Bg','Surface','Alt','Text','Muted','Accent','Line')){$window.Resources[$key].Color=[Windows.Media.ColorConverter]::ConvertFromString($t[$key])}
 $window.Background=$window.Resources['Bg'];$window.Foreground=$window.Resources['Text']
 $controls=@{};foreach($name in @('RootBorder','StageLabel','TitleText','SubtitleText','RingHost','Orbit','CircleTag','PercentText','CircleHint','StatusText','DetailText','NoticeBox','NoticeText','Diagnostics','LogText','ElapsedText','PreviewLabel','CopyButton','FinishButton','Step0','Step1','Step2','Step3','Step4','Step5')){$controls[$name]=$window.FindName($name);if(-not $controls[$name]){throw ('Controle do instalador ausente: '+$name)}}
 $script:ring=New-Object TiInstaller.ProgressRing

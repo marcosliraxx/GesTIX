@@ -45,3 +45,34 @@ jobs:
         run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.152 --self-contained true
       - name: Compilar presenca no boot com envio de logs
         run: dotnet build gestores/servidor/Arcoll.WinUI3/BootWorker/BootWorker.csproj -c Release
+  php:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring, curl, zip
+      - name: Sintaxe PHP de toda a base
+        run: rg --files -g '*.php' -0 | xargs -0 -n1 php -l
+      - name: Proteger armazenamento e validar catalogo
+        run: php tests/php/core.php
+      - name: Preparar API isolada
+        run: |
+          php tests/php/setup_http.php
+          php -S 127.0.0.1:8112 -t tests/php/site > /tmp/ti-http-tests.log 2>&1 &
+      - name: Exercitar instalacao, autenticacao e logs por HTTP
+        run: php tests/php/http.php
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compilar scripts Python sem iniciar gestores
+        run: python -m compileall -q gestores/windows
+      - name: Temas, contraste, redacao e rede offline
+        run: python -m unittest discover -s tests/python -v

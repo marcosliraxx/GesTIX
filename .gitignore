@@ -22,3 +22,6 @@ bkp/**
 **/node_modules/
 **/__pycache__/
 *.pyc
+
+tests/php/site/
+previews/
