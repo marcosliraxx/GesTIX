@@ -1,4 +1,4 @@
-name: Validar Pente-Fino 5.0.387
+name: Validar Pente-Fino 5.0.388
 on:
   workflow_dispatch:
 permissions:
@@ -15,7 +15,7 @@ jobs:
       - name: Validar resumo, selecao, quarentena e restauracao
         run: dotnet run --project tests/PenteFino/PenteFino.csproj -c Release
       - name: Compilar gestor Windows x64
-        run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.387 --self-contained true
+        run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.388 --self-contained true
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 10
