@@ -3,3 +3,5 @@
 
 /* O host mantém a barra padrão e a coluna Atividades; só a grade interna rola. */
 html.ti-gestor #app>.ti-body>.ti-content{display:flex!important;flex-direction:column!important;overflow:hidden!important}html.ti-gestor #app>.ti-body>.ti-content>.layout{flex:1;min-height:0}html.ti-gestor .ti-toolbar #config,html.ti-gestor .ti-toolbar #history{width:30px;min-width:30px;height:30px}html.ti-gestor #app>.ti-body>.ti-content>#notice{flex:none}
+
+.review-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px;justify-content:center}.review-actions:empty{display:none}.review-actions .review-link{padding:5px 8px;font-size:9px;background:transparent;color:var(--accent);font-weight:500}
