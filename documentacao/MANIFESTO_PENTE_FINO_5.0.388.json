@@ -1,0 +1,14 @@
+{
+  "version": "5.0.388",
+  "base": "5.0.387",
+  "code_commit": "4847b05",
+  "zip": "CORRECAO_BOTAO_PENTE_FINO_5.0.388_CPANEL.zip",
+  "sha256": "b4469ffc3d50eddc5a64dc15d797540420cf966f1bdc68a96671284a16ff9d6d",
+  "files": [
+    "VERSION",
+    "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/app.js",
+    "gestores/servidor/Arcoll.WinUI3/MINIMUM_RELEASE_VERSION",
+    "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/FixEngine.cs",
+    "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/Presentation.cs"
+  ]
+}

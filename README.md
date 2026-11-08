@@ -1,3 +1,9 @@
+# Correção atual · 5.0.388
+
+[ZIP incremental: botão Corrigir seleção](pacotes/CORRECAO_BOTAO_PENTE_FINO_5.0.388_CPANEL.zip). Corrige a seleção acima de 20.000 ajustes. Extraia na raiz do cPanel, atualize o gestor e faça nova análise. [Detalhes](documentacao/CORRECAO_PENTE_FINO_5.0.388.md).
+
+---
+
 # T.I. Digital · base atual 5.0.387
 
 A base de trabalho atual é o backup 5.0.386 anexado nesta solicitação, com a evolução do [Pente-Fino 5.0.387](documentacao/PENTE_FINO_5.0.387.md).
