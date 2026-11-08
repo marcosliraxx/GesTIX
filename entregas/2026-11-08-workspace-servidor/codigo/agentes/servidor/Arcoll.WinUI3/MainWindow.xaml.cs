@@ -84,7 +84,7 @@ public sealed partial class MainWindow : Window
         BuildCategories();
         RootGrid.SizeChanged += (_, e) => AdaptHybridLayout(e.NewSize.Width);
         RootGrid.Loaded += async (_, _) => await InitializeHybridDashboardAsync();
-        _dashboardPage = new(_runtime); _serverPage = new(_hub, () => FooterText.Text);
+        _dashboardPage = new(_runtime); _serverPage = new(_hub, () => FooterText.Text, () => _runtime.Allowed);
         _speedPage = new(_runtime); _devicesPage = new(_runtime, m => SetWorkspaceFooter(m)); _mapPage = new(_runtime, m => SetWorkspaceFooter(m));
         _programsPage = new(_runtime, ConfirmAsync); _filesPage = new(_runtime); _windowsUpdatePage = new(_runtime);
         var clean = new CleanPage(_runtime, ConfirmAsync); _tools.Add("clean", clean);
@@ -329,6 +329,7 @@ public sealed partial class MainWindow : Window
     {
         if (!_runtime.Allowed) { _penteFinoPage.CancelOperations(); foreach (var page in _tools.Values) page.CancelOperations(); _programsPage.CancelOperations(); }
         if (_paletteState != _runtime.State) ApplyTheme(_themes.Current);
+        _serverPage.RefreshAuthorization();
         GateOverlay.Visibility = _runtime.Gated ? Visibility.Visible : Visibility.Collapsed; GateText.Text = _runtime.StateNotice;
         ConnectionLabel.Text = _runtime.State switch { AuthState.Approved or AuthState.UiLocked => "Conectado · " + _runtime.NetworkName, AuthState.Pending => "Aguardando liberação", AuthState.Checking => "Verificando…", _ => "Sem confirmação" };
         NetworkTitle.Text = string.IsNullOrWhiteSpace(_runtime.NetworkName) ? NetworkTitle.Text : _runtime.NetworkName;

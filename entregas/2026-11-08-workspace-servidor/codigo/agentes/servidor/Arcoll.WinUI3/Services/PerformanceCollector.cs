@@ -50,7 +50,7 @@ public sealed class PerformanceCollector
   var engine=Query("SELECT Name,UtilizationPercentage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine",optional:true);
   var gpuMem=Query("SELECT Name,DedicatedUsage,SharedUsage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory",optional:true);
   var list=new List<PerformanceComponent>();double? latency=null;bool reachable=false;
-  try{using var ping=new Ping();var response=await ping.SendPingAsync("1.1.1.1",1000).WaitAsync(ct);reachable=response.Status==IPStatus.Success;if(reachable)latency=response.RoundtripTime;}catch(PingException){}catch(SocketException){}
+  ct.ThrowIfCancellationRequested();try{using var ping=new Ping();var response=await ping.SendPingAsync("1.1.1.1",1000).WaitAsync(ct);reachable=response.Status==IPStatus.Success;if(reachable)latency=response.RoundtripTime;}catch(PingException){}catch(SocketException){}
   _ping.Enqueue(reachable);while(_ping.Count>20)_ping.Dequeue();var loss=100d*_ping.Count(x=>!x)/_ping.Count;
   var nics=Network();var internet=nics.FirstOrDefault(n=>n.Route);var perf=NativePerformance.Read();
   list.Add(new("internet","internet","Internet",internet?.Description??"Rota de saída não identificada",
