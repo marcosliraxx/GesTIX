@@ -1,6 +1,8 @@
 <?php
 /* Caminho: redes/velocidade.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile='velocidade';
 require __DIR__.'/_base.php';
 // Os comandos continuam protegidos por login, titularidade da rede e gestor aprovado.
@@ -24,7 +26,7 @@ if (($_GET['speed_feed']??'')==='1') {
         $diagStmt->execute([(int)$account,(int)$networkId,(int)$selectedGestorId]);
         $diagRow=$diagStmt->fetch(PDO::FETCH_ASSOC);
         if ($diagRow) { $latestDiagId=(int)$diagRow['id']; $latestDiagAt=(string)$diagRow['captured_at']; }
-    } catch (Throwable $e) { error_log('Velocidade diagnóstico feed: '.$e->getMessage()); }
+    } catch (Throwable $e) { arc_log_error('Velocidade diagnóstico feed: '.$e->getMessage()); }
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store, private');
     echo json_encode(['ok'=>true,'result'=>$lastResult,'progress'=>$lastProgress,'diagnostic_id'=>$latestDiagId,'diagnostic_at'=>$latestDiagAt],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;
@@ -35,7 +37,7 @@ $geoTable = arc_table('network_geo_points');
 $geoAvailable = true;
 try {
     $pdo->exec('CREATE TABLE IF NOT EXISTS '.$geoTable.' (network_id BIGINT NOT NULL,account_id BIGINT NOT NULL,gestor_id BIGINT NOT NULL DEFAULT 0,kind VARCHAR(12) NOT NULL,latitude DECIMAL(10,7) NOT NULL,longitude DECIMAL(11,7) NOT NULL,accuracy_m FLOAT NULL,source VARCHAR(40) NOT NULL,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY(network_id,account_id,gestor_id,kind)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
-} catch (Throwable $e) { $geoAvailable = false; error_log('Conexao GPS storage: '.$e->getMessage()); }
+} catch (Throwable $e) { $geoAvailable = false; arc_log_error('Conexao GPS storage: '.$e->getMessage()); }
 if (($_GET['gps_action'] ?? '') === 'save') {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store, private');
@@ -53,7 +55,7 @@ if (($_GET['gps_action'] ?? '') === 'save') {
     $src=in_array(($posted['source'] ?? ''),['browser_geolocation','manual_verified'],true) ? $posted['source'] : 'manual_verified';
     $pointGestor=$kind==='origin' ? 0 : (int)$selectedGestorId;
     $q=$pdo->prepare('INSERT INTO '.$geoTable.' (network_id,account_id,gestor_id,kind,latitude,longitude,accuracy_m,source) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE latitude=VALUES(latitude),longitude=VALUES(longitude),accuracy_m=VALUES(accuracy_m),source=VALUES(source),updated_at=CURRENT_TIMESTAMP');
-    try {$q->execute([(int)$networkId,(int)$account,$pointGestor,$kind,(float)$lat,(float)$lon,$acc===null?null:(float)$acc,$src]);}catch(Throwable $e){error_log('Conexao GPS save: '.$e->getMessage());$fail('Não foi possível salvar localização.',500);}
+    try {$q->execute([(int)$networkId,(int)$account,$pointGestor,$kind,(float)$lat,(float)$lon,$acc===null?null:(float)$acc,$src]);}catch(Throwable $e){arc_log_error('Conexao GPS save: '.$e->getMessage());$fail('Não foi possível salvar localização.',500);}
     echo json_encode(['ok'=>true],JSON_UNESCAPED_UNICODE);exit;
 }
 $geoPoints=[];
@@ -62,7 +64,7 @@ if ($geoAvailable) {
         $q=$pdo->prepare('SELECT kind,gestor_id,latitude,longitude,accuracy_m,source,updated_at FROM '.$geoTable.' WHERE network_id=? AND account_id=? AND (gestor_id=0 OR gestor_id=?) ORDER BY updated_at DESC');
         $q->execute([(int)$networkId,(int)$account,(int)$selectedGestorId]);
         foreach($q->fetchAll(PDO::FETCH_ASSOC) as $pt){$key=(string)$pt['kind'];if(!isset($geoPoints[$key]))$geoPoints[$key]=$pt;}
-    } catch(Throwable $e){error_log('Conexao GPS read: '.$e->getMessage());}
+    } catch(Throwable $e){arc_log_error('Conexao GPS read: '.$e->getMessage());}
 }
 $dashboardEvents = $remoteByType['dashboard'] ?? [];
 $diagnosticEvents = $remoteByType['diagnostic'] ?? [];
@@ -75,7 +77,7 @@ try {
     if ($latestDiagnosticRow) {
         $diagnosticEvents=[['payload_json'=>$latestDiagnosticRow['payload_json'],'captured_at'=>$latestDiagnosticRow['captured_at'],'machine_name'=>'']];
     }
-} catch (Throwable $e) { error_log('Velocidade carregar diagnóstico: '.$e->getMessage()); }
+} catch (Throwable $e) { arc_log_error('Velocidade carregar diagnóstico: '.$e->getMessage()); }
 $latestEvent = $dashboardEvents[0] ?? null;
 $payload = $latestEvent ? json_decode((string)$latestEvent['payload_json'], true) : [];
 if (!is_array($payload)) $payload = [];
@@ -117,7 +119,7 @@ if ((int)$selectedGestorId>0) {
         $q->execute([(int)$account,(int)$networkId,(int)$selectedGestorId]);
         $r=$q->fetch(PDO::FETCH_ASSOC);
         if($r){$g=json_decode((string)$r['payload_json'],true);if(is_array($g)&&is_numeric($g['latitude']??null)&&is_numeric($g['longitude']??null)&&abs((float)$g['latitude'])<=90&&abs((float)$g['longitude'])<=180){$gestorGps=['latitude'=>(float)$g['latitude'],'longitude'=>(float)$g['longitude'],'accuracy_m'=>is_numeric($g['accuracy_m']??null)?(float)$g['accuracy_m']:null,'source'=>'windows_location','updated_at'=>$r['captured_at']];}}
-    } catch(Throwable $e){error_log('Conexao gestor GPS: '.$e->getMessage());}
+    } catch(Throwable $e){arc_log_error('Conexao gestor GPS: '.$e->getMessage());}
 }
 $initial = [
  'geoPoints'=>$geoPoints,'gestorGps'=>$gestorGps,'geoAvailable'=>$geoAvailable,'gpsCsrf'=>$csrf,

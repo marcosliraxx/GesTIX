@@ -1,6 +1,8 @@
 <?php
 // Caminho: api/api.php
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 
 require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/network-inventory.php';
@@ -1528,7 +1530,7 @@ try {
             try {
                 $prune=$pdo->prepare('DELETE FROM '.arc_table('gestor_telemetry')." WHERE gestor_id=? AND event_type='server_metrics' AND captured_at < (CURRENT_TIMESTAMP - INTERVAL 3 HOUR) ORDER BY id LIMIT 200");
                 $prune->execute([$gestorId]);
-            } catch (Throwable $pruneError) { error_log('Arcoll server_metrics prune: '.$pruneError->getMessage()); }
+            } catch (Throwable $pruneError) { arc_log_error('Arcoll server_metrics prune: '.$pruneError->getMessage()); }
         }
         $pdo->prepare('UPDATE ' . arc_table('network_gestores') . ' SET last_seen_at=CURRENT_TIMESTAMP WHERE id=?')->execute([(int)$authorized['id']]);
         arc_json(['ok'=>true,'stored'=>$storeEvent,'message'=>'Dados sincronizados com o banco de dados.']);
@@ -1640,6 +1642,6 @@ try {
         $pdo->rollBack();
     }
     $reference=bin2hex(random_bytes(6));
-    error_log('Arcoll API ['.$reference.'] action='.preg_replace('/[^A-Za-z0-9_-]/','',(string)($_GET['action']??'')).' '.get_class($exception).': '.$exception->getMessage());
+    arc_log_error('Arcoll API ['.$reference.'] action='.preg_replace('/[^A-Za-z0-9_-]/','',(string)($_GET['action']??'')).' '.get_class($exception).': '.$exception->getMessage());
     arc_json(['ok'=>false,'error'=>'Não foi possível concluir a solicitação. Tente novamente e, se continuar, informe a referência ao suporte.','error_ref'=>$reference],500);
 }

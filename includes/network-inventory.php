@@ -2,6 +2,8 @@
 /* Caminho: includes/network-inventory.php */
 /** Inventário persistente por gestor e MAC. Não altera as tabelas legadas. */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 function arc_inventory_table(): string {
     return '`' . arc_prefix() . 'network_device_inventory`';
@@ -207,7 +209,7 @@ function arc_inventory_presence_seconds(): int {
     if ($seconds === null) {
         $seconds = 45;
         try { $seconds = max(15, min(600, (int)arc_platform_setting(arc_db(), 'platform_gestor_presence_seconds', '45'))); }
-        catch (Throwable $e) { error_log('Arcoll presença: ' . $e->getMessage()); }
+        catch (Throwable $e) { arc_log_error('Arcoll presença: ' . $e->getMessage()); }
     }
     return $seconds;
 }

@@ -8,6 +8,8 @@
    As chaves e limites são o contrato com gestores/windows/arcoll_clean.py e arcoll_programs.py: a plataforma nunca
    envia caminhos para exclusão; envia chaves de catálogo e identificadores que o próprio gestor produziu. */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 /** Máximo de programas por desinstalação (tela, API e gestor usam o mesmo valor). */
 const ARC_PROGRAM_BATCH_MAX = 100;
@@ -520,7 +522,7 @@ function arc_clean_record_history(PDO $pdo, int $gestorId, int $networkId, int $
         $pdo->prepare('DELETE FROM ' . $table . ' WHERE gestor_id=? AND id NOT IN (SELECT id FROM (SELECT id FROM ' . $table . ' WHERE gestor_id=? ORDER BY id DESC LIMIT 30) keep)')
             ->execute([$gestorId, $gestorId]);
     } catch (Throwable $e) {
-        error_log('Arcoll clean history: ' . $e->getMessage());
+        arc_log_error('Arcoll clean history: ' . $e->getMessage());
     }
 }
 

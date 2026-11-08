@@ -1,6 +1,8 @@
 <?php
 /* Caminho: admin/clean.php | v1.1.0 - Central de manutenção e recuperação */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/admin-actions.php';
 require_once dirname(__DIR__).'/includes/storage-policy.php';
 if(!arc_is_admin()){http_response_code(403);exit('Acesso restrito.');}
@@ -73,7 +75,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $notice='Cache de estatísticas e OPcache reiniciado quando permitido pelo servidor.';
         }else throw new RuntimeException('Ação não disponível.');
         if($ajax)arc_json(['ok'=>true,'message'=>$notice]);
-    }catch(Throwable $e){error_log('Admin clean: '.$e->getMessage());$error=$e->getMessage();if((string)($_POST['ajax']??'')==='1')arc_json(['ok'=>false,'message'=>$error],400);}
+    }catch(Throwable $e){arc_log_error('Admin clean: '.$e->getMessage());$error=$e->getMessage();if((string)($_POST['ajax']??'')==='1')arc_json(['ok'=>false,'message'=>$error],400);}
 }
 $ARCMode='app';$ARCPageTitle='Central de manutenção';$ARCActiveNav='platform_settings';
 require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';

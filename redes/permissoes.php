@@ -1,6 +1,8 @@
 <?php
 /** Caminho: /redes/permissoes.php — perfis de acesso vinculados à rede. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile='permissoes';
 require __DIR__.'/_base.php';
 $capabilities=arc_network_profile_capabilities();

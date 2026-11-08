@@ -1,6 +1,8 @@
 <?php
 /* Caminho: admin/configuracoes.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/admin-actions.php';
 if(!arc_is_admin()){header('Location: '.arc_workspace_base_url().'index.php',true,302);exit;}
 $pdo=arc_db();
@@ -238,7 +240,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     if(function_exists('opcache_reset'))@opcache_reset();
     $notice='Cache de arquivos e OPcache reiniciados, quando disponíveis.';
    }
-  }catch(Throwable $e){error_log('Arcoll configurações: '.$e->getMessage());$error=$e->getMessage();}
+  }catch(Throwable $e){arc_log_error('Arcoll configurações: '.$e->getMessage());$error=$e->getMessage();}
  }
 }
 // Consulta de logs somente nas tabelas conhecidas e existentes neste banco.
@@ -257,7 +259,7 @@ try {
   $order=in_array('created_at',$arcLogColumns,true)?'created_at':(in_array('id',$arcLogColumns,true)?'id':$arcLogColumns[0]);
   $arcLogRows=$pdo->query('SELECT '.implode(',',array_map(static fn($c)=>'`'.str_replace('`','``',$c).'`',$arcLogColumns)).' FROM `'.str_replace('`','``',$table).'` ORDER BY `'.str_replace('`','``',$order).'` DESC LIMIT 50')->fetchAll(PDO::FETCH_ASSOC);
  }
-} catch(Throwable $e){error_log('Consulta de logs: '.$e->getMessage());$arcLogError='Não foi possível consultar os logs com as permissões atuais.';}
+} catch(Throwable $e){arc_log_error('Consulta de logs: '.$e->getMessage());$arcLogError='Não foi possível consultar os logs com as permissões atuais.';}
 function arc_cfg_log_title(string $event):string {
  $titles=['network_created'=>'Rede cadastrada','network_deleted'=>'Rede excluída','network_updated'=>'Rede atualizada','network_gestor_requested'=>'Solicitação de novo gestor','network_gestor_approved'=>'Gestor autorizado','network_gestor_rejected'=>'Gestor recusado','gestor_command_queued'=>'Ação enviada ao gestor','password_changed'=>'Senha alterada','admin.login'=>'Entrada de administrador','admin.logout'=>'Saída do administrador','login_success'=>'Acesso autorizado','login_failed'=>'Falha ao entrar','gestor_online'=>'Gestor conectado','gestor_offline'=>'Gestor desconectado'];
  if(isset($titles[$event]))return $titles[$event];
@@ -296,7 +298,7 @@ try{
   ['Envio de e-mail (SMTP)',($values['platform_smtp_enabled']??'0')==='1'&&($values['platform_smtp_host']??'')!==''?'Configurado':'Não configurado',($values['platform_smtp_enabled']??'0')==='1'&&($values['platform_smtp_host']??'')!==''],
   ['Modo de manutenção',($values['platform_maintenance_enabled']??'0')==='1'?'Ativo (visitantes bloqueados)':'Desativado',($values['platform_maintenance_enabled']??'0')!=='1'],
  ];
-}catch(Throwable $e){error_log('Diagnóstico: '.$e->getMessage());}
+}catch(Throwable $e){arc_log_error('Diagnóstico: '.$e->getMessage());}
 $base=arc_workspace_base_url();
 $redirect=(arc_is_https()?'https':'http').'://'.(string)($_SERVER['HTTP_HOST']??'').$base.'google-auth.php';
 $ARCPageTitle='Configurações da plataforma';$ARCActiveNav='platform_settings';$ARCMode='app';

@@ -1,6 +1,8 @@
 <?php
 /* Caminho: admin/menus.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 require dirname(__DIR__).'/includes/icones.php';
 $pdo=arc_db(); arc_ensure_user_schema($pdo);

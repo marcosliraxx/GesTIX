@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/billing-webhook.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 header('Cache-Control: no-store');
 try{
@@ -26,4 +28,4 @@ try{
  $state=arc_billing_payment_state($i,$payment);
  arc_billing_apply($pdo,(int)$i['id'],$state,$id.':'.$state,$provider);
  arc_json(['ok'=>true]);
-}catch(Throwable $e){error_log('Webhook cobrança: '.$e->getMessage());arc_json(['ok'=>false,'error'=>'Não foi possível conciliar.'],503);}
+}catch(Throwable $e){arc_log_error('Webhook cobrança: '.$e->getMessage());arc_json(['ok'=>false,'error'=>'Não foi possível conciliar.'],503);}

@@ -2,6 +2,8 @@
 // Caminho: redes/liberacao.php
 /** Tela de instalação/liberação de gestores da rede com grade pesquisável e ordenação por coluna. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 $pdo = arc_db();
 arc_ensure_user_schema($pdo);

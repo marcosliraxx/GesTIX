@@ -2,6 +2,8 @@
 /* Caminho: includes/backup-center.php */
 /* Central de Backup: catálogo versionado separado do Clean. Tokens continuam no adaptador de nuvem existente. */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 const ARC_BC_MAX_FILES=20000;
 function arc_bc_q(PDO $pdo,string $sql,array $args=[]):PDOStatement{$q=$pdo->prepare($sql);$q->execute($args);return $q;}
 function arc_bc_schema(PDO $pdo):void{

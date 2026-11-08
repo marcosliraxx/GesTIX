@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/cloud-callback.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 header('Cache-Control: no-store, private');header('Referrer-Policy: no-referrer');
 $network=0;$gestorId=0;$ok=false;$managed=false;$backupCenter=false;
@@ -26,7 +28,7 @@ try {
         if($job['connection_id']===null)arc_cloud_job_save($pdo,$gestorId,$network,$account,$newConnection,false,$job['settings']);
     }
     if(!$managed)arc_user_audit($pdo,'cloud_connect','Conta de nuvem conectada na rede '.$network);$ok=true;
-} catch (Throwable $e) { error_log('Arcoll cloud OAuth: autorização não concluída ('.get_class($e).').'); }
+} catch (Throwable $e) { arc_log_error('Arcoll cloud OAuth: autorização não concluída ('.get_class($e).').'); }
 $_SESSION['arc_flash']=$ok?'Conta de nuvem conectada. Selecione-a no Backup em Nuvem.':'A conexão de nuvem não foi concluída. Verifique as credenciais do aplicativo e tente novamente.';
 header('Location: '.arc_workspace_base_url().($managed?'admin/configuracoes.php?tab=apis#apis':($network>0?($backupCenter?'redes/backup.php?network='.$network.'&gestor='.$gestorId.'&tab=settings':'redes/clean.php?network='.$network.'&gestor='.$gestorId.'&section=backup'):'pages/painel.php')),true,303);
 exit;

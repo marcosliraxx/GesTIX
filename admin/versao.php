@@ -1,6 +1,8 @@
 <?php
 /* Caminho: admin/versao.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';arc_require_admin();$pdo=arc_db();arc_ensure_user_schema($pdo);$error='';$notice='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
  try{arc_verify_csrf();$action=(string)($_POST['action']??'');

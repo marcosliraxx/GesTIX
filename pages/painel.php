@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/painel.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 require_once dirname(__DIR__).'/includes/network-inventory.php';
 $pdo=arc_db();
@@ -100,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
                 }
-                error_log('Arcoll network create: ' . $e->getMessage());
+                arc_log_error('Arcoll network create: ' . $e->getMessage());
                 $arcError = $e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível registrar a rede.';
             }
         }
@@ -207,7 +209,7 @@ if (($_GET['ajax'] ?? '') === 'network_devices') {
         if(!$canScan) $reason=(int)$net['is_active']!==1?'Rede arquivada.':((int)$net['monitoring_enabled']!==1?'Monitoramento desativado para esta rede.':'Somente o titular da rede pode solicitar a varredura.');
         arc_json(['ok'=>true,'name'=>(string)$net['name'],'can_scan'=>$canScan,'scan_reason'=>$reason]+$dashboard);
     } catch(Throwable $e) {
-        error_log('Painel dispositivos da rede: '.$e->getMessage());
+        arc_log_error('Painel dispositivos da rede: '.$e->getMessage());
         arc_json(['ok'=>false,'error'=>'Não foi possível carregar os dispositivos.'],503);
     }
 }
@@ -234,7 +236,7 @@ if (($_GET['ajax'] ?? '') === 'offline_overview') {
             $rows[]=['name'=>(string)$net['name'],'last_seen'=>(int)($net['last_seen_ts']??0),'inactive'=>(int)$net['is_active']!==1,'no_gestor'=>(int)$net['gestor_total']===0];
         }
         arc_json(['ok'=>true,'online'=>$onlineCount,'total'=>$onlineCount+count($rows),'offline'=>$rows,'now'=>time()]);
-    } catch(Throwable $e) { error_log('Resumo de redes offline: '.$e->getMessage()); arc_json(['ok'=>false,'error'=>'Não foi possível consultar as redes.'],503); }
+    } catch(Throwable $e) { arc_log_error('Resumo de redes offline: '.$e->getMessage()); arc_json(['ok'=>false,'error'=>'Não foi possível consultar as redes.'],503); }
 }
 if (($_GET['ajax'] ?? '') === 'network_status') {
     try {
@@ -244,13 +246,13 @@ if (($_GET['ajax'] ?? '') === 'network_status') {
         }
         arc_json(['ok'=>true,'networks'=>$states]);
     } catch(Throwable $e) {
-        error_log('Painel estado das redes: '.$e->getMessage());
+        arc_log_error('Painel estado das redes: '.$e->getMessage());
         arc_json(['ok'=>false,'error'=>'Não foi possível atualizar as redes.'],503);
     }
 }
 $panelNetworks=[];$panelNetworksFailed=false;
 try { $panelNetworks=$loadPanelNetworks($pdo,$admin,$uid); }
-catch(Throwable $e) { $panelNetworksFailed=true;error_log('Painel redes: '.$e->getMessage()); }
+catch(Throwable $e) { $panelNetworksFailed=true;arc_log_error('Painel redes: '.$e->getMessage()); }
 $panelOnline=count(array_filter($panelNetworks,static fn(array $n):bool=>(int)$n['is_active']===1 && (int)$n['has_online_gestor']===1));
 $panelOffline=count($panelNetworks)-$panelOnline;
 $ARCPageBodyClass='arc-panel-page';

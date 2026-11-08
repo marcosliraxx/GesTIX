@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/download.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 
 if (!is_file(__DIR__ . '/../includes/config.php')) {
     http_response_code(503);
@@ -33,7 +35,7 @@ try {
     header('Cache-Control: private, no-store');
     readfile($path);
 } catch (Throwable $exception) {
-    error_log('Arcoll download error: ' . $exception->getMessage());
+    arc_log_error('Arcoll download error: ' . $exception->getMessage());
     http_response_code(500);
     exit('Não foi possível concluir o download.');
 }

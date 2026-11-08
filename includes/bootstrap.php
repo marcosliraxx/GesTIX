@@ -42,7 +42,7 @@ function arc_require_billing_release(): void
 {
     $required=['arc_billing_status_label','arc_billing_pix_snapshot','arc_billing_pix_payload'];
     if(array_filter($required,static fn($name)=>!function_exists($name))){
-        error_log('Arcoll: componente includes/billing.php ausente ou com versão diferente da plataforma.');
+        arc_log_error('Arcoll: componente includes/billing.php ausente ou com versão diferente da plataforma.');
         throw new RuntimeException('A atualização da área de pagamentos está incompleta. Avise o administrador para concluir a atualização do sistema.',503);
     }
 }
@@ -51,7 +51,7 @@ function arc_require_billing_release(): void
 function arc_gestor_release_sources(?string $directory=null): array
 {
     $directory=$directory??dirname(__DIR__).'/gestores/windows';
-    $required=['arcoll_release.py','arcoll_gestor.py','arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py','arcoll_updater.py','arcoll_remote.py','arcoll_secure_helper.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
+    $required=['arcoll_logsync.py','arcoll_release.py','arcoll_gestor.py','arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py','arcoll_updater.py','arcoll_remote.py','arcoll_secure_helper.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
     $retired=['Instalar_Arcoll.py','arcoll_session.py'];$files=[];
     $paths=glob($directory.'/*');
     if($paths===false)throw new RuntimeException('Inventário do gestor indisponível.');
@@ -78,7 +78,7 @@ function arc_gestor_release_status(): array {
     static $memo=null;
     if($memo!==null)return $memo;
     // Throwable: uma falha ao inventariar o pacote nunca pode derrubar a consulta de versões do modal.
-    try{$sources=arc_gestor_release_sources();$ready=true;}catch(Throwable $e){$sources=[];$ready=false;error_log('Arcoll release status: '.$e->getMessage());}
+    try{$sources=arc_gestor_release_sources();$ready=true;}catch(Throwable $e){$sources=[];$ready=false;arc_log_error('Arcoll release status: '.$e->getMessage());}
     $version=arc_app_version();$components=[];foreach($sources as $name=>$data)$components[]=['name'=>$name,'file'=>'gestores/windows/'.$name,'version'=>$version,'aligned'=>true];
     return $memo=['platform_version'=>$version,'ready'=>$ready,'components'=>$components,'tools_version'=>$version,'tools_aligned'=>$ready,'gestor_target_version'=>arc_gestor_target_version(),'mode'=>arc_gestor_release_mode()];
 }
@@ -182,7 +182,7 @@ function arc_schema_gestor_names(PDO $pdo): void
         $indexes->execute([$like]);
         foreach ($indexes->fetchAll() as $i) {
             try { $pdo->exec('ALTER TABLE `'.$i['TABLE_NAME'].'` RENAME INDEX `'.$i['INDEX_NAME'].'` TO `'.$rename((string)$i['INDEX_NAME']).'`'); }
-            catch (PDOException $e) { error_log('Arcoll migração de índice: '.$e->getMessage()); }
+            catch (PDOException $e) { arc_log_error('Arcoll migração de índice: '.$e->getMessage()); }
         }
         // 4) Valores textuais (chaves de comando, ações de auditoria, configurações, menus, JSON de telemetria). Sessões serializadas ficam fora: o tamanho gravado no texto não pode mudar.
         $text = $pdo->prepare("SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE ? AND DATA_TYPE IN ('char','varchar','tinytext','text','mediumtext','longtext','json') AND TABLE_NAME NOT LIKE '%sessions'");
@@ -194,7 +194,7 @@ function arc_schema_gestor_names(PDO $pdo): void
             foreach ($names as $from => $to) $expr = 'REPLACE('.$expr.','.$pdo->quote($from).','.$pdo->quote($to).')';
             foreach (array_values($protected) as $i => $token) $expr = 'REPLACE('.$expr.','.$pdo->quote("\x01".$i."\x01").','.$pdo->quote($token).')';
             try { $pdo->exec('UPDATE `'.$c['TABLE_NAME'].'` SET '.$column.'='.$expr.' WHERE '.$column.' LIKE \'%agent%\''); }
-            catch (PDOException $e) { error_log('Arcoll migração de valores '.$c['TABLE_NAME'].'.'.$c['COLUMN_NAME'].': '.$e->getMessage()); }
+            catch (PDOException $e) { arc_log_error('Arcoll migração de valores '.$c['TABLE_NAME'].'.'.$c['COLUMN_NAME'].': '.$e->getMessage()); }
         }
     } finally {
         $pdo->prepare('SELECT RELEASE_LOCK(?)')->execute(['arc-gestor-names-'.substr(hash('sha256',$prefix),0,24)]);
@@ -323,7 +323,7 @@ function arc_ensure_user_schema(PDO $pdo): void
         if (!isset($present[arc_prefix() . $table])) $missing[] = $table;
     }
     if ($missing) {
-        error_log('Arcoll: banco MySQL incompleto; tabelas ausentes: ' . implode(', ', $missing));
+        arc_log_error('Arcoll: banco MySQL incompleto; tabelas ausentes: ' . implode(', ', $missing));
         throw new RuntimeException('Estrutura incompleta no MySQL. Verifique o banco e os logs da plataforma.', 503);
     }
     $_SESSION['arc_schema_ok'] = ARC_SCHEMA_VERSION;
@@ -500,7 +500,7 @@ function arc_network_profile_capabilities(): array {return [
  'usuarios'=>'Usuários','preferencias'=>'Preferências','cadastros'=>'Cadastro da rede',
  'permissoes'=>'Perfis de acesso','gestor_local_login'=>'Entrar no gestor bloqueado (tela de login do gestor)'];}
 function arc_network_profile_rights(PDO $pdo,int $network,int $member): ?array {
- try {$q=$pdo->prepare('SELECT p.permissions_json FROM '.arc_table('network_team_members').' m JOIN '.arc_table('network_access_profiles').' p ON p.id=m.profile_id AND p.network_id=m.network_id AND p.account_id=m.account_id WHERE m.network_id=? AND m.member_user_id=? AND m.enabled=1 LIMIT 1');$q->execute([$network,$member]);$raw=$q->fetchColumn();} catch(PDOException $e) {error_log('Perfis de rede: migração SQL necessária.');return null;} if($raw===false)return null;
+ try {$q=$pdo->prepare('SELECT p.permissions_json FROM '.arc_table('network_team_members').' m JOIN '.arc_table('network_access_profiles').' p ON p.id=m.profile_id AND p.network_id=m.network_id AND p.account_id=m.account_id WHERE m.network_id=? AND m.member_user_id=? AND m.enabled=1 LIMIT 1');$q->execute([$network,$member]);$raw=$q->fetchColumn();} catch(PDOException $e) {arc_log_error('Perfis de rede: migração SQL necessária.');return null;} if($raw===false)return null;
  $data=json_decode((string)$raw,true);return is_array($data)?array_values(array_intersect(array_keys(arc_network_profile_capabilities()),$data)):[];
 }
 function arc_network_team_access(PDO $pdo, int $networkId, int $userId): ?array
@@ -661,7 +661,7 @@ function arc_delete_network(PDO $pdo, int $networkId, int $accountId): bool
         return true;
     } catch(Throwable $e){
         if($started && $pdo->inTransaction()) $pdo->rollBack();
-        error_log('Arcoll delete network (rollback): '.$e->getMessage());
+        arc_log_error('Arcoll delete network (rollback): '.$e->getMessage());
         return false;
     }
 }
@@ -723,6 +723,7 @@ function arc_user_audit(PDO $pdo, string $event, string $details = '', ?int $use
     }
     $pdo->prepare('INSERT INTO ' . arc_table('account_audit') . ' (account_id,event_type,details,ip_hash) VALUES (?,?,?,?)')
         ->execute([$userId ?? arc_user_id(), mb_substr($event,0,64), mb_substr($details,0,255), hash_hmac('sha256',$ip,$pepper)]);
+    arc_log_write('account-audit','INFO',$event.': '.$details,['account_id'=>$userId??arc_user_id()],'audit');
 }
 
 function arc_session_key(): string
@@ -1222,6 +1223,7 @@ function arc_audit(PDO $pdo, string $event, string $description = ''): void
         arc_admin_id(), mb_substr($event, 0, 80),
         mb_substr($description, 0, 500), ($logPolicy['ip']?($logPolicy['ip']?hash_hmac('sha256', $ip, $pepper):''):''),
     ]);
+    arc_log_write('admin-audit','INFO',$event.': '.$description,['admin_id'=>arc_admin_id()],'audit');
 }
 
 function arc_is_https(): bool
@@ -1350,7 +1352,7 @@ if ($arcPrivateRoute && !$arcPublicEntry && !isset($_SESSION['arc_admin_id'])) {
             header('Location: '.arc_workspace_base_url().'index.php',true,302);
             exit;
         }
-    } catch (Throwable $e) { error_log('Arcoll manutenção: '.$e->getMessage()); }
+    } catch (Throwable $e) { arc_log_error('Arcoll manutenção: '.$e->getMessage()); }
 }
 if ($arcPrivateRoute && !$arcPublicEntry && (isset($_SESSION['arc_admin_id']) || isset($_SESSION['arc_user_id']))) {
     $now=time();
@@ -1361,7 +1363,7 @@ if ($arcPrivateRoute && !$arcPublicEntry && (isset($_SESSION['arc_admin_id']) ||
             $_SESSION['arc_idle_policy_checked']=$now;
         }
         $idleLimit=(int)($_SESSION['arc_idle_policy_minutes']??120);
-    } catch (Throwable $e) { error_log('Arcoll sessão: '.$e->getMessage()); }
+    } catch (Throwable $e) { arc_log_error('Arcoll sessão: '.$e->getMessage()); }
     if (isset($_SESSION['arc_last_activity']) && $now-(int)$_SESSION['arc_last_activity']>$idleLimit*60) {
         unset($_SESSION['arc_admin_id'],$_SESSION['arc_admin_email'],$_SESSION['arc_user_id'],$_SESSION['arc_user_email'],$_SESSION['arc_current_network_id']);
         session_regenerate_id(true);
@@ -1386,7 +1388,7 @@ if ($arcPrivateRoute && !$arcPublicEntry && (isset($_SESSION['arc_admin_id']) ||
                     }
                 }
                 $_SESSION['arc_account_checked']=$now;
-            } catch (Throwable $e) { error_log('Arcoll verificação de acesso: '.$e->getMessage()); }
+            } catch (Throwable $e) { arc_log_error('Arcoll verificação de acesso: '.$e->getMessage()); }
         }
     }
 }
@@ -1403,18 +1405,8 @@ header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 
 /** Catálogo compartilhado de identidade visual; a escolha é exclusiva da administração. */
 function arc_visual_themes(): array {
-    return [
-      'windows'=>['name'=>'Windows Fluent','light'=>true,'accent'=>'#2563eb','bg'=>'#edf3fa','surface'=>'#ffffff','alt'=>'#e3ebf5','text'=>'#172b44','muted'=>'#536982','border'=>'#d0ddea'],
-      'ocean'=>['name'=>'Digital Ocean','light'=>false,'accent'=>'#26bae9','bg'=>'#081c30','surface'=>'#112b44','alt'=>'#193851','text'=>'#e7f7ff','muted'=>'#a7c1d5','border'=>'#315169'],
-      'crystal'=>['name'=>'Crystal Light','light'=>true,'accent'=>'#6366f1','bg'=>'#f2f5fa','surface'=>'#ffffff','alt'=>'#e9edf7','text'=>'#222842','muted'=>'#64718c','border'=>'#dce2ee'],
-      'graphite'=>['name'=>'Graphite Pro','light'=>false,'accent'=>'#9aaee5','bg'=>'#16191f','surface'=>'#242a34','alt'=>'#303744','text'=>'#f1f4fa','muted'=>'#b0bbc9','border'=>'#485364'],
-      'neon'=>['name'=>'Neon Tech','light'=>false,'accent'=>'#a879ff','bg'=>'#110e27','surface'=>'#221a40','alt'=>'#302551','text'=>'#f5f0ff','muted'=>'#c5b4e3','border'=>'#534474'],
-      'emerald'=>['name'=>'Emerald Secure','light'=>false,'accent'=>'#32d4a1','bg'=>'#0b211d','surface'=>'#15352d','alt'=>'#20463a','text'=>'#e6fcf3','muted'=>'#acd5c5','border'=>'#386352'],
-      'sapphire'=>['name'=>'Sapphire Executive','light'=>false,'accent'=>'#70a7ff','bg'=>'#0c162b','surface'=>'#182744','alt'=>'#213656','text'=>'#eef5ff','muted'=>'#afc3de','border'=>'#375071'],
-      'sandstone'=>['name'=>'Sandstone Studio','light'=>true,'accent'=>'#a05a38','bg'=>'#f5f1e9','surface'=>'#fffdfa','alt'=>'#eae3d8','text'=>'#302b29','muted'=>'#756d66','border'=>'#d6cabc'],
-      'aurora'=>['name'=>'Aurora Professional','light'=>false,'accent'=>'#65dbc6','bg'=>'#101c2b','surface'=>'#1a3040','alt'=>'#254453','text'=>'#e9faf8','muted'=>'#adcac9','border'=>'#3a616b'],
-      'slate'=>['name'=>'Slate Minimal','light'=>true,'accent'=>'#475e79','bg'=>'#f0f3f6','surface'=>'#ffffff','alt'=>'#e5ebf1','text'=>'#243345','muted'=>'#667587','border'=>'#cdd7e1'],
-    ];
+    require_once __DIR__.'/visual-themes.php';
+    return arc_theme_catalog();
 }
 function arc_visual_theme(PDO $pdo): array {
     $themes=arc_visual_themes();

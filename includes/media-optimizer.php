@@ -4,6 +4,8 @@
  * Se GD nao estiver disponivel ou resultado nao for menor, preserva o original.
  */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 function arc_optimize_uploaded_image(string $path, int $maxSide=1024): bool {
     if (!is_file($path) || is_link($path) || !function_exists('imagecreatefromstring')) return false;
     $sourceBytes=@filesize($path);
@@ -42,7 +44,7 @@ function arc_optimize_uploaded_image(string $path, int $maxSide=1024): bool {
             @chmod($tmp,fileperms($path)&0777);
             if (@rename($tmp,$path)) return true;
         }
-    } catch (Throwable $e) { error_log('Otimização de imagem: '.$e->getMessage()); }
+    } catch (Throwable $e) { arc_log_error('Otimização de imagem: '.$e->getMessage()); }
     @unlink($tmp);
     return false;
 }

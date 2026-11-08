@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 /** Caminho: redes/_base.php — operações das redes. */
 
 
@@ -267,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && in_array($action,['team_save','team_r
                         arc_platform_smtp_send($pdo,$email,'Convite para participar da rede '.(string)$network['name'], arc_network_invite_email($pdo,$networkId,(string)$network['name'],false),true);
                         $mailStatus='Convite enviado por e-mail.';
                     }
-                }catch(Throwable $mailError){error_log('Convite rede: '.$mailError->getMessage());}
+                }catch(Throwable $mailError){arc_log_error('Convite rede: '.$mailError->getMessage());}
                 $_SESSION['arc_flash']=$mailStatus.' O vínculo será efetivado após login com e-mail verificado.';
                 $go('redes/'.($arcSectionFile==='usuarios'?'usuarios.php':'servidor.php').'?network='.$networkId.($arcSectionFile==='usuarios'?'':'#team'));
             }
@@ -282,7 +284,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && in_array($action,['team_save','team_r
                         arc_platform_smtp_send($pdo,$email,'Acesso à rede '.(string)$network['name'],arc_network_invite_email($pdo,$networkId,(string)$network['name'],true),true);
                         $mailStatus='Aviso enviado por e-mail.';
                     }
-                }catch(Throwable $mailError){error_log('E-mail equipe de rede: '.$mailError->getMessage());}
+                }catch(Throwable $mailError){arc_log_error('E-mail equipe de rede: '.$mailError->getMessage());}
                 $_SESSION['arc_flash']='Membro registrado na equipe. '.$mailStatus.' O acesso à visualização da rede está disponível no painel; ações remotas permanecem protegidas.';
                 $go('redes/'.($arcSectionFile==='usuarios'?'usuarios.php':'servidor.php').'?network='.$networkId.($arcSectionFile==='usuarios'?'':'#team'));
             }
@@ -357,7 +359,7 @@ try {
     $remoteStmt = $pdo->prepare('SELECT t.event_type,t.payload_json,t.captured_at,a.machine_name FROM ' . arc_table('gestor_telemetry') . ' t JOIN ' . arc_table('network_gestores') . ' a ON a.id=t.gestor_id AND a.network_id=t.network_id WHERE t.network_id=? AND t.account_id=? AND t.gestor_id=? AND t.event_type<>\'server_metrics\' ORDER BY t.id DESC LIMIT 150');
     $remoteStmt->execute([$networkId,$account,$selectedGestorId]);
     $remoteEvents = $remoteStmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Throwable $e) { error_log('Arcoll remote dashboard: '.$e->getMessage()); }
+} catch (Throwable $e) { arc_log_error('Arcoll remote dashboard: '.$e->getMessage()); }
 $remoteByType=[];
 foreach ($remoteEvents as $event) { $remoteByType[(string)$event['event_type']][]=$event; }
 $pendingGestorCount = count(array_filter($networkGestores, static fn($a) => (string)$a['status'] === 'pending'));

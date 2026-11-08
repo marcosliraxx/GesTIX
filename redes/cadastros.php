@@ -1,6 +1,8 @@
 <?php
 // Caminho: redes/cadastros.php
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile='cadastros';
 require __DIR__.'/_base.php';
 require __DIR__.'/_topo_config.php';

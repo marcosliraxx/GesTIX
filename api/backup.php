@@ -2,6 +2,8 @@
 /* Caminho: api/backup.php */
 /* API da Central de Backup: sessões HTTP+CSRF ou identidade revogável do gestor. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';require_once dirname(__DIR__).'/includes/backup-center.php';
 header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosniff');
 try{
@@ -83,5 +85,5 @@ try{
   }
  }
  throw new RuntimeException('Ação inválida.',404);
-}catch(JsonException|InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e instanceof JsonException?'JSON inválido.':$e->getMessage()],422);}catch(Throwable $e){$code=(int)$e->getCode();$safe=$e instanceof RuntimeException&&!$e instanceof PDOException;if(!$safe)error_log('Central de Backup: '.get_class($e));arc_json(['ok'=>false,'error'=>$safe?$e->getMessage():'Central de Backup indisponível.'],in_array($code,[401,403,404,405,409,413,429,502,503],true)?$code:503);}
+}catch(JsonException|InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e instanceof JsonException?'JSON inválido.':$e->getMessage()],422);}catch(Throwable $e){$code=(int)$e->getCode();$safe=$e instanceof RuntimeException&&!$e instanceof PDOException;if(!$safe)arc_log_error('Central de Backup: '.get_class($e));arc_json(['ok'=>false,'error'=>$safe?$e->getMessage():'Central de Backup indisponível.'],in_array($code,[401,403,404,405,409,413,429,502,503],true)?$code:503);}
 function arc_bc_summary(array $v):array{$r=[];foreach(['files','bytes','logical_bytes','errors','unchanged','speed_bps']as $key)$r[$key]=max(0,(int)($v[$key]??0));foreach(['phase','current','message','destination']as $key)$r[$key]=mb_substr(preg_replace('/[\x00-\x1f]/',' ',(string)($v[$key]??'')),0,300);$r['failures']=[];foreach(array_slice((array)($v['failures']??[]),0,12)as $f)if(is_string($f))$r['failures'][]=mb_substr($f,0,300);return $r;}

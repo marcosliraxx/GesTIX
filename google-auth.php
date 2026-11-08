@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/includes/error-logging.php';
+
 /** Caminho: google-auth.php — OAuth Google. */
 require __DIR__.'/includes/bootstrap.php';
 header('Cache-Control: no-store, private');
@@ -125,7 +127,7 @@ try {
       }
      }
     }
-   }catch(Throwable $photoError){error_log('Google avatar: '.$photoError->getMessage());}
+   }catch(Throwable $photoError){arc_log_error('Google avatar: '.$photoError->getMessage());}
   }
   // Aceita convites somente após o Google comprovar a posse deste e-mail.
   $inviteProfileAvailable=false;
@@ -142,7 +144,7 @@ try {
       $qProfile->execute([(int)$invitation['profile_id'],(int)$invitation['network_id'],(int)$invitation['account_id']]);
       if($qProfile->fetchColumn())$pdo->prepare('UPDATE '.arc_table('network_team_members').' SET profile_id=? WHERE account_id=? AND network_id=? AND member_user_id=?')->execute([(int)$invitation['profile_id'],(int)$invitation['account_id'],(int)$invitation['network_id'],(int)$account['id']]);
     }
-   }catch(RuntimeException $inviteError){error_log('Convite pendente: limite ou vínculo indisponível.');continue;}
+   }catch(RuntimeException $inviteError){arc_log_error('Convite pendente: limite ou vínculo indisponível.');continue;}
    $pdo->prepare('DELETE FROM '.arc_table('network_team_invitations').' WHERE network_id=? AND email_hash=?')->execute([(int)$invitation['network_id'],hash('sha256',$email)]);
   }
   session_regenerate_id(true);
@@ -156,4 +158,4 @@ try {
  $_SESSION['arc_google_oauth']=['state'=>$state,'nonce'=>$nonce,'verifier'=>$verifier,'time'=>time(),'intent'=>$intent,'account_id'=>arc_user_id()];
  $query=http_build_query(['client_id'=>$clientId,'redirect_uri'=>$redirect,'response_type'=>'code','scope'=>'openid email profile','state'=>$state,'nonce'=>$nonce,'code_challenge'=>rtrim(strtr(base64_encode(hash('sha256',$verifier,true)),'+/','-_'),'='),'code_challenge_method'=>'S256','prompt'=>'select_account']);
  header('Location: https://accounts.google.com/o/oauth2/v2/auth?'.$query,true,302);exit;
-} catch(Throwable $e) {error_log('Arcoll Google OAuth: '.$e->getMessage());arc_google_fail($e->getMessage());}
+} catch(Throwable $e) {arc_log_error('Arcoll Google OAuth: '.$e->getMessage());arc_google_fail($e->getMessage());}

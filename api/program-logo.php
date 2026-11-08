@@ -2,6 +2,8 @@
 /* Caminho: api/program-logo.php — logo de um programa do catálogo.
    Ordem: 1) PNG embutido em assets/program-logos (sem depender de internet); 2) favicon do site oficial em cache; 3) monograma colorido. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require __DIR__ . '/../includes/bootstrap.php';
 if (!arc_is_user()) { http_response_code(401); exit; }
 $id = (string)($_GET['id'] ?? '');

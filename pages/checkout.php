@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/checkout.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';$pdo=arc_db();arc_ensure_user_schema($pdo);
 if(!arc_is_user()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
 header('Cache-Control: no-store, private');$uid=(int)arc_user_id();$id=(int)($_GET['invoice']??$_POST['invoice_id']??0);$error='';$payload='';$invoice=null;
@@ -28,7 +30,7 @@ try{
   header('Location: '.arc_workspace_base_url().'pages/checkout.php?invoice='.$id,true,303);exit;
  }
  if($invoice['provider']==='pix'&&in_array($invoice['status'],['pending','review'],true))$payload=arc_billing_pix_snapshot($pdo,$invoice);
-}catch(Throwable $e){if($e->getCode()===503||$e instanceof PDOException||!($e instanceof RuntimeException))http_response_code(503);error_log('Checkout: '.$e->getMessage());$error=$e instanceof RuntimeException&&!($e instanceof PDOException)?$e->getMessage():'Não foi possível preparar o pagamento. Tente novamente mais tarde.';}
+}catch(Throwable $e){if($e->getCode()===503||$e instanceof PDOException||!($e instanceof RuntimeException))http_response_code(503);arc_log_error('Checkout: '.$e->getMessage());$error=$e instanceof RuntimeException&&!($e instanceof PDOException)?$e->getMessage():'Não foi possível preparar o pagamento. Tente novamente mais tarde.';}
 if($error!==''&&($_GET['status']??'')==='1')arc_json(['ok'=>false,'error'=>$error],503);
 $ARCPageTitle='Pagamento';$ARCActiveNav='billing';require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';
 ?>

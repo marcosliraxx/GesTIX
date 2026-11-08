@@ -1,6 +1,8 @@
 <?php
 /* Caminho: redes/programas.php — catálogo e instalação remota de aplicativos confiáveis. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile='programas';
 require __DIR__.'/_base.php';
 if (!in_array((string)$teamRole,['owner','administrator','system_admin'],true)) {http_response_code(403);exit('Permissão administrativa necessária.');}

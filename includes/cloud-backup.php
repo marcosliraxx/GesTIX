@@ -10,6 +10,8 @@
    - Provedores: Google Drive, Microsoft OneDrive, Dropbox e Amazon S3 (ou compatível: Wasabi, Backblaze B2, Cloudflare R2, MinIO).
      Para incluir outro provedor basta registrá-lo em arc_cloud_providers() e implementar as funções arc_cloud_<chave>_*. */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 const ARC_CLOUD_MAX_FOLDERS = 20;
 const ARC_CLOUD_MAX_EXCLUSIONS = 100;
@@ -194,7 +196,7 @@ function arc_cloud_http(string $method, string $url, array $headers = [], string
     $failure = curl_errno($ch) !== 0 ? curl_error($ch) : '';
     curl_close($ch);
     if ($response === false) {
-        error_log('Arcoll nuvem: falha de transporte HTTPS.');
+        arc_log_error('Arcoll nuvem: falha de transporte HTTPS.');
         throw new RuntimeException('Falha de rede com o provedor de nuvem.', 0);
     }
     return ['status' => $status, 'headers' => $responseHeaders, 'body' => $responseBody];
@@ -210,7 +212,7 @@ function arc_cloud_json(array $response): array
 function arc_cloud_expect(array $response, array $accepted, string $context): array
 {
     if (in_array($response['status'], $accepted, true)) return $response;
-    error_log('Arcoll nuvem: ' . $context . ' HTTP ' . (int)$response['status']);
+    arc_log_error('Arcoll nuvem: ' . $context . ' HTTP ' . (int)$response['status']);
     throw new RuntimeException($context . ' (HTTP ' . (int)$response['status'] . ').', (int)$response['status']>=400?(int)$response['status']:502);
 }
 
@@ -1289,7 +1291,7 @@ function arc_cloud_stream_file(PDO $pdo, array $connection, array $segments, boo
     $failure = curl_errno($ch);
     curl_close($ch);
     if (!$started) {
-        error_log('Arcoll nuvem: leitura recusada HTTP ' . $status . ' curl ' . $failure);
+        arc_log_error('Arcoll nuvem: leitura recusada HTTP ' . $status . ' curl ' . $failure);
         throw new RuntimeException($status === 416 ? 'Trecho solicitado fora do arquivo.' : 'O provedor recusou a leitura do arquivo (HTTP ' . $status . ').', $status === 404 ? 404 : ($status === 416 ? 416 : 502));
     }
 }

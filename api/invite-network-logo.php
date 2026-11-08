@@ -1,6 +1,8 @@
 <?php
 /** Caminho: /api/invite-network-logo.php — logo pública temporária, acesso por URL assinada. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 $id=(int)($_GET['network']??0);$expires=(int)($_GET['expires']??0);$sig=(string)($_GET['sig']??'');
 $secret=(string)(arc_config()['app_secret']??'');

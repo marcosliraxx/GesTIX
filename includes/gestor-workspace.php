@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/gestor-workspace.php */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 /** Dados do gestor autenticado: nunca aceita conta/rede/computador vindos do corpo. */
 function arc_gestor_workspace(PDO $pdo, array $gestor, array $body): array {
     $account=(int)$gestor['account_id'];$network=(int)$gestor['network_id'];$id=(int)$gestor['id'];

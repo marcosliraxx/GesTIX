@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/header.php */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 
 /* ============================================================
@@ -27,7 +29,7 @@ $ARCHeaderActions = $ARCHeaderActions ?? '';
 /* Preferências globais: mesmas opções para toda a plataforma. */
 $arcPrefs=[];
 try{$arcPrefs=arc_system_prefs(arc_db());}
-catch(Throwable $e){error_log('Arcoll preferências globais: '.$e->getMessage());
+catch(Throwable $e){arc_log_error('Arcoll preferências globais: '.$e->getMessage());
     foreach(arc_pref_defs() as $key=>$def)$arcPrefs[$key]=(string)$def['default'];
 }
 $GLOBALS['arcPrefs']=$arcPrefs;
@@ -64,7 +66,7 @@ try {
     foreach ($arcSettingStmt->fetchAll(PDO::FETCH_ASSOC) as $arcSettingRow) {
         $arcThemeSettings[(string)$arcSettingRow['setting_key']]=(string)$arcSettingRow['setting_value'];
     }
-} catch(Throwable $e) { error_log('Tema Arcoll: '.$e->getMessage()); }
+} catch(Throwable $e) { arc_log_error('Tema Arcoll: '.$e->getMessage()); }
 
 unset($_SESSION['arc_flash']);
 /* Caminhos estáveis e versões de assets baseadas no conteúdo real dos arquivos. */
@@ -91,6 +93,7 @@ $arcAssetVersion = static function (string $relativePath): string {
    O mesmo arquivo continua como fonte única, sem cópia de regras ou CSS adicional. */
 $arcCssPaths = ['assets/css/arcoll.css'];
 if (($ARCPageBodyClass ?? '') === 'arc-page-redes') $arcCssPaths[] = 'assets/css/redes.css';
+$arcCssPaths[]='assets/css/themes.css';
 foreach ($arcCssPaths as $arcCssRelative) {
     $arcCssFile = dirname(__DIR__) . '/' . $arcCssRelative;
     if (is_file($arcCssFile) && is_readable($arcCssFile)) {
@@ -98,7 +101,7 @@ foreach ($arcCssPaths as $arcCssRelative) {
         readfile($arcCssFile);
         echo '</style>';
     } else {
-        error_log('CSS principal indisponível: ' . $arcCssFile);
+        arc_log_error('CSS principal indisponível: ' . $arcCssFile);
     }
 }
 ?>
@@ -166,7 +169,7 @@ if ($arcFlashText !== ''): ?>
             unset($arcSwitchEntry);
         }
     } catch (Throwable $arcNetSelectorError) {
-        error_log('Seletor de redes: '.$arcNetSelectorError->getMessage());
+        arc_log_error('Seletor de redes: '.$arcNetSelectorError->getMessage());
     }
     ?>
     <div class="page-context arc-header-network arc-network-switch-wrap <?=$arcNetworkHeader?'arc-switch-network-mode':'arc-switch-system-mode'?>" id="arc-network-switch-wrap">

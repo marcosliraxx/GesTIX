@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 /** Caminho: includes/admin-actions.php — comandos da administração. */
 
 $configPath = __DIR__ . '/config.php';
@@ -74,7 +76,7 @@ function arc_admin_csrf(): void
 try {
     $pdo = arc_db();
 } catch (Throwable $exception) {
-    error_log('Arcoll admin database error: ' . $exception->getMessage());
+    arc_log_error('Arcoll admin database error: ' . $exception->getMessage());
     http_response_code(503);
     exit('Não foi possível conectar ao banco. Revise a configuração da instalação.');
 }
@@ -108,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanL
         try {
             $loginAttemptId = arc_login_attempt_begin($pdo, $email);
         } catch (PDOException | RuntimeException $exception) {
-            error_log('Arcoll admin login limiter: ' . $exception->getMessage());
+            arc_log_error('Arcoll admin login limiter: ' . $exception->getMessage());
             http_response_code(503);
             exit('Não foi possível concluir o acesso. Tente novamente mais tarde.');
         }
@@ -567,7 +569,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanL
         }
         throw new RuntimeException('Ação administrativa não reconhecida.');
     } catch (Throwable $exception) {
-        error_log('Arcoll admin action error: ' . $exception->getMessage());
+        arc_log_error('Arcoll admin action error: ' . $exception->getMessage());
         arc_admin_flash($exception instanceof RuntimeException ? $exception->getMessage() : 'A ação não foi concluída. Revise os dados informados.', 'error');
         arc_admin_redirect();
     }

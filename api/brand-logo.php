@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/brand-logo.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 
 if (!is_file(__DIR__ . '/../includes/config.php')) {
     http_response_code(404);
@@ -51,7 +53,7 @@ try {
     header('Content-Length: ' . (string)filesize($path));
     readfile($path);
 } catch (Throwable $exception) {
-    error_log('Arcoll logo error: ' . $exception->getMessage());
+    arc_log_error('Arcoll logo error: ' . $exception->getMessage());
     header('Content-Type: image/svg+xml; charset=utf-8');
     header('Cache-Control: public, max-age=300');
     readfile(__DIR__ . '/../assets/img/app-mark.svg');

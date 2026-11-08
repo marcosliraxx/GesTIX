@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/login-security.php */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 /** Shared 15-minute authentication budget for browser, desktop and admin login. */
 function arc_login_ip_hash(): string

@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/log-maintenance.php | v1.0.0 | Política central de auditoria */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 function arc_log_catalog(PDO $pdo): array {
     $known = [

@@ -1,6 +1,8 @@
 <?php
 /* Caminho: admin/clientes.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 if (!arc_is_admin()) { header('Location: ../index.php',true,303); exit; }
 $pdo=arc_db(); arc_ensure_user_schema($pdo);
@@ -76,7 +78,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && in_array((string)($_POST['action']??''
   }
   arc_audit($pdo,'client.history_cleaned','Admin removeu '.$total.' históricos operacionais do cliente '.$cid.' nas categorias '.implode(',',$types).'.');
   arc_clients_network_json(['ok'=>true,'deleted'=>$total,'message'=>$total.' registro(s) removido(s).'.(max($deleted)>=100000?' Execute novamente para continuar.':'').' Cadastros, redes e gestores preservados.']);
- }catch(Throwable $e){error_log('Client quick action: '.$e->getMessage());arc_clients_network_json(['ok'=>false,'message'=>$e->getMessage()],400);}
+ }catch(Throwable $e){arc_log_error('Client quick action: '.$e->getMessage());arc_clients_network_json(['ok'=>false,'message'=>$e->getMessage()],400);}
 }
 if (isset($_GET['network_admin']) || (($_POST['action']??'')==='network_admin_purge')) {
  try {
@@ -124,7 +126,7 @@ if (isset($_GET['network_admin']) || (($_POST['action']??'')==='network_admin_pu
   $sessions=$pdo->prepare('SELECT session_id,client_label,first_seen_at,last_seen_at FROM '.arc_table('network_sessions').' WHERE network_id=? ORDER BY last_seen_at DESC LIMIT 60');$sessions->execute([$nid]);
   $stats['gestores']=['count'=>count($gestorRows)];$stats['sessions']=arc_clients_network_count($pdo,'network_sessions',$nid);
   arc_clients_network_json(['ok'=>true,'network'=>$network,'gestores'=>$gestorRows,'sessions'=>$sessions->fetchAll(PDO::FETCH_ASSOC),'stats'=>$stats,'datasets'=>$previews,'limits'=>['gestores'=>150,'sessions'=>60,'records'=>60]]);
- }catch(Throwable $e){error_log('Clientes gestão de rede: '.$e->getMessage());arc_clients_network_json(['ok'=>false,'message'=>$e instanceof PDOException?'Não foi possível consultar os dados da rede. Verifique a estrutura do banco.':$e->getMessage()],400);}
+ }catch(Throwable $e){arc_log_error('Clientes gestão de rede: '.$e->getMessage());arc_clients_network_json(['ok'=>false,'message'=>$e instanceof PDOException?'Não foi possível consultar os dados da rede. Verifique a estrutura do banco.':$e->getMessage()],400);}
 }
 $csrf=arc_csrf_token();
 if ($_SERVER['REQUEST_METHOD']==='POST' && in_array((string)($_POST['action']??''),['clients_bulk','clients_create','clients_update','clients_set_password','clients_send_reset'],true)) {
@@ -157,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && in_array((string)($_POST['action']??'
      arc_platform_smtp_send($pdo,$recipient,'Renovação de senha — Arcoll',"Foi solicitada a atualização da senha da sua conta.\n\nAcesse este link em até 1 hora:\n".$url."\n\nSe não reconhece a solicitação, ignore esta mensagem.");
     } catch(Throwable $mailError) {
      // O administrador precisa conhecer a causa real para corrigir o SMTP.
-     error_log('Arcoll clientes SMTP: '.get_class($mailError).': '.$mailError->getMessage());
+     arc_log_error('Arcoll clientes SMTP: '.get_class($mailError).': '.$mailError->getMessage());
      $pdo->prepare('DELETE FROM '.arc_table('user_preferences').' WHERE user_id=? AND pref_key=? AND pref_value=?')->execute([$id,'password_reset',$value]);
      throw new RuntimeException('Falha ao enviar o e-mail: '.$mailError->getMessage());
     }
@@ -208,7 +210,7 @@ try {
   $rows=$pdo->query('SELECT account_id,COUNT(*) AS total FROM `'.$table.'` WHERE account_id IS NOT NULL GROUP BY account_id')->fetchAll(PDO::FETCH_ASSOC);
   foreach($rows as $r){$id=(int)$r['account_id'];$clientStorage[$id]=($clientStorage[$id]??0)+($average*(int)$r['total']);}
  }
-} catch(Throwable $e){error_log('Estimativa de armazenamento por cliente: '.$e->getMessage());$clientStorage=[];}
+} catch(Throwable $e){arc_log_error('Estimativa de armazenamento por cliente: '.$e->getMessage());$clientStorage=[];}
 $networks=$pdo->query('SELECT id,account_id,name,site_code,is_active,created_at,last_seen_at,logo_file,local_ip,public_ip,gateway,client_name,contact_name,address,monitoring_enabled FROM '.arc_table('managed_networks').' ORDER BY created_at DESC')->fetchAll(PDO::FETCH_ASSOC);
 $history=$pdo->query('SELECT event_type,description,created_at FROM '.arc_table('audit_logs').' WHERE event_type LIKE \'user.%\' ORDER BY created_at DESC LIMIT 300')->fetchAll(PDO::FETCH_ASSOC);
 $networkBy=[];foreach($networks as $n){$networkBy[(int)$n['account_id']][]=$n;}

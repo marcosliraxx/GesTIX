@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/releases.php */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 function arc_app_version(): string {
     $value=trim((string)@file_get_contents(dirname(__DIR__).'/VERSION'));
@@ -137,7 +139,7 @@ function arc_release_sync(PDO $pdo,bool $force=false,?string $manualVersion=null
         // Recupera instalações em que VERSION ficou atrás do estado já publicado.
         if(!$publish&&$old&&arc_app_version()!==$version)arc_release_write_version($version);
         $scan=['checked_at'=>time(),'signature'=>$signature];file_put_contents($stateFile,json_encode($scan),LOCK_EX);chmod($stateFile,0600);
-    }catch(Throwable $e){if($force)throw $e;error_log('Publicação automática: '.$e->getMessage());}finally{flock($lock,LOCK_UN);fclose($lock);}
+    }catch(Throwable $e){if($force)throw $e;arc_log_error('Publicação automática: '.$e->getMessage());}finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function arc_release_require_published(): void {
     static $verified=false;

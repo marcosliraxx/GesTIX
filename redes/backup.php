@@ -2,6 +2,8 @@
 /* Caminho: redes/backup.php */
 /* Área independente da Central de Backup; não carrega o Clean. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile='backup';require __DIR__.'/_base.php';require_once dirname(__DIR__).'/includes/backup-center.php';
 if(!in_array($teamRole,['owner','administrator','system_admin'],true)){http_response_code(403);exit('Gestão de backup exige permissão administrativa.');}
 $gestores=arc_bc_q($pdo,'SELECT id,machine_name FROM '.arc_table('network_gestores')." WHERE account_id=? AND network_id=? AND status='approved' ORDER BY machine_name,id",[(int)$account,(int)$networkId])->fetchAll(PDO::FETCH_ASSOC);

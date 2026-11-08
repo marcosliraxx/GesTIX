@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/download-support.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 $packageMode = (($_GET['mode'] ?? '') === 'package');
 $secret=(string)(arc_config()['app_secret'] ?? '');
@@ -29,4 +31,4 @@ try{
  $zip->addFile(dirname(__DIR__).'/gestores/windows/arcoll_toolkit.py','arcoll_toolkit.py');$zip->addFromString('platform.json',json_encode(['origin'=>$origin,'version'=>arc_app_version(),'design'=>arc_support_design($pdo,'support')],JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES));
  $zip->addFromString('LEIA-ME.txt',"Arcoll Suporte ".arc_app_version()."\r\nExtraia todos os arquivos e abra Instalar_Suporte.bat para iniciar a instalação visual. Python 3.10+ é necessário.\r\nO instalador cria um ambiente Python isolado por usuário e instala Pillow pelo PyPI com TLS.\r\nEntre opcionalmente na sua conta para listar suas redes, ou use o código de 5 caracteres exibido pelo gestor. Acesso por código exige confirmação local.\r\nSessões são temporárias, auditadas, revogáveis e limitadas a 30 minutos. O aplicativo não guarda senhas ou tokens em disco.\r\nO programa precisa de internet HTTPS na porta 443; não exige abrir portas de entrada.\r\nNão é um executável compilado/assinado. Instalação e controle físico devem ser validados no Windows.\r\n");
  $zip->close();header('X-Arcoll-SHA256: '.hash_file('sha256',$tmp));header('Content-Type: application/zip');header('Content-Disposition: attachment; filename="Arcoll-Suporte-'.arc_app_version().'.zip"');header('Cache-Control: no-store, private');header('Content-Length: '.filesize($tmp));readfile($tmp);unlink($tmp);
-}catch(Throwable $e){if(isset($tmp)&&is_file($tmp))@unlink($tmp);error_log('Download suporte: '.$e->getMessage());http_response_code(503);echo 'Não foi possível gerar o aplicativo. Confira a configuração HTTPS e a extensão ZIP.';}
+}catch(Throwable $e){if(isset($tmp)&&is_file($tmp))@unlink($tmp);arc_log_error('Download suporte: '.$e->getMessage());http_response_code(503);echo 'Não foi possível gerar o aplicativo. Confira a configuração HTTPS e a extensão ZIP.';}

@@ -1,4 +1,6 @@
-<?php /* Caminho: redes/_rodape.php */ ?>
+<?php /* Caminho: redes/_rodape.php */ 
+require_once __DIR__ . '/../includes/error-logging.php';
+?>
 </div></div></main>
 <!-- BLOCO 03 — AGENDAMENTO SEGURO DE AÇÕES DO COMPUTADOR -->
 <dialog id="arc-power-schedule" class="arc-power-dialog" aria-labelledby="arc-power-title">

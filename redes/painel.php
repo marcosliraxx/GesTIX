@@ -1,6 +1,8 @@
 <?php
 /* Caminho: redes/painel.php — recursos locais embutidos, sem dependência de cache/URL do navegador. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile = 'painel';
 require __DIR__ . '/_base.php';
 $panelRoot = dirname(__DIR__);

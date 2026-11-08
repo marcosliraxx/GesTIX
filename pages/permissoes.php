@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/permissoes.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 $pdo=arc_db();arc_ensure_user_schema($pdo);
 if(!arc_is_admin()){http_response_code(403);exit('Acesso restrito.');}

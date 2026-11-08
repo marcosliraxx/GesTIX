@@ -1,6 +1,8 @@
 <?php
 /** Caminho: redes/relatorios.php — central de relatórios com isolamento de contas. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 $pdo=arc_db();
 header('Cache-Control: no-store, private');
@@ -69,7 +71,7 @@ try{
  $sectionsData=['geral'=>['Resumo'=>$overview,'Redes'=>$networkRows,'Computadores'=>$gestorRows,'Equipe'=>$teamRows,'Medições'=>$measureRows,'Acessos e atividades'=>$activityRows], 'redes'=>['Redes'=>$networkRows], 'gestores'=>['Computadores'=>$gestorRows], 'equipe'=>['Equipe'=>$teamRows], 'medicoes'=>['Medições'=>$measureRows], 'acessos'=>['Acessos e atividades'=>$activityRows]];
  $rows=$sectionsData[$section];
  if($search!=='')foreach($rows as $title=>$data)$rows[$title]=array_values(array_filter($data,static fn($record)=>mb_stripos(implode(' ',array_map('strval',array_values($record))),$search)!==false));
-}catch(Throwable $e){error_log('Central relatórios: '.$e->getMessage());$error='Não foi possível consultar todos os dados. Verifique o log do servidor.';$rows=[];}
+}catch(Throwable $e){arc_log_error('Central relatórios: '.$e->getMessage());$error='Não foi possível consultar todos os dados. Verifique o log do servidor.';$rows=[];}
 if(($_GET['export']??'')==='csv'){
  if($error!==''){http_response_code(422);header('Content-Type: text/plain; charset=utf-8');exit($error);}
  header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="relatorio-'.date('Ymd-His').'.csv"');echo "\xEF\xBB\xBF";$fh=fopen('php://output','w');

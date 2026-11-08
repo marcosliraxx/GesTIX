@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/atendimentos.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';$pdo=arc_db();arc_ensure_user_schema($pdo);
 if(!arc_is_user()&&!arc_is_admin()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
 $admin=arc_is_admin();$uid=(int)arc_user_id();$where=$admin?'1=1':'(n.account_id=? OR EXISTS (SELECT 1 FROM '.arc_table('network_team_members').' m WHERE m.account_id=n.account_id AND m.network_id=n.id AND m.member_user_id=? AND m.enabled=1))';$params=$admin?[]:[$uid,$uid];

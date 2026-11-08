@@ -1,0 +1,39 @@
+name: Validar base atual, instalador, logs e temas
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Validar catalogo e envio de diagnosticos
+        run: dotnet run --project tests/Core/Core.csproj -c Release
+      - name: Validar instalador WPF sem executar instalacao
+        shell: powershell
+        run: |
+          $script=Join-Path $pwd 'gestores/servidor/Arcoll.WinUI3/INSTALADOR_VISUAL_WINUI3.ps1'
+          powershell.exe -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File $script -ValidateOnly
+          if($LASTEXITCODE -ne 0){throw 'Instalador WPF invalido.'}
+      - name: Renderizar a interface WPF real (sem instalar)
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory previews -Force|Out-Null
+          $script=Join-Path $pwd 'gestores/servidor/Arcoll.WinUI3/INSTALADOR_VISUAL_WINUI3.ps1'
+          foreach($state in @('compile','ready','failed')){
+            powershell.exe -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File $script -RenderPreview (Join-Path $pwd ('previews/instalador-'+$state+'.png')) -PreviewState $state
+            if($LASTEXITCODE -ne 0){throw 'Previa WPF invalida.'}
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: previa-instalador-wpf
+          path: previews/*.png
+      - name: Compilar gestor WinUI x64
+        run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.152 --self-contained true
+      - name: Compilar presenca no boot com envio de logs
+        run: dotnet build gestores/servidor/Arcoll.WinUI3/BootWorker/BootWorker.csproj -c Release

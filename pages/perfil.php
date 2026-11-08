@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 
 /* ============================================================
    pages/perfil.php — MINHA CONTA DO USUÁRIO (página do Workspace)
@@ -115,7 +117,7 @@ if (arc_is_admin()) {
                     header('Location: '.$profileUrl.'#profile',true,303);exit;
                 }
             } catch (PDOException $e) {
-                error_log('Perfil admin: '.$e->getMessage());
+                arc_log_error('Perfil admin: '.$e->getMessage());
                 $admError=(string)$e->getCode()==='23000'?'E-mail já utilizado por outro administrador.':'Falha ao salvar. Verifique os dados e tente novamente.';
             } catch (Throwable $e) { $admError=$e->getMessage(); }
         }

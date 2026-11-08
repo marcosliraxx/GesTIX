@@ -1,6 +1,8 @@
 <?php
 // Caminho: api/download-gestor.php
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 
 if (!is_file(__DIR__ . '/../includes/config.php')) {
     http_response_code(503);
@@ -75,6 +77,8 @@ try {
         }
         require_once dirname(__DIR__) . '/includes/support.php';
         require_once dirname(__DIR__) . '/includes/network-clean.php';
+        $themeFile=dirname(__DIR__).'/assets/themes/catalog.json';if(!is_readable($themeFile))throw new RuntimeException('Catálogo visual indisponível.');
+        $zipNative->addFromString('Arcoll.WinUI3/Assets/theme-catalog.json',file_get_contents($themeFile));
         $zipNative->addFromString('Arcoll.WinUI3/Assets/system.ico', arc_support_icon($pdo, 'gestor'));
         $zipNative->addFromString('Arcoll.WinUI3/Assets/program-catalog.json', json_encode(arc_program_install_catalog(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
         $zipNative->addFromString('Arcoll.WinUI3/Assets/clean-catalog.json', json_encode([
@@ -129,6 +133,8 @@ try {
         foreach (['MainWindow.Workspace.cs','Controls/GestorWorkspace.cs','Services/PerformanceModel.cs','Services/PerformanceCollector.cs','Services/NativePerformance.cs','Services/GpuTemperature.cs','Pages/ServerPage.cs','Assets/hybrid/dashboard/server.html','Assets/hybrid/dashboard/server.css','Assets/hybrid/dashboard/server.js','Assets/hybrid/dashboard/compact-shell.js','Assets/hybrid/dashboard/standard-workspace.css','Assets/hybrid/dashboard/standard-workspace.js','Assets/hybrid/internet/standard-workspace.css','Assets/hybrid/pentefino/standard-workspace.css','Assets/hybrid/backup/standard-workspace.css'] as $workspaceFile) {
             if ($zipNative->locateName('Arcoll.WinUI3/'.$workspaceFile)===false) throw new RuntimeException('Workspace do gestor incompleto: '.$workspaceFile);
         }
+
+        foreach(['Services/CentralLogUploader.cs','Services/ThemeRules.cs'] as $essential){if($zipNative->locateName('Arcoll.WinUI3/'.$essential)===false)throw new RuntimeException('Gestor incompleto: '.$essential);}
 
         // Logos dos programas (mesmos PNG da plataforma): o catálogo do gestor funciona sem internet.
         // Assets\** é copiado para a pasta de instalação pelo .csproj.
@@ -198,6 +204,7 @@ try {
         require_once dirname(__DIR__) . '/includes/support.php';
         require_once dirname(__DIR__) . '/includes/network-clean.php';
         $generated = [
+            'Assets/theme-catalog.json'=>file_get_contents(dirname(__DIR__).'/assets/themes/catalog.json'),
             'Assets/system.ico' => arc_support_icon($pdo, 'gestor'),
             'Assets/program-catalog.json' => json_encode(arc_program_install_catalog(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             'Assets/clean-catalog.json' => json_encode([
@@ -316,7 +323,7 @@ try {
         $token = (string)($_GET['t'] ?? '');
         $nativeRecord = $nativeCheck($pdo, $token);
         if ($requestedMode === 'native-bootstrap') {
-            // Entrega o instalador visual WinForms; a janela gerencia download,
+            // Entrega o instalador WPF moderno; a janela gerencia download,
             // compilacao, andamento e diagnostico sem usar console interativo.
             $url = $nativeOrigin . '/api/download-gestor.php?mode=native-package&t=' . $token;
             $visualPath = $nativeRoot . '/INSTALADOR_VISUAL_WINUI3.ps1';
@@ -325,7 +332,8 @@ try {
             if ($visual === false || strpos($visual, '__PACKAGE_URL__') === false) {
                 throw new RuntimeException('Modelo do instalador visual invalido.');
             }
-            $ps = str_replace('__PACKAGE_URL__', str_replace("'", "''", $url), $visual);
+            $palette=base64_encode(json_encode(arc_visual_theme($pdo),JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+            $ps=str_replace(['__PACKAGE_URL__','__INSTALLER_THEME_BASE64__'],[str_replace("'","''",$url),$palette],$visual);
             // Windows PowerShell 5.1 interpreta scripts UTF-8 com BOM corretamente.
             header('Content-Type: text/plain; charset=utf-8');
             header('Cache-Control: private, no-store, max-age=0');
@@ -341,6 +349,8 @@ try {
         ]);
         header('Content-Type: application/zip');
         header('Content-Disposition: attachment; filename="TI-Digital-WinUI3-Fontes.zip"');
+        $packageHash=hash_file('sha256',$tmpZip);if($packageHash===false)throw new RuntimeException('Falha na integridade do pacote.');
+        header('X-Package-SHA256: '.$packageHash);
         header('Content-Length: ' . filesize($tmpZip));
         header('X-Content-Type-Options: nosniff');
         header('Cache-Control: private, no-store');
@@ -370,16 +380,24 @@ try {
         $key = bin2hex(random_bytes(32));
         $pdo->prepare('INSERT INTO ' . arc_table('gestor_download_keys') . ' (token_hash,account_id,network_id,site_code) VALUES (?,?,?,?)')->execute([hash('sha256',$key),arc_user_id(),$networkId,strtoupper(trim((string)$row['site_code']))]);
         $bootstrap = $nativeOrigin . '/api/download-gestor.php?mode=native-bootstrap&t=' . $key;
-        // VBScript do Windows inicia a interface GUI sem abrir janelas CMD/PowerShell.
-        // O PowerShell continua sendo o executor do instalador, oculto e sem console interativo.
-        $psCommand = '$ErrorActionPreference=\'Stop\'; $p=Join-Path $env:TEMP (\'ti-winui3-\'+[guid]::NewGuid().ToString(\'N\')+\'.ps1\'); try { Invoke-WebRequest -UseBasicParsing -Uri \'' . $bootstrap . '\' -OutFile $p; & $p; if ($LASTEXITCODE -ne 0) { exit 1 } } catch { exit 1 } finally { Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue }';
-        $vbs = "' Caminho: api/download-gestor.php (iniciador gerado)\r\n" .
-            "Option Explicit\r\nDim shell, command, exitCode\r\nSet shell = CreateObject(\"WScript.Shell\")\r\n" .
-            'command = "' . str_replace('"', '""', $psCommand) . '"' . "\r\n" .
-            'exitCode = shell.Run("powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command " & Chr(34) & command & Chr(34), 0, True)' . "\r\n" .
-            "If exitCode <> 0 Then MsgBox \"Instalação não concluída. Consulte os registros em %LOCALAPPDATA%\\TI-Digital\\Logs.\", 16, \"T.I Digital\"\r\n";
+        $urlLiteral=str_replace("'","''",$bootstrap);
+        $psCommand=<<<'PS'
+$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+$p=Join-Path $env:TEMP ('ti-gestor-'+[guid]::NewGuid().ToString('N')+'.ps1')
+try{Invoke-WebRequest -UseBasicParsing -MaximumRedirection 0 -Uri '__BOOTSTRAP__' -OutFile $p; & $p; if($LASTEXITCODE -ne 0){exit 1}}
+catch{Add-Type -AssemblyName PresentationFramework;[Windows.MessageBox]::Show('Não foi possível preparar o instalador. Verifique a conexão e baixe um novo instalador pela plataforma.','T.I. Digital · Instalação','OK','Error')|Out-Null;exit 1}
+finally{Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue}
+PS;
+        $psCommand=str_replace('__BOOTSTRAP__',$urlLiteral,$psCommand);
+        $encoded=base64_encode(mb_convert_encoding($psCommand,'UTF-16LE','UTF-8'));
+        $launch='powershell.exe -NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand '.$encoded;
+        $vbs="Option Explicit\r\nDim shell\r\nSet shell=CreateObject(\"WScript.Shell\")\r\nshell.Run \"".$launch."\",0,False\r\n";
+        if($requestedMode==='bat'){
+            $bat="@echo off\r\nsetlocal\r\nstart \"\" ".$launch."\r\nexit /b 0\r\n";
+            header('Content-Type: application/octet-stream');header('Content-Disposition: attachment; filename="Instalar_TI_Digital_Gestor.bat"');header('Content-Length: '.strlen($bat));header('Cache-Control: private, no-store');exit($bat);
+        }
         header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="Instalar_TI_Digital_WinUI3.vbs"');
+        header('Content-Disposition: attachment; filename="Instalar_TI_Digital_Gestor.vbs"');
         header('Content-Length: ' . strlen($vbs));
         header('X-Content-Type-Options: nosniff');
         header('Cache-Control: private, no-store, max-age=0');
@@ -393,7 +411,7 @@ try {
 } catch (Throwable $e) {
     // Não exponha detalhes internos para visitantes ou usuários sem privilégio administrativo.
     $incident = strtoupper(substr(bin2hex(random_bytes(6)), 0, 12));
-    error_log('Arcoll gestor download [' . $incident . '] ' . get_class($e) . ': ' . $e->getMessage());
+    arc_log_error('Arcoll gestor download [' . $incident . '] ' . get_class($e) . ': ' . $e->getMessage());
     if (isset($zipNative) && $zipNative instanceof ZipArchive) @$zipNative->close();
     if (isset($tmpZip) && is_string($tmpZip) && is_file($tmpZip)) @unlink($tmpZip);
     http_response_code(500);

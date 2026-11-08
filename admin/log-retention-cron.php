@@ -1,6 +1,8 @@
 <?php
 /* Caminho: admin/log-retention-cron.php | v1.0.0 */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 // Executável somente pela linha de comando. Não expõe token ou endpoint público.
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 require dirname(__DIR__).'/includes/bootstrap.php';

@@ -1,6 +1,8 @@
 <?php
 /* Caminho: index.php */
 declare(strict_types=1);
+require_once __DIR__ . '/includes/error-logging.php';
+
 /** Caminho: index.php — autenticação pública. */
 if (!is_file(__DIR__ . '/includes/config.php')) {
     http_response_code(503);
@@ -199,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } catch (PDOException | RuntimeException $exception) {
-            error_log('Arcoll index auth: ' . $exception->getMessage());
+            arc_log_error('Arcoll index auth: ' . $exception->getMessage());
             $error = $mode === 'register' && (string)$exception->getCode() === '23000'
                 ? 'Já existe uma conta com este e-mail.'
                 : 'Não foi possível concluir a operação. Tente novamente.';
@@ -222,7 +224,7 @@ if (is_file($arcLoginStyles) && is_readable($arcLoginStyles)) {
     readfile($arcLoginStyles);
     echo '</style>';
 } else {
-    error_log('Login: folha de estilos principal indisponível em assets/css/arcoll.css');
+    arc_log_error('Login: folha de estilos principal indisponível em assets/css/arcoll.css');
 }
 ?>
 <link rel="stylesheet" href="assets/vendor/font-awesome/css/font-awesome.min.css">

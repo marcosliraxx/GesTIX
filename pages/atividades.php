@@ -1,6 +1,8 @@
 <?php
 /** ARQUIVO: pages/atividades.php — Histórico independente do usuário. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 $pdo=arc_db();header('Cache-Control: no-store, private');
 if(!arc_is_admin()&&!arc_is_user()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
@@ -15,7 +17,7 @@ try {
   $stmt=$pdo->prepare('SELECT event_type,details,created_at FROM '.arc_table('account_audit').' WHERE account_id=? ORDER BY created_at DESC,id DESC LIMIT 30 OFFSET '.(int)$offset);
   $stmt->execute([$id]);$events=$stmt->fetchAll(PDO::FETCH_ASSOC);
  }
-}catch(Throwable $e){error_log('Atividades conta: '.$e->getMessage());$error='Não foi possível carregar os eventos desta conta.';}
+}catch(Throwable $e){arc_log_error('Atividades conta: '.$e->getMessage());$error='Não foi possível carregar os eventos desta conta.';}
 $labels=['account_login'=>'Login realizado','account_logout'=>'Saída da conta','account_registered'=>'Conta criada','profile_updated'=>'Perfil atualizado','avatar_updated'=>'Foto atualizada','avatar_removed'=>'Foto removida','password_changed'=>'Senha alterada','preferences_updated'=>'Preferências atualizadas','network_created'=>'Rede criada','network_updated'=>'Rede atualizada','network_deleted'=>'Rede removida'];
 $ARCMode='app';$ARCPageTitle='Minhas atividades';$ARCActiveNav='activities';$ARCHeaderActions='';require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';
 ?>

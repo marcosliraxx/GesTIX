@@ -1,10 +1,12 @@
 <?php
 /** Caminho: /redes/usuarios.php — administração de acesso e trilha auditável da rede. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile='usuarios';
 require __DIR__.'/_base.php';
 $accessProfiles=[];
-try { $qp=$pdo->prepare('SELECT id,name,base_role,permissions_json FROM '.arc_table('network_access_profiles').' WHERE account_id=? AND network_id=? ORDER BY name');$qp->execute([$account,$networkId]);$accessProfiles=$qp->fetchAll(PDO::FETCH_ASSOC); } catch(PDOException $e) {error_log('Perfil rede: aplique migração SQL.');}
+try { $qp=$pdo->prepare('SELECT id,name,base_role,permissions_json FROM '.arc_table('network_access_profiles').' WHERE account_id=? AND network_id=? ORDER BY name');$qp->execute([$account,$networkId]);$accessProfiles=$qp->fetchAll(PDO::FETCH_ASSOC); } catch(PDOException $e) {arc_log_error('Perfil rede: aplique migração SQL.');}
 $historyQuery=$pdo->prepare('SELECT event_type,details,created_at FROM '.arc_table('account_audit').' WHERE account_id=? AND details LIKE ? AND details LIKE ? ORDER BY created_at DESC LIMIT 100');
 $users=array_merge([['member_user_id'=>(int)$networkOwner['id'],'display_name'=>$networkOwner['display_name'],'email'=>$networkOwner['email'],'avatar_url'=>$networkOwner['avatar_url']??'','role'=>'owner','enabled'=>1]],$networkTeamMembers);
 $roleNames=['owner'=>'Gestor','administrator'=>'Administrador','operator'=>'Operador','viewer'=>'Visualizador'];

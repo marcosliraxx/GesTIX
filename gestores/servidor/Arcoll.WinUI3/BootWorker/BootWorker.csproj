@@ -8,4 +8,5 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>TIDigital.BootPresence</AssemblyName>
   </PropertyGroup>
+  <ItemGroup><Compile Include="../Services/CentralLogUploader.cs" Link="CentralLogUploader.cs" /></ItemGroup>
 </Project>

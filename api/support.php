@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/support.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 header('Cache-Control: no-store, private');
 try{
@@ -64,4 +66,4 @@ try{
   arc_json(['ok'=>true,'command_id'=>$command,'code'=>arc_support_issue_code($pdo,$command,$user),'expires_in'=>120]);
  }
  arc_json(['ok'=>false,'error'=>'Ação inválida'],404);
-}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e instanceof PDOException?'Serviço indisponível.':$e->getMessage()],422);}catch(Throwable $e){error_log('Suporte: '.$e->getMessage());arc_json(['ok'=>false,'error'=>'Suporte indisponível.'],503);}
+}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>$e instanceof PDOException?'Serviço indisponível.':$e->getMessage()],422);}catch(Throwable $e){arc_log_error('Suporte: '.$e->getMessage());arc_json(['ok'=>false,'error'=>'Suporte indisponível.'],503);}

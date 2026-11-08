@@ -11,6 +11,7 @@ public static class RuntimeLog
 
     public static void Write(string message)
     {
+        message=DiagnosticRedactor.Clean(message);
         try
         {
             lock (Gate)

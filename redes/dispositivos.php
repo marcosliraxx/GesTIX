@@ -1,6 +1,8 @@
 <?php
 /* Caminho: redes/dispositivos.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile = 'dispositivos';
 require __DIR__ . '/_base.php';
 require dirname(__DIR__) . '/includes/network-inventory.php';

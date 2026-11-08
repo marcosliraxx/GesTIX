@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/command-diagnostics.php */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 /** Never export credentials or personal paths in an error report. */
 function arc_command_error_scrub(string $raw, int $limit = 5500): string
@@ -52,7 +54,7 @@ function arc_command_error_store(PDO $pdo, array $command, string $code, string 
         if (random_int(1,32)===1) $pdo->exec('DELETE FROM '.arc_table('gestor_command_errors').' WHERE recorded_at<DATE_SUB(NOW(),INTERVAL 30 DAY)');
     } catch (PDOException $e) {
         // The command status itself must still be acknowledged on hosts without CREATE TABLE privilege.
-        error_log('remote command diagnostics unavailable: '.$e->getCode());
+        arc_log_error('remote command diagnostics unavailable: '.$e->getCode());
     }
 }
 
@@ -65,7 +67,7 @@ function arc_command_error_read(PDO $pdo, int $commandId, int $networkId, int $a
         $row=$q->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     } catch (PDOException $e) {
-        if ($e->getCode() !== '42S02') error_log('remote diagnostic read unavailable: '.$e->getCode());
+        if ($e->getCode() !== '42S02') arc_log_error('remote diagnostic read unavailable: '.$e->getCode());
         return null;
     }
 }

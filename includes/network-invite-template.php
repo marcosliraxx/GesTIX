@@ -1,5 +1,7 @@
 <?php
 /** Caminho: /includes/network-invite-template.php — convite HTML com links verificáveis. */
+
+require_once __DIR__ . '/error-logging.php';
 function arc_network_invite_email(PDO $pdo,int $networkId,string $name,bool $registered): string {
  $esc=static fn(string $v):string=>htmlspecialchars($v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
  $root=rtrim(arc_base_url(),'/');$logo=$root.'/api/brand-logo.php?icon=192';

@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/storage-policy.php | v1.0.0 - Retencao seletiva do armazenamento */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 /** Somente origens previamente auditadas; nunca limpar contas, redes, credenciais ou inventario corrente. */
 function arc_storage_catalog(): array {

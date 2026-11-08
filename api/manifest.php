@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/manifest.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 
 if (!is_file(__DIR__ . '/../includes/config.php')) {
     http_response_code(503);
@@ -12,7 +14,7 @@ try {
     // As páginas e APIs privadas continuam protegidas por autenticação.
     $settings = arc_public_settings(arc_db());
 } catch (Throwable $exception) {
-    error_log('Arcoll manifest error: ' . $exception->getMessage());
+    arc_log_error('Arcoll manifest error: ' . $exception->getMessage());
     http_response_code(503);
     exit;
 }

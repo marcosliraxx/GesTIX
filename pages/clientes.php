@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/clientes.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 if (!arc_is_admin()) { header('Location: ../index.php',true,303); exit; }
 $pdo=arc_db(); arc_ensure_user_schema($pdo);
@@ -91,7 +93,7 @@ if (isset($_GET['network_admin']) || (($_POST['action']??'')==='network_admin_pu
   $sessions=$pdo->prepare('SELECT session_id,client_label,first_seen_at,last_seen_at FROM '.arc_table('network_sessions').' WHERE network_id=? ORDER BY last_seen_at DESC LIMIT 60');$sessions->execute([$nid]);
   $stats['gestores']=['count'=>count($gestorRows)];$stats['sessions']=arc_clients_network_count($pdo,'network_sessions',$nid);
   arc_clients_network_json(['ok'=>true,'network'=>$network,'gestores'=>$gestorRows,'sessions'=>$sessions->fetchAll(PDO::FETCH_ASSOC),'stats'=>$stats,'datasets'=>$previews,'limits'=>['gestores'=>150,'sessions'=>60,'records'=>60]]);
- }catch(Throwable $e){error_log('Clientes gestão de rede: '.$e->getMessage());arc_clients_network_json(['ok'=>false,'message'=>$e instanceof PDOException?'Não foi possível consultar os dados da rede. Verifique a estrutura do banco.':$e->getMessage()],400);}
+ }catch(Throwable $e){arc_log_error('Clientes gestão de rede: '.$e->getMessage());arc_clients_network_json(['ok'=>false,'message'=>$e instanceof PDOException?'Não foi possível consultar os dados da rede. Verifique a estrutura do banco.':$e->getMessage()],400);}
 }
 $csrf=arc_csrf_token();
 if ($_SERVER['REQUEST_METHOD']==='POST' && in_array((string)($_POST['action']??''),['clients_bulk','clients_create','clients_update','clients_set_password','clients_send_reset'],true)) {
@@ -124,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && in_array((string)($_POST['action']??'
      arc_platform_smtp_send($pdo,$recipient,'Renovação de senha — Arcoll',"Foi solicitada a atualização da senha da sua conta.\n\nAcesse este link em até 1 hora:\n".$url."\n\nSe não reconhece a solicitação, ignore esta mensagem.");
     } catch(Throwable $mailError) {
      // O administrador precisa conhecer a causa real para corrigir o SMTP.
-     error_log('Arcoll clientes SMTP: '.get_class($mailError).': '.$mailError->getMessage());
+     arc_log_error('Arcoll clientes SMTP: '.get_class($mailError).': '.$mailError->getMessage());
      $pdo->prepare('DELETE FROM '.arc_table('user_preferences').' WHERE user_id=? AND pref_key=? AND pref_value=?')->execute([$id,'password_reset',$value]);
      throw new RuntimeException('Falha ao enviar o e-mail: '.$mailError->getMessage());
     }

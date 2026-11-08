@@ -24,6 +24,7 @@ public sealed class GestorRuntime : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly List<double> _latencies = new();
     private Task? _loop;
+    private readonly CentralLogUploader _logUploader=new(()=>{var c=GestorConfig.Load();return new LogIdentity(c.Origin,c.Fingerprint,c.SiteCode,c.DownloadKey);},Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"TI-Digital","LogUpload"),CentralLogUploader.UserRoots());
     private DateTime _lastAuth = DateTime.MinValue, _lastMetrics = DateTime.MinValue, _lastNetworkScan = DateTime.MinValue;
     private bool _busy;
     private CloudVirtualDriveService? _virtualDrive;
@@ -52,7 +53,7 @@ public sealed class GestorRuntime : IDisposable
     public Action? RequestExit { get; set; }
     private bool _updateChecked;
 
-    public void Start() { if (_loop == null) _loop = Task.Run(() => RunAsync(_cts.Token)); }
+    public void Start() { _logUploader.Start();if (_loop == null) _loop = Task.Run(() => RunAsync(_cts.Token)); }
 
     private async Task RunAsync(CancellationToken ct)
     {
@@ -603,5 +604,5 @@ public sealed class GestorRuntime : IDisposable
         await _platform.AckAsync(id, ok ? "completed" : "failed", summary, ct);
     }
 
-    public void Dispose() { _cts.Cancel(); _virtualDrive?.Dispose(); _remoteScreen?.Dispose(); _platform.Dispose(); _cts.Dispose(); }
+    public void Dispose() { _logUploader.Dispose();_cts.Cancel(); _virtualDrive?.Dispose(); _remoteScreen?.Dispose(); _platform.Dispose(); _cts.Dispose(); }
 }

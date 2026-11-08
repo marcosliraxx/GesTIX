@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/billing.php */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 
 function arc_billing_seed_plans(PDO $pdo): void {

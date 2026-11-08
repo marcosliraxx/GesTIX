@@ -1,6 +1,8 @@
 <?php
 /* Caminho: admin/comercial.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';arc_require_admin();$pdo=arc_db();arc_ensure_user_schema($pdo);$error='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
  try{
@@ -46,7 +48,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
    foreach($rows as $pay){$state=arc_billing_payment_state($i,$pay);arc_billing_apply($pdo,(int)$i['id'],$state,(string)$pay['id'].':'.$state,$i['provider'],(int)arc_admin_id());}
   }else throw new RuntimeException('Ação inválida.');
   arc_audit($pdo,'commercial_admin','Operação '.$action.' por administrador #'.(int)arc_admin_id());$_SESSION['arc_flash']='Operação registrada.';header('Location: '.arc_workspace_base_url().'admin/comercial.php',true,303);exit;
- }catch(RuntimeException $e){if($pdo->inTransaction())$pdo->rollBack();$error=$e instanceof PDOException?'Serviço indisponível. Verifique os registros do servidor.':$e->getMessage();}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();error_log('Comercial: '.$e->getMessage());$error='Não foi possível concluir. Confira os registros do servidor.';}
+ }catch(RuntimeException $e){if($pdo->inTransaction())$pdo->rollBack();$error=$e instanceof PDOException?'Serviço indisponível. Verifique os registros do servidor.':$e->getMessage();}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();arc_log_error('Comercial: '.$e->getMessage());$error='Não foi possível concluir. Confira os registros do servidor.';}
 }
 $plans=$pdo->query('SELECT * FROM '.arc_table('billing_plans').' ORDER BY price_cents,id')->fetchAll();$plans[]=['id'=>0,'name'=>'','price_cents'=>5990,'networks_limit'=>3,'gestores_limit'=>15,'seats_limit'=>2,'enabled'=>1];
 $invoices=$pdo->query('SELECT i.*,u.display_name FROM '.arc_table('billing_invoices').' i JOIN '.arc_table('user_accounts').' u ON u.id=i.account_id ORDER BY i.id DESC LIMIT 100')->fetchAll();

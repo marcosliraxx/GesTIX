@@ -1,6 +1,8 @@
 <?php
 /* Caminho: redes/servidor.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $arcSectionFile='servidor';
 require __DIR__.'/_base.php';
 
@@ -94,7 +96,7 @@ function arc_server_feed(PDO $pdo, int $networkId, int $account, int $gestorId):
             $q->execute([$networkId, $account, $gestorId]);
             $rows = $q->fetchAll(PDO::FETCH_ASSOC);
         } catch (Throwable $e) {
-            error_log('Arcoll servidor feed: '.$e->getMessage());
+            arc_log_error('Arcoll servidor feed: '.$e->getMessage());
         }
     }
     $samples = [];

@@ -2,6 +2,7 @@
 // Componente de presenca antes do login. Nao interage com a tela de bloqueio,
 // nao recebe comandos, nao executa comandos, nem captura credenciais.
 using System.Net;
+using Arcoll.WinUI3.Services;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -16,6 +17,7 @@ internal static class Program
 
     private static void Log(string msg)
     {
+        msg=DiagnosticRedactor.Clean(msg);
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(LogFile)!);
@@ -51,6 +53,7 @@ internal static class Program
         // Worker de inicializacao do sistema: sem UI e sem direitos de operacao remota.
         var config = ReadConfig();
         if (config is null) return 2;
+        using var diagnostics=new CentralLogUploader(()=>new LogIdentity(config.Origin,config.Fingerprint,config.SiteCode,config.DownloadKey),Path.Combine(Base,"LogUpload"),CentralLogUploader.SystemRoots());diagnostics.Start();
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false, AutomaticDecompression = DecompressionMethods.GZip };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(9) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("TI-Digital-BootPresence/" + Version);

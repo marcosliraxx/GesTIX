@@ -1,6 +1,8 @@
 <?php
 /** ARQUIVO: pages/preferencias.php — Preferências globais do sistema. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__) . '/includes/bootstrap.php';
 $pdo=arc_db();
 header('Cache-Control: no-store, private');
@@ -22,11 +24,11 @@ if(($_SERVER['REQUEST_METHOD']??'')==='POST'){
    arc_system_prefs_save($pdo,$new);
    arc_audit($pdo,'system_preferences_updated','Preferências globais do sistema alteradas');
    header('Location: '.arc_workspace_base_url().'pages/preferencias.php?saved=1',true,303);exit;
-  }catch(Throwable $e){error_log('Preferências globais: '.$e->getMessage());$error='Não foi possível salvar as preferências do sistema.';}
+  }catch(Throwable $e){arc_log_error('Preferências globais: '.$e->getMessage());$error='Não foi possível salvar as preferências do sistema.';}
  }
 }
 try{$values=arc_system_prefs($pdo);}
-catch(Throwable $e){error_log('Preferências globais: '.$e->getMessage());$values=[];foreach($defs as $key=>$def)$values[$key]=(string)$def['default'];}
+catch(Throwable $e){arc_log_error('Preferências globais: '.$e->getMessage());$values=[];foreach($defs as $key=>$def)$values[$key]=(string)$def['default'];}
 $groups=[];foreach($defs as $key=>$def)$groups[$def['group']][$key]=$def;
 $ARCMode='app';$ARCPageTitle='Preferências do sistema';$ARCActiveNav='settings';$ARCHeaderActions='';
 require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';

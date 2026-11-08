@@ -1,5 +1,7 @@
 <?php
 /* Caminho: includes/admin-data.php */
+
+require_once __DIR__ . '/error-logging.php';
 $settings = arc_settings($pdo);
 $pages = $pdo->query('SELECT * FROM ' . arc_table('pages') . ' ORDER BY nav_order, id')->fetchAll();
 $fields = $pdo->query(

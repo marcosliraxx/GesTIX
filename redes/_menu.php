@@ -5,6 +5,8 @@
  * Os subitens do Mais são acessíveis exclusivamente pelo botão do footer.
  * Mantém a checagem de permissões e a navegação de páginas complementares.
  */
+
+require_once __DIR__ . '/../includes/error-logging.php';
 $arcNetworkLinks = arc_navigation_items($pdo, 'header', (int)$networkId);
 $arcAllowedMenu = in_array(($teamRole ?? ''), ['owner','system_admin'], true)
     ? null

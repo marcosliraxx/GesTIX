@@ -5,6 +5,8 @@
  * Não limpa inventário atual, alertas, auditoria ou histórico de comandos.
  * Agende de hora em hora após inspecionar a execução de teste.
  */
+
+require_once __DIR__ . '/../includes/error-logging.php';
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('CLI only'); }
 require_once dirname(__DIR__).'/includes/bootstrap.php';
 $execute = in_array('--execute', $argv, true);

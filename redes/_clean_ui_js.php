@@ -1,4 +1,6 @@
-<?php /* Caminho: redes/_clean_ui_js.php | Lógica da interface estilo CCleaner (incluída por _clean_ui.php). */ ?>
+<?php /* Caminho: redes/_clean_ui_js.php | Lógica da interface estilo CCleaner (incluída por _clean_ui.php). */ 
+require_once __DIR__ . '/../includes/error-logging.php';
+?>
 <script>
 (()=>{'use strict';
 const root=document.getElementById('cc'),api=root.dataset.api,network=Number(root.dataset.network),gestor=Number(root.dataset.gestor),csrf=root.dataset.csrf,cfg=JSON.parse(root.dataset.config),$=id=>document.getElementById(id);

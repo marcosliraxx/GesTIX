@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/gestor-api.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require __DIR__ . '/../includes/bootstrap.php';
 try {
     $pdo = arc_db();
@@ -43,6 +45,6 @@ try {
     }
     arc_json(['ok'=>true,'status'=>$gestor['status'],'network'=>$network['name'],'machine_label'=>$gestor['machine_label'],'message'=>match($gestor['status']){'approved'=>'Gestor aprovado.','pending'=>'Aguardando aprovação do gestor de redes.','blocked'=>'Este gestor foi bloqueado pelo gestor.','deleted'=>'Este gestor foi excluído e precisa ser cadastrado novamente.',default=>'Status desconhecido.'}]);
 } catch (Throwable $e) {
-    error_log('Arcoll gestor API: '.$e->getMessage());
+    arc_log_error('Arcoll gestor API: '.$e->getMessage());
     arc_json(['ok'=>false,'error'=>'Não foi possível comunicar com o gestor de redes.'],500);
 }

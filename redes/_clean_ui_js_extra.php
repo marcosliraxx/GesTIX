@@ -1,5 +1,7 @@
 <?php /* Caminho: redes/_clean_ui_js_extra.php | Telas extras estilo CCleaner (Nuvem, Otimização, Inicialização com 4 abas, Driver Updater).
-   Incluído DENTRO do script de _clean_ui_js.php (mesmo escopo: h, ico, intro, ill, can, startTool, confirmBox, reports, settings...). Somente JavaScript. */ ?>
+   Incluído DENTRO do script de _clean_ui_js.php (mesmo escopo: h, ico, intro, ill, can, startTool, confirmBox, reports, settings...). Somente JavaScript. */ 
+require_once __DIR__ . '/../includes/error-logging.php';
+?>
 /* ---------- utilidades das telas extras ---------- */
 let perfTab='active',drvTab='out',cloudCat='junk',cloudSel=new Set(),perfSel=new Set(),drvSel=new Set(),drvClosed=new Set();
 const tabsBar=(items,cur,set)=>h('div',{class:'cc-tabs'},items.map(([k,n,i])=>h('button',{type:'button',class:'cc-tab'+(k===cur?' on':''),onclick:()=>{set(k);render()}},ico(i),n)));

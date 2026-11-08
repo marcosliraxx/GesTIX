@@ -1,6 +1,8 @@
 <?php
 /* Caminho: maintenance/billing-renewals.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 require dirname(__DIR__).'/includes/bootstrap.php';$pdo=arc_db();arc_ensure_user_schema($pdo);$count=0;$errors=0;
 // A single CLI worker per database prevents duplicate renewal processing.
@@ -20,7 +22,7 @@ try{
     $pdo->prepare("INSERT INTO ".arc_table('billing_events')." (provider,event_key,invoice_id,event_type) VALUES ('system',?,?,'invoice_notice')")->execute([hash('sha256',$event),$i['id']]);
    }
    $count++;
-  }catch(Throwable $e){$errors++;error_log('Renovação conta #'.(int)$s['account_id'].': '.$e->getMessage());}
+  }catch(Throwable $e){$errors++;arc_log_error('Renovação conta #'.(int)$s['account_id'].': '.$e->getMessage());}
  }
  arc_support_files_cleanup($pdo);
  // Tokens expire independently of cleanup; no ticket, invoice or audit history is erased.

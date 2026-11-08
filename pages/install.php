@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/install.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require_once dirname(__DIR__).'/includes/releases.php';
 
 $privateDir = __DIR__ . '/../includes';
@@ -242,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (is_file($configPath)) {
                     @unlink($configPath);
                 }
-                error_log('Arcoll install error: ' . $exception->getMessage());
+                arc_log_error('Arcoll install error: ' . $exception->getMessage());
                 if (str_contains(strtolower($exception->getMessage()), 'pdo mysql')) {
                     $error = $exception->getMessage();
                 } elseif (str_contains(strtolower($exception->getMessage()), 'could not find driver')) {

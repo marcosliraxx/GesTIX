@@ -1,6 +1,8 @@
 <?php
 /** Caminho: admin/gestorwin.php — gerenciamento de publicações Windows. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__) . '/includes/admin-actions.php';
 arc_require_admin();
 $pdo = arc_db();

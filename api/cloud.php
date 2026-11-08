@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/cloud.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
@@ -239,6 +241,6 @@ try {
     arc_json(['ok'=>false,'error'=>$e instanceof JsonException?'JSON inválido.':$e->getMessage()],422);
 } catch (Throwable $e) {
     $code=(int)$e->getCode();$safe=$e instanceof RuntimeException && !$e instanceof PDOException;
-    if (!$safe) error_log('Arcoll backup: falha interna '.get_class($e));
+    if (!$safe) arc_log_error('Arcoll backup: falha interna '.get_class($e));
     arc_json(['ok'=>false,'error'=>$safe?$e->getMessage():'Serviço de backup indisponível.'],in_array($code,[401,403,404,409,410,413,429,502,503],true)?$code:503);
 }

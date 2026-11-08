@@ -1,4 +1,6 @@
-<?php /* Caminho: includes/network-register-modal.php — Formulário único de cadastro de redes. */ ?>
+<?php /* Caminho: includes/network-register-modal.php — Formulário único de cadastro de redes. */ 
+require_once __DIR__ . '/error-logging.php';
+?>
 <div class="modal-overlay" id="modal-register" role="dialog" aria-modal="true" aria-labelledby="register-modal-title" aria-hidden="true">
     <div class="modal">
         <div class="modal-header">

@@ -2,6 +2,8 @@
 /* Caminho: redes/clean.php | Clean: equivalente remoto do CCleaner (Health Check, Limpeza personalizada, Desinstalador, Duplicados,
    Nuvem, Otimização, Inicialização, Atualizador, Drivers, Disco, Restauração e Configurações). Interface única em _clean_ui.php. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 if(($_GET['section']??'')==='backup'){header('Location: backup.php?'.http_build_query(['network'=>(int)($_GET['network']??0),'gestor'=>(int)($_GET['gestor']??0)]),true,303);exit;}
 $arcSectionFile='clean';
 require __DIR__.'/_base.php';

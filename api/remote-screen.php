@@ -2,6 +2,8 @@
 /* Caminho: api/remote-screen.php */
 /** Arcoll: acesso remoto temporário e consentido ao computador do gestor (tela + controle opcional). */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require __DIR__.'/../includes/bootstrap.php';
 require_once __DIR__.'/../includes/command-diagnostics.php';
 /* A sessão só é lida; liberar o lock evita que imagem, status e entrada se bloqueiem entre si. */

@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/network-logo.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require __DIR__ . '/../includes/bootstrap.php';
 if (!arc_is_user() && !arc_is_admin()) { http_response_code(403); exit; }
 $pdo = arc_db();

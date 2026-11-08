@@ -1,6 +1,8 @@
 <?php
 /* Caminho: includes/navigation.php */
 declare(strict_types=1);
+require_once __DIR__ . '/error-logging.php';
+
 
 function arc_navigation_schema(PDO $pdo): void {
     // Schema is applied once by arc_ensure_user_schema, never during menu rendering.

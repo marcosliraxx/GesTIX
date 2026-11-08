@@ -2,6 +2,8 @@
 /* Caminho: includes/config.example.php */
 // Modelo apenas. Copie para config.php e preencha no servidor de destino.
 // Nunca envie config.php ao Git.
+
+require_once __DIR__ . '/error-logging.php';
 return [
     'db_host' => '127.0.0.1',
     'db_port' => 3306,

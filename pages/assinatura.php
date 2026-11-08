@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/assinatura.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';$pdo=arc_db();arc_ensure_user_schema($pdo);
 if(!arc_is_user()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
 $uid=(int)arc_user_id();$error='';$notice='';
@@ -11,7 +13,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
    $pdo->prepare('UPDATE '.arc_table('billing_subscriptions').' SET cancel_at_period_end=1 WHERE account_id=?')->execute([$uid]);$notice='Renovação cancelada. O período já pago será mantido.';
   }else throw new RuntimeException('Ação inválida.');
   $_SESSION['arc_flash']=$notice;header('Location: '.arc_workspace_base_url().'pages/assinatura.php',true,303);exit;
- }catch(RuntimeException $e){$error=$e instanceof PDOException?'Serviço indisponível. Verifique os registros do servidor.':$e->getMessage();}catch(Throwable $e){error_log('Assinatura: '.$e->getMessage());$error='Não foi possível concluir. Nenhum pagamento foi confirmado.';}
+ }catch(RuntimeException $e){$error=$e instanceof PDOException?'Serviço indisponível. Verifique os registros do servidor.':$e->getMessage();}catch(Throwable $e){arc_log_error('Assinatura: '.$e->getMessage());$error='Não foi possível concluir. Nenhum pagamento foi confirmado.';}
 }
 $plans=$pdo->query('SELECT * FROM '.arc_table('billing_plans').' WHERE enabled=1 ORDER BY price_cents,id')->fetchAll();$policy=arc_billing_policy($pdo,$uid);$usage=arc_billing_usage($pdo,$uid);$sub=arc_billing_subscription($pdo,$uid);
 $ARCPageTitle='Planos e cobrança';$ARCActiveNav='billing';require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/includes/sidebar.php';

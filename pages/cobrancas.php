@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/cobrancas.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 $pdo=arc_db();arc_ensure_user_schema($pdo);
 if(!arc_is_user()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
@@ -40,7 +42,7 @@ try{
    'receipt'=>(string)($row['receipt_note']??'')];
  }
 }catch(Throwable $e){
- error_log('Histórico de cobranças: '.$e->getMessage());http_response_code(503);
+ arc_log_error('Histórico de cobranças: '.$e->getMessage());http_response_code(503);
  $states=[];$items=[];$total=0;$pages=1;
  $error=$e instanceof RuntimeException&&!($e instanceof PDOException)?$e->getMessage():'Não foi possível consultar as cobranças. Tente novamente mais tarde.';
 }

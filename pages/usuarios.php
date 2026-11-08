@@ -1,6 +1,8 @@
 <?php
 /* Caminho: pages/usuarios.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 require dirname(__DIR__).'/includes/bootstrap.php';
 $pdo=arc_db(); arc_require_platform_schema($pdo);
 arc_require_admin();

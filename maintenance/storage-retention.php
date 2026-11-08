@@ -4,6 +4,8 @@
  * --dry-run e a opcao padrao. --execute somente quando ativado no painel.
  */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 if (PHP_SAPI!=='cli') {http_response_code(404);exit;}
 require dirname(__DIR__).'/includes/bootstrap.php';
 require dirname(__DIR__).'/includes/storage-policy.php';

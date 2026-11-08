@@ -1,6 +1,8 @@
 <?php
 /* Caminho: api/arquivos-api.php */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -136,7 +138,7 @@ try {
             if(file_put_contents($tmp,$new,LOCK_EX)!==strlen($new)){@unlink($tmp);throw new RuntimeException('Não foi possível escrever o arquivo.');}
             @chmod($tmp,fileperms($real)&0777);
             if(!rename($tmp,$real)){@unlink($tmp);throw new RuntimeException('Falha ao substituir o arquivo.');}
-            error_log('Arquivos: admin '.arc_admin_id().' editou '.$rel.' backup '.$archive);
+            arc_log_error('Arquivos: admin '.arc_admin_id().' editou '.$rel.' backup '.$archive);
             remov_json(['ok'=>true,'archive'=>$archive]);
         }
         $name=(string)($_POST['name']??'');
@@ -145,7 +147,7 @@ try {
         if(file_exists($dest)||remov_protected(str_replace('\\','/',substr($dest,strlen($root)+1))))throw new RuntimeException('Destino inválido ou já existente.');
         $archive=remov_backup($root,[$rel=>$real]);
         if(!rename($real,$dest))throw new RuntimeException('Falha ao renomear.');
-        error_log('Arquivos: admin '.arc_admin_id().' renomeou '.$rel.' backup '.$archive);
+        arc_log_error('Arquivos: admin '.arc_admin_id().' renomeou '.$rel.' backup '.$archive);
         remov_json(['ok'=>true,'archive'=>$archive]);
     }
     if ($action!=='delete') remov_json(['ok'=>false,'message'=>'Ação inválida.'],400);
@@ -162,6 +164,6 @@ try {
     $archive=remov_backup($root,$targets);
     $deleted=[];$failed=[];
     foreach($targets as $rel=>$real){if(@unlink($real))$deleted[]=$rel;else $failed[]=$rel;}
-    error_log('Arquivos: operador admin '.arc_admin_id().' backup '.$archive.' excluídos '.count($deleted).' falhas '.count($failed));
+    arc_log_error('Arquivos: operador admin '.arc_admin_id().' backup '.$archive.' excluídos '.count($deleted).' falhas '.count($failed));
     remov_json(['ok'=>true,'archive'=>$archive,'removed'=>$deleted,'failed'=>$failed,'message'=>'Backup gerado antes da exclusão; confira os resultados.']);
 } catch(Throwable $e) {http_response_code(400);echo json_encode(['ok'=>false,'message'=>$e->getMessage()],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);}

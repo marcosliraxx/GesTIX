@@ -3,6 +3,8 @@
    Recebe: $ccSections (chaves de seção permitidas), $ccStart (seção inicial), $networkId, $selectedGestorId, $csrf.
    Os dados e o contrato com o gestor (api.php: network-clean-* e network-program-*) não mudam; só a apresentação. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 $ccSections = $ccSections ?? ['health','custom','uninstall','duplicates','cloud','backup','perf','startup','updater','drivers','disk','restore','options'];
 $ccStart = in_array($ccStart ?? 'health', $ccSections, true) ? $ccStart : $ccSections[0];
 $cleanConfig = [

@@ -4,6 +4,7 @@
 Aplicativo desktop nativo integrado ao gestor local."""
 import os, sys, json, time, socket, platform, threading, subprocess, urllib.request, urllib.error, csv, ipaddress, re, shutil, hashlib, html, webbrowser
 from pathlib import Path
+from arcoll_logsync import LogSync, write_log as write_diagnostic
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import sqlite3, statistics, math, urllib.parse, queue, codecs, tempfile, base64, secrets
@@ -36,7 +37,7 @@ def _load_cached_visual_theme():
   data=json.loads(VISUAL_CACHE.read_text(encoding='utf-8'))
   if not isinstance(data,dict):return None
   if data.get('origin')!=ORIGIN or data.get('site_code')!=SITE_CODE:return None
-  if data.get('id') not in ('windows','ocean','crystal','graphite','neon','emerald'):return None
+  if data.get('id') not in ('windows', 'ocean', 'crystal', 'graphite', 'neon', 'emerald', 'sapphire', 'sandstone', 'aurora', 'slate'):return None
   if data.get('mode') not in ('theme','auto','light','dark'):return None
   return data
  except (OSError,ValueError,TypeError):return None
@@ -46,6 +47,7 @@ def _cache_visual_theme(visual):
  try:
   # Persistência atômica, evitando arquivos truncados ao desligar o Windows.
   clean={'origin':ORIGIN,'site_code':SITE_CODE,'id':visual['id'],'mode':visual['mode']}
+  if isinstance(visual.get('variants'),dict):clean.update(variants=visual['variants'],light=bool(visual.get('light')))
   if _load_cached_visual_theme()==clean:return
   with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=str(DATA_DIR),prefix='.visual-',suffix='.tmp',delete=False) as handle:
    target=handle.name
@@ -804,7 +806,8 @@ class ArcollApp:
   # Inicializa as cores ANTES de construir as abas, inclusive sem Internet.
   self.appearance=AppearanceManager(self.root,GESTOR_VERSION,controls=False,restyle=self._style)
   cached=_load_cached_visual_theme()
-  if cached:self.appearance.set_remote_theme(cached['id'],cached['mode'])
+  if cached:
+   if not self.appearance.set_published_theme(cached):self.appearance.set_remote_theme(cached['id'],cached['mode'])
   self.stop_event=threading.Event(); self.samples=[]; self.devices=[]; self.alerts=[]; self.running=True; self.monitor_on=True; self.gestor_proc=None; self.last_status='Verificando autorização'; self._auth_status='checking'; self._auth_error=''; self._command_poll_busy=False; self._last_command_error=''; self.last_sync='Ainda não sincronizado'; self.latency='--'; self.loss='0%'; self.last_error=''; self.scan_running=False; self.speed_busy=False; self.session_started=time.time();self.last_alert_sent=0; self.monitor_interval=5; self.alert_threshold=150; self._init_history_db(); self._load_history()
   self._style(); self._enable_custom_chrome(); self._tabs(); self._footer(); self._animate_ui(); self._fade_in()
   self.allowed_remote_tabs=None;self.latest_release=None
@@ -2150,6 +2153,7 @@ class ArcollApp:
    finally:self.toolkit_busy=False
   threading.Thread(target=work,daemon=True).start()
  def log(self,msg,level='INFO'):
+  write_diagnostic(msg,level,'gestor-desktop')
   stamp=time.strftime('%Y-%m-%d %H:%M:%S'); line=f'[{stamp}] [{level}] {msg}'
   try:
    self.dashboard_log.configure(state='normal'); self.dashboard_log.insert('end',line+'\n'); self.dashboard_log.see('end'); self.dashboard_log.configure(state='disabled')
@@ -2208,9 +2212,9 @@ class ArcollApp:
   if isinstance(visual,dict) and hasattr(self,'appearance'):
    theme_id=visual.get('id')
    mode=visual.get('mode','theme')
-   if theme_id in ('windows','ocean','crystal','graphite','neon','emerald') and mode in ('theme','auto','light','dark'):
-    self.appearance.set_remote_theme(theme_id,mode)
-    _cache_visual_theme({'id':theme_id,'mode':mode})
+   if theme_id in ('windows', 'ocean', 'crystal', 'graphite', 'neon', 'emerald', 'sapphire', 'sandstone', 'aurora', 'slate') and mode in ('theme','auto','light','dark'):
+    if not self.appearance.set_published_theme(visual):self.appearance.set_remote_theme(theme_id,mode)
+    _cache_visual_theme(visual)
     self._refresh_title_and_theme()
   # Parâmetros administrados por rede na plataforma, sem preferências locais.
   try:
@@ -4296,6 +4300,7 @@ class ArcollApp:
   self.root.destroy()
 
 if __name__=='__main__':
+ LogSync(lambda:{'origin':ORIGIN,'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY}).start()
  if not acquire_single_instance():
   if '--show' in sys.argv:
    try:

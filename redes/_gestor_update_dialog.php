@@ -5,6 +5,8 @@
  * (liberacao.php, relatorios.php): antes, nelas o botão do cabeçalho não abria nada.
  * Exige $networkId. Usa $teamRole e $csrf quando existirem. */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/error-logging.php';
+
 if (!empty($GLOBALS['arc_gestor_update_dialog_rendered'])) return;
 $GLOBALS['arc_gestor_update_dialog_rendered'] = true;
 $arcUpdRole = (string)($teamRole ?? ($access['role'] ?? ''));

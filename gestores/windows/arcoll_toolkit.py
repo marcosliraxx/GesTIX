@@ -382,6 +382,18 @@ class AppearanceManager:
     PALETTES['graphite'] = {'bg':'#16191f','surface':'#242a34','alt':'#303744','text':'#f1f4fa','muted':'#b0bbc9','border':'#485364','accent':'#9aaee5','onaccent':'#071521','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
     PALETTES['neon'] = {'bg':'#110e27','surface':'#221a40','alt':'#302551','text':'#f5f0ff','muted':'#c5b4e3','border':'#534474','accent':'#a879ff','onaccent':'#ffffff','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
     PALETTES['emerald'] = {'bg':'#0b211d','surface':'#15352d','alt':'#20463a','text':'#e6fcf3','muted':'#acd5c5','border':'#386352','accent':'#32d4a1','onaccent':'#071521','success':'#32c99a','danger':'#ef7886','warning':'#e9b75e','violet':'#ad83f5'}
+    # Cores de fallback geradas do catálogo central 5.0.152.
+    PALETTES['windows'] = {'bg': '#eef3fb', 'surface': '#ffffff', 'alt': '#e4edf9', 'text': '#172b45', 'muted': '#526782', 'border': '#c8d7eb', 'accent': '#225bce', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'violet': '#225bce'}
+    PALETTES['ocean'] = {'bg': '#071b2b', 'surface': '#102c42', 'alt': '#1a3b51', 'text': '#eaf8ff', 'muted': '#abcbdc', 'border': '#35566c', 'accent': '#35c7ed', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'violet': '#35c7ed'}
+    PALETTES['crystal'] = {'bg': '#f2f2fa', 'surface': '#ffffff', 'alt': '#e9e9f6', 'text': '#24243e', 'muted': '#626281', 'border': '#d6d5ec', 'accent': '#5b56d6', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'violet': '#5b56d6'}
+    PALETTES['graphite'] = {'bg': '#171b23', 'surface': '#252c38', 'alt': '#323c4c', 'text': '#f1f5fc', 'muted': '#b4bfd0', 'border': '#4b5a70', 'accent': '#a3baf5', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'violet': '#a3baf5'}
+    PALETTES['neon'] = {'bg': '#120f25', 'surface': '#241d3f', 'alt': '#342a55', 'text': '#f6f0ff', 'muted': '#c9bfe3', 'border': '#594a79', 'accent': '#ba9bff', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'violet': '#ba9bff'}
+    PALETTES['emerald'] = {'bg': '#0b211c', 'surface': '#15362c', 'alt': '#204c3d', 'text': '#eafcf4', 'muted': '#b0d1c0', 'border': '#3b6a56', 'accent': '#4bd6a6', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'violet': '#4bd6a6'}
+    PALETTES['sapphire'] = {'bg': '#0b172c', 'surface': '#172b49', 'alt': '#233f62', 'text': '#eff6ff', 'muted': '#b6c9e3', 'border': '#405c81', 'accent': '#8bb8ff', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'violet': '#8bb8ff'}
+    PALETTES['sandstone'] = {'bg': '#f6f1e9', 'surface': '#fffdfa', 'alt': '#ece3d7', 'text': '#332b25', 'muted': '#76675a', 'border': '#d8c8b7', 'accent': '#995034', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'violet': '#995034'}
+    PALETTES['aurora'] = {'bg': '#0d202b', 'surface': '#17343e', 'alt': '#224d56', 'text': '#edfcf8', 'muted': '#b0d0cf', 'border': '#3e6d72', 'accent': '#73e1d0', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'violet': '#73e1d0'}
+    PALETTES['slate'] = {'bg': '#eef2f6', 'surface': '#ffffff', 'alt': '#e2eaf2', 'text': '#233348', 'muted': '#5f7288', 'border': '#c9d5e3', 'accent': '#435f80', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'violet': '#435f80'}
+    REMOTE_VARIANTS = {'windows': {'light': {'bg': '#eef3fb', 'surface': '#ffffff', 'alt': '#e4edf9', 'text': '#172b45', 'muted': '#526782', 'accent': '#225bce', 'border': '#c8d7eb', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#225bce', 'accent_soft': '#e4ebf9', 'hover': '#d3e0f5'}, 'dark': {'bg': '#0e1724', 'surface': '#172536', 'alt': '#24364a', 'text': '#edf5ff', 'muted': '#afc1d7', 'accent': '#6089dc', 'border': '#3c536e', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#6089dc', 'accent_soft': '#20314a', 'hover': '#293d57'}}, 'ocean': {'light': {'bg': '#f0f4f9', 'surface': '#ffffff', 'alt': '#e5edf6', 'text': '#203248', 'muted': '#5c7188', 'accent': '#227f98', 'border': '#cbd8e6', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#227f98', 'accent_soft': '#e4f0f3', 'hover': '#d3e3ee'}, 'dark': {'bg': '#071b2b', 'surface': '#102c42', 'alt': '#1a3b51', 'text': '#eaf8ff', 'muted': '#abcbdc', 'accent': '#35c7ed', 'border': '#35566c', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#35c7ed', 'accent_soft': '#143f57', 'hover': '#1c485f'}}, 'crystal': {'light': {'bg': '#f2f2fa', 'surface': '#ffffff', 'alt': '#e9e9f6', 'text': '#24243e', 'muted': '#626281', 'accent': '#5b56d6', 'border': '#d6d5ec', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#5b56d6', 'accent_soft': '#ebebfa', 'hover': '#dcdcf3'}, 'dark': {'bg': '#0e1724', 'surface': '#172536', 'alt': '#24364a', 'text': '#edf5ff', 'muted': '#afc1d7', 'accent': '#8480e0', 'border': '#3c536e', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#8480e0', 'accent_soft': '#24304a', 'hover': '#2d3d58'}}, 'graphite': {'light': {'bg': '#f0f4f9', 'surface': '#ffffff', 'alt': '#e5edf6', 'text': '#203248', 'muted': '#5c7188', 'accent': '#67759a', 'border': '#cbd8e6', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#67759a', 'accent_soft': '#edeef3', 'hover': '#dae2ee'}, 'dark': {'bg': '#171b23', 'surface': '#252c38', 'alt': '#323c4c', 'text': '#f1f5fc', 'muted': '#b4bfd0', 'accent': '#a3baf5', 'border': '#4b5a70', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#a3baf5', 'accent_soft': '#343d4f', 'hover': '#3c475b'}}, 'neon': {'light': {'bg': '#f0f4f9', 'surface': '#ffffff', 'alt': '#e5edf6', 'text': '#203248', 'muted': '#5c7188', 'accent': '#806bb0', 'border': '#cbd8e6', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#806bb0', 'accent_soft': '#f0edf6', 'hover': '#dce1f0'}, 'dark': {'bg': '#120f25', 'surface': '#241d3f', 'alt': '#342a55', 'text': '#f6f0ff', 'muted': '#c9bfe3', 'accent': '#ba9bff', 'border': '#594a79', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#ba9bff', 'accent_soft': '#362c56', 'hover': '#403464'}}, 'emerald': {'light': {'bg': '#f0f4f9', 'surface': '#ffffff', 'alt': '#e5edf6', 'text': '#203248', 'muted': '#5c7188', 'accent': '#2e8365', 'border': '#cbd8e6', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#2e8365', 'accent_soft': '#e6f0ed', 'hover': '#d5e3e9'}, 'dark': {'bg': '#0b211c', 'surface': '#15362c', 'alt': '#204c3d', 'text': '#eafcf4', 'muted': '#b0d1c0', 'accent': '#4bd6a6', 'border': '#3b6a56', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#4bd6a6', 'accent_soft': '#1b493b', 'hover': '#245846'}}, 'sapphire': {'light': {'bg': '#f0f4f9', 'surface': '#ffffff', 'alt': '#e5edf6', 'text': '#203248', 'muted': '#5c7188', 'accent': '#5976a3', 'border': '#cbd8e6', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#5976a3', 'accent_soft': '#ebeff4', 'hover': '#d8e2ef'}, 'dark': {'bg': '#0b172c', 'surface': '#172b49', 'alt': '#233f62', 'text': '#eff6ff', 'muted': '#b6c9e3', 'accent': '#8bb8ff', 'border': '#405c81', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#8bb8ff', 'accent_soft': '#253c5f', 'hover': '#2c4a70'}}, 'sandstone': {'light': {'bg': '#f6f1e9', 'surface': '#fffdfa', 'alt': '#ece3d7', 'text': '#332b25', 'muted': '#76675a', 'accent': '#995034', 'border': '#d8c8b7', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#995034', 'accent_soft': '#f3e8e2', 'hover': '#e5d6c8'}, 'dark': {'bg': '#0e1724', 'surface': '#172536', 'alt': '#24364a', 'text': '#edf5ff', 'muted': '#afc1d7', 'accent': '#b47e69', 'border': '#3c536e', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#b47e69', 'accent_soft': '#2a303c', 'hover': '#313c4d'}}, 'aurora': {'light': {'bg': '#f0f4f9', 'surface': '#ffffff', 'alt': '#e5edf6', 'text': '#203248', 'muted': '#5c7188', 'accent': '#428077', 'border': '#cbd8e6', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#428077', 'accent_soft': '#e8f0ef', 'hover': '#d6e3eb'}, 'dark': {'bg': '#0d202b', 'surface': '#17343e', 'alt': '#224d56', 'text': '#edfcf8', 'muted': '#b0d0cf', 'accent': '#73e1d0', 'border': '#3e6d72', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#73e1d0', 'accent_soft': '#224950', 'hover': '#295a61'}}, 'slate': {'light': {'bg': '#eef2f6', 'surface': '#ffffff', 'alt': '#e2eaf2', 'text': '#233348', 'muted': '#5f7288', 'accent': '#435f80', 'border': '#c9d5e3', 'onaccent': '#ffffff', 'success': '#168268', 'danger': '#be344d', 'warning': '#94610b', 'focus': '#435f80', 'accent_soft': '#e8ecf0', 'hover': '#d4dde8'}, 'dark': {'bg': '#0e1724', 'surface': '#172536', 'alt': '#24364a', 'text': '#edf5ff', 'muted': '#afc1d7', 'accent': '#7a8da5', 'border': '#3c536e', 'onaccent': '#091624', 'success': '#53d7ad', 'danger': '#ff9daa', 'warning': '#f3ca78', 'focus': '#7a8da5', 'accent_soft': '#233143', 'hover': '#2c3e52'}}}
     LABELS={'auto':'Automático','light':'Claro','dark':'Escuro'}
 
     @staticmethod
@@ -448,15 +460,36 @@ class AppearanceManager:
         """Conserva a identidade do tema publicado ao alternar a luminosidade."""
         palette=dict(cls.PALETTES[choice])
         target=cls.system_theme() if mode=='auto' else mode
+        if target not in ('light','dark'):target='light' if choice in ('windows','crystal','sandstone','slate') else 'dark'
+        if choice in cls.REMOTE_VARIANTS and target in cls.REMOTE_VARIANTS[choice]:
+            palette.update(cls.REMOTE_VARIANTS[choice][target]);return palette
         if target not in ('light','dark'):
             return palette
-        already_light=choice in ('windows','crystal')
+        already_light=choice in ('windows','crystal','sandstone','slate')
         if (target=='light')==already_light:
             return palette
         neutral=cls.PALETTES[target]
         for role in ('bg','surface','alt','text','muted','border'):
             palette[role]=neutral[role]
         return palette
+
+    def set_published_theme(self, visual):
+        if not isinstance(visual,dict):return False
+        choice=visual.get('id');mode=visual.get('mode','theme')
+        if not isinstance(choice,str) or not re.fullmatch(r'[a-z0-9_-]{1,40}',choice) or mode not in ('theme','auto','light','dark'):return False
+        variants=visual.get('variants',{})
+        if not isinstance(variants,dict):return False
+        clean={}
+        for variant in ('light','dark'):
+            value=variants.get(variant)
+            if not isinstance(value,dict) or any(not isinstance(value.get(k),str) or not re.fullmatch(r'#[0-9a-fA-F]{6}',value[k]) for k in ('bg','surface','alt','text','muted','border','accent','onaccent')):return False
+            clean[variant]={k:v for k,v in value.items() if isinstance(v,str) and re.fullmatch(r'#[0-9a-fA-F]{6}',v)}
+        before=self.REMOTE_VARIANTS.get(choice)
+        self.REMOTE_VARIANTS[choice]=clean
+        palette=dict(self.PALETTES['light' if visual.get('light') else 'dark']);palette.update(clean['light' if visual.get('light') else 'dark']);self.PALETTES[choice]=palette
+        if before!=clean:self.remote_choice=None
+        self.set_remote_theme(choice,mode)
+        return True
 
     def set_remote_theme(self, choice, mode='theme'):
         if choice not in self.PALETTES or choice in ('light','dark'):
@@ -476,7 +509,7 @@ class AppearanceManager:
         selected=self.remote_choice if self.remote_choice is not None else self.choice
         self.resolved=(self.system_theme() if self.remote_mode=='auto' else
                        (self.remote_mode if self.remote_mode in ('light','dark') else
-                        ('light' if selected in ('windows','crystal','light') else 'dark'))) if self.remote_choice is not None else (self.system_theme() if selected=='auto' else selected)
+                        ('light' if selected in ('windows','crystal','sandstone','slate','light') else 'dark'))) if self.remote_choice is not None else (self.system_theme() if selected=='auto' else selected)
         _CURRENT_PALETTE=(self.remote_palette(self.remote_choice,self.remote_mode)
                           if self.remote_choice is not None else self.PALETTES[self.resolved])
         self._system_mode=self.system_theme() if self.remote_mode=='auto' else None
@@ -507,7 +540,7 @@ class AppearanceManager:
             # comparada com o modo claro/escuro efetivamente aplicado.
             resolved=(self.system_theme() if self.remote_mode=='auto' else
                       (self.remote_mode if self.remote_mode in ('light','dark') else
-                       ('light' if selected in ('windows','crystal','light') else 'dark'))) if self.remote_choice is not None else (self.system_theme() if selected=='auto' else selected)
+                       ('light' if selected in ('windows','crystal','sandstone','slate','light') else 'dark'))) if self.remote_choice is not None else (self.system_theme() if selected=='auto' else selected)
             system_changed=(self.remote_choice is not None and self.remote_mode=='auto'
                             and self._system_mode!=self.system_theme())
             if saved!=self.choice or resolved!=self.resolved or system_changed:
