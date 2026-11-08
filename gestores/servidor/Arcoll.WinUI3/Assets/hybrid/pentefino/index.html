@@ -1,17 +1,33 @@
 <!-- Caminho: gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/index.html -->
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"><title>Pente-Fino</title><link rel="stylesheet" href="styles.css"></head><body>
 <main id="app">
-<header class="top"><div class="brand"><h1>Pente-Fino</h1><small id="subtitle">Análise detalhada do computador</small></div><button id="config" title="Configurar o que será analisado" aria-label="Configurações" class="icon-button">⚙</button></header>
-<div id="notice" role="status" aria-live="polite" hidden></div>
-<section id="intro" class="intro"><div class="intro-inner"><button id="start" class="orb large" aria-label="Iniciar Pente-Fino detalhado"><span class="orb-icon">⌕</span><strong>PENTE-FINO</strong><small>Iniciar análise</small></button><p id="intro-message">Clique para realizar a análise detalhada.</p></div></section>
-<section id="workspace" class="workspace" hidden>
- <div class="grid-panel"><div class="grid-head"><div><strong>Itens encontrados</strong><small id="found-count">0 itens encontrados</small></div><label class="all-check"><input type="checkbox" id="check-all" checked> Todos</label></div>
- <div class="table-wrap"><table><thead><tr><th class="check-col"></th><th><button class="sort" data-sort="title">Item <span>↕</span></button></th><th><button class="sort" data-sort="module">Área <span>↕</span></button></th><th><button class="sort" data-sort="bytes">Tamanho <span>↕</span></button></th><th><button class="sort" data-sort="status">Situação <span>↕</span></button></th></tr></thead><tbody id="rows"></tbody></table></div>
- <div class="grid-foot"><span id="selection">0 selecionados</span><span id="selection-size">0 B</span></div></div>
- <aside class="actions-panel"><div class="orb-box"><button id="rerun" class="orb compact" aria-label="Executar nova análise detalhada"><span class="orb-icon">⌕</span><strong id="orb-value">NOVA ANÁLISE</strong><small id="orb-label">Clique para iniciar</small></button><p id="stage">Pronto</p><div class="track"><div id="fill"></div></div><small id="step">Selecione uma ação</small></div>
- <div class="actions"><button id="correct" class="action primary"><span class="action-icon">✓</span><span>Corrigir</span></button><button id="cancel" class="action danger"><span class="action-icon">×</span><span id="cancel-label">Cancelar</span></button></div>
- <p id="action-hint">A correção dos itens selecionados requer confirmação e backup.</p></aside>
-</section>
+ <header class="top"><div class="brand"><span class="eyebrow">CUIDADO DO COMPUTADOR</span><h1>Pente-Fino</h1></div><div class="top-actions"><span id="report-time"></span><button id="history" class="icon-button" title="Backups e restauração" aria-label="Backups e restauração">↶</button><button id="config" class="icon-button" title="Preferências da análise" aria-label="Preferências da análise">⚙</button></div></header>
+ <div id="notice" role="status" aria-live="polite" hidden></div>
+ <div class="layout">
+  <section id="summary" class="summary" aria-label="Resultado resumido da análise" hidden>
+   <header class="summary-head"><div><span class="eyebrow">RESULTADO POR ÁREA</span><h2 id="summary-title">Análise concluída</h2><p id="summary-caption"></p></div><span id="report-badge" class="badge"></span></header>
+   <div class="metrics"><div><strong id="total-fixable">0</strong><span>Ajustes disponíveis</span></div><div><strong id="total-review">0</strong><span>Revisão manual</span></div><div><strong id="total-bytes">0 B</strong><span>Volume identificado</span></div></div>
+   <div class="table-wrap"><table><thead><tr><th class="check-col"><input type="checkbox" id="check-all" aria-label="Selecionar todas as áreas corrigíveis"></th><th><button type="button" class="sort" data-sort="title">Área <span>↕</span></button></th><th><button type="button" class="sort" data-sort="count">Encontrados <span>↕</span></button></th><th><button type="button" class="sort" data-sort="fixable">Corrigíveis <span>↕</span></button></th><th><button type="button" class="sort" data-sort="review">Revisar <span>↕</span></button></th><th>Situação</th></tr></thead><tbody id="rows"></tbody></table></div>
+   <footer class="summary-foot"><span id="selection">Nenhuma área selecionada</span><button id="review" type="button" class="text-button">Revisar resumo</button></footer>
+  </section>
+  <aside class="controller" aria-label="Análise e ações do Pente-Fino">
+   <div id="circle-zone" class="circle-zone">
+    <span class="halo halo-outer" aria-hidden="true"></span><span class="halo halo-inner" aria-hidden="true"></span><span class="orbit" aria-hidden="true"><i></i></span><span class="orbit orbit-second" aria-hidden="true"><i></i></span>
+    <div id="phases" class="phases" aria-hidden="true"></div>
+    <button id="start" type="button" class="check-circle" aria-label="Iniciar análise detalhada do Pente-Fino">
+     <svg class="ring" viewBox="0 0 240 240" aria-hidden="true"><defs><linearGradient id="ring-gradient" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" class="gradient-start"/><stop offset="100%" class="gradient-end"/></linearGradient></defs><circle class="ring-track" cx="120" cy="120" r="106"/><circle id="arc" cx="120" cy="120" r="106" pathLength="100"/></svg>
+     <span class="circle-copy"><span id="circle-icon" aria-hidden="true">⌕</span><strong id="circle-value">ANALISAR</strong><span id="circle-label">Clique para iniciar</span></span>
+    </button>
+   </div>
+   <fieldset id="module-choices"><legend class="sr-only">Áreas da próxima análise</legend></fieldset>
+   <div class="operation-copy"><strong id="stage" role="status" aria-live="polite">Uma análise, uma visão clara.</strong><span id="step">Escolha as áreas e clique no círculo.</span><small id="elapsed"></small></div>
+   <div id="actions" class="actions" hidden><button id="correct" type="button" class="action primary"><span aria-hidden="true">✓</span> Corrigir seleção</button><button id="new-scan" type="button" class="action secondary">Nova análise</button></div>
+   <button id="cancel" type="button" class="stop-button" hidden>Parar com segurança</button>
+   <p id="action-hint">A análise é somente leitura. Correções exigem confirmação e backup.</p>
+  </aside>
+ </div>
 </main>
-<dialog id="settings"><header><strong>O que analisar?</strong><button id="close-settings" title="Fechar" aria-label="Fechar">×</button></header><p>Selecione as áreas que entrarão no próximo Pente-Fino.</p><div id="module-choices"></div><footer><button id="save-settings">Salvar</button></footer></dialog>
+<dialog id="details"><header><h2 id="details-title">Resumo da análise</h2><button type="button" data-close aria-label="Fechar">×</button></header><div id="details-body" class="dialog-body"></div><footer><button type="button" data-close>Fechar</button></footer></dialog>
+<dialog id="settings"><header><h2>Preferências da análise</h2><button type="button" data-close aria-label="Fechar">×</button></header><div class="dialog-body"><p>As áreas são escolhidas abaixo do círculo. Estas preferências preservam suas exclusões e domínios confiáveis.</p><label>Pastas excluídas — uma por linha<textarea id="exclusions" rows="4" spellcheck="false" placeholder="C:\Dados\Preservar"></textarea></label><label>Domínios de cookies confiáveis — um por linha<textarea id="trusted" rows="3" spellcheck="false" placeholder="empresa.com.br"></textarea></label><p id="settings-feedback" role="status"></p></div><footer><button id="save-settings" type="button" class="primary">Salvar preferências</button></footer></dialog>
+<dialog id="backups"><header><h2>Backups e restauração</h2><button type="button" data-close aria-label="Fechar">×</button></header><div id="backups-body" class="dialog-body"></div><footer><button type="button" data-close>Fechar</button></footer></dialog>
 <script src="app.js"></script></body></html>

@@ -1,0 +1,36 @@
+name: Validar Pente-Fino 5.0.387
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Validar resumo, selecao, quarentena e restauracao
+        run: dotnet run --project tests/PenteFino/PenteFino.csproj -c Release
+      - name: Compilar gestor Windows x64
+        run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.387 --self-contained true
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --prefix /tmp/ti-browser playwright@1.55.0
+      - name: Exercitar interface e moldura nativa
+        env:
+          NODE_PATH: /tmp/ti-browser/node_modules
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node tests/browser/pentefino.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: previas-pentefino
+          path: previews/pentefino/*.png

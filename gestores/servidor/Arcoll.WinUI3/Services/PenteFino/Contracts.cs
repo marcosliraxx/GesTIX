@@ -7,7 +7,7 @@ public sealed record CheckResult(string Id,string Title,List<Finding> Items,List
 public sealed record ScanReport(string Schema,string Id,DateTimeOffset At,string Mode,List<CheckResult> Modules,bool Cancelled,double Seconds);
 public sealed record ScanOptions(string Mode,string[] Modules,string[] Exclusions,string[] TrustedCookies);
 public sealed record ProgressState(string Module,string State,int Percent,string Message);
-public sealed record FixProgressState(int Completed,int Total,string? Id,string State,Dictionary<string,bool> Outcomes);
+public sealed record FixProgressState(int Completed,int Total,string? Id,string State,Dictionary<string,bool> Outcomes,int Succeeded=0,int Failed=0);
 public sealed record Settings(string Mode,string[] Modules,string[] Exclusions,string[] TrustedCookies,string[] Ignored){
     public static Settings Default=>new("quick",["privacy","clean","startup","registry","updates"],[],[],[]);
 }

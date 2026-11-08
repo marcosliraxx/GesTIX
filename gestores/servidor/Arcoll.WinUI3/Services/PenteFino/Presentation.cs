@@ -1,0 +1,11 @@
+// Caminho: gestores/servidor/Arcoll.WinUI3/Services/PenteFino/Presentation.cs
+namespace Arcoll.WinUI3.Services.PenteFino;
+public sealed record CategorySummary(string Kind,int Count,int Fixable,long Bytes);
+public sealed record ModuleSummary(string Id,string Title,int Count,int Fixable,int Review,int Informational,long Bytes,bool Complete,string[] Notes,CategorySummary[] Categories);
+public sealed record ReportSummary(string Id,DateTimeOffset At,string Mode,bool Cancelled,double Seconds,int Count,int Fixable,int Review,int Informational,long Bytes,bool Complete,ModuleSummary[] Modules);
+/// <summary>The WebView receives quantities, never thousands of file paths or correction IDs.</summary>
+public static class Presentation
+{
+ public static ReportSummary Summarize(ScanReport report){var modules=report.Modules.Select(m=>{var items=m.Items.DistinctBy(i=>i.Id).ToArray();var fixable=items.Count(i=>i.CanFix);var review=items.Count(i=>!i.CanFix&&i.Severity=="review");return new ModuleSummary(m.Id,m.Title,items.Length,fixable,review,items.Length-fixable-review,items.Sum(i=>Math.Max(0,i.Bytes)),m.Complete,m.Notes.Take(30).Select(n=>n.Length>600?n[..600]:n).ToArray(),items.GroupBy(i=>i.Kind).Select(g=>new CategorySummary(g.Key,g.Count(),g.Count(i=>i.CanFix),g.Sum(i=>Math.Max(0,i.Bytes)))).ToArray());}).ToArray();return new(report.Id,report.At,report.Mode,report.Cancelled,report.Seconds,modules.Sum(m=>m.Count),modules.Sum(m=>m.Fixable),modules.Sum(m=>m.Review),modules.Sum(m=>m.Informational),modules.Sum(m=>m.Bytes),!report.Cancelled&&modules.All(m=>m.Complete),modules);}
+ public static string[] CorrectionIds(ScanReport report,string reportId,IReadOnlyCollection<string> modules){if(report.Id!=reportId||report.Cancelled)throw new InvalidDataException("O resultado mudou ou foi interrompido. Faça uma nova análise.");if(modules.Count==0||modules.Count>5||modules.Distinct().Count()!=modules.Count||modules.Any(id=>!report.Modules.Any(m=>m.Id==id)))throw new InvalidDataException("Selecione áreas válidas do resultado.");var ids=report.Modules.Where(m=>modules.Contains(m.Id)).SelectMany(m=>m.Items).Where(i=>i.CanFix).Select(i=>i.Id).Distinct().ToArray();if(ids.Length==0||ids.Length>20000)throw new InvalidDataException("Selecione de 1 a 20.000 ajustes corrigíveis; reduza o escopo se necessário.");return ids;}
+}
