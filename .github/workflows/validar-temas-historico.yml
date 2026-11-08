@@ -15,6 +15,9 @@ jobs:
       - name: Extrair snapshot de compatibilidade
         shell: pwsh
         run: Expand-Archive -LiteralPath entregas/2026-11-08-temas-historico/VALIDACAO_TEMAS_HISTORICO_WINDOWS.zip -DestinationPath validation-source
+      - name: Revalidar recibos e estados da atualizacao
+        shell: pwsh
+        run: dotnet run --project validation-source/UpdateTests/UpdateTests.csproj -c Release
       - name: Testar paletas e historico persistente
         shell: pwsh
         run: dotnet run --project validation-source/ThemeHistoryTests/ThemeHistoryTests.csproj -c Release
