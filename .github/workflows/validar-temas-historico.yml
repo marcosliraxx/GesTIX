@@ -1,0 +1,20 @@
+name: Validar temas e historico de atualizacoes
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Extrair snapshot de compatibilidade
+        shell: pwsh
+        run: Expand-Archive -LiteralPath entregas/2026-11-08-temas-historico/VALIDACAO_TEMAS_HISTORICO_WINDOWS.zip -DestinationPath validation-source
+      - name: Compilar agente WinUI x64
+        shell: pwsh
+        run: dotnet build validation-source/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.116 --self-contained true
