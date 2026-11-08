@@ -28,7 +28,7 @@ Não substitua `agent-config.json`, credenciais, bancos ou a instalação inteir
 - CPU: GetSystemTimes; frequência e inventário WMI; processos/threads/identificadores pelo Windows; caches pela topologia nativa.
 - Memória: memória física em uso/disponível e composição correspondente; commit, cache e pools do provedor Windows; módulos, velocidade e slots do inventário.
 - Discos: associação física disco → partição → volume; contadores Windows de atividade e transferência. Resposta calculada pela diferença do contador bruto/base/frequência, não por porcentagem de ocupação.
-- GPU: DXGI, teste do nível de recursos DirectX, contadores Windows por adaptador e motor. Utilização é a do motor mais ocupado; percentuais de motores diferentes não são somados. Não é criado gráfico de memória dedicada para adaptador sem essa memória.
+- GPU: DXGI, teste do nível de recursos DirectX, contadores Windows por adaptador e motor. Utilização é a do motor mais ocupado; percentuais de motores diferentes não são somados. Não é criado gráfico de memória dedicada para adaptador sem essa memória. A arquitetura UMA é consultada pelo Direct3D 12 para não tratar a reserva de RAM de uma GPU integrada como VRAM dedicada.
 - Internet: latência e perda ICMP para 1.1.1.1, estado da resposta, dispositivos descobertos, download/upload do adaptador da rota de saída. Os gráficos têm unidades separadas. Tráfego inclui a rede local; não é teste da velocidade contratada. Ausência de ICMP não comprova queda.
 - Rede: diferença de bytes por adaptador dividida pelo intervalo real, sem somar interfaces e duplicar tráfego.
 
