@@ -829,7 +829,7 @@ try {
         try{$commandAccess=arc_support_access($pdo,$networkId,(int)arc_user_id(),true);}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Sem permissão para este comando.'],403);}
         if(in_array($command,['power_shutdown','power_restart','power_cancel','restart_readiness','screen_lock','windows_update','gestor_update'],true)&&!in_array($commandAccess['role'],['owner','administrator','system_admin'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);
         $commandAccount=(int)$commandAccess['account_id'];
-        $delaySeconds=filter_var($body['delay_seconds']??60,FILTER_VALIDATE_INT);if(in_array($command,['power_restart','power_shutdown','screen_lock'],true)&&($delaySeconds===false||$delaySeconds<5||$delaySeconds>3600))arc_json(['ok'=>false,'error'=>'O prazo deve ser entre 5 e 3600 segundos.'],422);
+        $delaySeconds=$command==='screen_lock'?0:filter_var($body['delay_seconds']??60,FILTER_VALIDATE_INT);if(in_array($command,['power_restart','power_shutdown'],true)&&($delaySeconds===false||$delaySeconds<5||$delaySeconds>3600))arc_json(['ok'=>false,'error'=>'O prazo deve ser entre 5 e 3600 segundos.'],422);
         $terminalInput=trim((string)($body['terminal_input']??''));
         if ($command==='terminal_diagnostic' && !$validTerminalRequest($terminalInput)) arc_json(['ok'=>false,'error'=>'Comando de diagnóstico inválido. Digite ajuda para ver os comandos autorizados.'],422);
         $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1 AND monitoring_enabled=1');
@@ -906,7 +906,7 @@ try {
         try {
             $pdo->prepare('INSERT INTO '.arc_table('gestor_commands').' (account_id,network_id,gestor_id,command_name) VALUES (?,?,?,?)')->execute([$commandAccount,$networkId,$gestorId,$command]);
             $insertedId=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id,admin_id) VALUES (?,?,?)')->execute([$insertedId,(int)arc_user_id(),arc_is_admin()?arc_admin_id():null]);
-            if(in_array($command,['power_restart','power_shutdown','screen_lock'],true)){$pdo->prepare('INSERT INTO '.arc_table('gestor_terminal_jobs').' (command_id,gestor_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$insertedId,$gestorId,$networkId,json_encode(['delay_seconds'=>$delaySeconds])]);}
+            if(in_array($command,['power_restart','power_shutdown'],true)){$pdo->prepare('INSERT INTO '.arc_table('gestor_terminal_jobs').' (command_id,gestor_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$insertedId,$gestorId,$networkId,json_encode(['delay_seconds'=>$delaySeconds])]);}
             if($windowsRequest!==null)$pdo->prepare('INSERT INTO '.arc_table('gestor_terminal_jobs').' (command_id,gestor_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$insertedId,$gestorId,$networkId,json_encode($windowsRequest)]);
             if($command==='gestor_update')$pdo->prepare('INSERT INTO '.arc_table('gestor_terminal_jobs').' (command_id,gestor_id,network_id,request_text) VALUES (?,?,?,?)')->execute([$insertedId,$gestorId,$networkId,json_encode(['mode'=>!empty($body['force_update'])?'force':'normal'])]);
             if($command==='terminal_diagnostic'){

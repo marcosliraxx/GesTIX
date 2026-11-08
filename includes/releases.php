@@ -6,7 +6,7 @@ require_once __DIR__ . '/error-logging.php';
 
 function arc_app_version(): string {
     $value=trim((string)@file_get_contents(dirname(__DIR__).'/VERSION'));
-    if(!preg_match('/^\d+\.\d+\.\d+$/D',$value))throw new RuntimeException('VERSION ausente ou inválido. Conclua a atualização da plataforma.');return $value;
+    if(!arc_release_valid_version($value))throw new RuntimeException('VERSION ausente ou inválido. Conclua a atualização da plataforma.');return $value;
 }
 /** O cliente Python legado (3.x/4.x) ja executa gestor_update pelo canal autenticado.
  * A atualizacao do Python atua apenas como ponte verificada para instalar WinUI 3;
@@ -57,6 +57,93 @@ function arc_gestor_target_version(): string {
     }
     return $best??arc_app_version();
 }
+/** Configuração privada do monitor; o próprio monitor nunca inventaria este arquivo. */
+function arc_release_policy_file(): string {return __DIR__.'/storage/releases/policy.json';}
+function arc_release_default_policy(): array {
+    return ['includes'=>['*'],'excludes'=>[],'widths'=>[1,1,3],'limits'=>[9,9,999]];
+}
+function arc_release_policy(): array {
+    $default=arc_release_default_policy();
+    $data=json_decode((string)@file_get_contents(arc_release_policy_file()),true);
+    if(!is_array($data))return $default;
+    foreach(['includes','excludes'] as $field){
+        if(!isset($data[$field])||!is_array($data[$field]))$data[$field]=$default[$field];
+        $data[$field]=array_values(array_unique(array_filter($data[$field],static fn($v)=>is_string($v)&&($v==='*'||(bool)preg_match('~^[a-zA-Z0-9_./-]{1,240}$~D',$v)))));
+    }
+    if(!$data['includes'])$data['includes']=[];
+    foreach(['widths','limits'] as $field){
+        if(!isset($data[$field])||!is_array($data[$field])||count($data[$field])<2||count($data[$field])>5)$data[$field]=$default[$field];
+        $data[$field]=array_values(array_map('intval',$data[$field]));
+    }
+    if(count($data['widths'])!==count($data['limits'])){$data['widths']=$default['widths'];$data['limits']=$default['limits'];}
+    return $data;
+}
+function arc_release_valid_version(string $version): bool {
+    return (bool)preg_match('/^\d+(?:\.\d+){1,4}$/D',$version)&&strlen($version)<=32;
+}
+function arc_release_compare(string $left,string $right): int {
+    $a=array_map('intval',explode('.',$left));$b=array_map('intval',explode('.',$right));
+    for($i=0;$i<max(count($a),count($b));$i++){ $c=($a[$i]??0)<=>($b[$i]??0);if($c!==0)return $c; }
+    return 0;
+}
+function arc_release_number_format(array $values,array $widths): string {
+    return implode('.',array_map(static fn($i)=>str_pad((string)$values[$i],$widths[$i],'0',STR_PAD_LEFT),array_keys($widths)));
+}
+function arc_release_policy_validate(array $data,string $current): array {
+    if(!isset($data['includes'],$data['excludes'],$data['widths'],$data['limits'])||!is_array($data['includes'])||!is_array($data['excludes'])||!is_array($data['widths'])||!is_array($data['limits']))throw new RuntimeException('Política de versão inválida.');
+    $inventory=arc_release_inventory_paths();$allowed=array_fill_keys(array_merge($inventory['dirs'],$inventory['files']),true);
+    foreach(['includes','excludes'] as $field){
+        if(count($data[$field])>1500)throw new RuntimeException('Seleção excede o limite de 1.500 caminhos.');
+        foreach($data[$field] as $path){if(!is_string($path)||($path!=='*'&&!isset($allowed[$path])))throw new RuntimeException('Caminho não permitido: '.substr((string)$path,0,100));}
+        $data[$field]=array_values(array_unique($data[$field]));
+    }
+    if(count($data['widths'])<2||count($data['widths'])>5||count($data['widths'])!==count($data['limits']))throw new RuntimeException('Configure entre 2 e 5 casas de versão.');
+    $values=array_map('intval',explode('.',$current));
+    foreach($data['widths'] as $i=>$w){
+        $limit=$data['limits'][$i];
+        if(!is_int($w)||!is_int($limit))throw new RuntimeException('Largura ou limite inválido.');
+        $w=(int)$w;$limit=(int)$limit;
+        if($w<1||$w>5||$limit<1||$limit>99999||$limit>=10**$w)throw new RuntimeException('O limite de cada casa deve caber na largura configurada.');
+        if(($values[$i]??0)>$limit)throw new RuntimeException('O limite da casa '.($i+1).' é menor que a versão atual.');
+        $data['widths'][$i]=$w;$data['limits'][$i]=$limit;
+    }
+    if(count($values)>count($data['widths'])&&array_sum(array_slice($values,count($data['widths'])))!==0)throw new RuntimeException('Não é possível remover casas com valores diferentes de zero.');
+    $formatted=arc_release_number_format(array_slice(array_pad($values,count($data['widths']),0),0,count($data['widths'])),$data['widths']);
+    if(strlen($formatted)>32)throw new RuntimeException('A versão não pode ultrapassar 32 caracteres.');
+    return $data;
+}
+function arc_release_save_policy(array $data): void {
+    $path=arc_release_policy_file();
+    $dir=dirname($path);
+    if(!is_dir($dir)&&!@mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('Não foi possível criar a pasta privada de versões. Verifique permissões em includes/storage/releases.');
+    if(!is_writable($dir))throw new RuntimeException('A pasta privada de versões não permite gravação. Verifique as permissões de includes/storage/releases.');
+    $json=json_encode($data,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+    $temp=tempnam($dir,'.policy-');
+    if($temp===false)throw new RuntimeException('Não foi possível preparar o arquivo de regras de versão.');
+    try{
+        $bytes=@file_put_contents($temp,$json,LOCK_EX);
+        if($bytes===false||$bytes!==strlen($json))throw new RuntimeException('Falha ao gravar integralmente as regras de versão.');
+        if(!@rename($temp,$path))throw new RuntimeException('Não foi possível concluir a gravação das regras de versão. Verifique as permissões do arquivo policy.json.');
+        @chmod($path,0600);
+        clearstatcache(true,$path);
+        $check=@file_get_contents($path);
+        if($check===false||!hash_equals(hash('sha256',$json),hash('sha256',$check)))throw new RuntimeException('As regras não foram confirmadas após a gravação.');
+    }finally{if(is_file($temp))@unlink($temp);}
+}
+function arc_release_path_selected(string $path,array $policy): bool {
+    $match=static function(string $needle,string $scope):bool{return $scope==='*'||$needle===$scope||str_starts_with($needle,rtrim($scope,'/').'/');};
+    $included=false;foreach($policy['includes'] as $scope){if($match($path,$scope)){$included=true;break;}}
+    if(!$included)return false;
+    foreach($policy['excludes'] as $scope){if($match($path,$scope))return false;}
+    return true;
+}
+/** Inventário de caminhos permitidos, sem hashes: usado na interface administrativa. */
+function arc_release_inventory_paths(): array {
+    $dirs=[];$files=[];
+    arc_release_walk(dirname(__DIR__),static function($relative,$path)use(&$files):void{$files[]=$relative;},static function($relative)use(&$dirs):void{$dirs[]=$relative;});
+    sort($dirs,SORT_STRING);sort($files,SORT_STRING);
+    return ['dirs'=>$dirs,'files'=>$files];
+}
 function arc_release_skip(string $path): bool {
     // Binários precompilados do gestor ficam fora do inventário: são grandes e têm versão própria (release.json).
     $normalized=str_replace('\\','/',$path);
@@ -74,32 +161,44 @@ function arc_release_walk(string $root,callable $onFile,?callable $onDir=null): 
                 elseif($entry->isFile())$onFile($relative,$entry->getPathname());
                 if(++$count>20000)throw new RuntimeException('Inventário excede o limite de segurança.');
             }
-        };$walk($root.'/'.$folder);
+        };
+        if($onDir)$onDir($folder);
+        $walk($root.'/'.$folder);
     }
     foreach(glob($root.'/*')?:[] as $path)if(is_file($path)&&!is_link($path)&&preg_match('/\.(?:php|js|css|html|json)$/i',$path)&&!arc_release_skip(basename($path)))$onFile(basename($path),$path);
     if(is_file($root.'/.htaccess'))$onFile('.htaccess',$root.'/.htaccess');
 }
 function arc_release_code_manifest(?string $root=null): array {
-    $files=[];
-    arc_release_walk($root??dirname(__DIR__),static function(string $relative,string $path)use(&$files):void{
+    $files=[];$policy=arc_release_policy();
+    arc_release_walk($root??dirname(__DIR__),static function(string $relative,string $path)use(&$files,$policy):void{
+        if(!arc_release_path_selected($relative,$policy))return;
         $hash=hash_file('sha256',$path);if($hash===false)throw new RuntimeException('Não foi possível verificar um arquivo da plataforma.');$files[$relative]=$hash;
-    },static function(string $relative)use(&$files):void{$files[$relative.'/']='directory';});
+    },static function(string $relative)use(&$files,$policy):void{if(arc_release_path_selected($relative,$policy))$files[$relative.'/']='directory';});
     ksort($files,SORT_STRING);return $files;
 }
 /** Assinatura barata (caminho, tamanho e data) do inventário: só quando muda é preciso recalcular os SHA-256. */
 function arc_release_stat_signature(?string $root=null): string {
-    $lines=[];
-    arc_release_walk($root??dirname(__DIR__),static function(string $relative,string $path)use(&$lines):void{
+    $lines=[];$policy=arc_release_policy();
+    arc_release_walk($root??dirname(__DIR__),static function(string $relative,string $path)use(&$lines,$policy):void{
+        if(!arc_release_path_selected($relative,$policy))return;
         clearstatcache(true,$path);$lines[]=$relative.'|'.(int)@filesize($path).'|'.(int)@filemtime($path);
-    },static function(string $relative)use(&$lines):void{$lines[]=$relative.'/';});
+    },static function(string $relative)use(&$lines,$policy):void{if(arc_release_path_selected($relative,$policy))$lines[]=$relative.'/';});
     sort($lines,SORT_STRING);return hash('sha256',implode("\n",$lines));
 }
 function arc_release_write_version(string $version): void {
-    if(!preg_match('/^\d+\.\d+\.\d+$/D',$version))throw new RuntimeException('Informe uma versão no formato X.Y.Z.');
+    if(!arc_release_valid_version($version))throw new RuntimeException('Formato da versão inválido (2 a 5 casas).');
     $root=dirname(__DIR__);$temp=tempnam($root,'.release-');if($temp===false)throw new RuntimeException('A pasta raiz precisa permitir gravação para publicar a versão.');
     try{if(file_put_contents($temp,$version."\n",LOCK_EX)===false||!rename($temp,$root.'/VERSION'))throw new RuntimeException('Não foi possível atualizar VERSION. Confira as permissões.');chmod($root.'/VERSION',0644);}finally{if(is_file($temp))unlink($temp);}
 }
-function arc_release_next(string $version): string {$parts=array_map('intval',explode('.',$version));$parts[2]++;return implode('.',$parts);}
+function arc_release_next(string $version): string {
+    $policy=arc_release_policy();$widths=$policy['widths'];$limits=$policy['limits'];
+    $values=array_slice(array_pad(array_map('intval',explode('.',$version)),count($widths),0),0,count($widths));
+    for($i=count($values)-1;$i>=0;$i--){
+        if($values[$i]<$limits[$i]){$values[$i]++;return arc_release_number_format($values,$widths);}
+        $values[$i]=0;
+    }
+    throw new RuntimeException('Todas as casas atingiram seus limites. Aumente o limite em Administração > Versão.');
+}
 function arc_release_sync(PDO $pdo,bool $force=false,?string $manualVersion=null,string $notes='',?int $admin=null): void {
     if(!$force&&(arc_config()['release_auto_detect']??true)===false)return;
     $directory=__DIR__.'/storage/releases';if(!is_dir($directory)&&!mkdir($directory,0700,true)&&!is_dir($directory))throw new RuntimeException('Armazenamento de versões indisponível.');
@@ -116,7 +215,7 @@ function arc_release_sync(PDO $pdo,bool $force=false,?string $manualVersion=null
         $changed=$old&&(string)$old['fingerprint']!==$hash;
         // Publicação imediata: fingerprint diferente é uma alteração completa, sem espera adicional.
         // A versão publicada no banco prevalece quando o arquivo VERSION estiver atrasado.
-        if($old&&version_compare($version,(string)$old['version'],'<'))$version=(string)$old['version'];
+        if($old&&arc_release_compare($version,(string)$old['version'])<0)$version=(string)$old['version'];
         if($manualVersion===null&&$changed&&$version===(string)$old['version']){
             $version=arc_release_next($version);
             $manualVersion=$version;
@@ -125,7 +224,7 @@ function arc_release_sync(PDO $pdo,bool $force=false,?string $manualVersion=null
         $publish=!$old||$manualVersion!==null||$version!==($old['version']??null);
         if($publish){
             $version=$manualVersion??$version;
-            if($old&&$version!==$old['version']&&version_compare($version,$old['version'],'<'))throw new RuntimeException('A nova versão precisa ser superior à publicada.');
+            if($old&&$version!==$old['version']&&arc_release_compare($version,(string)$old['version'])<0)throw new RuntimeException('A nova versão precisa ser superior à publicada.');
             $previous=json_decode((string)($old['files_json']??'{}'),true)??[];$changes=['added'=>array_values(array_diff(array_keys($manifest),array_keys($previous))),'removed'=>array_values(array_diff(array_keys($previous),array_keys($manifest))),'modified'=>array_values(array_filter(array_keys(array_intersect_key($manifest,$previous)),static fn($key)=>$manifest[$key]!==$previous[$key]))];
             foreach($manifest as $path=>$digest)if(str_ends_with($path,'.php'))token_get_all((string)file_get_contents(dirname(__DIR__).'/'.$path),TOKEN_PARSE);
             $previousVersion=arc_app_version();$pdo->beginTransaction();try{

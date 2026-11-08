@@ -68,6 +68,8 @@
   function paintOutside() {
     var a = state.gestor, outdated = !!(a && a.outdated), needsInstall = !!(a && a.requires_reinstall);
     var installed = a && a.version ? String(a.version) : '';
+    var statusButton = document.getElementById('arc-header-gestor-update');
+    if (statusButton && outdated) { statusButton.dataset.gestorState = 'update'; statusButton.title = 'Atualização do gestor disponível — abrir gestores'; statusButton.setAttribute('aria-label', statusButton.title); }
     if (header) {
       header.classList.toggle('arc-update-available', outdated);
       header.dataset.updateAvailable = outdated ? '1' : '0';

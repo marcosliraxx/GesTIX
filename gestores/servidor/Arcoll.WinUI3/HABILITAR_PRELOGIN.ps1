@@ -8,6 +8,20 @@ param(
     [string]$LogPath,
     [string]$ResultPath
 )
+function Clear-ReadOnlyTree([string]$Path) {
+    # Atributo somente leitura nao pode impedir a instalacao: tenta .NET, depois attrib.exe, e ignora arquivos que o Windows recusar.
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    foreach ($file in @(Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue)) {
+        try { if ($file.Attributes -band [IO.FileAttributes]::ReadOnly) { [IO.File]::SetAttributes($file.FullName, ($file.Attributes -bxor [IO.FileAttributes]::ReadOnly)) } }
+        catch { try { & attrib.exe -R $file.FullName 2>$null | Out-Null } catch { } }
+    }
+}
+function Remove-TreeQuietly([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    Clear-ReadOnlyTree $Path
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $Path) { & cmd.exe /c rd /s /q `"$Path`" 2>$null | Out-Null }
+}
 $ErrorActionPreference = 'Stop'
 $transcript = $false
 $ok = $false
@@ -62,7 +76,7 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $stage 'TIDigital.BootPresence.exe'))) { throw 'Executavel nao copiado.' }
     # O publish self-contained reutiliza DLLs somente leitura do cache NuGet.
     # Codigo pode ser lido/executado pelos usuarios; somente SYSTEM/admins gravam.
-    Get-ChildItem -LiteralPath $stage -Recurse -File | ForEach-Object { $_.IsReadOnly = $false }
+    Clear-ReadOnlyTree $stage
     & icacls.exe $stage /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /Q | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao proteger pasta de executaveis do boot.' }
     & icacls.exe (Join-Path $stage '*') /reset /T /Q | Out-Null
@@ -99,7 +113,8 @@ try {
     if ((Get-ScheduledTask -TaskName $taskName).State -ne 'Running') { throw ('Worker de boot nao permaneceu em execucao. Resultado: ' + $info.LastTaskResult + '. Consulte ' + (Join-Path $dataDir 'presence.log')) }
     Write-Host ('Inicializacao antes do login instalada. Estado: ' + (Get-ScheduledTask -TaskName $taskName).State + '; ultimo resultado: ' + $info.LastTaskResult)
     Write-Host 'O boot worker informa presenca; a interface WinUI e os comandos completos exigem a sessao Windows.'
-    if (Test-Path -LiteralPath $previousTarget) { Get-ChildItem -LiteralPath $previousTarget -Recurse -File | ForEach-Object { $_.IsReadOnly = $false }; Remove-Item -LiteralPath $previousTarget -Recurse -Force -ErrorAction SilentlyContinue }
+    # A limpeza da versao anterior nunca invalida uma instalacao que ja esta em execucao.
+    Remove-TreeQuietly $previousTarget
 } catch {
     $originalFailure = $_
     try {
@@ -117,7 +132,7 @@ try {
     } catch { Write-Host ('Falha ao restaurar componente de boot: ' + $_.Exception.Message) }
     throw $originalFailure
 } finally {
-    if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
+    Remove-TreeQuietly $stage
 }
 
     }

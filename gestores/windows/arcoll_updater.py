@@ -185,7 +185,7 @@ def _stage_native_source(origin, auth, staging, expected_version):
     import stat
     import urllib.request
     import zipfile
-    if not re.fullmatch(r'\d+\.\d+\.\d+', expected_version):
+    if not re.fullmatch(r'\d+(?:\.\d+){1,4}', expected_version):
         raise ValueError('A versao publicada do novo gestor e invalida.')
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -269,7 +269,7 @@ def _migrate_to_native(origin, legacy_root, staging, data, report):
     if os.name != 'nt':
         return False
     version = str(data.get('release_version') or '')
-    if not re.fullmatch(r'\d+\.\d+\.\d+', version) or tuple(map(int, version.split('.'))) < (5, 0, 0):
+    if not re.fullmatch(r'\d+(?:\.\d+){1,4}', version) or tuple(map(int, version.split('.'))) < (5, 0, 0):
         return False
     command = int(data.get('remote_command_id') or 0)
     auth = _native_identity(legacy_root, origin)
@@ -440,7 +440,7 @@ def run(report=lambda _message,_percent:None):
         # do Python antes de substituir a interface. Mantemos os arquivos antigos
         # intactos para recuperar a operacao se o instalador WinUI falhar.
         release_parts = str(data.get('release_version') or '').split('.')
-        native_target = os.name == 'nt' and len(release_parts) == 3 and all(x.isdigit() for x in release_parts) and tuple(map(int, release_parts)) >= (5, 0, 0)
+        native_target = os.name == 'nt' and 2 <= len(release_parts) <= 5 and all(x.isdigit() for x in release_parts) and tuple(map(int, release_parts)) >= (5, 0, 0)
         if complete and not native_target:
             report('Executando o instalador completo em modo de reparo...',88)
             powershell=pathlib.Path(os.environ.get('SystemRoot',r'C:\Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe'

@@ -26,6 +26,9 @@ public sealed class GestorRuntime : IDisposable
     private Task? _loop;
     private readonly CentralLogUploader _logUploader=new(()=>{var c=GestorConfig.Load();return new LogIdentity(c.Origin,c.Fingerprint,c.SiteCode,c.DownloadKey);},Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"TI-Digital","LogUpload"),CentralLogUploader.UserRoots());
     private DateTime _lastAuth = DateTime.MinValue, _lastMetrics = DateTime.MinValue, _lastNetworkScan = DateTime.MinValue;
+    private DateTime _usersChecked = DateTime.MinValue;
+    private object[] _windowsUsers = [];
+    private bool _windowsUsersError;
     private bool _busy;
     private CloudVirtualDriveService? _virtualDrive;
     private RemoteScreenService? _remoteScreen;
@@ -132,7 +135,26 @@ public sealed class GestorRuntime : IDisposable
     private async Task PollCommandAsync(CancellationToken ct)
     {
         if (_busy) return;
-        var body = _platform.Config.Credentials(); body["desktop_state"] = "unlocked";
+        var body = _platform.Config.Credentials();
+        // O servidor precisa de telemetria mesmo depois de LockWorkStation.
+        // Nunca declarar "unlocked" sem confirmação pelo Windows.
+        var desktopState = MaintenanceService.DesktopState();
+        if (desktopState != "unknown") body["desktop_state"] = desktopState;
+        if (desktopState != "unknown")
+        {
+            if (DateTime.UtcNow - _usersChecked >= TimeSpan.FromSeconds(30))
+            {
+                _usersChecked = DateTime.UtcNow;
+                try { _windowsUsers = MaintenanceService.EnabledLocalUsers(); _windowsUsersError = false; }
+                catch (Exception ex)
+                {
+                    _windowsUsers = []; _windowsUsersError = true;
+                    RuntimeLog.Write("Contas locais do Windows indisponíveis: " + ex.Message);
+                }
+            }
+            body["windows_users"] = _windowsUsers;
+            body["windows_users_error"] = _windowsUsersError;
+        }
         var response = await _platform.PostAsync("gestor-command-poll", body, ct, 10);
         if (!response.TryGetProperty("command", out var cmd) || cmd.ValueKind != JsonValueKind.Object) return;
         _busy = true;
@@ -468,11 +490,11 @@ public sealed class GestorRuntime : IDisposable
         if (!unattended && !await AskAsync("O gestor solicitou " + what + ". Autorizar?")) { await _platform.AckAsync(id, "failed", "Usuário não autorizou a operação.", ct); return; }
         if (name == "screen_lock")
         {
-            await Task.Delay(TimeSpan.FromSeconds(MaintenanceService.DelaySeconds(request)), ct);
+            // O bloqueio é imediato após a autorização; não é uma operação agendada.
             if (unattended)
             {
                 var again = await _platform.PostAsync("gestor-command-authorize", _platform.WithCredentials(("command_id", id)), ct, 10);
-                if (!again.TryGetProperty("command", out var c) || c.GetString() != name) throw new InvalidOperationException("Autorização revogada durante a espera.");
+                if (!again.TryGetProperty("command", out var c) || c.GetString() != name) throw new InvalidOperationException("Autorização revogada.");
             }
             await _platform.AckAsync(id, "completed", MaintenanceService.LockSession(), ct);
         }

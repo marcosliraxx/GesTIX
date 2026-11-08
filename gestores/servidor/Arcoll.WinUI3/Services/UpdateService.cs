@@ -123,10 +123,9 @@ public static class UpdateService
             var published = response.Headers.TryGetValues("X-Gestor-Version", out var v) ? v.FirstOrDefault() ?? "" : "";
             var expected = response.Headers.TryGetValues("X-Package-SHA256", out var h) ? (h.FirstOrDefault() ?? "").ToLowerInvariant() : "";
             UpdatePresentation.SetTarget(published);
-            if (!Version.TryParse(published, out var next)) throw new InvalidOperationException("Versão publicada inválida.");
+            if (!AppInfo.TryCompareRelease(published,AppInfo.Version,out var releaseComparison)) throw new InvalidOperationException("Versão publicada inválida.");
             if (expected.Length != 64 || expected.Any(c => !Uri.IsHexDigit(c))) throw new InvalidOperationException("O servidor não informou a integridade SHA-256 do pacote.");
             if (response.Content.Headers.ContentLength is long advertised && advertised > 104857600) throw new InvalidOperationException("Pacote de atualização excede o limite de 100 MB.");
-            _ = Version.TryParse(AppInfo.Version, out var current);
             // A versão pode permanecer igual quando o servidor publica correções nos fontes.
             // A confirmação de atualização usa o hash real do ZIP, não só a versão.
             var installedPackage = Path.Combine(Root, "installed-package.sha256");
@@ -138,7 +137,7 @@ public static class UpdateService
                 WriteState(UiResultFile, new { update_id = updateId, ok = true, unchanged = true, message = "Arquivos da versão publicada já instalados." });
                 return new UpdateOutcome(false, $"Os arquivos publicados da versão {AppInfo.Version} já estão instalados.");
             }
-            if (!force && current is not null && next < current)
+            if (!force && releaseComparison < 0)
                 throw new InvalidOperationException("A plataforma publicou uma versão anterior à instalada; atualização normal cancelada.");
 
             var total = response.Content.Headers.ContentLength ?? 0; long done = 0;

@@ -46,7 +46,7 @@
     <Grid.ColumnDefinitions><ColumnDefinition Width="0"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <!-- Legacy metadata remains named for existing branding code; the visible identity lives in the footer. -->
     <StackPanel Visibility="Collapsed"><TextBlock x:Name="BrandSubtitle" Text="T.I. DIGITAL · GESTOR WINDOWS"/></StackPanel>
-    <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+    <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
      <StackPanel x:Name="CategoryTabs" Orientation="Horizontal" Spacing="1" VerticalAlignment="Bottom" AutomationProperties.Name="Categorias do gestor"/>
     </ScrollViewer>
     <Button x:Name="RefreshButton" Grid.Column="2" Style="{StaticResource QuickButton}" Click="GestorUpdate_Open_Click" ToolTipService.ToolTip="Central de atualização do gestor" AutomationProperties.Name="Central de atualização do gestor" AutomationProperties.AutomationId="quick-refresh"><FontIcon Glyph="&#xE72C;" FontSize="16"/></Button>
@@ -56,7 +56,7 @@
 
   <Border x:Name="CategoryBar" Grid.Row="1" Visibility="Collapsed" Height="0" Background="Transparent"/>
   <Border x:Name="RibbonBar" Grid.Row="1" BorderThickness="0,0,0,1" CornerRadius="0" Padding="4,1,4,1" Background="#F6F8FC">
-   <ScrollViewer x:Name="RibbonScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+   <ScrollViewer x:Name="RibbonScroll" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
     <StackPanel x:Name="RibbonMenus" Orientation="Horizontal" Padding="0" Spacing="1" AutomationProperties.Name="Menus da categoria"/>
    </ScrollViewer>
   </Border>
@@ -77,11 +77,21 @@
     </Border>
     <Grid Grid.Row="2" x:Name="PageRegion">
      <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
       <ContentControl x:Name="PageHost" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" VerticalContentAlignment="Stretch"/>
      </ScrollViewer>
      <ContentControl x:Name="CompactHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Visibility="Collapsed"/>
      <WebView2 x:Name="HybridDashboard" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+     <Border x:Name="PageLoadingOverlay" Grid.Row="0" Background="#DCE9F5" Opacity="0.95" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Canvas.ZIndex="99">
+      <Button x:Name="PageLoadingButton" Click="PageLoadingButton_Click" HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0" Background="Transparent" Padding="24" AutomationProperties.Name="Carregar ou atualizar dados da página">
+       <StackPanel HorizontalAlignment="Center" Spacing="7">
+        <ProgressRing x:Name="PageLoadingRing" Width="64" Height="64" IsActive="False" HorizontalAlignment="Center"/>
+        <TextBlock x:Name="PageLoadingPercent" Text="0%" FontSize="22" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+        <TextBlock x:Name="PageLoadingStage" Text="Carregar dados" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="270"/>
+        <TextBlock Text="Clique para carregar novamente" Opacity="0.65" FontSize="11" HorizontalAlignment="Center"/>
+       </StackPanel>
+      </Button>
+     </Border>
      <InfoBar x:Name="StatusBar" Grid.Row="1" IsOpen="False" IsClosable="True"/>
     </Grid>
    </Grid>

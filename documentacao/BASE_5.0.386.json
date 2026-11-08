@@ -1,0 +1,1278 @@
+{
+  "version": "5.0.386",
+  "backup": "bkp_app.digital.log.br_20261108_113930_628662.zip",
+  "files": [
+    {
+      "path": "index.php",
+      "sha256": "c021dcbfe61fbf5c5f39fe8e576f648558204c5ad4b8ae25ccea9f07b0335fe8"
+    },
+    {
+      "path": "sw.js",
+      "sha256": "166b92de7d2d464875ad971ddec4fbbe6419ae995e858e268e70863e0e76ec69"
+    },
+    {
+      "path": "VERSION",
+      "sha256": "0bd35e24f75fa3572c63227e384c5319d36b6bb9995ead87860ba2a638614e53"
+    },
+    {
+      "path": ".htaccess",
+      "sha256": "735812da8722e1fdf5a4ec8f707089f7b59d09f4f5de69204dc704a37c61223d"
+    },
+    {
+      "path": ".user.ini",
+      "sha256": "83a68da6e07fc2b06b29f59c69d73ce3a5383c3955b2e08b3881f0e685f48dca"
+    },
+    {
+      "path": "google-auth.php",
+      "sha256": "0027dceea58b778c0cc963ee434f8cc4868f334053645f2055ed47f837236a1b"
+    },
+    {
+      "path": "redes/preferencias.php",
+      "sha256": "63d0de8db3b813de6e28e186db5baf54418c18a59a9d78eda902337bb4fd151c"
+    },
+    {
+      "path": "redes/suporte.php",
+      "sha256": "3e5e259e9fad10256056688c820b8fe5442e67b4129f968266610c10e394c031"
+    },
+    {
+      "path": "redes/arquivos.php",
+      "sha256": "940f7640f76449e0c641cbebf50724b98a125a276f69c33c44beb8fc6e694a5b"
+    },
+    {
+      "path": "redes/dispositivos.php",
+      "sha256": "6500c6b6ad1508feabb1094934fe00c36c06008f3675ef78801c92e5e5b9a017"
+    },
+    {
+      "path": "redes/_support_workspace.php",
+      "sha256": "8581d8955c284c8bb9d29eaff2d54ea3ec478cd4e55d6c41c71f6aaeefcf21b0"
+    },
+    {
+      "path": "redes/programas.php",
+      "sha256": "eff065d47a32a0e57c97e9269d333be60c05c01e701e1a12a3c1663131fe3734"
+    },
+    {
+      "path": "redes/permissoes.php",
+      "sha256": "4804cc5afb8bffba47d0398958518d7c7b6faa733bbb3050f9e4f44a3c90e517"
+    },
+    {
+      "path": "redes/chamados.php",
+      "sha256": "887abec1aef95b8b5fa8133b6975347cb5a6b1fa10960afde04b2c9bf04d7ba7"
+    },
+    {
+      "path": "redes/clean.php",
+      "sha256": "21e0bdfe042d34b88e6655316cb40dd0a4142da9d7b883dc1e03327ebcb02b49"
+    },
+    {
+      "path": "redes/_menu.php",
+      "sha256": "cb1f98457d0a146777a8fc3dd5bfacb62e73df150d0aed2090576ec014236a77"
+    },
+    {
+      "path": "redes/relatorios.php",
+      "sha256": "7e5538926339939f8e704399447ef2007bd694d22f14333f2c291b095983f768"
+    },
+    {
+      "path": "redes/backup.php",
+      "sha256": "f3e8d35ac63a865eee79d1ff32907da3440ca8974d162224addef652aba84704"
+    },
+    {
+      "path": "redes/.htaccess",
+      "sha256": "dc3687a8e8f469302881cd7f240ce75209b569b6a650adef3e7d605db7ccabfa"
+    },
+    {
+      "path": "redes/servidor.php",
+      "sha256": "3ef03872b66b6551e56fe57f0f303dead748275842381d95aa8c2dc85cf5a3da"
+    },
+    {
+      "path": "redes/_topo.php",
+      "sha256": "c90942d1bb1b625bd80370dcb0f1ed2def1e4d8817d2dc0f69d547d8b5fb9639"
+    },
+    {
+      "path": "redes/mapa.php",
+      "sha256": "4765fffe159228cf4d7d367d6b14922108b0e3aba90b39d5d1cdd4f116af4032"
+    },
+    {
+      "path": "redes/velocidade.php",
+      "sha256": "42be6745cdf6da03f381711b1333d1873972a73769c8adf9c2fe21611286ef83"
+    },
+    {
+      "path": "redes/agenda.php",
+      "sha256": "622d59c870dff7fd591276da8bab6f5f59fbba475e10ed16a440f6427bdefd0d"
+    },
+    {
+      "path": "redes/painel.php",
+      "sha256": "4c5b7823067b56a99b01103efaf69d1951307f25647d1211a6a143750bd39df8"
+    },
+    {
+      "path": "redes/cadastros.php",
+      "sha256": "a337ff358e103fa6957ad1a717db208b257828a997885be23ce2c4ab8da4e86c"
+    },
+    {
+      "path": "redes/_rodape.php",
+      "sha256": "1a960b84482b7f9affd1f3b55eccc38e79e71cca9b0d7fe37500c5a4b745237a"
+    },
+    {
+      "path": "redes/liberacao.php",
+      "sha256": "d9a8c56bd606ab0aa9caa87b029746bd724bba63f39a1a895ee65ecf8ce1c333"
+    },
+    {
+      "path": "redes/_clean_ui_js_extra.php",
+      "sha256": "3c5d5aaa8e3ea3ada2fb84fb4b9e18d200e243254762599f216a92c8de4e26a1"
+    },
+    {
+      "path": "redes/_base.php",
+      "sha256": "be81cb205e332799bff0a89fea42396e7646fc76cccabb5406cb3a7d723a2548"
+    },
+    {
+      "path": "redes/usuarios.php",
+      "sha256": "aa08657280ac29aa0243bf6f6287f25c9e36e41faa5fb540ecc58d546911055b"
+    },
+    {
+      "path": "redes/_topo_config.php",
+      "sha256": "03b52b8b1fa16b52bd3cd9c5d4565d498b4865c71d40c80fc8333ff316ccf6ba"
+    },
+    {
+      "path": "redes/_clean_ui.php",
+      "sha256": "bc05968e93a56b04b793a3f2d7a38c6aeec7aaf77e4635bb36b278d95d35bb25"
+    },
+    {
+      "path": "redes/remoto.php",
+      "sha256": "0319dddee91a37ae1715c5e1ee03969dbd7693e38b152647b4bbad3b904a29cc"
+    },
+    {
+      "path": "redes/_clean_ui_js.php",
+      "sha256": "b97c57e423db7df9b01621d2a673e335fa4491ad914a36bd8f1152158506bc10"
+    },
+    {
+      "path": "redes/_gestor_update_dialog.php",
+      "sha256": "e41bc33c66365f6898a0b9abf3c595453ce5723925c69a93323fcd237636e790"
+    },
+    {
+      "path": "admin/gestorwin.php",
+      "sha256": "0d399e5755f847ec968f6c16a49bb0d3ebc1e225a8eaa3a0cdc1ac0cf00deec8"
+    },
+    {
+      "path": "admin/versao.php",
+      "sha256": "457a10361325fbf8a18bd51d8301ec2196916ec9b210c85cfec196102fbca3b1"
+    },
+    {
+      "path": "admin/comercial.php",
+      "sha256": "8652d6050276f7c9a5148cc3b3acfaafa137223caea899d077f8065eff634484"
+    },
+    {
+      "path": "admin/permissoes.php",
+      "sha256": "80fc0c73633d57faa7f1782c32679d6df1d4dd566434df5819d18bc4603209e8"
+    },
+    {
+      "path": "admin/clean.php",
+      "sha256": "abe99e4c617f11fddf219aea8ed4c31f442a055dce4c62ebef4364c7e26001ab"
+    },
+    {
+      "path": "admin/clientes.php",
+      "sha256": "765eea52e44b3f429e35128eba22d53ba217e1f5192e689afb2fe328166c47bf"
+    },
+    {
+      "path": "admin/configuracoes.php",
+      "sha256": "b1101b2ac6befbeb098223917b992edbe0f1d6bb1d92702ebdb606e72c8a368a"
+    },
+    {
+      "path": "admin/menus.php",
+      "sha256": "fcfb0e69719494353640dccd5606d2dc888ec58a6d8f64c63ae6cce00aea0152"
+    },
+    {
+      "path": "admin/usuarios.php",
+      "sha256": "01b557daf8cf7dbc2691004d35921a8d65d9c91b22e76f056f65d501fcbc56bf"
+    },
+    {
+      "path": "admin/log-retention-cron.php",
+      "sha256": "e86d61e3404d9630359a99f6dbd582bcb7f6e8a073ecaa8f9bda716e03494358"
+    },
+    {
+      "path": "includes/gestor-workspace.php",
+      "sha256": "eeef0b4bb19917afaa44eae7dd094a38d2e2f8ed2bede24ed9de43d8b823202c"
+    },
+    {
+      "path": "includes/header.php",
+      "sha256": "bd5248028a99b8aef4a825d322a4c0c004718541b434d88ccbe488c752f8664a"
+    },
+    {
+      "path": "includes/backup-center.php",
+      "sha256": "2e7194ab9719a3fd2d9b4e2b9cf6ce0737e68b8554b71f863ddb4e41246a4ffa"
+    },
+    {
+      "path": "includes/cloud-backup.php",
+      "sha256": "fff13de4f37159b22d5a5193f1114c39d3302ec5225e7625f1e0e769c9b47352"
+    },
+    {
+      "path": "includes/icones.php",
+      "sha256": "21e9f8f2247c6bf6c9e8b71dafe3ae6233043a99e229919699bae10167d1c95b"
+    },
+    {
+      "path": "includes/admin-data.php",
+      "sha256": "ff4ea7f665816717923ce3113f97124d6b94478715aede0b726f474152e5da7f"
+    },
+    {
+      "path": "includes/ai-providers.php",
+      "sha256": "fc9f82d73c53fe3a0a2d615069f9db0f7b7a27a59f4dc4059937e15567ffdd55"
+    },
+    {
+      "path": "includes/releases.php",
+      "sha256": "610d2361008fb5b03ab1698256f918ac938da93ce0894f4179ff7b187f86cf7f"
+    },
+    {
+      "path": "includes/command-diagnostics.php",
+      "sha256": "5847d269c0d3701be0068a17d9249a3c48308b7e9dc9b73a3fd43d27344c059c"
+    },
+    {
+      "path": "includes/log-maintenance.php",
+      "sha256": "ddc38510d6036804770e69f0fe0ce0504148dbacf00c48deaf98d746d69c8bbb"
+    },
+    {
+      "path": "includes/navigation.php",
+      "sha256": "2d44595a2f5bc96bcac727095f695646d6921547b67feac24d9faa6e81eb23aa"
+    },
+    {
+      "path": "includes/central-logs.php",
+      "sha256": "b8f2243501f04e0815450e4506ddcb18181a22febc0af8a52eb9dc10f6fa20f0"
+    },
+    {
+      "path": "includes/.htaccess",
+      "sha256": "511b475b52eb9d2aca7ce4223b11426b715b333ae443f0bbad5645ddac7e4dd3"
+    },
+    {
+      "path": "includes/billing.php",
+      "sha256": "6755d43920dc530a9f5dd6103d0665c5f797cbf7bbfc3c1483477f94c57ebba3"
+    },
+    {
+      "path": "includes/media-optimizer.php",
+      "sha256": "8703ab3a0485bfeaf96096690f6c91bf38ad8ad1fe0ebb48da7d7d84e6e8be04"
+    },
+    {
+      "path": "includes/storage-policy.php",
+      "sha256": "8af2a719d5e7097b992ff3cad00a41c385151c13ac290799a0879e8f9f31b72c"
+    },
+    {
+      "path": "includes/network-invite-template.php",
+      "sha256": "95bf483fb6792a7fb2ea8592e56adbb3bec0f2b2c8bc151b6766c4742f85244f"
+    },
+    {
+      "path": "includes/network-clean.php",
+      "sha256": "f2ef382138de3f4dc55a7f3bc1dd7f1d170de28e88a86e20a69997cb93378977"
+    },
+    {
+      "path": "includes/admin-actions.php",
+      "sha256": "0fd98abd87d3a69de9d4cf0995e65d5771140cd0746733e0eb6e93472848fb5d"
+    },
+    {
+      "path": "includes/error-logging.php",
+      "sha256": "029de4e2d568b68421fa8dcb7e9af7e6ab5defdd6f0d6f80bc1c9389d8a8135c"
+    },
+    {
+      "path": "includes/network-register-modal.php",
+      "sha256": "8d65302814785854a958872cfdb32b91fe1f2111862a401f18af59031fbed096"
+    },
+    {
+      "path": "includes/network-inventory.php",
+      "sha256": "59e3920ee0b8a87698cf58d6de331a4f1658e90bba462a6050e1dfc1e5fc46b9"
+    },
+    {
+      "path": "includes/sidebar.php",
+      "sha256": "eb0c6a15e84ecd4c192b4058a86c553bbf14dd6116bbcc09e266a76e5c316fa5"
+    },
+    {
+      "path": "includes/bootstrap.php",
+      "sha256": "37055e25a15f1f0b2fc493a69d867e5cbf794911dd1625cab232227a24dc1c46"
+    },
+    {
+      "path": "includes/footer.php",
+      "sha256": "63ddf362468d0b54c080e70bd309951a6137c2ae779f23b9b8bf3c7dc0d49ae0"
+    },
+    {
+      "path": "includes/visual-themes.php",
+      "sha256": "7a9378ddcf379e53017209ed9d460250f973426b986513b3dcefca1aa4d05d9c"
+    },
+    {
+      "path": "includes/config.example.php",
+      "sha256": "bf288f62ca59f276927c03e7dd4ffd5bacdabf62b3e2a2d85c2929b96f1b111e"
+    },
+    {
+      "path": "includes/support.php",
+      "sha256": "90cd156461371e0b2fce2c65320523257e84d853bcd030fc8394c0d7748c7e4b"
+    },
+    {
+      "path": "includes/login-security.php",
+      "sha256": "cca0def99f6318715bd6ede818ad6188ddb825aec422fc21fabb6ef3d416c42f"
+    },
+    {
+      "path": "api/api.php",
+      "sha256": "3b7293e375d11fb540e9fe51cdae488f9aff62d6a5e77650c35c28259abe0804"
+    },
+    {
+      "path": "api/arquivos-api.php",
+      "sha256": "35bd08c8fd006a33c8945fedd484034a2901c98882944788df746d7534fd542b"
+    },
+    {
+      "path": "api/cloud-callback.php",
+      "sha256": "d7d04cf4297a864e9211a25591cf96628c6afeca20ea093344a8b045f0ebccbf"
+    },
+    {
+      "path": "api/gestor-api.php",
+      "sha256": "882b7b2e64f534985faed5a07eeac68d92d6238bc709563393e0734b62dda33c"
+    },
+    {
+      "path": "api/gestor-logs.php",
+      "sha256": "4cffe55d5937b6682ea8420544833e47619d4b0b2248b504f8c4aac85c9bb9a2"
+    },
+    {
+      "path": "api/cloud.php",
+      "sha256": "b8e064f287e75712896f6562604e0be076b01575d16c30f6cf260c7224b56819"
+    },
+    {
+      "path": "api/backup.php",
+      "sha256": "f9fd84888e34f68cf0fbf2c1d07d882770fd950dca08990809fd2bbda77b3638"
+    },
+    {
+      "path": "api/ia-api.php",
+      "sha256": "d645fd619c64ad775631ea399195505faef6dbb8d44e5e44f67ac2ee22d35355"
+    },
+    {
+      "path": "api/invite-network-logo.php",
+      "sha256": "7c77ed216acfc11b97af3e88d3d48cd2815bd61bac946848a7cdb6b2e8cb6100"
+    },
+    {
+      "path": "api/remote-screen.php",
+      "sha256": "36cbd4e400c3056f04990113bdb6ed8d892b970162a55b1be491b2f17614af55"
+    },
+    {
+      "path": "api/program-logo.php",
+      "sha256": "9fac0ff9bb253705c30684da3f4af3e338a71994918dfc98de2a8d1c18ef4926"
+    },
+    {
+      "path": "api/download-gestor.php",
+      "sha256": "c844527f72e143a98ec3c2c63571060cf98f2b382c26951dfb9e15cec9df9fe3"
+    },
+    {
+      "path": "api/manifest.php",
+      "sha256": "ecfe110a9565661f94bad8237cf80895213b0201c4b0c50ca256e3d4b3125af0"
+    },
+    {
+      "path": "api/brand-logo.php",
+      "sha256": "65b78953b65a8af1a10afb8e85119cc75112ace798c227eac01fa1115d5efab9"
+    },
+    {
+      "path": "api/billing-webhook.php",
+      "sha256": "7cab71e40909b851fb3fa4e39ae99b3d1f6f5bd952990819d68663b332042ec9"
+    },
+    {
+      "path": "api/download.php",
+      "sha256": "959bbe5a4f913f4111bda828f6478b225ce25ffae23bfb10b0dbe98a10181850"
+    },
+    {
+      "path": "api/download-support.php",
+      "sha256": "3bea9ef2e48d0c39b49d405971d356c97789452c76846f969cd243bef91cba0e"
+    },
+    {
+      "path": "api/support.php",
+      "sha256": "f4ee2aa95775fe786d25822090a35f978f9c20dee9a7ea5803a5378ea8a9e457"
+    },
+    {
+      "path": "api/network-logo.php",
+      "sha256": "b5d7ab19ff582759c943346aa945d062879b6ef98623e3cb27f0e5a25ae62627"
+    },
+    {
+      "path": "maintenance/storage-retention.php",
+      "sha256": "f444960278766c3f16ec13b857a3eddec72d70ff93d90d4c172a7c6b5a7009ec"
+    },
+    {
+      "path": "maintenance/logs-retention.php",
+      "sha256": "cd6741fc028e6eb370fdcd14b67238ee71eb1895bcb6361bbea634ba6771d733"
+    },
+    {
+      "path": "maintenance/billing-renewals.php",
+      "sha256": "3e7cf8ab3356d3d6fbcffd14316b475b5b27e8885b80689ef476f037b0413181"
+    },
+    {
+      "path": "maintenance/telemetry-retention.php",
+      "sha256": "33b759e900ca471eb076e7afd03fa79464dc4b0409243c002646f41d5a29774c"
+    },
+    {
+      "path": "tools/centralizar-logs.php",
+      "sha256": "20b3aa64ea76cf814768d5904e007a9b5a8b9c999c3a58bcfa94f08a3083f254"
+    },
+    {
+      "path": "pages/preferencias.php",
+      "sha256": "561e685e4d20f5f8e1c0f669cd6cf7094e552d973ab31e7a80ac2893b6ccfa7f"
+    },
+    {
+      "path": "pages/gestorwin.php",
+      "sha256": "80916cfea634ffb210535b66e8722fe45791a646b94d69356b214f63924d584a"
+    },
+    {
+      "path": "pages/checkout.php",
+      "sha256": "f5aa32ac506041a7e7af6351388b3c556784ea140d0fd02c0b437a3aba2515b0"
+    },
+    {
+      "path": "pages/comercial.php",
+      "sha256": "8891b4b71b78c57c2758a17d9d51d4e965ff077764be12b7208e836a3bd85e4a"
+    },
+    {
+      "path": "pages/assinatura.php",
+      "sha256": "42ed79cd2fce31bcd914ad7914c706875ec045762b82a078e3ec79329e2ec707"
+    },
+    {
+      "path": "pages/atendimentos.php",
+      "sha256": "3cab093027caa8dddafbe6ee0928c2e494918dc0ba7b7c29a08a205844856140"
+    },
+    {
+      "path": "pages/cobrancas.php",
+      "sha256": "02f3df78a476c3c2a428319d12c5858cf164e333649142caa210a540681cb57c"
+    },
+    {
+      "path": "pages/permissoes.php",
+      "sha256": "c802dde0a72012af20ab03fdbe3de883dc5b5764d8a849622dff4457148f6035"
+    },
+    {
+      "path": "pages/clientes.php",
+      "sha256": "393261e2e36eb2642082c8434803e96f215e8df40f76b83cc213a97a374d53f2"
+    },
+    {
+      "path": "pages/perfil.php",
+      "sha256": "39756a2de26b5e8a9b0ef2527bfff6817f47c04b624fc818cc6739aac4e51377"
+    },
+    {
+      "path": "pages/painel.php",
+      "sha256": "794bf10ede4d49d7886c948a2dbdec1d3788270c0d71af29ec355a8dad576571"
+    },
+    {
+      "path": "pages/install.php",
+      "sha256": "011cc76293b90b56bafd87e41bd09882139593b5e00898bf70d7bc381aad1a14"
+    },
+    {
+      "path": "pages/usuarios.php",
+      "sha256": "6e5c797f18cbbb422149369c9c39a472603425050d063e3742f37392086fc886"
+    },
+    {
+      "path": "pages/renovar-senha.php",
+      "sha256": "e309f3ec3055d83fc0139aee443c40d3c150b220864205cbdb9efb112d6141d5"
+    },
+    {
+      "path": "pages/atividades.php",
+      "sha256": "e5581f10dd88914296b27c108b9022eb0b54e32478b3c5da9d4290406cf09ac7"
+    },
+    {
+      "path": "assets/js/support-transfers.js",
+      "sha256": "dcf4886bdd93b5a08845cd0d420e96f1d899503ac140444828a8d39ceb10e37a"
+    },
+    {
+      "path": "assets/js/gestor-update.js",
+      "sha256": "bb85e3ab48ca81192676e53779e577b859b64b80e9793af84c3f30a2e2519593"
+    },
+    {
+      "path": "assets/js/arcoll.js",
+      "sha256": "2a19e9069d8bdae1f353ce7a141d1d47cda5d9d78f35499b2d453f9df7ec2216"
+    },
+    {
+      "path": "assets/js/command-queue.js",
+      "sha256": "00d3a78f0a059384597fb20b92d4df287e918ab2bc2b0883cdd9dc3f00113898"
+    },
+    {
+      "path": "assets/css/themes.css",
+      "sha256": "1bd8596ba10a2ce4779abb81368a013ee619d91f918c0494891ad3d128fe5507"
+    },
+    {
+      "path": "assets/css/arcoll.css",
+      "sha256": "ebaf69221793b3cf609985a626db905db9e6006756b9d0862e8bf7c3372be546"
+    },
+    {
+      "path": "assets/css/redes.css",
+      "sha256": "47174c7421830b89fc809ebb8362aa695e9f8a0b9a0dfd49ef5edcbd20790347"
+    },
+    {
+      "path": "assets/css/command-queue.css",
+      "sha256": "b4102413f3e11b3010a6ef52a036df4b8db66b415663440268d8a6adc39336d8"
+    },
+    {
+      "path": "assets/network-panel/panel.css",
+      "sha256": "69c2b88034200d1d1c30a4135c6e323b828a74b1c116ddfe45b1ce4497e1cffe"
+    },
+    {
+      "path": "assets/network-panel/panel.js",
+      "sha256": "9ac853bc12e58b0c2056fc2267df9351409192daaef8448a46b051820f5fbeed"
+    },
+    {
+      "path": "assets/backup-center/styles.css",
+      "sha256": "173a8d3935148d15176e45c9c8db634ba89ca119049028e796df6a62de64c458"
+    },
+    {
+      "path": "assets/backup-center/app.js",
+      "sha256": "aab09f95e0ce0d701496c3ac915ffc5706997434ec7319feddb00c344db70e52"
+    },
+    {
+      "path": "assets/themes/catalog.json",
+      "sha256": "157cbad159e5d2d90ca4ad6c239dc352fa48529afc248e1a2dbea7c766d1a928"
+    },
+    {
+      "path": "assets/vendor/leaflet/leaflet.js",
+      "sha256": "0c1082deb3d005d404044c12d358ba0c5bd12a2dd14bd73f2c6787e1e9c55096"
+    },
+    {
+      "path": "assets/vendor/leaflet/leaflet.css",
+      "sha256": "5eb82ebead65a4ad671aa0b2a12ad1008b46e358e702a098dcd85c51da1c4c24"
+    },
+    {
+      "path": "assets/vendor/qrcode-generator/qrcode.js",
+      "sha256": "d16883799c779e32fabd7338130966ba809a1f4d76803bf0374119fb12cbdd84"
+    },
+    {
+      "path": "assets/vendor/font-awesome/css/font-awesome.min.css",
+      "sha256": "f9cf3611ff92c6018c0208d9eaa8f029de45eb47a279f238a6878ec9a44f8ac4"
+    },
+    {
+      "path": "assets/vendor/font-awesome/fonts/FontAwesome.otf",
+      "sha256": "444dd4366615ffc4a16d012b2fa90137065d3ccb410fa6fd5e4ddd7b5e4ffcd5"
+    },
+    {
+      "path": "gestores/releases/.htaccess",
+      "sha256": "aeb9a9cd91f7998e790e9cef9b9fc5f48458a2bd4c9ba4ccae4f70cef9155b61"
+    },
+    {
+      "path": "gestores/releases/README.txt",
+      "sha256": "132d97d575d1d25a77bcc59758ce364c78d9fb219bd2cbe6306f5b79c79a4911"
+    },
+    {
+      "path": "gestores/windows/arcoll_vdrive.py",
+      "sha256": "3fe79f685e8207c2a6542859ef9d2dddec6ced74982227e835e61c8c89cbf42b"
+    },
+    {
+      "path": "gestores/windows/Desinstalar_Arcoll.ps1",
+      "sha256": "1a2e5ffbc62d00bf8f8a1ce082f0ecadcf972fddf250b1b404471f81ce80d238"
+    },
+    {
+      "path": "gestores/windows/arcoll_cloud.py",
+      "sha256": "ce8bf89f4182346cdb3458f5ffb967fb2413e58f4eae20928b78118f16247e25"
+    },
+    {
+      "path": "gestores/windows/arcoll_updater.py",
+      "sha256": "8eb13da5280850fdce7c43bd051eba325eb38156713927218d32f97c9cb9c68b"
+    },
+    {
+      "path": "gestores/windows/Preparar_Instalacao.ps1",
+      "sha256": "2d2db277559afab85d583ad28fe71a3eb11e0adc1d4d85c598e3b17cd7f8fa39"
+    },
+    {
+      "path": "gestores/windows/arcoll_release.py",
+      "sha256": "5c4fb063a46238a48ec94856c89743c1ad38be1850135d2fa1e671b495f8d849"
+    },
+    {
+      "path": "gestores/windows/arcoll_toolkit.py",
+      "sha256": "b425394606e2aad8e5e3567e802fe3d69ba3249f6ac73c2a347e8bf7c14b20bc"
+    },
+    {
+      "path": "gestores/windows/Registrar_Instalador_Programas.ps1",
+      "sha256": "2ee2cb8759af3bef87f74469844f24889bb37358eb7182922f7a50f0afe7f469"
+    },
+    {
+      "path": "gestores/windows/Instalar_Arcoll.ps1",
+      "sha256": "73152df2745a4251752ca80a47e9563516f09dcebd0f2bd71fd8ce465a2dd55d"
+    },
+    {
+      "path": "gestores/windows/Diagnosticar_Inicializacao.ps1",
+      "sha256": "3a7b7fe10a3536124cfc4047d399d7ce2fe690a923e809111053eac7bc908463"
+    },
+    {
+      "path": "gestores/windows/arcoll_app.py",
+      "sha256": "542a5084421945e72cfb2f2d2e7c4634abb89343b3ee99fdc0e7b8e91f4d0d87"
+    },
+    {
+      "path": "gestores/windows/arcoll_remote.py",
+      "sha256": "1ec78cc9a8cf47ba4ce6b703678a029b4b2c72315b50bc63ca58c1e180547171"
+    },
+    {
+      "path": "gestores/windows/arcoll_secure_helper.py",
+      "sha256": "bfe52d485d14df864b01500aeeb9c41b1174c369e2f5683d811f0667f298051e"
+    },
+    {
+      "path": "gestores/windows/arcoll_clean.py",
+      "sha256": "eb4a767c674d91cde5e97ad9d1e46e39c352e4149c32bd24379d089d859a00d9"
+    },
+    {
+      "path": "gestores/windows/Diagnosticar_Nucleo.ps1",
+      "sha256": "22ce4c89770062a1f2c6f53547e0b943b2f1d7ce048a33a0ff236a498b9f710c"
+    },
+    {
+      "path": "gestores/windows/arcoll_logsync.py",
+      "sha256": "3945ef513fa46494e52cb863b0822d00e1a59927d19ab1fa2102ffa8fd0cecf6"
+    },
+    {
+      "path": "gestores/windows/arcoll_desktop.py",
+      "sha256": "b77a8551f5957fe3b2db92742cd1a0d0460536b620f7af77b718ad4318fd8fd7"
+    },
+    {
+      "path": "gestores/windows/connection_diagnostics.py",
+      "sha256": "15653c7efe06ccb0e727eef12fad29d8523bf704545a858da0d6755ba528c764"
+    },
+    {
+      "path": "gestores/windows/arcoll_cc_ui.py",
+      "sha256": "d1cb112e3eb07e23ad17be9ecea9d24d9ee1441f64d3b5a0a3b394200951e026"
+    },
+    {
+      "path": "gestores/windows/arcoll_gestor.py",
+      "sha256": "788b4b57e1eda155c9e84be52af78871fb80f41366c7335d64f18e598191013d"
+    },
+    {
+      "path": "gestores/windows/arcoll_programs.py",
+      "sha256": "7b4974ab6751b49c2a2bb0008459b8ea54d422fea2614e1dec72569ec75eff47"
+    },
+    {
+      "path": "gestores/windows/rt_engine.py",
+      "sha256": "f562e916e61f4d4019add6d1da8b2af711763d7ac2cde84c8d5b8ee7c0ac75e4"
+    },
+    {
+      "path": "gestores/suporte/requirements.txt",
+      "sha256": "b94eefb272034379cada300fbdd7916f136afcadd5403e215d7c276aa07e0f3e"
+    },
+    {
+      "path": "gestores/suporte/Instalar_Suporte.bat",
+      "sha256": "0d9010d492c7481a52130a37f2fa6a50b95bf573e720d478268530c9bdb757e2"
+    },
+    {
+      "path": "gestores/suporte/arcoll_support.py",
+      "sha256": "1a8ee76fef5f409f08b71fe7655f81a6350a91c3abbf6c8fc3e65946c2d973a1"
+    },
+    {
+      "path": "gestores/suporte/Instalar_Suporte.py",
+      "sha256": "5982ff1b474aeaa9f3b67abdcd2fb03692314f255ab41b0fc328e0a47d4b4841"
+    },
+    {
+      "path": "gestores/instalador/ArcollSetup.cs",
+      "sha256": "4904441d7287ae9da27381b8866d5746dbfa81052d5687dd9f33043f17a22862"
+    },
+    {
+      "path": "gestores/instalador/build.sh",
+      "sha256": "c504d0d332e3fd9a5048ca859ed1092a052073ce3b4efa8183fc49296f363c49"
+    },
+    {
+      "path": "gestores/instalador/ArcollSetup.manifest",
+      "sha256": "5f7fab32c348df49e89b9f7fa5ec642da925843c2584df772f3d951e79af3894"
+    },
+    {
+      "path": "gestores/instalador/ArcollSetup.exe",
+      "sha256": "809e5c5a8bdb9046873c181057a864b82d6d86ae80ca58095613b84f5ea00275"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/App.xaml",
+      "sha256": "2807d1229d49edd65f1302d1ca37212b4538f1278f2672cfa41de0984ea243fc"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/VERIFICAR_PRELOGIN.ps1",
+      "sha256": "476c2a74783a024c0376587d1e66f459d62350a025f88d4798518f802fb522cb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Hybrid.cs",
+      "sha256": "76bf97daebc576655fb58d9c4890573daadbdb3f1824fa02712e589892017aef"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj",
+      "sha256": "cac563cb98d43956925196500fae7867d176498aafa79e5e8c23e8d2a854a6af"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.xaml.cs",
+      "sha256": "0d49abf3ca68b453990c94b55c04ff5f15d8ea36231fe26d090e078c92d90489"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/ATUALIZACAO_VISUAL.ps1",
+      "sha256": "c4945187667457d424c99e116411227a199ac127efd0f9452eda8dc402c839c4"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Workspace.cs",
+      "sha256": "ed939762487a356b17721e6ca6a90f4719b2ec6b36599bb146a8d69c6f230824"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Verificar-Integracao.ps1",
+      "sha256": "243e3234aba296f0d2bd37746303e920409ded3a9b9a4b37531955060d0ef0c2"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Areas.cs",
+      "sha256": "9e24dcb8d68c8ad3ddc2e03a6a729de70eb90532665484e734e0271348559316"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/HABILITAR_PRELOGIN.ps1",
+      "sha256": "e13a0ea8c779a95ee9bfac84b68af213d1c0736d31cf909385b9b58e4bae5309"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/INSTALAR_WINUI3.ps1",
+      "sha256": "50b63e39c0cf457c5b217c86d0a8a071743d279ffdaa13eca833b8562f7a9c22"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.PenteFino.cs",
+      "sha256": "8b77756de2039bda69d053eabf8fadf77ceec8e048cc4698336f6d41c7ed2b23"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/app.manifest",
+      "sha256": "47cfeb2ac1ceaf657007cc0da0a5cf00262ad9fabefc97a529d4c7a07d8e5488"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/PreLogin-Setup.ps1",
+      "sha256": "69ac55c17b5cb56e4b21238ad19068cd23bf99154be14d2340d5c617c205f1d9"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/App.xaml.cs",
+      "sha256": "565424a622131a8cce96780abaebabf511904afdd214cf09a7959820c9897315"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/INSTALAR_BACKUP_SERVICO.ps1",
+      "sha256": "fe7716aa5476cca787922cebbb1a615e8a25e964b04366e13f962c6a3a896482"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Compact.cs",
+      "sha256": "cce2dde113583b6495ecf3ada9c227d335569cc3ff699e7b654f33069e454be1"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.xaml",
+      "sha256": "9b9ebeef677e8d89f6aeb96606e6f52b413a832e3efaabc1026842738eb8ba8d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/PUBLICAR_RELEASE_PRECOMPILADA.ps1",
+      "sha256": "8f53637e4bbcfe4788c5b63b2e4d0d6b5233eb5bea970ad1433a006bbac3826d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Update.cs",
+      "sha256": "2028f6624b29d3e7a5aefb6700ab483891a410cee8470c1934a6f7db2d13ab58"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/VALIDAR_ETAPA4.ps1",
+      "sha256": "75c77041a77c157e4deea1e9ec9b0fd0e6d8f34c73e63dff9f6c58bb932068e5"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Compilar-WinUI3.ps1",
+      "sha256": "3fe4764e957ee422130168eb37e77606eca3ccd5f58fd647554c2549dbc80475"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/INSTALADOR_VISUAL_WINUI3.ps1",
+      "sha256": "13930f4c4dd65179ada32ec55a8dff6dc21e9d01d977321930d449331f2f7a3d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/APLICAR_PRECOMPILADO.ps1",
+      "sha256": "cdf42523afc636f1bc73f2eb7afdd45e0d46b789a1d7deccbde47ec8264fa262"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/theme-catalog.json",
+      "sha256": "157cbad159e5d2d90ca4ad6c239dc352fa48529afc248e1a2dbea7c766d1a928"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/ProgramService.cs",
+      "sha256": "abc21263e437852f8e68dbaf4b5dfcf011b8c4628883048abd9eb796de31bee4"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/ThemeService.cs",
+      "sha256": "314d43b4d693d0deefbcc1eb7ccdf3f2833bc74131a9937939a090457898e851"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/UpdateService.cs",
+      "sha256": "44170d05774ded2f3a29cb22adc903db8956233b48572b7e49f8310bc42c9c4b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/UpdateHistoryStore.cs",
+      "sha256": "cfb44636157ad2ae13f9054c6eb79656438bd5b076fd8bbc34bf107fdaa73e77"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/GestorClient.cs",
+      "sha256": "d484347637087d5ff86569cc2631ab1b5b7d9c4ca39965a02532beada0ff7e64"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/OperationProgress.cs",
+      "sha256": "c702e2bd8d79a2c69c407a74fd6905c3d3d613d86f322faced90d51758840c33"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/RemoteScreenService.cs",
+      "sha256": "98d0e05590018f2f06bdf600b20560a89e43d579e7fadad62e33ce56671fac88"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/NativeCleanCommands.cs",
+      "sha256": "e4c52339d7df4332325b7852ba4003f6170c32c887a03ca5dbf36a3112e3004f"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/CentralLogUploader.cs",
+      "sha256": "52d0ab3a2062bc2113b4ab26f22c9327271464e01353fb7fc11f21e8f52d6066"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PresenceService.cs",
+      "sha256": "d30f3c448221dd5037d8fa533826f1dbc92816b03ed346f2ef645985be7f15dc"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/WindowsUpdateService.cs",
+      "sha256": "5a0e2339f8e0d45e1d3a497b79e43f0ecda4ce3a77668765aaf68e23b97b61ea"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PerformanceCollector.cs",
+      "sha256": "18e85543d21633fe7e5d0ea8b09e9e46e37375e6450ccb3acdcdf632ba474df1"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/CloudVirtualDriveService.cs",
+      "sha256": "c6ef17bcf03448a4ddf31e09f3f0b204f3d9801c0d6e4325d9109fdb97e2720d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/WorkspaceService.cs",
+      "sha256": "7acab4e0e2180565321a074b4ad94ef9473ae402d9454f13c12ab40af6710a57"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/AuthorizationService.cs",
+      "sha256": "bf08caf935f4422a93296d27b06c2365025af08f9f2617f4638a65ca0625d475"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/NetworkEngine.cs",
+      "sha256": "68c6d354a4a402f98184999b99b38770560e89800e665c070481f1014bb8cd2a"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PerformanceModel.cs",
+      "sha256": "c1b9ccaaea1098c29566df34a439076cabd164283ca9b29dda45a4ce8d8938c3"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/ErrorDiagnostic.cs",
+      "sha256": "4551292d2edd8dc997db722f5c2fdbbe960b821c81d77259ddd47f28b4f519bc"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/FileBrowserService.cs",
+      "sha256": "1e78ac3acd19ad835564bd56505753de2f3197f4f8a824fa3c0c32de4958408d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/GestorAreaPalette.cs",
+      "sha256": "be5ffa6bc8d531180990e71a2dc24aaf028902b70d10769d4db9810180641acc"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/UpdatePresentation.cs",
+      "sha256": "50f74eaf3f0057060df8ce86d6f3b24dd9bba59113b41a213b1e5821511632b2"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/NativePerformance.cs",
+      "sha256": "6916f612487df43ada4e197ce45bece35b8f7d6b386d8ea4653f1804f1c371b1"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/UpdateCheckService.cs",
+      "sha256": "6e707d7a76f2d9dbb3bf30617bebfcbe118345fb00f329bc97dcdb8aef4804f0"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/ToolkitService.cs",
+      "sha256": "0f757810a32be7b425dfef0d8844a48e040938629362b76d06baf8821bb459e8"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/SpeedTestService.cs",
+      "sha256": "6a8ff9359aa247b5814afbada83104f5ee98974dca19c2b41de07d8199edf48b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/GestorConfig.cs",
+      "sha256": "e0ef30a875af5fefd8b1423733a0f357b11f68a72120112e283fcbb864dece8f"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/TelemetryHub.cs",
+      "sha256": "6803b340a9de522f4fa2a7ae35b4e715ed088daed9de6af7d1491ee2708bd3e7"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/ThemeRules.cs",
+      "sha256": "efe5861e0c399731b65fd11892b9d412895288af8849ab457b5208b17df4dec5"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/TrayService.cs",
+      "sha256": "bd3327b7a7d8c1fc8ff1c89e7118e3eb0087d9630ade9aeffe0edc9c2c066161"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/SecurityInspectionService.cs",
+      "sha256": "c2be15d1d12b3fd0293c554e0d07631ceadfe2230a54e4e48bfa54db4627492c"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PlatformClient.cs",
+      "sha256": "5238e2c743dfa972d749da4daef501393d66f2aaa763df50e415b18af1348bfb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/WindowsInventory.cs",
+      "sha256": "5c7f86b9e9994b4c89a0fce8dbaea4224537d95893a33bb73512eb0690e75634"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/RuntimeLog.cs",
+      "sha256": "5bf427dd545a346ebad2afaafa2350ba6d09f6aa81288cba2804feaf1f0842b2"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/SystemMetrics.cs",
+      "sha256": "c05f1e7d89e62e52c337a15e1e88508a1fc9e690b2f1dad1eb34677940de50c4"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/MaintenanceService.cs",
+      "sha256": "cf12e8b0cc349d127c1c1901a306b3b1ade8bc52c2508bcc2c6b5abe0ca80222"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/CleanEngine.cs",
+      "sha256": "9a65e9e1fd3deeab578a6c35e31e195c46a50a21980665fbb7c86069f9b502f7"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/InventoryService.cs",
+      "sha256": "481e4b6d23e07fb112e9616b30411a7ab4e20ede3e7faac0f62be52669548eb6"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/DiagnosticCommands.cs",
+      "sha256": "a16c537f91c978e2044605a447efe25dbd6d6597483d2339030cd21948152631"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/GestorRuntime.cs",
+      "sha256": "139a18443c5e752e11414ac314615011df4fce2b15d01981a2a4003f11893bab"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/GpuTemperature.cs",
+      "sha256": "f048b2c4717591e13d313fbf66c523f9afa29321e6ef58d94f1303099a83f58e"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PrecompiledUpdateService.cs",
+      "sha256": "57c6ff012a41b8f8fa2b0c76c36c59ea91659ecce1b6125927ff375e6555ba2a"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/BackupCenterPage.cs",
+      "sha256": "ab04a1666d628b01cfcb947f85a94b3c468c5438d8514439e9c0c5bb4f8a4d3c"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/SoftwareUpdatesPage.cs",
+      "sha256": "14b849fb18c285abc703237584e0c0a968793cab0b40ef98f2350dcc9a6b72a5"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/MaintenancePage.cs",
+      "sha256": "4523abab954854e461b6a2a43a1ac0f24da541a367e7b02b8aea1c4f17aead91"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/TicketsPage.cs",
+      "sha256": "598ac772a73f7699f7a059c13131661aa1fe380393ad671b5aa484d19d6dcd91"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/CleanPage.cs",
+      "sha256": "9c02c4e9f279acbc7d880cc1b3ae1cd9bafee3e8c19ce3d23cae6c632888f6a8"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/UninstallPage.cs",
+      "sha256": "1d7a5c64bdc73000a87033e79da6fc7aabfe5e5e1517409939b52673edaff368"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/MaintenanceSettingsPage.cs",
+      "sha256": "f001b3db479686829b76af8329bd85ac76e907e971ef2f9996db633aa708e7b0"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/RegistryPage.cs",
+      "sha256": "044481f3e63e1ac55a1b181b03cc6a18802f4c5cfeaee623299510fe8c129197"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/SupportPage.cs",
+      "sha256": "1aaf9deb2b1994c3ab4a4102692a2f94bd57b969b849f4f4c3189c712ab45fa4"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DiskPage.cs",
+      "sha256": "03797850f6d0d2ffcdaad5fa7d6ea5c12f9b41b926731ef021b8628e648cf28a"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/RestorePage.cs",
+      "sha256": "38f1d43143a7eb3e97495f4dab61155290fbf1c93e1939239b406634d3eb8fa4"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/HealthPage.cs",
+      "sha256": "e7e883cd92a7938d830e969f59a50729f53af97b5144eb9fe084d98de68c2ea8"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/MonitorPage.cs",
+      "sha256": "6f7dc9876511a56ec7b1ba9b34312d38c35944042ebdba9d8c08bca5a25cdc12"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/StartupPage.cs",
+      "sha256": "b13dd373dd63d3dbc84672661ef505a31f0705c5cea9cfb406019dd89ee634c3"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/FilesPage.cs",
+      "sha256": "4b5107f118a9d450f46b9d37745567af8be4f794cbc1b0416a5526f4c4189a39"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DuplicatesPage.cs",
+      "sha256": "467413dd142954da04c6e3be4a337046c147bb744c77e43f05f4d07a9e2c9d8c"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DevicesPage.cs",
+      "sha256": "374dc9115c6f5199cc1dfbb0978f6d401c34da626d3ea80f8f4f827d4417a936"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/WindowsUpdatePage.cs",
+      "sha256": "9af43797be3221933b18c352eac2274f3a86647612b21283c23267117f8c3f99"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DriversPage.cs",
+      "sha256": "fe27beccc215d2a215dc3f8be2e60d24c825df49c38482c644441a7b241b63d5"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DeviceEditor.cs",
+      "sha256": "4882b515a4ec2a4d059e16d219255cbff4f71fa6dafe17395c7a42dff4fb69cb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/MapPage.cs",
+      "sha256": "650ff4762d02b709dd0dd482eebf6bb6c4ff279c13d3a7d428ba693d6017eb7a"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/CloudBackupPage.cs",
+      "sha256": "e21170f8f7144e8c85c0f8ee38d7410f57bca5d6a057d329b9525089e7395768"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/GestorUpdatePage.cs",
+      "sha256": "43f8255581f416a3cfaa65a8c114ace7c6fa48c993cc010e47cbd36066566598"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/SecurityPage.cs",
+      "sha256": "3918293db9aa5ca47803942a5d125bb80b65a1d7f8e0cbe1616b3f6419525f08"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/SpeedPage.cs",
+      "sha256": "0a20979e25a7ae46c8471e378af028508dc254f1f84329fe568f9c877b04de23"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/PerformancePage.cs",
+      "sha256": "e19eb68ac3ae5a5d286dee8e21982df2e067938c318076bce588456746103d60"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/CloudCleanupPage.cs",
+      "sha256": "888c4dfac895ed1e13e93fd2580171844a933a44a568f04d7f7a14857fc23f63"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DashboardPage.cs",
+      "sha256": "196840d07d792053e2db0b95e74ae99e715dc7e17b471210a87d627ead1d13cb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/ServerPage.cs",
+      "sha256": "bf200431aa1ba272e09d7d76e556b7fb73de1ed0808f1d9ee9bc23aa3bde9927"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/ProgramsPage.cs",
+      "sha256": "06aa1f0048acb1b642e3ce1d66ea7ade84197223ffbc5f91ceefeea15459c064"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/Ui.cs",
+      "sha256": "f6201be897879814a9dd93e66ec3859c8304cd3c2f72594885fe1cad479211f5"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/PenteFinoPage.cs",
+      "sha256": "3023c7af513f30340e9ef8c3f2ea36e19e3050f330a71da9142ac41c5ff1c4eb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/BackupWorker/BackupWorker.csproj",
+      "sha256": "cdbaee5e31e0e913ff4601cdb9b8adb67755d4a02a5224c233a24717dac75159"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/BackupWorker/Program.cs",
+      "sha256": "72f7eab5be4c277cc5690287d31ddabd7a9dd600be6ef4bd35dfb6edb4cd0943"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Worker/clean_worker.py",
+      "sha256": "2b8bcda0da5715f21b50d7a817aa2fcbf6b30e9b0bc7d6fa092e7d7458be4e33"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/HybridReact/index.html",
+      "sha256": "3ee71ee46f9a037124acf8f4c33332c2a6de390e61c81311b0d50f984901ee39"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/HybridReact/package.json",
+      "sha256": "bbc75346a20de8c312024e013d1a223609e987f0fed2b81f0233cb3b25aaa984"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/HybridReact/vite.config.ts",
+      "sha256": "1ead63b6cad7b48b24beddb5518a4e9d4dbb7a8029fec7a02bd61bed6a269f03"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/HybridReact/tsconfig.json",
+      "sha256": "d84d2080a71017154bf7bf310409a290928777a2b01e9d804113a5a104ae2f7b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Models/GestorSnapshot.cs",
+      "sha256": "fb3523c63e1cdee237ba92ba3b65972af40152c6646514d29cf76222de963524"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/BootWorker/BootWorker.csproj",
+      "sha256": "dd5160eb641b9a4f50e458f83d2e05036c737fa028c392a9de281de40ba1d49b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/BootWorker/Program.cs",
+      "sha256": "6ba092c62e54156e96dfb68cf38687518800187885091b95d61723023ae3c4f5"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Controls/ChartCanvas.cs",
+      "sha256": "38c6ac270f38437c4535ce7c9d921b9d718038ff0ae035df98c0aa16a2095303"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Controls/GestorWorkspace.cs",
+      "sha256": "3281f09956cdceb211e42bac4ed6f1d073cb35f37214677192a004783e2a2b82"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Controls/ConnectionMap.cs",
+      "sha256": "34ef658c4ca34babdadca1a312f91541ed24b7b900fbd3055e84a5ee791a1fc9"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/index.html",
+      "sha256": "197e18170ba499187d5373ce8cbca01d92c746ff1289ed42d029d0112edd530a"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/standard-workspace.css",
+      "sha256": "cf63bf1c0e2ca22ced84299384a11fad5e421f96c76e1e0cbc25d6db085a33d0"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/styles.css",
+      "sha256": "bb124e5159eaf7825973711f7f4ee0e33c078ef386e452e96b39f5cc7980bc2b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/app.js",
+      "sha256": "b6cc4b6bdd60be3fd8ac51420541ff97265d78db83deb1c4b26f9bb0106e1ba9"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/index.html",
+      "sha256": "c4611af514b8121b54e9bfa96da31a3d9a61ad1a0bcb78de5d43e1be4a551ef1"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/standard-workspace.css",
+      "sha256": "964d36abbb1abf79d7223643c2604f27d423d3446ed2fbdd76ba67b49a8c02eb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/standard-workspace.js",
+      "sha256": "619156e77cdc3731783ccaaac8fb40b407cb5bfca5f3a9ee110932639b80e746"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/update.js",
+      "sha256": "7d0ca1475060ca5296b835dc989e90321eab46834f3309ec2420a2895ec3004b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/server.html",
+      "sha256": "c6c297633cb2a80f702fd2a40e38311869f8f5dd1d07b165ca01ad79472dcecb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/server.css",
+      "sha256": "92f2aaeb363050193e4b0e2bf5521f5922d887ab0fc3837e41e3c7d3f1a65744"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/server.js",
+      "sha256": "bbd7e1e7b121b8887a09d84780c46bfd9f1182daa70a0ce751949b3af04afb90"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/compact-shell.js",
+      "sha256": "cc89b746b1d7726daadc037574bd57968fe220bb7552a976476c49ca9206abf3"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/update.css",
+      "sha256": "bd4757ce3752c49dc83c6364b7a3bdc84ecd777009d11b2b8ad2ea696ed02a20"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/styles.css",
+      "sha256": "69d6ad73abef23b251f10898a06e984ef58b73acc11a32622a960780a521be9c"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/app.js",
+      "sha256": "01c33d2fba22a52dde7a5fbd6f4508f12937ed3215252af8e9a3a47880d32f56"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/update.html",
+      "sha256": "e7b562c8080f94ee0f2594a009733104420067b33ab8fa21cd1d408e21963ffb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/index.html",
+      "sha256": "0c3cf472a52b158c3edf7aed03f94b804c23e967561fc3bce44c8476461982d2"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/standard-workspace.css",
+      "sha256": "37a376e416644bfa49c9922f57fdc3d9b2d9e57b357aa14570fc5e6f0516f4bb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/native.css",
+      "sha256": "18d31c33bda0294ce84def5756f2ed79b3d02b3a5a498049c2dd09b3a11690f0"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/styles.css",
+      "sha256": "9a194ce5d753e6f696fbebc9db748591f364eecb2f8df2103e34aa2d11539b79"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/app.js",
+      "sha256": "bf53ee3dd68185db594768596842e1c5db2c81c61ad71388d4b2b75a51d59c4b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/internet/index.html",
+      "sha256": "20d96869136bf5b6bdd0ca5422e14333ce0830764513ccc7aef2c3c3a187bc69"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/internet/standard-workspace.css",
+      "sha256": "5da45d77cc8d9047ab360bef6abded0e601bda219c321342451ed5a5f5ebcc6f"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/internet/styles.css",
+      "sha256": "e09b26165339aa400093abea97185208c8beed75b5ca6367e85a17c09f35c708"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/internet/app.js",
+      "sha256": "5436f890094b3b7b9a2cb17f327fb0fdbf3850692e2e6a92126614639a9908e0"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/internet/vendor/leaflet.js",
+      "sha256": "a1f49f787be265900fa0e2231618a8be122869325b96ff9ca72903baa36bfcd3"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/internet/vendor/leaflet.css",
+      "sha256": "c3780c682b098c8fce979355fea41bf9cdac1e20ded2ed6ae5de5eefe77da1d0"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/ScanOrchestrator.cs",
+      "sha256": "a55e77a897dad414db9a91fb477b002aec405b6421b4f245d032dd1f2a8e5a28"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/ResultsStore.cs",
+      "sha256": "43e6abdf98e27d610bd69af4a874eaa6cce348b87fcfefc43f77e1e40b2bdd67"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/FixEngine.cs",
+      "sha256": "28093058d123dadb0d46fb7bab2b43ce18a8cffc4577b323e47c48acd50d1edd"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/FileCheckers.cs",
+      "sha256": "cc8c51e021a637eca7c0a505ab95c9b8cdc86b22a996a10251a97c262afb2e8e"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/AdditionalDiagnostics.cs",
+      "sha256": "8d0da4c577b4a9701ffdf23e87d6b2866e5125c1c4b35f39b5a535039589f726"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/PathPolicy.cs",
+      "sha256": "ac2efa1481d1397010af58e0497274cea14f73dcd6d17fa71ace0ea667654a14"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/Contracts.cs",
+      "sha256": "9f07198de7e6298e617b17d41daf85373116fabe32af70eabc0b583e3cabd78d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/RegistryCheckers.cs",
+      "sha256": "df7c8cdc4c1455bb9139b32a81bd2213cab7653c0135bdab3c8369e9eddb7fe8"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/BackupCenter/BackupHttpClient.cs",
+      "sha256": "143cb80d3517e852b1c2ef231ebeee8263d2c6a09c99d5e0d9ea0c5bae370eb2"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/BackupCenter/BackupRepository.cs",
+      "sha256": "f86cb6d979f89a107e4b3030267f7686ec6922776cc2f78ac21d7c0ddad0e5bf"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/BackupCenter/BackupBackgroundLoop.cs",
+      "sha256": "54cf0b4fb8025a56865766c09aefc3d7c28f2dd57817f7c62e9747a899ce21d8"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/BackupCenter/BackupSafety.cs",
+      "sha256": "e53011336dadcf1243f87aeab87c83b6fb4136bac6f42c938c565c015c688268"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/BackupCenter/BackupModels.cs",
+      "sha256": "d60aebca0c453102391568435e96d901e84a2f1e80513b03f6fe5f76d3abeb48"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/BackupCenter/BackupExecutor.cs",
+      "sha256": "a9d36993646e6873f7a65669cf533797124389189609ee7b121572c65b336fb7"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/HybridReact/src/main.tsx",
+      "sha256": "2f5ffdf0b746de6ea847aff2a260987c70f290832675f151de5999c6537692c4"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/HybridReact/src/styles.css",
+      "sha256": "f081a46ff072f995355c2a55ec9431337f16630710b1432126b53b50c69b7f52"
+    }
+  ]
+}

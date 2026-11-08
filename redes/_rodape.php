@@ -19,7 +19,7 @@ require_once __DIR__ . '/../includes/error-logging.php';
 'use strict';
 const networkId=<?= (int)$networkId ?>, csrf=<?= json_encode($csrf) ?>, base=<?= json_encode(arc_workspace_base_url()) ?>;
 const target=document.getElementById('arc-gestor-target'), log=document.getElementById('arc-command-log'), status=document.getElementById('arc-connection-status'), refresh=document.getElementById('arc-network-global-state');
-if(!target||!log||!status)return;
+if(!target||!log)return;
 // BLOCO 01 — AVISO ÚNICO PARA COMANDOS DA REDE (SEM BARRA DUPLICADA).
 // Percentuais reais vêm da API; na ausência deles, há estimativa visual identificada e animação de atividade.
 // BLOCO 01 — Notificação única, inicialmente invisível, fora dos contêineres.
@@ -195,7 +195,7 @@ function toast(message,type='info'){if(activeProgressId||(stickyError&&type!=='e
 function showProgress(label,state='Tudo certo, estou aguardando o computador…',id=0){activeProgressId=Number(id)||0;notice(state,'info',true,null,25)}
 function endProgress(label,ok){activeProgressId=0;notice(label,ok?'success':'error',false,ok?100:0)}
 function setRunning(on){}
-function setOnline(online){const wrap=status.closest('.arc-gestor-select-wrap');if(wrap){wrap.classList.toggle('is-online',!!online);wrap.classList.toggle('is-offline',!online)}status.classList.toggle('is-online',!!online);status.classList.toggle('is-offline',!online);status.title=online?'Gestor online':'Gestor offline';status.setAttribute('aria-label',status.title)}
+function setOnline(online){const button=document.getElementById('arc-header-gestor-update');if(button){button.dataset.gestorState=online?'online':'offline';button.title=online?'Gestor conectado — abrir gestores':'Gestor sem conexão — abrir gestores';button.setAttribute('aria-label',button.title)}if(status){const wrap=status.closest('.arc-gestor-select-wrap');if(wrap){wrap.classList.toggle('is-online',!!online);wrap.classList.toggle('is-offline',!online)}status.classList.toggle('is-online',!!online);status.classList.toggle('is-offline',!online);status.title=online?'Gestor online':'Gestor offline';status.setAttribute('aria-label',status.title)}}
 // Modal, versões e envio de atualização do gestor: assets/js/gestor-update.js (window.arcGestorUpdate).
 target.addEventListener('change',()=>document.getElementById('arc-gestor-form').requestSubmit());
 document.addEventListener('arc:command-queued',e=>{const d=e.detail||{};if(d.command_id&&Number(d.gestor_id)===Number(target.value)&&!activeProgressId)showProgress(labels[d.command]||'Comando remoto','Aguardando o gestor',Number(d.command_id))});
@@ -274,12 +274,12 @@ function swapShutdown(on){const power=document.querySelector('[data-power-tile="
 swapShutdown(false);
 function drawCountdown(){for(const [command,data] of deadlines){const tile=document.querySelector('[data-power-tile="'+command+'"]');if(!tile)continue;let badge=tile.querySelector('.arc-power-countdown');if(!badge){badge=document.createElement('small');badge.className='arc-power-countdown';tile.append(badge)}const remaining=Math.max(0,Math.ceil((data.until-Date.now())/1000));badge.textContent=remaining?'Faltam '+Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'';if(!remaining){deadlines.delete(command);badge.remove();if(command==='power_shutdown')swapShutdown(false)}}}
 setInterval(drawCountdown,1000);
-function chooseDelay(command){return new Promise(resolve=>{const dlg=powerDlg;if(!dlg||!dlg.showModal)return resolve(null);powerForm.reset();powerForm.elements.custom.disabled=true;dlg.querySelector('#arc-power-title').textContent=command==='power_restart'?'Reiniciar computador':command==='screen_lock'?'Bloquear computador':'Desligar computador';const finish=()=>{dlg.removeEventListener('close',finish);if(dlg.returnValue!=='confirm')return resolve(null);const v=powerForm.querySelector('[name="delay"]:checked')?.value;const seconds=Number(v==='custom'?powerForm.elements.custom.value:v);resolve(Number.isInteger(seconds)&&seconds>=5&&seconds<=3600?seconds:null)};dlg.addEventListener('close',finish);dlg.showModal();});}
+function chooseDelay(command){return new Promise(resolve=>{const dlg=powerDlg;if(!dlg||!dlg.showModal)return resolve(null);powerForm.reset();powerForm.elements.custom.disabled=true;dlg.querySelector('#arc-power-title').textContent=command==='power_restart'?'Reiniciar computador':'Desligar computador';const finish=()=>{dlg.removeEventListener('close',finish);if(dlg.returnValue!=='confirm')return resolve(null);const v=powerForm.querySelector('[name="delay"]:checked')?.value;const seconds=Number(v==='custom'?powerForm.elements.custom.value:v);resolve(Number.isInteger(seconds)&&seconds>=5&&seconds<=3600?seconds:null)};dlg.addEventListener('close',finish);dlg.showModal();});}
 async function sendPower(command,delay,tile){
  const body={network_id:networkId,gestor_id:Number(target.value),command,_csrf:csrf,confirmed:true};
  if(delay!==undefined)body.delay_seconds=delay;
  tile.disabled=true;notice('Já estou enviando para o computador…','info',true,null,5);
- try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Não consegui enviar o pedido');activeProgressId=Number(j.command_id||0);showProgress('','Agendando para '+(delay===undefined?'agora':delay>=60?(delay/60+' min'):(delay+' segundos'))+'…',activeProgressId);const id=Number(j.command_id||0);if(delay!==undefined){if(command==='screen_lock'){deadlines.set(command,{until:Date.now()+delay*1000});drawCountdown()}const check=async()=>{for(let tries=0;tries<45;tries++){await new Promise(resolve=>setTimeout(resolve,2000));const response=await fetch(base+'api/api.php?action=network-command-status&network_id='+networkId,{credentials:'same-origin',cache:'no-store'});if(!response.ok)continue;const data=await response.json();const item=(data.commands||[]).find(x=>Number(x.id)===id);if(item&&['failed','expired'].includes(item.status)){deadlines.delete(command);document.querySelector('[data-power-tile="'+command+'"] .arc-power-countdown')?.remove();return;}if(item?.status==='completed'){if(delay!==undefined)notice('Pronto! Prazo selecionado: '+(delay>=60?(delay/60+' min'):(delay+' segundos'))+'.','success',false,100);const tileCmd=command==='power_cancel'?'power_shutdown':command;if(command==='power_cancel'){deadlines.delete('power_shutdown');document.querySelector('[data-power-tile="power_shutdown"] .arc-power-countdown')?.remove();swapShutdown(false)}else if(command!=='screen_lock'){deadlines.set(tileCmd,{until:Date.now()+delay*1000});drawCountdown();if(command==='power_shutdown')swapShutdown(true)}return}}};check().catch(()=>{})}poll()}
+ try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Não consegui enviar o pedido');activeProgressId=Number(j.command_id||0);showProgress('',delay===undefined?'Solicitando bloqueio imediato…':'Agendando para '+(delay>=60?(delay/60+' min'):(delay+' segundos'))+'…',activeProgressId);const id=Number(j.command_id||0);if(delay!==undefined){const check=async()=>{for(let tries=0;tries<45;tries++){await new Promise(resolve=>setTimeout(resolve,2000));const response=await fetch(base+'api/api.php?action=network-command-status&network_id='+networkId,{credentials:'same-origin',cache:'no-store'});if(!response.ok)continue;const data=await response.json();const item=(data.commands||[]).find(x=>Number(x.id)===id);if(item&&['failed','expired'].includes(item.status)){deadlines.delete(command);document.querySelector('[data-power-tile="'+command+'"] .arc-power-countdown')?.remove();return;}if(item?.status==='completed'){if(delay!==undefined)notice('Operação concluída.','success',false,100);const tileCmd=command==='power_cancel'?'power_shutdown':command;if(command==='power_cancel'){deadlines.delete('power_shutdown');document.querySelector('[data-power-tile="power_shutdown"] .arc-power-countdown')?.remove();swapShutdown(false)}else if(command!=='screen_lock'){deadlines.set(tileCmd,{until:Date.now()+delay*1000});drawCountdown();if(command==='power_shutdown')swapShutdown(true)}return}}};check().catch(()=>{})}poll()}
  catch(err){activeProgressId=0;showFailure({command,message:err.message})}finally{tile.disabled=false}
 }
 document.addEventListener('click',async e=>{
@@ -287,7 +287,7 @@ document.addEventListener('click',async e=>{
  const command=tile.dataset.supportAction;
  if(!target.value){notice('Escolha um computador conectado.','error');return}
  if(!['power_restart','power_shutdown','screen_lock'].includes(command))return;
- const delay=await chooseDelay(command);if(delay===null)return;
+ const delay=command==='screen_lock'?undefined:await chooseDelay(command);if(delay===null)return;
  await sendPower(command,delay,tile)
 });
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-power-cancel]');if(!b)return;if(!window.confirm('Cancelar o desligamento agendado?'))return;await sendPower('power_cancel',undefined,b)});
@@ -297,7 +297,8 @@ poll();setInterval(()=>{if(!document.hidden && activeProgressId)poll()},1000);
 })();
 </script>
 
-<dialog id="arc-unlock-dialog" class="arc-unlock-dialog" aria-labelledby="arc-unlock-title"><form id="arc-unlock-form" autocomplete="off"><header><i class="fa fa-user-circle" aria-hidden="true"></i><h2 id="arc-unlock-title">Entrar no Windows</h2><button type="button" id="arc-unlock-close" class="arc-icon-action" aria-label="Fechar desbloqueio"><i class="fa fa-times" aria-hidden="true"></i></button></header><p id="arc-unlock-host"></p><p>Selecione seu usuário para entrar neste computador com a senha do Windows.</p><label>Usuário do Windows<select name="windows_user" required aria-label="Usuário local do Windows"><option value="">Carregando usuários…</option></select></label><label>Senha do Windows<input name="windows_password" type="password" maxlength="256" autocomplete="off" required></label><small>As credenciais são cifradas para o componente seguro e não ficam salvas na plataforma.</small><p id="arc-unlock-feedback" role="status" aria-live="polite"></p><button type="submit" class="button primary" id="arc-unlock-submit"><i class="fa fa-unlock-alt" aria-hidden="true"></i> Desbloquear</button></form></dialog>
+<dialog id="arc-unlock-dialog" class="arc-unlock-dialog" aria-labelledby="arc-unlock-title"><form id="arc-unlock-form" autocomplete="off"><header><button type="button" id="arc-unlock-close" class="arc-icon-action" aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button><span class="arc-unlock-avatar" aria-label="Microsoft"><span class="arc-ms-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span></span><h2 id="arc-unlock-title" class="arc-visually-hidden">Acessar sessão do Windows</h2><p id="arc-unlock-host"></p></header><label for="arc-unlock-user">Conta do Windows</label><select id="arc-unlock-user" name="windows_user" required aria-label="Conta do Windows"><option value="">Consultando contas…</option></select><label for="arc-unlock-password">Senha</label><div class="arc-unlock-password"><input id="arc-unlock-password" name="windows_password" type="password" maxlength="256" autocomplete="off" required placeholder="Senha da conta"><button type="button" id="arc-unlock-eye" aria-label="Mostrar senha" title="Mostrar senha"><i class="fa fa-eye" aria-hidden="true"></i></button></div><p id="arc-unlock-feedback" role="status" aria-live="polite"></p><div id="arc-unlock-progress" class="arc-unlock-progress" role="status" aria-live="polite" hidden><div class="arc-unlock-ring" id="arc-unlock-ring" style="--arc-unlock-percent:0"><span id="arc-unlock-percent">0%</span></div><div class="arc-unlock-progress-details"><strong id="arc-unlock-stage">Iniciando verificação</strong><small id="arc-unlock-stage-note">Aguardando resposta do serviço</small></div></div><button type="submit" class="button primary" id="arc-unlock-submit" disabled><i class="fa fa-unlock-alt" aria-hidden="true"></i> Entrar</button><small>A autenticação é validada pelo Windows. A senha não é armazenada na plataforma.</small></form></dialog>
+<div id="arc-unlock-success" class="arc-unlock-success" role="status" aria-live="polite" hidden><div class="arc-unlock-success-content"><div class="arc-unlock-check"><i class="fa fa-check" aria-hidden="true"></i></div><strong>Computador desbloqueado</strong><span>O Windows confirmou a sessão.</span></div></div>
 <dialog id="arc-remote-assistance-modal" class="arc-remote-screen-modal" aria-labelledby="arc-remote-assistance-title">
  <div class="arc-remote-screen-head">
   <span class="arc-remote-sr-title" id="arc-remote-assistance-title">Acesso remoto</span><span id="arc-remote-assistance-host" class="arc-remote-sr-title"></span>
@@ -349,13 +350,10 @@ poll();setInterval(()=>{if(!document.hidden && activeProgressId)poll()},1000);
 </dialog>
 <div id="arc-support-moved-grid" class="arc-support-action-grid" hidden>
 
-<a class="arc-remote-request arc-remote-download" id="arc-remote-support-download" href="<?=arc_h(arc_workspace_base_url().'api/download-support.php')?>" download><i class="fa fa-download"></i><span>Baixar suporte</span><small class="arc-tile-version" data-tile-version="support">Versão: verificando…</small></a>
-<button type="button" class="arc-remote-request" data-arc-command="gestor_update" title="Atualizar arquivos do gestor instalado"><i class="fa fa-refresh" aria-hidden="true"></i><span>Atualizar gestor</span><small class="arc-tile-version" data-tile-version="update">Versão: verificando…</small></button>
-<button type="button" class="arc-remote-request" data-arc-command="gestor_update" data-update-force="1" title="Reinstalar integralmente o pacote gerenciado, preservando cadastro e configurações"><i class="fa fa-cloud-download" aria-hidden="true"></i><span>Atualização forçada</span><small>Reinstalar pacote completo</small></button>
 <button type="button" class="arc-remote-request" data-support-action="power_restart" data-power-tile="power_restart"><i class="fa fa-refresh"></i><span>Reiniciar PC</span></button>
-<button type="button" class="arc-remote-request" data-support-action="screen_lock" data-power-tile="screen_lock"><i class="fa fa-lock"></i><span>Bloquear PC</span></button>
-<button type="button" class="arc-remote-request" id="arc-unlock-pc" <?=!in_array($teamRole,['owner','administrator'],true)?'disabled aria-disabled="true"':''?>><i class="fa fa-unlock-alt" aria-hidden="true"></i><span>Desbloquear PC</span></button>
-<button type="button" class="arc-remote-request" id="arc-windows-update" <?=!in_array($teamRole,['owner','administrator'],true)?'disabled':''?>><i class="fa fa-windows"></i><span>Atualizar Windows</span><small id="arc-windows-version">Windows: verificando…</small><small id="arc-windows-status" role="status"></small></button>
+<button type="button" class="arc-remote-request" data-support-action="screen_lock" data-power-tile="screen_lock" hidden><i class="fa fa-lock"></i><span>Bloquear PC</span></button>
+<button type="button" class="arc-remote-request" id="arc-unlock-pc" hidden <?=!in_array($teamRole,['owner','administrator'],true)?'disabled aria-disabled="true"':''?>><i class="fa fa-unlock-alt" aria-hidden="true"></i><span>Desbloquear PC</span></button>
+<small id="arc-pc-session-status" role="status" aria-live="polite" hidden style="grid-column:1/-1;padding:7px 10px;color:var(--muted,#adc5d6)"></small>
 
 <button type="button" class="arc-remote-request <?=!in_array($teamRole,['owner','administrator'],true)?'arc-action-locked':''?>" data-support-action="power_shutdown" data-power-tile="power_shutdown" <?=!in_array($teamRole,['owner','administrator'],true)?'disabled aria-disabled="true"':''?>><i class="fa fa-power-off"></i><span>Desligar PC</span><?=!in_array($teamRole,['owner','administrator'],true)?'<small><i class="fa fa-lock"></i> Somente admin</small>':''?></button><button type="button" class="arc-power-cancel arc-remote-request" data-power-cancel="1" hidden title="Cancelar desligamento agendado" style="font-size:11px;border:1px solid #376587;border-radius:8px;color:#bfe9ff;background:#193149;padding:8px">Cancelar desligamento</button>
 </div>
@@ -644,23 +642,69 @@ $('arc-remote-snapshot')?.addEventListener('click',()=>{
 });
 
 const unlockDialog=$('arc-unlock-dialog'),unlockForm=$('arc-unlock-form'),unlockFeedback=$('arc-unlock-feedback'),unlockSubmit=$('arc-unlock-submit');let unlockGeneration=0,unlockBusy=false,unlockCommandId=0,unlockOwnSession=false,unlockStatusBusy=false;
-const unlockButton=$('arc-unlock-pc'),unlockRoleAllowed=!!unlockButton&&!unlockButton.disabled;
+const unlockProgress=$('arc-unlock-progress'),unlockPercent=$('arc-unlock-percent'),unlockRing=$('arc-unlock-ring'),unlockStage=$('arc-unlock-stage'),unlockStageNote=$('arc-unlock-stage-note');
+function unlockProgressSet(percent,stage,note=''){
+ const value=Math.max(0,Math.min(100,Math.round(percent)));
+ unlockProgress.hidden=false;unlockRing.style.setProperty('--arc-unlock-percent',String(value));unlockPercent.textContent=value+'%';unlockStage.textContent=stage;unlockStageNote.textContent=note;
+}
+function unlockProgressEnd(){unlockProgress.hidden=true;unlockRing.style.setProperty('--arc-unlock-percent','0');unlockPercent.textContent='0%';}
+async function unlockRequest(url,options={}){
+ const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),5000);
+ try{const response=await fetch(url,{...options,signal:controller.signal});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw Error(data.error||'Serviço indisponível.');return data;}
+ catch(error){if(error?.name==='AbortError')throw Error('O serviço demorou a responder. Confira a conexão do gestor.');throw error;}
+ finally{clearTimeout(timeout);}
+}
+const unlockButton=$('arc-unlock-pc'),lockButton=document.querySelector('[data-power-tile="screen_lock"]'),unlockRoleAllowed=!!unlockButton&&!unlockButton.disabled,lockRoleAllowed=<?= json_encode(in_array($teamRole,['owner','administrator'],true)) ?>;
 const unlockUrl=action=>base+'api/remote-screen.php?action='+action+'&command_id='+unlockCommandId;
 async function queryUnlockStatus(){const response=await fetch(base+'api/support.php?action=unlock-status',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(select.value),_csrf:csrf})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Não foi possível consultar o Windows.');return result;}
-async function refreshUnlockButton(){if(!unlockButton||!unlockRoleAllowed||unlockStatusBusy)return;unlockStatusBusy=true;const gestor=select.value;try{const status=await queryUnlockStatus();if(gestor!==select.value)return;unlockButton.disabled=!status.available||status.desktop_state!=='locked';unlockButton.title=status.desktop_state==='unlocked'?'O computador já está desbloqueado':status.desktop_state==='locked'?'Desbloquear Windows':'Aguardando o gestor atualizado informar o estado do Windows';}catch{unlockButton.disabled=true;unlockButton.title='Estado do Windows indisponível';}finally{unlockStatusBusy=false;}}
-if(unlockButton)unlockButton.disabled=true;setInterval(refreshUnlockButton,5000);select.addEventListener('change',()=>{if(unlockButton)unlockButton.disabled=true;refreshUnlockButton();});refreshUnlockButton();
+async function refreshUnlockButton(){
+ if((!unlockButton&&!lockButton)||unlockStatusBusy)return;
+ unlockStatusBusy=true;
+ const gestor=select.value;
+ const hide=()=>{if(lockButton){lockButton.hidden=true;lockButton.disabled=true;}if(unlockButton){unlockButton.hidden=true;unlockButton.disabled=true;}};
+ if(!gestor){hide();unlockStatusBusy=false;return;}
+ try{
+  const status=await queryUnlockStatus();if(gestor!==select.value)return;
+  const locked=status.desktop_state==='locked';
+  const unlocked=status.desktop_state==='unlocked';
+  const indicator=$('arc-pc-session-status');
+  if(indicator){
+   indicator.hidden=locked||unlocked;
+   indicator.textContent='Estado do Windows não confirmado. Verifique se o gestor está ativo; se o PC estiver bloqueado, entre pelo próprio Windows para restabelecer a comunicação.';
+  }
+  // Estado desconhecido ou antigo nunca autoriza uma ação arriscada.
+  if(lockButton){lockButton.hidden=!unlocked||!lockRoleAllowed;lockButton.disabled=!unlocked||!lockRoleAllowed;lockButton.title='Bloquear imediatamente a sessão ativa do Windows';}
+  if(unlockButton){const canUnlock=locked&&status.available&&unlockRoleAllowed;unlockButton.hidden=!canUnlock;unlockButton.disabled=!canUnlock;unlockButton.title='Desbloquear Windows com credenciais válidas';}
+ }catch{hide();const indicator=$('arc-pc-session-status');if(indicator){indicator.hidden=false;indicator.textContent='Não foi possível consultar o gestor. O computador pode estar sem comunicação; desbloqueie localmente e verifique o serviço.';}}finally{unlockStatusBusy=false;}
+}
+function resetPcState(){if(lockButton){lockButton.hidden=true;lockButton.disabled=true;}if(unlockButton){unlockButton.hidden=true;unlockButton.disabled=true;}const indicator=$('arc-pc-session-status');if(indicator)indicator.hidden=true;}
+resetPcState();setInterval(()=>{if(!document.hidden)refreshUnlockButton();},3000);
+select.addEventListener('change',()=>{resetPcState();refreshUnlockButton();});
+document.addEventListener('arc:command-finished',event=>{if(event.detail?.command==='screen_lock'){refreshUnlockButton();setTimeout(refreshUnlockButton,1500);}});
+refreshUnlockButton();
 unlockButton?.addEventListener('click',async()=>{
- unlockForm.reset();const generation=++unlockGeneration;unlockFeedback.textContent='Consultando usuários no computador…';unlockSubmit.disabled=true;
+ unlockForm.reset();unlockProgressEnd();const generation=++unlockGeneration;unlockFeedback.textContent='Consultando usuários no computador…';unlockSubmit.disabled=true;
  const users=unlockForm.elements.windows_user;users.replaceChildren(new Option('Carregando usuários…',''));$('arc-unlock-host').textContent=select.selectedOptions[0]?.textContent||'Computador selecionado';unlockDialog.showModal();
  try{const status=await queryUnlockStatus();if(generation!==unlockGeneration)return;
   if(!status.available||status.desktop_state!=='locked')throw Error('O computador não está bloqueado ou o gestor precisa ser atualizado.');
   if(status.windows_users_error)throw Error('O gestor não conseguiu consultar as contas locais do Windows. Verifique as permissões do serviço do gestor.');
-  if(!status.windows_users?.length)throw Error('Nenhuma conta foi informada. Aguarde a atualização do gestor e tente novamente.');
-  users.replaceChildren(new Option('Selecione seu usuário',''));for(const entry of status.windows_users)users.add(new Option(entry.label,entry.username));if(status.windows_users.length===1)users.selectedIndex=1;
-  unlockFeedback.textContent='Selecione o usuário e digite a senha. O desbloqueio não abre acesso remoto.';unlockSubmit.disabled=false;unlockForm.elements.windows_password.focus();
+  if(!status.windows_users?.length)throw Error('O gestor ainda não enviou contas locais. Atualize o aplicativo WinUI 3 no Windows e confira a comunicação.');
+  users.replaceChildren(new Option('Selecione uma conta',''));for(const entry of status.windows_users)users.add(new Option(entry.label,entry.username));if(status.windows_users.length===1)users.selectedIndex=1;
+  unlockFeedback.textContent='Selecione a conta do Windows. O desbloqueio remoto depende de um componente seguro compatível e ativo no gestor.';unlockSubmit.disabled=false;unlockForm.elements.windows_password.focus();
  }catch(error){if(generation===unlockGeneration){users.replaceChildren(new Option('Usuários indisponíveis',''));unlockFeedback.textContent=error.message;}}});
+$('arc-unlock-eye')?.addEventListener('click',()=>{const field=unlockForm.elements.windows_password;const visible=field.type==='password';field.type=visible?'text':'password';$('arc-unlock-eye').setAttribute('aria-label',visible?'Ocultar senha':'Mostrar senha');$('arc-unlock-eye').querySelector('i').className=visible?'fa fa-eye-slash':'fa fa-eye';});
 $('arc-unlock-close').addEventListener('click',()=>unlockDialog.close());
-unlockDialog.addEventListener('close',()=>{unlockGeneration++;unlockForm.reset();if(unlockOwnSession&&unlockCommandId){fetch(unlockUrl('stop'),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({_csrf:csrf})}).catch(()=>{});}unlockCommandId=0;unlockOwnSession=false;refreshUnlockButton();});
+unlockDialog.addEventListener('close',()=>{unlockGeneration++;unlockProgressEnd();unlockForm.reset();if(unlockOwnSession&&unlockCommandId){fetch(unlockUrl('stop'),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({_csrf:csrf})}).catch(()=>{});}unlockCommandId=0;unlockOwnSession=false;refreshUnlockButton();});
+let unlockSuccessTimer=0;
+function showVerifiedUnlockSuccess(){
+ const success=$('arc-unlock-success');
+ if(!success)return;
+ clearTimeout(unlockSuccessTimer);
+ if(unlockDialog.open)unlockDialog.close();
+ success.hidden=false;success.classList.remove('arc-unlock-success-enter');void success.offsetWidth;success.classList.add('arc-unlock-success-enter');
+ refreshUnlockButton();
+ unlockSuccessTimer=setTimeout(()=>{success.hidden=true;success.classList.remove('arc-unlock-success-enter');},2600);
+}
 function encode64(bytes){let value='';for(const b of bytes)value+=String.fromCharCode(b);return btoa(value);}
 async function encryptUnlock(publicKey,credentials,command){
  const key=await crypto.subtle.importKey('jwk',publicKey.jwk,{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
@@ -670,37 +714,58 @@ async function encryptUnlock(publicKey,credentials,command){
  return blocks;
 }
 unlockForm.addEventListener('submit',async e=>{
- e.preventDefault();if(unlockBusy)return;const generation=++unlockGeneration;unlockBusy=true;unlockSubmit.disabled=true;
- const credentials={username:unlockForm.elements.windows_user.value.trim(),password:unlockForm.elements.windows_password.value};unlockForm.reset();
+ e.preventDefault();if(unlockBusy)return;
+ const generation=++unlockGeneration;unlockBusy=true;unlockSubmit.disabled=true;
+ const credentials={username:unlockForm.elements.windows_user.value.trim(),password:unlockForm.elements.windows_password.value};
+ unlockForm.elements.windows_password.value='';
+ unlockFeedback.textContent='';
+ unlockProgressSet(5,'Verificando conexão','Consultando o serviço remoto');
  try{
-  if(!window.isSecureContext||!crypto.subtle)throw Error('Desbloqueio requer conexão HTTPS e navegador atualizado.');
-  unlockFeedback.textContent='Preparando sessão segura…';
-  const response=await fetch(base+'api/support.php?action=unlock-session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(select.value),_csrf:csrf})});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Não foi possível preparar o desbloqueio.');
+  if(!window.isSecureContext||!crypto.subtle)throw Error('É necessária uma conexão HTTPS para autenticação.');
+  const data=await unlockRequest(base+'api/support.php?action=unlock-session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(select.value),_csrf:csrf})});
   if(generation!==unlockGeneration)return;
   unlockCommandId=Number(data.command_id);unlockOwnSession=!!data.created;
+  unlockProgressSet(20,'Sessão solicitada','Verificando se o Windows aceita autenticação remota');
   let publicKey=null;
-  for(let i=0;i<30;i++){
+  // Sem componente de autenticação, informar cedo em vez de aguardar 30s sem progresso.
+  for(let i=0;i<8;i++){
    if(generation!==unlockGeneration)return;
-   const response=await fetch(unlockUrl('status'),{credentials:'same-origin',cache:'no-store'});const status=await response.json();if(!response.ok||!status.ok||status.stopped)throw Error(status.error||'Atendimento encerrado.');
-   if(status.desktop_state==='unlocked'){unlockDialog.close();return;}
+   const status=await unlockRequest(unlockUrl('status'),{credentials:'same-origin',cache:'no-store'});
+   if(status.stopped)throw Error('O serviço encerrou a sessão.');
+   if(status.desktop_state==='unlocked'){unlockProgressSet(100,'Sessão confirmada','O Windows informou que está desbloqueado');showVerifiedUnlockSuccess();return;}
    if(status.control&&status.unlock_key&&status.unlock_key.expires*1000>Date.now()){publicKey=status.unlock_key;break;}
-   await new Promise(resolve=>setTimeout(resolve,1000));
+   unlockProgressSet(20,'Aguardando autenticação segura',`Tentativa ${i+1} de 8 — aguardando componente do Windows`);
+   if(i<7)await new Promise(resolve=>setTimeout(resolve,1000));
   }
-  if(!publicKey)throw Error('O componente seguro não respondeu. Atualize/reinstale o gestor como administrador e tente novamente.');
-  const blocks=await encryptUnlock(publicKey,credentials,unlockCommandId);credentials.username='';credentials.password='';
+  if(!publicKey)throw Error('O gestor não disponibilizou autenticação remota segura. A interface não consegue desbloquear o Windows sem esse componente; use a entrada local ou uma solução remota autorizada.');
+  unlockProgressSet(45,'Canal seguro disponível','Protegendo os dados de autenticação');
+  const blocks=await encryptUnlock(publicKey,credentials,unlockCommandId);
+  credentials.username='';credentials.password='';
   if(generation!==unlockGeneration)return;
-  const sent=await fetch(unlockUrl('unlock-submit'),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({key_id:publicKey.id,blocks,_csrf:csrf})});blocks.fill('');const queued=await sent.json();if(!sent.ok||!queued.ok)throw Error(queued.error||'Desbloqueio não autorizado.');
-  unlockFeedback.textContent='Pedido enviado ao Windows. Aguardando confirmação…';
-  for(let i=0;i<40;i++){
+  unlockProgressSet(65,'Enviando solicitação','Aguardando confirmação do componente Windows');
+  let queued;
+  try{queued=await unlockRequest(unlockUrl('unlock-submit'),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({key_id:publicKey.id,blocks,_csrf:csrf})});}
+  finally{blocks.fill('');}
+  // 85% representa somente o aceite da solicitação, nunca um desbloqueio presumido.
+  unlockProgressSet(85,'Solicitação recebida','Verificando o estado real da sessão');
+  for(let i=0;i<20;i++){
    if(generation!==unlockGeneration)return;
-   await new Promise(resolve=>setTimeout(resolve,1000));const response=await fetch(unlockUrl('status'),{credentials:'same-origin',cache:'no-store'}),result=await response.json();
-   if(!response.ok||!result.ok||result.stopped)throw Error('Atendimento encerrado.');
-   if(result.desktop_state==='unlocked'||(result.unlock_result?.request_id===queued.request_id&&result.unlock_result.status==='unlocked')){unlockFeedback.textContent='Computador desbloqueado.';setState('Windows desbloqueado.');unlockDialog.close();return;}
-   if(result.unlock_result?.request_id===queued.request_id&&result.unlock_result.status==='failed')throw Error('O Windows não confirmou o desbloqueio. Confira o usuário, a senha e as políticas de login do Windows.');
+   await new Promise(resolve=>setTimeout(resolve,1000));
+   const result=await unlockRequest(unlockUrl('status'),{credentials:'same-origin',cache:'no-store'});
+   if(result.stopped)throw Error('O serviço encerrou a sessão.');
+   if(result.desktop_state==='unlocked'){unlockProgressSet(100,'Computador desbloqueado','Confirmado pelo Windows');setState('Windows desbloqueado.');showVerifiedUnlockSuccess();return;}
+   if(result.unlock_result?.request_id===queued.request_id&&result.unlock_result.status==='failed')throw Error('O Windows não confirmou o desbloqueio. Confira a conta, as credenciais e as políticas da sessão.');
+   unlockStageNote.textContent=`Aguardando confirmação do Windows — ${i+1} de 20 verificações`;
   }
-  throw Error('O Windows não confirmou o resultado no prazo. Confira a tela antes de tentar novamente.');
- }catch(error){unlockFeedback.textContent=error.message;}finally{credentials.username='';credentials.password='';unlockForm.reset();unlockBusy=false;unlockSubmit.disabled=false;}
+  throw Error('Não houve confirmação do desbloqueio no prazo. Verifique o estado do computador antes de tentar novamente.');
+ }catch(error){
+  if(generation===unlockGeneration){unlockProgressEnd();unlockFeedback.textContent=error.message||'Falha na comunicação com o Windows.';}
+ }finally{
+  credentials.username='';credentials.password='';
+  if(generation===unlockGeneration){unlockBusy=false;unlockSubmit.disabled=false;}
+ }
 });
+
 /* ---------- solicitação ---------- */
 open.addEventListener('click',()=>{
  if(!select.value){setState('Selecione um gestor aprovado.');return;}
@@ -865,18 +930,57 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
 .arc-remote-select-label select { font-size: 11px; max-width: 145px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 4px; outline: none; }
 .arc-remote-zoom-value { font: 10px "Segoe UI", sans-serif; color: var(--primary); white-space: nowrap; min-width: 30px; text-align: center; }
 .arc-remote-screen-canvas.controlling { cursor: crosshair; box-shadow: rgb(47, 191, 155) 0px 0px 0px 2px inset; }
-.arc-unlock-dialog { width: min(430px, -24px + 100vw); max-height: 85dvh; overflow: auto; position: fixed; inset: 0px; margin: auto; padding: 0px; border: 1px solid var(--border); border-radius: 16px; background: linear-gradient(155deg,#154d77,#091c35); color: #fff; box-shadow: rgba(0, 0, 0, 0.533) 0px 20px 80px; }
-.arc-unlock-dialog::backdrop { background: rgba(4, 16, 28, 0.72); backdrop-filter: blur(5px); }
-.arc-unlock-dialog form { display: flex; flex-direction: column; gap: 16px; padding: 30px; }
-.arc-unlock-dialog header { position: relative; display: flex; flex-direction: column; gap: 14px; align-items: center; padding-top: 12px; }
-.arc-unlock-dialog header button { position: absolute; right: -18px; top: -20px; color: #fff; }
-#arc-unlock-host { text-align: center; color: #c7e4f7; }
-.arc-unlock-dialog header > i { font-size: 76px; color: #e9f5ff; }
-.arc-unlock-dialog header h2 { font-size: 24px; font-weight: 500; margin: 0px; }
-.arc-unlock-dialog label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
-.arc-unlock-dialog input, .arc-unlock-dialog select { font-size: 16px; min-width: 0px; width: 100%; box-sizing: border-box; padding: 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); }
-.arc-unlock-dialog p { margin: 0px; font-size: 14px; line-height: 1.4; }
-.arc-unlock-dialog small { color: #c1d7e7; line-height: 1.4; }
+.arc-unlock-dialog{width:min(350px,calc(100vw - 28px));max-height:calc(100dvh - 26px);overflow:auto;position:fixed;inset:0;margin:auto;padding:0;border:1px solid rgba(180,213,242,.32);border-radius:18px;background:linear-gradient(150deg,#145080 0%,#0c3157 48%,#081b33 100%);color:#f8fbff;box-shadow:0 24px 78px rgba(0,0,0,.56);font-family:"Segoe UI",system-ui,sans-serif;color-scheme:dark}
+.arc-unlock-dialog::backdrop{background:rgba(4,12,26,.7);backdrop-filter:blur(9px)}
+.arc-unlock-dialog form{display:flex;flex-direction:column;gap:7px;padding:22px 22px 19px;max-width:100%;box-sizing:border-box}
+.arc-unlock-dialog header{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:4px 20px 13px;text-align:center}
+.arc-unlock-dialog header #arc-unlock-close{position:absolute;right:-10px;top:-10px;width:29px;height:29px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
+.arc-unlock-avatar{display:grid;place-items:center;width:64px;height:64px;background:linear-gradient(160deg,#f7fbff,#bacddf);color:#16456d;border:3px solid rgba(255,255,255,.25);border-radius:50%;margin-bottom:5px;font-size:31px}
+.arc-unlock-dialog header h2{font-size:19px;line-height:1.2;font-weight:500;margin:0;color:#fff}
+#arc-unlock-host{margin:0;font-size:12px;line-height:1.3;color:#c0d8eb;max-width:100%;overflow-wrap:anywhere}
+.arc-unlock-dialog label{font-size:12px;font-weight:600;color:#e4eff9;margin-top:5px}
+.arc-unlock-dialog select,.arc-unlock-dialog input{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:41px;padding:9px 12px;border-radius:8px;border:1px solid #7197ba;background:rgba(10,28,50,.83);color:#fff;font:14px "Segoe UI",system-ui,sans-serif;outline:none}
+.arc-unlock-dialog select:focus,.arc-unlock-dialog input:focus{border-color:#a6c6fb;box-shadow:0 0 0 2px rgba(153,187,251,.23)}
+.arc-unlock-password{position:relative}.arc-unlock-password input{padding-right:40px}.arc-unlock-password button{position:absolute;right:4px;top:4px;width:34px;height:33px;border:0;background:transparent;color:#c3d6e9;cursor:pointer}
+#arc-unlock-feedback{font-size:12px;line-height:1.35;color:#e2edfa;min-height:0;margin:7px 0 3px;overflow-wrap:anywhere}
+#arc-unlock-submit{width:100%;min-height:42px;border:1px solid #a2b9ef;border-radius:9px;background:#a9bff3;color:#12203b;font-size:14px;font-weight:600;cursor:pointer}
+#arc-unlock-submit:disabled{opacity:.52;cursor:not-allowed}
+#arc-unlock-progress[hidden]{display:none!important}
+.arc-unlock-progress{display:flex;align-items:center;gap:12px;margin:7px 0;padding:9px 10px;border:1px solid rgba(180,215,249,.22);border-radius:11px;background:rgba(3,18,40,.36)}
+.arc-unlock-ring{--arc-unlock-percent:0;position:relative;width:58px;height:58px;flex:0 0 58px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#9cc6ff calc(var(--arc-unlock-percent)*1%),rgba(198,218,240,.15) 0);transition:background .15s}
+.arc-unlock-ring:before{content:'';position:absolute;inset:6px;border-radius:50%;background:#123454}
+.arc-unlock-ring span{position:relative;z-index:1;font-size:12px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.arc-unlock-progress-details{display:flex;flex-direction:column;min-width:0;gap:4px}.arc-unlock-progress-details strong{font-size:12px;line-height:1.3;font-weight:600}.arc-unlock-progress-details small{font-size:10px!important;margin:0!important;color:#bfd6eb;text-align:left!important;line-height:1.35}
+@media(prefers-reduced-motion:reduce){.arc-unlock-ring{transition:none}}
+
+.arc-unlock-dialog small{font-size:10px;line-height:1.35;color:#b7cde1;text-align:center;margin-top:6px}
+@media(max-width:380px){.arc-unlock-dialog form{padding:17px}.arc-unlock-avatar{width:55px;height:55px;font-size:26px}}
+/* Modal de login compacto, símbolo Microsoft e confirmação somente após estado validado */
+.arc-unlock-dialog{width:min(310px,calc(100vw - 30px));border-radius:14px}
+.arc-unlock-dialog form{gap:5px;padding:15px 17px 16px}
+.arc-unlock-dialog header{gap:4px;padding:0 8px 8px}
+.arc-unlock-dialog header #arc-unlock-close{right:-8px;top:-7px;width:27px;height:27px}
+.arc-unlock-avatar{background:none;border:0;border-radius:0;width:72px;height:72px;font-size:initial;margin:0 0 3px;color:inherit}
+.arc-ms-mark{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:4px;width:62px;height:62px;transform:scale(.9)}
+.arc-ms-mark span:nth-child(1){background:#f25022}.arc-ms-mark span:nth-child(2){background:#7fba00}.arc-ms-mark span:nth-child(3){background:#00a4ef}.arc-ms-mark span:nth-child(4){background:#ffb900}
+.arc-unlock-dialog .arc-visually-hidden{position:absolute!important;clip:rect(0,0,0,0);clip-path:inset(50%);width:1px;height:1px;white-space:nowrap;overflow:hidden}
+#arc-unlock-host{font-size:15px;font-weight:500;color:#fff;letter-spacing:.3px}
+.arc-unlock-dialog label{font-size:11px;margin-top:4px}
+.arc-unlock-dialog select,.arc-unlock-dialog input{min-height:37px;padding:6px 9px;font-size:13px}
+.arc-unlock-password button{height:28px;top:4px}
+#arc-unlock-feedback{margin:3px 0;font-size:11px}
+#arc-unlock-submit{min-height:39px;font-size:13px}
+.arc-unlock-dialog small{font-size:9px;margin-top:4px}
+.arc-unlock-success[hidden]{display:none!important}
+.arc-unlock-success{position:fixed;inset:0;z-index:2147483645;background:rgba(3,13,31,.62);backdrop-filter:blur(8px);display:grid;place-items:center;padding:18px;box-sizing:border-box}
+.arc-unlock-success-content{width:min(300px,calc(100vw - 36px));padding:28px 18px;box-sizing:border-box;border-radius:16px;background:linear-gradient(145deg,#124a78,#071f3e);border:1px solid rgba(196,219,255,.35);color:#fff;box-shadow:0 22px 60px #0007;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;font-family:"Segoe UI",system-ui,sans-serif}
+.arc-unlock-check{width:64px;height:64px;border:2px solid #b9edce;color:#b9edce;border-radius:50%;display:grid;place-items:center;font-size:30px}
+.arc-unlock-success-content strong{font-size:17px}.arc-unlock-success-content span{font-size:12px;color:#c8dcec}
+.arc-unlock-success-enter .arc-unlock-success-content{animation:arcUnlockPop .4s cubic-bezier(.18,1.4,.35,1) both}
+.arc-unlock-success-enter .arc-unlock-check{animation:arcUnlockCheck .55s .15s ease both}
+@keyframes arcUnlockPop{from{opacity:0;transform:translateY(18px) scale(.82)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes arcUnlockCheck{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.arc-unlock-success-enter .arc-unlock-success-content,.arc-unlock-success-enter .arc-unlock-check{animation:none}}
 #arc-support-dashboard{width:100%;min-width:0;min-height:0;flex:1;overflow:auto}#arc-support-dashboard header{padding:8px 12px}#arc-support-dashboard h2{font-size:18px;margin:0 0 6px}#arc-support-dashboard p{font-size:14px;color:var(--muted)}
 .arc-windows-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px}.arc-windows-dialog ul{padding-left:22px;max-height:45dvh;overflow:auto}.arc-windows-dialog li{padding:8px 0;overflow-wrap:anywhere}.arc-windows-dialog li small{display:block;color:var(--muted)}
 #arc-windows-update.arc-windows-available{border-color:#efb544;animation:arcUpdateAlert 1.5s ease-in-out infinite}#arc-windows-update.arc-windows-available>i{color:#efb544}
@@ -974,4 +1078,21 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
 .arc-remote-screen-modal { width: 100vw; max-width: none; }
 .arc-remote-shortcuts { gap: 6px; }
 }
+</style>
+
+
+
+<style>
+/* Refinamento visual do login Windows: entrada suave, brilho do avatar e feedback de foco. */
+.arc-unlock-dialog[open]{animation:arcWinLoginIn .28s cubic-bezier(.18,.82,.28,1) both}
+.arc-unlock-dialog[open]::backdrop{animation:arcWinBackdrop .25s ease both}
+.arc-unlock-dialog[open] .arc-unlock-avatar{animation:arcWinAvatar .7s .06s cubic-bezier(.2,1.4,.4,1) both}
+.arc-unlock-dialog[open] label,.arc-unlock-dialog[open] select,.arc-unlock-dialog[open] .arc-unlock-password,.arc-unlock-dialog[open] #arc-unlock-submit{animation:arcWinFieldIn .3s ease both;animation-delay:calc(var(--arc-delay,0) * 45ms)}
+.arc-unlock-dialog[open] label:nth-of-type(1),.arc-unlock-dialog[open] select{--arc-delay:1}.arc-unlock-dialog[open] label:nth-of-type(2),.arc-unlock-dialog[open] .arc-unlock-password{--arc-delay:2}.arc-unlock-dialog[open] #arc-unlock-submit{--arc-delay:3}
+.arc-unlock-dialog select:focus,.arc-unlock-dialog input:focus{border-color:#9ec5ff;box-shadow:0 0 0 3px rgba(95,166,255,.22),0 0 18px rgba(95,166,255,.12);transition:box-shadow .2s ease,border-color .2s ease}
+@keyframes arcWinLoginIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes arcWinBackdrop{from{opacity:0}to{opacity:1}}
+@keyframes arcWinAvatar{from{opacity:0;transform:scale(.72) rotate(-8deg)}to{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes arcWinFieldIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.arc-unlock-dialog[open],.arc-unlock-dialog[open]::backdrop,.arc-unlock-dialog[open] .arc-unlock-avatar,.arc-unlock-dialog[open] label,.arc-unlock-dialog[open] select,.arc-unlock-dialog[open] .arc-unlock-password,.arc-unlock-dialog[open] #arc-unlock-submit{animation:none}}
 </style>

@@ -90,8 +90,8 @@ public static class PrecompiledUpdateService
             var ver = response.Headers.GetValues("X-Gestor-Version").First();
             UpdatePresentation.SetTarget(ver);
             var expected = response.Headers.GetValues("X-Package-SHA256").First();
-            if (!Version.TryParse(ver,out var remoteVersion) || !Version.TryParse(AppInfo.Version,out var currentVersion)) throw new InvalidOperationException("Versao invalida no manifesto remoto.");
-            if (!force && remoteVersion < currentVersion) throw new InvalidOperationException("Retrocesso de versao bloqueado.");
+            if (!AppInfo.TryCompareRelease(ver,AppInfo.Version,out var releaseComparison)) throw new InvalidOperationException("Versao invalida no manifesto remoto.");
+            if (!force && releaseComparison < 0) throw new InvalidOperationException("Retrocesso de versao bloqueado.");
             if (expected.Length != 64 || expected.Any(c=>!Uri.IsHexDigit(c))) throw new InvalidOperationException("SHA256 remoto invalido.");
             var zip = Path.Combine(work,"delta.zip");
             await using (var source=await response.Content.ReadAsStreamAsync(ct))

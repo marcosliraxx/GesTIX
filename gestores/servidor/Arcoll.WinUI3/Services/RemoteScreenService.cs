@@ -85,7 +85,7 @@ public sealed class RemoteScreenService : IDisposable
                         var body = new Dictionary<string, object?>
                         {
                             ["control"] = true,
-                            ["desktop_state"] = "unlocked",
+                            // O estado da área de trabalho é apurado pelo monitor interativo, não presumido na transmissão.
                             ["selected_monitor"] = "primary",
                             ["monitors"] = new[] { new { id = "primary", label = "Tela principal", width = GetSystemMetrics(0), height = GetSystemMetrics(1), primary = true } },
                         };

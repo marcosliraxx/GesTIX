@@ -45,7 +45,7 @@ try{
   if(!$target)throw new RuntimeException('Computador indisponível.');
   $state=json_decode((string)@file_get_contents(ARC_PRIVATE_DIR.'/storage/remote-screen/gestor-'.$gestor.'.json'),true);
   $fresh=is_array($state)&&time()-(int)($state['updated']??0)<=15;
-  arc_json(['ok'=>true,'desktop_state'=>$fresh?($state['desktop_state']??'unknown'):'unknown','windows_users'=>$fresh?($state['windows_users']??[]):[],'windows_users_error'=>$fresh&&!empty($state['windows_users_error']),'available'=>$fresh&&(int)$target['headless_mode']===1,'gestor_version'=>$target['gestor_version']]);
+  arc_json(['ok'=>true,'desktop_state'=>$fresh?($state['desktop_state']??'unknown'):'unknown','windows_users'=>$fresh?($state['windows_users']??[]):[],'windows_users_error'=>$fresh&&!empty($state['windows_users_error']),'available'=>$fresh&&(int)$target['headless_mode']===1,'online'=>$fresh,'gestor_version'=>$target['gestor_version']]);
  }
  if($action==='unlock-session'){
   if(array_diff(array_keys($v),['network_id','gestor_id','_csrf']))throw new RuntimeException('Pedido de sessão inválido.');

@@ -1064,3 +1064,18 @@ html[data-arc-design] body.arc-page-redes :is(.arp-dashboard,.arp-details,.arc-c
 html[data-arc-design] body.arc-page-redes :is(.arp-toolbar,.arp-footer) {
   color:var(--text);border-color:var(--border);background-color:var(--surface-alt);
 }
+
+/* Header compacto: somente o botão Windows; a seleção continua disponível internamente para as telas. */
+.arc-gestor-status-only{display:flex!important;align-items:center!important;width:36px!important;min-width:36px!important;max-width:36px!important;height:36px!important;border:0!important;background:transparent!important;overflow:visible!important}
+.arc-gestor-target-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;clip:rect(0 0 0 0)!important}
+.arc-gestor-window-button{width:36px!important;height:36px!important;min-width:36px!important;border:1px solid var(--border)!important;border-radius:10px!important;display:grid!important;place-items:center!important;transition:color .2s ease,border-color .2s ease,background .2s ease,transform .2s ease!important}
+.arc-gestor-window-button:hover{transform:translateY(-1px);background:var(--surface-alt)!important}
+.arc-gestor-window-button[data-gestor-state="online"]{color:#36d58e!important;border-color:#36d58e!important;background:rgba(54,213,142,.10)!important}
+.arc-gestor-window-button[data-gestor-state="offline"]{color:#ef626f!important;border-color:#ef626f!important;background:rgba(239,98,111,.10)!important}
+.arc-gestor-window-button[data-gestor-state="update"]{color:#f3b82e!important;border-color:#f3b82e!important;background:rgba(243,184,46,.12)!important;animation:arcGestorUpdatePulse 1.5s ease-in-out infinite}
+.arc-gestor-window-button[data-gestor-state="none"]{color:#8998a8!important;border-color:#8998a8!important;background:rgba(137,152,168,.10)!important}
+@keyframes arcGestorUpdatePulse{50%{box-shadow:0 0 0 4px rgba(243,184,46,.13)}}
+@media(prefers-reduced-motion:reduce){.arc-gestor-window-button[data-gestor-state="update"]{animation:none}}
+/* O botão deve permanecer alinhado aos demais controles do header. */
+.app-header #arc-gestor-form .arc-redes-header-left{width:auto!important;flex:0 0 auto!important;align-items:center!important}
+.app-header #arc-gestor-form .arc-gestor-status-only{margin:0!important;align-self:center!important}

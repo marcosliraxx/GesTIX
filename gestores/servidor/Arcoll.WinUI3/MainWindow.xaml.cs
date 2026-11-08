@@ -47,23 +47,25 @@ public sealed partial class MainWindow : Window
     private sealed record MenuItem(string Key, string Label, Symbol Icon, int Band = 0);
     private sealed record MenuGroup(string Key, string Label, Symbol Icon, MenuItem[] Items);
     private static readonly MenuGroup[] Groups = {
-        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.Home), new MenuItem("server", "Servidor", Symbol.Setting, 1), new MenuItem("speed", "Internet", Symbol.World, 1), new MenuItem("health", "Pente-Fino", Symbol.Filter, 1) }),
-        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("clean", "Limpeza", Symbol.Delete), new MenuItem("registry", "Registro", Symbol.Repair), new MenuItem("startup", "Inicialização", Symbol.Play), new MenuItem("performance", "Desempenho", Symbol.View, 1), new MenuItem("restore", "Restauração", Symbol.Undo, 1), new MenuItem("security", "Segurança", Symbol.Important, 1), new MenuItem("options", "Configurações", Symbol.Setting, 2) }),
+        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.View) }),
+        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("health", "Pente-Fino", Symbol.Filter), new MenuItem("clean", "Limpeza", Symbol.Delete), new MenuItem("registry", "Registro", Symbol.Repair), new MenuItem("startup", "Inicialização", Symbol.Play), new MenuItem("performance", "Desempenho", Symbol.View, 1), new MenuItem("restore", "Restauração", Symbol.Undo, 1), new MenuItem("security", "Segurança", Symbol.Important, 1), new MenuItem("options", "Configurações", Symbol.Setting, 2) }),
         new("software", "Aplicativos", Symbol.Library, new[] { new MenuItem("programs", "Programas", Symbol.Library), new MenuItem("uninstall", "Desinstalar", Symbol.Remove), new MenuItem("updater", "Atualizações", Symbol.Refresh, 1), new MenuItem("drivers", "Drivers", Symbol.AllApps, 1), new MenuItem("windows_update", "Windows Update", Symbol.Download, 1) }),
         new("storage", "Armazenamento", Symbol.Folder, new[] { new MenuItem("disk", "Disco", Symbol.Folder), new MenuItem("duplicates", "Duplicados", Symbol.Copy), new MenuItem("cloud", "Sincronizados", Symbol.World, 1) }),
         new("backup_center", "Backup", Symbol.Save, new[] { new MenuItem("backup", "Visão geral", Symbol.Home), new MenuItem("backup_cloud", "Nuvem", Symbol.World), new MenuItem("backup_local", "Local / NAS", Symbol.Folder), new MenuItem("backup_restore", "Restauração", Symbol.Undo, 1), new MenuItem("backup_history", "Atividade", Symbol.Clock, 1), new MenuItem("backup_settings", "Destinos", Symbol.Setting, 1), new MenuItem("backup_drive", "Disco virtual", Symbol.Save, 1) }),
-        new("network", "Rede", Symbol.World, new[] { new MenuItem("devices", "Dispositivos", Symbol.AllApps), new MenuItem("map", "Mapa", Symbol.Map), new MenuItem("files", "Arquivos", Symbol.Folder, 1) }),
+        new("network", "Rede", Symbol.World, new[] { new MenuItem("speed", "Internet", Symbol.World), new MenuItem("devices", "Dispositivos", Symbol.AllApps), new MenuItem("map", "Mapa", Symbol.Map), new MenuItem("files", "Arquivos", Symbol.Folder, 1) }),
         new("service", "Atendimento", Symbol.Help, new[] { new MenuItem("support", "Suporte", Symbol.Help), new MenuItem("tickets", "Chamados", Symbol.Message) })
     };
     private readonly Dictionary<string, Button> _tabs = new(), _menus = new();
     private readonly Dictionary<string, string> _lastSection = new();
     private readonly List<Border> _separators = new();
     private readonly Dictionary<string, Button> _stars = new();
+    // O primeiro item de cada categoria é o acesso principal e não pode ser favoritado.
+    private static readonly HashSet<string> PrimaryMenuKeys = new(Groups.Select(g => g.Items[0].Key), StringComparer.Ordinal);
     private readonly HashSet<string> _favorites = LoadFavorites();
     private static string FavoritesFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TI-Digital", "menu-favorites.json");
     private static HashSet<string> LoadFavorites()
     {
-        try { if (File.Exists(FavoritesFile)) return new(JsonSerializer.Deserialize<string[]>(File.ReadAllText(FavoritesFile)) ?? Array.Empty<string>()); }
+        try { if (File.Exists(FavoritesFile)) return new((JsonSerializer.Deserialize<string[]>(File.ReadAllText(FavoritesFile)) ?? Array.Empty<string>()).Where(key => !PrimaryMenuKeys.Contains(key) && Groups.Any(g => g.Items.Any(i => i.Key == key))), StringComparer.Ordinal); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
         return new();
     }
@@ -72,6 +74,11 @@ public sealed partial class MainWindow : Window
         try { Directory.CreateDirectory(Path.GetDirectoryName(FavoritesFile)!); File.WriteAllText(FavoritesFile, JsonSerializer.Serialize(_favorites.OrderBy(x => x).ToArray())); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { RuntimeLog.Write("Favoritos do menu: " + ex.Message); }
     }
+    // Favoritos vivem somente na categoria Início; fora dela o item deixa de aparecer no menu de origem.
+    private MenuGroup ResolveGroup(string section) => _favorites.Contains(section)
+        ? Groups[0]
+        : Groups.FirstOrDefault(g => g.Items.Any(i => i.Key == section)) ?? Groups[0];
+    private string LastSectionFor(MenuGroup group) => _lastSection.TryGetValue(group.Key, out var last) && ResolveGroup(last).Key == group.Key ? last : group.Items[0].Key;
     private string _group = "home";
     private GestorTheme? _appliedTheme;
     private AuthState? _paletteState;
@@ -91,7 +98,7 @@ public sealed partial class MainWindow : Window
         _backupPage = new BackupCenterPage(_runtime);
         _backupLoop = new BackupBackgroundLoop(() => { var c = _runtime.Platform.Config; return new(c.Origin,c.Fingerprint,c.SiteCode,c.DownloadKey); }, () => _runtime.Allowed, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TI-Digital", "BackupCache"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TI-Digital", "Restaurados"), log: RuntimeLog.Write);
         _backupLoop.Start();
-        _penteFinoPage = new PenteFinoPage(_runtime, ConfirmAsync, SelectSection, ElevatePenteFinoAsync);
+        _penteFinoPage = new PenteFinoPage(_runtime, ConfirmAsync, SelectSection);
         _tools.Add("registry", new RegistryPage(_runtime, ConfirmAsync)); _tools.Add("startup", new StartupPage(_runtime, ConfirmAsync));
         _tools.Add("performance", new PerformancePage(_runtime, ConfirmAsync)); _tools.Add("restore", new RestorePage(_runtime, ConfirmAsync));
         _tools.Add("security", new SecurityPage(_runtime, ConfirmAsync));
@@ -153,7 +160,7 @@ public sealed partial class MainWindow : Window
             var tab = new Button { Tag = group.Key, Content = label, Style = (Style)RootGrid.Resources["RibbonTab"], Margin = new Thickness(0) };
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(tab, "category-" + group.Key);
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(tab, group.Label);
-            tab.Click += (_, _) => QueueSectionNavigation(_lastSection.GetValueOrDefault(group.Key, group.Items[0].Key));
+            tab.Click += (_, _) => QueueSectionNavigation(LastSectionFor(group));
             tab.PointerEntered += (_, _) => SetNavigationHover(tab, true); tab.PointerExited += (_, _) => SetNavigationHover(tab, false);
             _tabs.Add(group.Key, tab); CategoryTabs.Children.Add(tab);
         }
@@ -162,9 +169,16 @@ public sealed partial class MainWindow : Window
     {
         RibbonMenus.Children.Clear(); _menus.Clear(); _separators.Clear(); _stars.Clear();
         // Botões em faixas (bandas) separadas por linha vertical; favoritos vêm primeiro dentro da própria faixa.
-        var ordered = group.Items.Select((item, index) => (item, index))
-            .OrderBy(x => x.item.Band).ThenByDescending(x => _favorites.Contains(x.item.Key)).ThenBy(x => x.index).Select(x => x.item).ToArray();
-        var band = ordered[0].Band;
+        // Favoritos pertencem exclusivamente à faixa Início: saem do menu de origem e não se duplicam.
+        var items = group.Key == "home"
+            ? group.Items.Concat(Groups.Where(g => g.Key != "home").SelectMany(g => g.Items).Where(i => _favorites.Contains(i.Key)))
+            : group.Items.Where(i => !_favorites.Contains(i.Key));
+        // A entrada principal permanece sempre em primeiro lugar, mesmo com favoritos.
+        var primary = group.Items[0].Key;
+        var ordered = items.DistinctBy(i => i.Key).Select((item, index) => (item, index))
+            .OrderBy(x => x.item.Key == primary ? -1 : (group.Key == "home" ? 0 : x.item.Band))
+            .ThenBy(x => x.index).Select(x => x.item).ToArray();
+        var band = ordered.Length > 0 ? ordered[0].Band : 0;
         foreach (var item in ordered)
         {
             if (item.Band != band)
@@ -183,18 +197,38 @@ public sealed partial class MainWindow : Window
             button.Click += Menu_Click;
             button.PointerEntered += (_, _) => SetNavigationHover(button, true); button.PointerExited += (_, _) => SetNavigationHover(button, false);
             _menus.Add(item.Key, button);
-            var star = new Button { Tag = item.Key, Style = (Style)RootGrid.Resources["FlatButton"], Width = 22, Height = 22, Padding = new Thickness(0), CornerRadius = new CornerRadius(11), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 1, 0), Content = new FontIcon { FontSize = 11 } };
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(star, "Favoritar " + item.Label); ToolTipService.SetToolTip(star, "Favoritar");
-            star.Click += (_, _) =>
+            var cell = new Grid(); cell.Children.Add(button);
+            // Menus principais (primeiro item de cada categoria) não exibem estrela.
+            // Os demais podem ser fixados exclusivamente na categoria Início.
+            if (!PrimaryMenuKeys.Contains(item.Key))
             {
-                if (!_favorites.Remove(item.Key)) _favorites.Add(item.Key);
-                SaveFavorites(); BuildRibbon(group); ApplyTheme(_themes.Current);
-            };
-            _stars.Add(item.Key, star);
-            var cell = new Grid(); cell.Children.Add(button); cell.Children.Add(star);
+                var star = new Button { Tag = item.Key, Style = (Style)RootGrid.Resources["FlatButton"], Width = 22, Height = 22, Padding = new Thickness(0), CornerRadius = new CornerRadius(11), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 1, 0), Content = new FontIcon { FontSize = 11 } };
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(star, "Favoritar " + item.Label); ToolTipService.SetToolTip(star, "Favoritar");
+                star.Click += (_, _) =>
+                {
+                    if (!_favorites.Remove(item.Key)) _favorites.Add(item.Key);
+                    SaveFavorites();
+                    // Reconstrói a faixa fora do evento Click: o botão clicado pertence à árvore que será substituída.
+                    if (!DispatcherQueue.TryEnqueue(RefreshRibbonAfterFavorite)) RuntimeLog.Write("Favoritos do menu: DispatcherQueue indisponível.");
+                };
+                _stars.Add(item.Key, star); cell.Children.Add(star);
+            }
             RibbonMenus.Children.Add(cell);
         }
         RibbonScroll.ChangeView(0, null, null, true);
+    }
+    private void RefreshRibbonAfterFavorite()
+    {
+        try
+        {
+            foreach (var entry in _lastSection.ToArray()) if (ResolveGroup(entry.Value).Key != entry.Key) _lastSection.Remove(entry.Key);
+            // A área aberta continua visível; apenas a categoria que a contém muda (Início para favoritos, origem ao desfavoritar).
+            var current = ResolveGroup(_section);
+            _group = current.Key; _lastSection[current.Key] = _section;
+            BuildRibbon(current); ApplyTheme(_themes.Current);
+            UpdateHybridHeading(); PublishHybridState();
+        }
+        catch (Exception ex) { RuntimeLog.Write("Favoritos do menu: " + ex); }
     }
     private void ApplyTheme(GestorTheme t)
     {
@@ -269,14 +303,16 @@ public sealed partial class MainWindow : Window
     private void SelectSectionCore(string section)
     {
         if(section=="monitor")section="server";
-        if (section == _section && (_menus.Count > 0) && (CompactHost.Content is not null || (_hybridReady && HybridDashboard.Visibility == Visibility.Visible)))
+        if (!Groups.Any(g => g.Items.Any(i => i.Key == section))) section = "panel";
+        var group = ResolveGroup(section);
+        if (section == _section && _group == group.Key && (_menus.Count > 0) && (CompactHost.Content is not null || (_hybridReady && HybridDashboard.Visibility == Visibility.Visible)))
         {
             RuntimeLog.Write("Navegação: área já ativa: " + section);
             return;
         }
+        ShowPageLoading("Preparando " + section, 5);
         RuntimeLog.Write("Navegação: iniciando " + section);
-        var group = Groups.FirstOrDefault(g => g.Items.Any(i => i.Key == section)) ?? Groups[0];
-        if (!group.Items.Any(i => i.Key == section)) section = "panel";
+        // Um favorito sempre abre dentro da faixa Início; os demais, na categoria de origem.
         _section = section; _lastSection[group.Key] = section;
         if (_group != group.Key || _menus.Count == 0) { _group = group.Key; BuildRibbon(group); }
         // Cada ferramenta tem sua página e seu estado; trocar menus não cancela nem reinicia operações.
@@ -298,6 +334,7 @@ public sealed partial class MainWindow : Window
         // mantém a animação no painel web sem competir com o carregamento WinUI.
         if (section == "panel" && _hybridReady) AnimateHybridPage();
         PublishHybridState();
+        FinishPageLoading();
         RuntimeLog.Write("Navegação: concluída " + section);
     }
     private async void Refresh_Click(object sender, RoutedEventArgs e)

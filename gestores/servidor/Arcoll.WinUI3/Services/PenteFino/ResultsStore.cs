@@ -15,10 +15,9 @@ public sealed class ResultsStore
             var acl=new System.Security.AccessControl.DirectorySecurity();acl.SetAccessRuleProtection(true,false);
             using var identity=System.Security.Principal.WindowsIdentity.GetCurrent();
             var administrators=new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid,null);
-            acl.SetOwner(administrators);
-            foreach(var sid in new[]{administrators,new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.LocalSystemSid,null)})
+            acl.SetOwner(identity.User!);
+            foreach(var sid in new[]{identity.User!,administrators,new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.LocalSystemSid,null)})
                 acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(sid,System.Security.AccessControl.FileSystemRights.FullControl,System.Security.AccessControl.InheritanceFlags.ContainerInherit|System.Security.AccessControl.InheritanceFlags.ObjectInherit,System.Security.AccessControl.PropagationFlags.None,System.Security.AccessControl.AccessControlType.Allow));
-            acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(identity.User!,System.Security.AccessControl.FileSystemRights.ReadAndExecute,System.Security.AccessControl.InheritanceFlags.ContainerInherit|System.Security.AccessControl.InheritanceFlags.ObjectInherit,System.Security.AccessControl.PropagationFlags.None,System.Security.AccessControl.AccessControlType.Allow));
             System.IO.FileSystemAclExtensions.SetAccessControl(new DirectoryInfo(Root),acl);
         }
         using var db=Open();using var sql=db.CreateCommand();sql.CommandText="CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY CHECK(id=1),json TEXT NOT NULL);CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY,at TEXT NOT NULL,json TEXT NOT NULL);CREATE TABLE IF NOT EXISTS undo(id TEXT PRIMARY KEY,session TEXT NOT NULL,at TEXT NOT NULL,json TEXT NOT NULL);CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT,at TEXT NOT NULL,json TEXT NOT NULL,previous TEXT NOT NULL,hash TEXT NOT NULL);";sql.ExecuteNonQuery();}

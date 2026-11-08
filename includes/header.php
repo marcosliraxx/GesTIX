@@ -318,20 +318,14 @@ if ($arcFlashText !== ''): ?>
     $arcGestorOnline=false;
     foreach($networkGestores as $a){if((int)$a['id']===$selectedGestorId){$arcGestorOnline=($a['status']??'')==='approved' && !empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-12;break;}}
    ?>
-   <div class="arc-gestor-selector-group">
-   <label class="arc-gestor-select-wrap <?= $arcGestorOnline?'is-online':'is-offline' ?>" for="arc-gestor-target" title="Escolher gestor Windows">
-    <span id="arc-connection-status" class="arc-gestor-state <?= $arcGestorOnline?'is-online':'is-offline' ?>" role="status" title="<?= $arcGestorOnline?'Gestor online':'Gestor offline' ?>" aria-label="<?= $arcGestorOnline?'Gestor online':'Gestor offline' ?>"></span>
-    <select id="arc-gestor-target" name="gestor" aria-label="Selecionar gestor Windows">
-     <option value="">Selecionar gestor</option>
-     <?php foreach($networkGestores as $a): if(($a['status']??'')!=='approved')continue;
-      $arcOptionOnline=!empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-12;
-     ?>
-      <option value="<?= (int)$a['id'] ?>" class="<?= $arcOptionOnline?'arc-option-online':'arc-option-offline' ?>" data-headless="<?= (int)($a['headless_mode']??0)===1?'1':'0' ?>" <?= $selectedGestorId===(int)$a['id']?'selected':'' ?>><?= arc_h((string)($a['machine_name']??'Gestor')) ?></option>
+   <div class="arc-gestor-selector-group arc-gestor-status-only">
+    <select id="arc-gestor-target" name="gestor" class="arc-gestor-target-hidden" aria-hidden="true" tabindex="-1">
+     <option value="">Nenhum gestor</option>
+     <?php foreach($networkGestores as $a): if(($a['status']??'')!=='approved')continue; ?>
+      <option value="<?= (int)$a['id'] ?>" data-headless="<?= (int)($a['headless_mode']??0)===1?'1':'0' ?>" <?= $selectedGestorId===(int)$a['id']?'selected':'' ?>><?= arc_h((string)($a['machine_name']??'Gestor')) ?></option>
      <?php endforeach; ?>
     </select>
-   </label>
-   <button type="button" id="arc-header-gestor-update" class="arc-header-update-icon" title="Gestor Windows: instalar ou atualizar" aria-label="Abrir informações e atualização do gestor Windows" aria-haspopup="dialog" aria-controls="arc-gestor-update-confirm" data-update-available="0"><i class="fa fa-windows" aria-hidden="true"></i></button>
-   <button type="button" class="arc-net-status-badge" id="arc-network-global-state" data-network-status-id="<?= (int)$networkId ?>" data-gestor-state="none" title="Atualizar situação do gestor" aria-label="Atualizar situação do gestor"><i class="fa fa-desktop" aria-hidden="true"></i></button>
+    <button type="button" class="arc-net-status-badge arc-gestor-window-button arc-header-update-icon" id="arc-header-gestor-update" data-gestor-state="<?= $selectedGestorId ? ($arcGestorOnline?'online':'offline') : 'none' ?>" data-update-available="0" title="Abrir gestores instalados" aria-label="Abrir gestores instalados" aria-haspopup="dialog" aria-controls="arc-gestor-update-confirm"><i class="fa fa-windows" aria-hidden="true"></i></button>
    </div>
   </div>
 

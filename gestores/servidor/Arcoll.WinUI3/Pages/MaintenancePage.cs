@@ -6,6 +6,7 @@ using Arcoll.WinUI3.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 namespace Arcoll.WinUI3.Pages;
 
@@ -22,7 +23,9 @@ public abstract class MaintenancePage : UserControl
     protected string SyncNotice { get; private set; }="";
     protected bool CancellationRequested { get; private set; }
     protected readonly string Kind;
-    private readonly Grid _root = new() { RowSpacing = 6 };
+    private readonly Grid _root = new() { RowSpacing = 10, Padding = new Thickness(14, 10, 14, 12) };
+    private readonly Border _headerCard = new() { BorderThickness = new Thickness(1, 1, 1, 1), CornerRadius = new CornerRadius(14), Padding = new Thickness(14, 10, 14, 10) };
+    private readonly Border _footerCard = new() { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 7, 10, 7) };
     private readonly TextBlock _heading, _description, _status = new() { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, _summary = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBox _search = new() { PlaceholderText = "Filtrar resultados", MinHeight = 30, FontSize = 14 };
     private readonly Button _cancel = new() { Content = "Cancelar operação" }, _clear = new() { Content = "Limpar seleção" }, _copy = new() { Content = "Copiar relatório" };
@@ -35,14 +38,19 @@ public abstract class MaintenancePage : UserControl
     protected MaintenancePage(GestorRuntime runtime, Func<string,string,string,Task<bool>> confirm, string kind, string title, string description)
     {
         Runtime = runtime; Confirm = confirm; Kind = kind; Content = _root;
-        _heading = new TextBlock { Text = title, FontSize = 18, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        _heading = new TextBlock { Text = title, FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
         _description = new TextBlock { Text = description, FontSize = 12, TextWrapping = TextWrapping.Wrap };
         for (var row = 0; row < 5; row++) _root.RowDefinitions.Add(new() { Height = row == 3 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
-        var header = new StackPanel { Spacing = 3 }; header.Children.Add(_heading); header.Children.Add(_description); _root.Children.Add(header);
-        Grid.SetRow(_search, 1); _root.Children.Add(_search); Grid.SetRow(_status, 2); _root.Children.Add(_status);
+        var header = new StackPanel { Spacing = 4 }; header.Children.Add(_heading); header.Children.Add(_description); _headerCard.Child = header; _root.Children.Add(_headerCard);
+        _search.CornerRadius = new CornerRadius(9);
+        _search.PlaceholderText = "Pesquisar na página…";
+        Grid.SetRow(_search, 1); _root.Children.Add(_search);
+        _status.Padding = new Thickness(9, 4, 9, 4);
+        Grid.SetRow(_status, 2); _root.Children.Add(_status);
         var scroll = new ScrollViewer { Content = View, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0,0,5,0) }; Grid.SetRow(scroll, 3); _root.Children.Add(scroll);
-        var footer = new StackPanel { Spacing = 4 }; footer.Children.Add(_summary);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 }; actions.Children.Add(_clear); actions.Children.Add(_copy); actions.Children.Add(_cancel); footer.Children.Add(actions); Grid.SetRow(footer, 4); _root.Children.Add(footer);
+        var footer = new StackPanel { Spacing = 5 }; footer.Children.Add(_summary);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 }; actions.Children.Add(_clear); actions.Children.Add(_copy); actions.Children.Add(_cancel); footer.Children.Add(actions);
+        _footerCard.Child = footer; Grid.SetRow(_footerCard, 4); _root.Children.Add(_footerCard);
         foreach (var button in new[] { _clear, _copy, _cancel }) { button.FontSize = 12; button.MinHeight = 28; button.Padding = new Thickness(8,3,8,3); }
         AutomationProperties.SetAutomationId(this, "tool-" + kind); AutomationProperties.SetAutomationId(_search, "filter-" + kind);
         AutomationProperties.SetName(_search, "Filtrar " + title); AutomationProperties.SetLiveSetting(_status, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
@@ -88,7 +96,11 @@ public abstract class MaintenancePage : UserControl
     protected abstract void Build();
     protected void Render()
     {
-        View.Children.Clear(); _heading.Foreground = P.Text; _description.Foreground = _summary.Foreground = P.Muted; _status.Foreground = P.Text;
+        View.Children.Clear();
+        _root.Background = P.Alt;
+        _headerCard.Background = _footerCard.Background = P.Surface;
+        _headerCard.BorderBrush = _footerCard.BorderBrush = P.Line;
+        _heading.Foreground = P.Text; _description.Foreground = _summary.Foreground = P.Muted; _status.Foreground = P.Text;
         _status.Visibility = string.IsNullOrWhiteSpace(_status.Text) ? Visibility.Collapsed : Visibility.Visible;
         _search.IsEnabled = !Busy; _clear.IsEnabled = !Busy && Selected.Count > 0; _copy.IsEnabled = Report.ValueKind == JsonValueKind.Object;
         _cancel.Visibility = Busy ? Visibility.Visible : Visibility.Collapsed;
@@ -102,7 +114,14 @@ public abstract class MaintenancePage : UserControl
     protected static JsonElement[] Rows(JsonElement parent,string key) => Part(parent,key).ValueKind == JsonValueKind.Array ? Part(parent,key).EnumerateArray().ToArray() : Array.Empty<JsonElement>();
     protected static double Number(JsonElement parent,string key) => double.TryParse(Get(parent,key),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var n) ? n : 0;
     protected static bool Yes(JsonElement parent,string key) => string.Equals(Get(parent,key),"true",StringComparison.OrdinalIgnoreCase) || Get(parent,key)=="1";
-    protected void Text(string value,bool heading=false) => View.Children.Add(Ui.Label(value,heading?P.Text:P.Muted,heading?15:13,heading,true));
+    protected void Text(string value,bool heading=false)
+    {
+        if (!heading) { View.Children.Add(Ui.Label(value, P.Muted, 12, wrap:true)); return; }
+        var panel = new StackPanel { Spacing = 5, Margin = new Thickness(0, 7, 0, 3) };
+        panel.Children.Add(new Border { Height = 2, Width = 34, HorizontalAlignment = HorizontalAlignment.Left, Background = P.Accent, CornerRadius = new CornerRadius(1) });
+        panel.Children.Add(Ui.Label(value, P.Text, 14, true, true));
+        View.Children.Add(panel);
+    }
     /// <summary>Indicadores reutilizáveis, responsivos e sem adicionar fontes de dados paralelas.</summary>
     protected void Metrics(params (string Title, string Value, string Detail)[] metrics)
     {
@@ -125,14 +144,29 @@ public abstract class MaintenancePage : UserControl
     protected Button Action(string title,Func<Task> action,bool enabled=true)
     {
         var label=Ui.Label(title,P.Text,12,wrap:true);
-        var button = new Button { Content=label,IsEnabled=!Busy&&Runtime.Allowed&&enabled,FontSize=12,MinHeight=30,Padding=new Thickness(9,4,9,4),HorizontalAlignment=HorizontalAlignment.Left };
+        var button = new Button { Content=label,IsEnabled=!Busy&&Runtime.Allowed&&enabled,FontSize=12,MinHeight=38,Padding=new Thickness(12,7,12,7),HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Center,CornerRadius=new CornerRadius(10),Background=P.Surface,BorderBrush=P.Line,BorderThickness=new Thickness(1) };
         AutomationProperties.SetName(button,title);
         button.Click += async (_,_) => { if(_dispatching||Busy||!Runtime.Allowed)return;_dispatching=true;button.IsEnabled=false;try { await action(); } catch(Exception ex) { Status(ex.Message); } finally {_dispatching=false;Render();} }; return button;
     }
-    protected void Actions(params Button[] buttons) { foreach(var button in buttons) View.Children.Add(button); }
+    protected void Actions(params Button[] buttons)
+    {
+        if (buttons.Length == 0) return;
+        // Comandos agrupados, responsivos, na mesma linguagem visual dos cartões.
+        // Não altera callbacks, estado ou regras de autorização das páginas.
+        var columns = Math.Min(buttons.Length, ActualWidth >= 850 ? 3 : ActualWidth >= 510 ? 2 : 1);
+        var grid = new Grid { ColumnSpacing = 8, RowSpacing = 8, Margin = new Thickness(0, 3, 0, 5) };
+        for (var i = 0; i < columns; i++) grid.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            if (i % columns == 0) grid.RowDefinitions.Add(new() { Height = GridLength.Auto });
+            Grid.SetRow(buttons[i], i / columns); Grid.SetColumn(buttons[i], i % columns);
+            grid.Children.Add(buttons[i]);
+        }
+        View.Children.Add(grid);
+    }
     protected ComboBox Choices((string Key,string Label)[] choices,string selected,Action<string> change)
     {
-        var combo=new ComboBox { HorizontalAlignment=HorizontalAlignment.Stretch,MinHeight=30,IsEnabled=!Busy };
+        var combo=new ComboBox { HorizontalAlignment=HorizontalAlignment.Stretch,MinHeight=38,IsEnabled=!Busy,CornerRadius=new CornerRadius(9),Background=P.Surface,BorderBrush=P.Line };
         foreach(var item in choices)combo.Items.Add(item.Label);combo.SelectedIndex=Array.FindIndex(choices,x=>x.Key==selected);
         combo.SelectionChanged+=(_,_)=>{if(combo.SelectedIndex>=0){Selected.Clear();change(choices[combo.SelectedIndex].Key);Render();}};View.Children.Add(combo);return combo;
     }
@@ -140,8 +174,10 @@ public abstract class MaintenancePage : UserControl
     {
         if(!Matches(title,detail))return;
         var id=Get(item,"id");var label=new StackPanel { Spacing=2 };label.Children.Add(Ui.Label(title,P.Text,14,true,true));if(detail.Length>0)label.Children.Add(Ui.Label(detail,P.Muted,12,wrap:true));
-        var box=new CheckBox { Content=label,IsChecked=Selected.Contains(id),IsEnabled=!Busy&&enabled&&id.Length>0,MinHeight=30,HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Stretch };
-        AutomationProperties.SetName(box,title);box.Click+=(_,_)=>{if(box.IsChecked==true)Selected.Add(id);else Selected.Remove(id);UpdateSummary();};View.Children.Add(box);
+        var box=new CheckBox { Content=label,IsChecked=Selected.Contains(id),IsEnabled=!Busy&&enabled&&id.Length>0,MinHeight=44,HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Stretch,Padding=new Thickness(5,2,5,2) };
+        AutomationProperties.SetName(box,title);box.Click+=(_,_)=>{if(box.IsChecked==true)Selected.Add(id);else Selected.Remove(id);UpdateSummary();};
+        var tile = new Border { Background=P.Surface,BorderBrush=P.Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(10),Padding=new Thickness(8,4,8,4),Child=box };
+        View.Children.Add(tile);
     }
     protected async Task<JsonElement> LoadSettingsAsync()
     {

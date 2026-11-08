@@ -2911,12 +2911,11 @@ class ArcollApp:
    try:
     import subprocess,ctypes
     if name=='screen_lock':
-     delay=self._arc_delay_seconds(request_text)
-     if self.stop_event.wait(delay):raise RuntimeError('Gestor encerrado antes da operação.')
+     # Bloqueio imediato: o temporizador permanece exclusivo para energia.
      if unattended:
       auth={'fingerprint':FINGERPRINT,'site_code':SITE_CODE,'download_key':DOWNLOAD_KEY,'command_id':ident}
       allowed=request_json(ORIGIN+'/api/api.php?action=gestor-command-authorize',auth,timeout=10)
-      if not allowed.get('ok') or allowed.get('command')!=name:raise PermissionError('Autorização revogada durante a espera.')
+      if not allowed.get('ok') or allowed.get('command')!=name:raise PermissionError('Autorização revogada.')
      if not ctypes.windll.user32.LockWorkStation():raise RuntimeError('O Windows não permitiu bloquear esta sessão.')
      result='Sessão bloqueada pelo Windows.'
     else:

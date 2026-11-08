@@ -119,7 +119,7 @@ public sealed partial class MainWindow
     private void UpdateHybridHeading()
     {
         var group = Groups.FirstOrDefault(x => x.Key == _group);
-        var item = group?.Items.FirstOrDefault(x => x.Key == _section);
+        var item = Groups.SelectMany(x => x.Items).FirstOrDefault(x => x.Key == _section);
         HeroTitle.Text = item?.Label ?? "Painel";
         HeroIcon.Glyph = _section switch
         {

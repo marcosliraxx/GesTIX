@@ -8,6 +8,32 @@ using Microsoft.Web.WebView2.Core;
 namespace Arcoll.WinUI3;
 public sealed partial class MainWindow
 {
+ private int _pageLoadGeneration;
+ private void ShowPageLoading(string stage,int percent)
+ {
+  _pageLoadGeneration++;
+  PageLoadingOverlay.Visibility=Visibility.Visible; PageLoadingRing.IsActive=true;
+  PageLoadingStage.Text=stage; PageLoadingPercent.Text=Math.Clamp(percent,0,100)+"%";
+ }
+ private async void FinishPageLoading()
+ {
+  var generation=_pageLoadGeneration;
+  PageLoadingStage.Text="Carregando dados da área"; PageLoadingPercent.Text="45%";
+  // Esta porcentagem corresponde às etapas de navegação; dados internos seguem
+  // sinalizados pela própria página. Não simular porcentagens de rede.
+  await System.Threading.Tasks.Task.Delay(350);
+  if(generation!=_pageLoadGeneration)return;
+  PageLoadingStage.Text="Interface disponível"; PageLoadingPercent.Text="100%";
+  PageLoadingRing.IsActive=false;
+  await System.Threading.Tasks.Task.Delay(200);
+  if(generation==_pageLoadGeneration)PageLoadingOverlay.Visibility=Visibility.Collapsed;
+ }
+ private void PageLoadingButton_Click(object sender,RoutedEventArgs e)
+ {
+  var current=_section;
+  PageHost.Content=null;CompactHost.Content=null;
+  SelectSection(current);
+ }
  private readonly Dictionary<UserControl,GestorWorkspace> _nativeWorkspaces=[];private readonly Dictionary<UserControl,string> _workspaceContexts=[];private readonly Dictionary<CoreWebView2,string> _webWorkspaceContexts=[];
  private readonly TextBlock _pageContext=new(){FontSize=9,TextTrimming=TextTrimming.CharacterEllipsis,VerticalAlignment=VerticalAlignment.Center,TextAlignment=TextAlignment.Center};
  private void InitializeWorkspaceFooter(){if(StatusBorder.Child is not Grid grid)return;grid.ColumnDefinitions.Clear();grid.ColumnDefinitions.Add(new(){Width=new GridLength(3,GridUnitType.Star)});grid.ColumnDefinitions.Add(new(){Width=new GridLength(4,GridUnitType.Star)});grid.ColumnDefinitions.Add(new(){Width=new GridLength(3,GridUnitType.Star)});Grid.SetColumn(FooterText,2);Grid.SetColumn(_pageContext,1);grid.Children.Add(_pageContext);FooterText.RegisterPropertyChangedCallback(TextBlock.ForegroundProperty,(_,_)=>_pageContext.Foreground=FooterText.Foreground);_pageContext.Foreground=FooterText.Foreground;}

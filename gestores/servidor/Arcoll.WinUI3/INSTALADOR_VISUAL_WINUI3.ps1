@@ -1,4 +1,5 @@
-﻿# T.I. Digital - Instalador WPF. Windows PowerShell 5.1 / .NET Framework, sem SDK previo.
+﻿# Caminho: gestores/servidor/Arcoll.WinUI3/INSTALADOR_VISUAL_WINUI3.ps1
+# T.I. Digital - Instalador WPF. Windows PowerShell 5.1 / .NET Framework, sem SDK previo.
 [CmdletBinding()]
 param([switch]$ValidateOnly,[switch]$Preview,[string]$RenderPreview='',
       [ValidateSet('preparing','download','verify','compile','install','ready','failed')][string]$PreviewState='compile',
@@ -132,7 +133,7 @@ try{
  & $engine -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installer 2>&1|ForEach-Object{Write-Output (Safe ([string]$_))}
  if($LASTEXITCODE -ne 0){throw ('A instalacao nao foi concluida. Codigo: '+$LASTEXITCODE)}
  $installOk=$true
- Write-Output '[100] Instalacao concluida. Agente iniciado.'
+ Write-Output '[100] Instalacao concluida. Gestor iniciado.'
  exit 0
 }catch{$installError=$_.Exception.Message;Write-Output ('FALHA: '+(Safe $installError));exit 1}
 finally{if($file){$file.Dispose()};if($stream){$stream.Dispose()};if($response){$response.Dispose()};Send-InstallDiagnostic}
@@ -216,7 +217,7 @@ $timer.Add_Tick({
   Read-WorkerOutput
   $elapsed=[DateTime]::UtcNow-$script:started;$controls.ElapsedText.Text='Instalação · '+$elapsed.ToString('mm\:ss')+' · '+$t.Id
   if($script:proc -and $script:proc.HasExited -and -not $script:complete){
-   Read-WorkerOutput;$script:complete=$true;$timer.Stop();$script:success=($script:proc.ExitCode -eq 0 -and $script:sawDone)
+   Read-WorkerOutput;$script:complete=$true;$timer.Stop();$exitCode=$null;try{$script:proc.WaitForExit();$exitCode=$script:proc.ExitCode}catch{};$script:success=($script:sawDone -and -not $script:failure -and ($null -eq $exitCode -or [int]$exitCode -eq 0))
    if($script:success){Show-InstallProgress 100 'Instalação concluída. Gestor iniciado.' 'ready';if($script:pending){$controls.NoticeBox.Visibility='Visible';$controls.NoticeText.Text='O gestor foi instalado. '+$script:pending}}
    else{if(-not $script:failure){$script:failure='O processo encerrou sem confirmar a conclusão.'};Show-InstallProgress $script:percent $script:failure 'failed';if(Test-Path -LiteralPath $script:stderr){$extra=Get-Content -LiteralPath $script:stderr -Encoding UTF8 -Tail 12 -ErrorAction SilentlyContinue;$controls.LogText.AppendText([Environment]::NewLine+(Protect-InstallText ($extra -join [Environment]::NewLine)))}}
   }
@@ -258,6 +259,8 @@ if($Preview -or $RenderPreview){
    [IO.File]::WriteAllText($config,(@{url=$packageUrl;logpath=$script:stdout}|ConvertTo-Json -Compress),(New-Object Text.UTF8Encoding($false)))
    $engine=Join-Path $PSHOME 'powershell.exe';$arguments='-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$worker+'" -ConfigPath "'+$config+'"'
    $script:proc=Start-Process -FilePath $engine -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $script:stdout -RedirectStandardError $script:stderr
+   # Sem acessar o Handle, o Windows PowerShell 5.1 perde o ExitCode do processo filho e o instalador acusava falha mesmo com instalacao concluida.
+   try{[void]$script:proc.Handle}catch{}
    $script:started=[DateTime]::UtcNow;$timer.Start()
    if([Windows.SystemParameters]::ClientAreaAnimation){$animation=New-Object Windows.Media.Animation.DoubleAnimation(0,360,(New-Object Windows.Duration([TimeSpan]::FromSeconds(16))));$animation.RepeatBehavior=[Windows.Media.Animation.RepeatBehavior]::Forever;$controls.Orbit.RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty,$animation)}
   }catch{$script:complete=$true;Show-InstallProgress 0 ('Não foi possível iniciar: '+(Protect-InstallText $_.Exception.Message)) 'failed'}

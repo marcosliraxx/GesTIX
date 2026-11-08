@@ -7,20 +7,38 @@ namespace Arcoll.WinUI3.Pages;
 public sealed class TicketsPage : UserControl
 {
     private readonly GestorRuntime _runtime;
-    private readonly StackPanel _root = new() { Spacing = 8 }, _rows = new() { Spacing = 8 };
+    private readonly Grid _root = new() { RowSpacing = 10, Padding = new Thickness(14, 10, 14, 12) };
+    private readonly StackPanel _rows = new() { Spacing = 8 };
+    private readonly Border _header = new() { CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(1), Padding = new Thickness(14) };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private Palette _p = new(); private bool _busy;
     public TicketsPage(GestorRuntime runtime)
     {
         _runtime = runtime; Content = _root;
-        _root.Children.Add(new TextBlock { Text = "Chamados deste computador", FontSize = 20 });
+        _root.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
+        _header.Child = new TextBlock { Text = "Chamados deste computador", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        _root.Children.Add(_header);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var refresh = new Button { Content = "Atualizar" }; refresh.Click += async (_, _) => await LoadAsync(); actions.Children.Add(refresh);
         var create = new Button { Content = "Abrir chamado" }; create.Click += async (_, _) => { try { await CreateAsync(); } catch (Exception ex) { _status.Text = ex.Message; } }; actions.Children.Add(create);
-        _root.Children.Add(actions); _root.Children.Add(_status); _root.Children.Add(_rows);
+        Grid.SetRow(actions, 1); _root.Children.Add(actions);
+        Grid.SetRow(_status, 2); _root.Children.Add(_status);
+        var scroll = new ScrollViewer { Content = _rows, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 5, 0) };
+        Grid.SetRow(scroll, 3); _root.Children.Add(scroll);
         Loaded += async (_, _) => { try { await LoadAsync(); } catch (Exception ex) { RuntimeLog.Write("Chamados/Loaded: " + ex); } };
     }
-    public void ApplyPalette(Palette p) { _p = p; _status.Foreground = p.Muted; }
+    public void ApplyPalette(Palette p)
+    {
+        _p = p; _root.Background = p.Alt; _header.Background = p.Surface; _header.BorderBrush = p.Line;
+        if (_header.Child is TextBlock title) title.Foreground = p.Text;
+        _status.Foreground = p.Muted;
+        // Recria os cartões existentes na paleta ativa sem efetuar outra consulta à plataforma.
+        foreach (var child in _rows.Children.OfType<Border>()) { child.Background = p.Surface; child.BorderBrush = p.Line; }
+    }
     private async Task LoadAsync()
     {
         if (_busy || !_runtime.Allowed) return; _busy = true;
