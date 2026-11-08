@@ -23,6 +23,7 @@ $arcUpdJs = dirname(__DIR__) . '/assets/js/gestor-update.js';
  <div class="arc-gestor-update-actions arc-service-actions" role="group" aria-label="Instalação e atualização do gestor">
  <?php if ($arcUpdRole === 'owner'): ?>
  <a class="button secondary" data-update-install rel="noopener" href="<?= arc_h($arcUpdBase . 'api/download-gestor.php?network=' . (int)$networkId) ?>" title="Baixar o instalador Windows para executar no computador de destino"><i class="fa fa-download" aria-hidden="true"></i> Instalar gestor</a>
+ <a class="button secondary" rel="noopener" href="<?= arc_h($arcUpdBase . 'api/download-gestor.php?mode=bat&network=' . (int)$networkId) ?>" title="Alternativa de instalação pelo iniciador BAT">Alternativa BAT</a>
  <?php else: ?>
  <button type="button" class="button secondary" disabled title="Somente o proprietário da rede pode gerar instaladores"><i class="fa fa-download" aria-hidden="true"></i> Instalar gestor</button>
  <?php endif; ?>

@@ -14,8 +14,11 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
 
 function Protect-InstallText([string]$Text){
  if(-not $Text){return ''}
- $Text=[regex]::Replace($Text,'(?i)([?&](?:t|token|download_key)=)[^\s&''"]+','$1[oculto]')
- $Text=[regex]::Replace($Text,'(?i)(download_key["'':=\s]+)[a-f0-9]{64}','$1[oculto]')
+ $Text=[regex]::Replace($Text,'(?i)([?&](?:t|token|key|download_key|access_token|refresh_token)=)[^\s&''"<>]+','$1[oculto]')
+ $Text=[regex]::Replace($Text,'(?i)((?:password|passwd|senha|secret|api[_-]?key|download_key|access_token|refresh_token|authorization|cookie)\s*["'']?\s*[:=]\s*)(["''])(.*?)\2','$1$2[oculto]$2')
+ $Text=[regex]::Replace($Text,'(?i)((?:password|passwd|senha|secret|api[_-]?key|download_key|access_token|refresh_token|authorization|cookie)\s*["'']?\s*[:=]\s*["'']?)[^\s,"''\r\n}]+','$1[oculto]')
+ $Text=[regex]::Replace($Text,'(?i)\bBearer\s+[A-Za-z0-9._~+/-]+','Bearer [oculto]')
+ $Text=[regex]::Replace($Text,'(?i)\b[a-f0-9]{64}\b','[hash/chave oculto]')
  $Text=[regex]::Replace($Text,'\x1b\[[0-9;]*[A-Za-z]','')
  return $Text
 }
@@ -61,7 +64,39 @@ param([Parameter(Mandatory=$true)][string]$ConfigPath)
 $ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
 [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
-function Safe([string]$text){return [regex]::Replace($text,'(?i)([?&](?:t|token|download_key)=)[^\s&''"]+','$1[oculto]')}
+function Safe([string]$Text){
+ if(-not $Text){return ''}
+ $Text=[regex]::Replace($Text,'(?i)([?&](?:t|token|key|download_key|access_token|refresh_token)=)[^\s&''"<>]+','$1[oculto]')
+ $Text=[regex]::Replace($Text,'(?i)((?:password|passwd|senha|secret|api[_-]?key|download_key|access_token|refresh_token|authorization|cookie)\s*["'']?\s*[:=]\s*)(["''])(.*?)\2','$1$2[oculto]$2')
+ $Text=[regex]::Replace($Text,'(?i)((?:password|passwd|senha|secret|api[_-]?key|download_key|access_token|refresh_token|authorization|cookie)\s*["'']?\s*[:=]\s*["'']?)[^\s,"''\r\n}]+','$1[oculto]')
+ $Text=[regex]::Replace($Text,'(?i)\bBearer\s+[A-Za-z0-9._~+/-]+','Bearer [oculto]')
+ $Text=[regex]::Replace($Text,'(?i)\b[a-f0-9]{64}\b','[hash/chave oculto]')
+ $Text=[regex]::Replace($Text,'\x1b\[[0-9;]*[A-Za-z]','')
+ return $Text
+}
+function Send-InstallDiagnostic {
+ # Best effort only. The local redacted log remains available for offline retry by the gestor.
+ try{
+  if(-not $cfg -or -not $uri){return}
+  $match=[regex]::Match($uri.Query,'(?:[?&])t=([a-fA-F0-9]{64})(?:&|$)');if(-not $match.Success){return}
+  $events=New-Object 'Collections.Generic.List[object]'
+  if($cfg.logpath -and (Test-Path -LiteralPath $cfg.logpath)){
+   foreach($line in @(Get-Content -LiteralPath $cfg.logpath -Encoding UTF8 -Tail 90 -ErrorAction SilentlyContinue)){
+    $clean=Safe ([string]$line);if($clean.Length -gt 2000){$clean=$clean.Substring(0,2000)}
+    if($clean.Trim()){$events.Add(@{source='installer/windows';level='INFO';message=$clean})}
+   }
+  }
+  $events.Add(@{source='installer/windows';level=$(if($installOk){'INFO'}else{'ERROR'});message=$(if($installOk){'Instalacao concluida.'}else{'Instalacao nao concluida: '+(Safe $installError)})})
+  $eventJson=ConvertTo-Json -InputObject @($events.ToArray()) -Depth 5 -Compress
+  $sha=[Security.Cryptography.SHA256]::Create();try{$id=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($eventJson)))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+  $body=ConvertTo-Json -InputObject @{installation_token=$match.Groups[1].Value;batch_id=$id;events=@($events.ToArray())} -Depth 6 -Compress
+  $send=[Net.HttpWebRequest]::Create($uri.GetLeftPart([UriPartial]::Authority)+'/api/gestor-logs.php');$send.Method='POST';$send.AllowAutoRedirect=$false;$send.Timeout=3000;$send.ReadWriteTimeout=3000;$send.ContentType='application/json';$send.UserAgent='TI-Digital-Installer/5.0.152'
+  $bytes=[Text.Encoding]::UTF8.GetBytes($body);$send.ContentLength=$bytes.Length;$output=$send.GetRequestStream();try{$output.Write($bytes,0,$bytes.Length)}finally{$output.Dispose()}
+  $reply=$send.GetResponse();$reply.Dispose()
+ }catch{} # Never turn a diagnostic transport failure into an installation failure.
+}
+$installOk=$false;$installError='Processo interrompido.'
+
 $response=$null;$stream=$null;$file=$null
 try{
  $cfg=Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8|ConvertFrom-Json
@@ -96,10 +131,11 @@ try{
  $engine=Join-Path $PSHOME 'powershell.exe'
  & $engine -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installer 2>&1|ForEach-Object{Write-Output (Safe ([string]$_))}
  if($LASTEXITCODE -ne 0){throw ('A instalacao nao foi concluida. Codigo: '+$LASTEXITCODE)}
+ $installOk=$true
  Write-Output '[100] Instalacao concluida. Agente iniciado.'
  exit 0
-}catch{Write-Output ('FALHA: '+(Safe $_.Exception.Message));exit 1}
-finally{if($file){$file.Dispose()};if($stream){$stream.Dispose()};if($response){$response.Dispose()}}
+}catch{$installError=$_.Exception.Message;Write-Output ('FALHA: '+(Safe $installError));exit 1}
+finally{if($file){$file.Dispose()};if($stream){$stream.Dispose()};if($response){$response.Dispose()};Send-InstallDiagnostic}
 '@
 
 if(-not ('TiInstaller.ProgressRing' -as [type])){
@@ -191,6 +227,7 @@ $controls.FinishButton.Add_Click({$window.Close()})
 $window.Add_Closing({param($sender,$eventArgs)if(-not $script:complete -and -not $Preview -and -not $ValidateOnly -and -not $RenderPreview){$eventArgs.Cancel=$true;$controls.NoticeBox.Visibility='Visible';$controls.NoticeText.Text='A instalação ainda está em andamento. Você pode minimizar esta janela e acompanhar a conclusão.'}})
 if($ValidateOnly){
  $checks=0
+ $tokens=$null;$parseErrors=$null;[void][System.Management.Automation.Language.Parser]::ParseInput($workerText,[ref]$tokens,[ref]$parseErrors);if($parseErrors.Count){throw ($parseErrors|Out-String)};$checks++
  foreach($value in @(-5,0,8,25,35,62,82,99,100,150)){if((Get-InstallStage $value) -notin 0..5){throw 'Etapa inválida'};$checks++}
  $p=Read-InstallProgress @('[62] Compilando...','[35] Preparação anterior','[100] Concluído') 50
  if($p.Percent -ne 99 -or -not $p.Done){throw 'Progresso sem confirmação deve parar em 99%'};$checks++
@@ -218,7 +255,7 @@ if($Preview -or $RenderPreview){
    $script:stderr=Join-Path $script:session 'worker-error.log'
    $worker=Join-Path $script:session 'install-worker.ps1';$config=Join-Path $script:session 'install-job.json'
    [IO.File]::WriteAllText($worker,$workerText,(New-Object Text.UTF8Encoding($true)))
-   [IO.File]::WriteAllText($config,(@{url=$packageUrl}|ConvertTo-Json -Compress),(New-Object Text.UTF8Encoding($false)))
+   [IO.File]::WriteAllText($config,(@{url=$packageUrl;logpath=$script:stdout}|ConvertTo-Json -Compress),(New-Object Text.UTF8Encoding($false)))
    $engine=Join-Path $PSHOME 'powershell.exe';$arguments='-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$worker+'" -ConfigPath "'+$config+'"'
    $script:proc=Start-Process -FilePath $engine -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $script:stdout -RedirectStandardError $script:stderr
    $script:started=[DateTime]::UtcNow;$timer.Start()

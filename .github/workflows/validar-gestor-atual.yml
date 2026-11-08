@@ -20,6 +20,17 @@ jobs:
           $script=Join-Path $pwd 'gestores/servidor/Arcoll.WinUI3/INSTALADOR_VISUAL_WINUI3.ps1'
           powershell.exe -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File $script -ValidateOnly
           if($LASTEXITCODE -ne 0){throw 'Instalador WPF invalido.'}
+      - name: Validar os dez temas no instalador Windows
+        shell: powershell
+        run: |
+          $script=Join-Path $pwd 'gestores/servidor/Arcoll.WinUI3/INSTALADOR_VISUAL_WINUI3.ps1'
+          $catalog=Get-Content assets/themes/catalog.json -Raw -Encoding UTF8|ConvertFrom-Json
+          foreach($entry in $catalog.themes.PSObject.Properties){
+            $theme=$entry.Value;$theme|Add-Member -NotePropertyName mode -NotePropertyValue 'theme' -Force
+            $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($theme|ConvertTo-Json -Depth 8 -Compress)))
+            powershell.exe -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File $script -ValidateOnly -ThemeOverrideBase64 $encoded
+            if($LASTEXITCODE -ne 0){throw ('Tema invalido: '+$entry.Name)}
+          }
       - name: Renderizar a interface WPF real (sem instalar)
         shell: powershell
         run: |
@@ -29,6 +40,11 @@ jobs:
             powershell.exe -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File $script -RenderPreview (Join-Path $pwd ('previews/instalador-'+$state+'.png')) -PreviewState $state
             if($LASTEXITCODE -ne 0){throw 'Previa WPF invalida.'}
           }
+      - name: Registrar previa para revisao visual
+        shell: powershell
+        run: |
+          $preview=[Convert]::ToBase64String([IO.File]::ReadAllBytes('previews/instalador-compile.png'))
+          for($i=0;$i -lt $preview.Length;$i+=2048){Write-Output ('WPF_PREVIEW_PNG '+$preview.Substring($i,[Math]::Min(2048,$preview.Length-$i)))}
       - uses: actions/upload-artifact@v4
         with:
           name: previa-instalador-wpf
@@ -76,3 +92,21 @@ jobs:
         run: python -m compileall -q gestores/windows
       - name: Temas, contraste, redacao e rede offline
         run: python -m unittest discover -s tests/python -v
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --prefix /tmp/ti-browser playwright@1.55.0
+      - name: Validar os temas reais no navegador
+        env:
+          NODE_PATH: /tmp/ti-browser/node_modules
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node tests/browser/themes.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: previas-componentes-temas
+          path: previews/temas/*.png
