@@ -1,0 +1,54 @@
+{
+  "version": "5.0.387",
+  "base": "5.0.386",
+  "backup": "bkp_app.digital.log.br_20261108_113930_628662.zip",
+  "code_commit": "153ca4f",
+  "zip": "PENTE_FINO_5.0.387_EXTRAIR_NA_RAIZ.zip",
+  "sha256": "396cc6bd3c98d07f9b0ea7a89126176565dbe7d60c8472b64143c66b30f7ca8a",
+  "files": [
+    {
+      "path": "VERSION",
+      "sha256": "55eaffb7c98d18b30ea70e771df2f6a56f0e57d89715656fc6aaecde2234bc11"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/standard-workspace.js",
+      "sha256": "4e681426a75a6f78195acdd21efa76c1cdb54f017fa3b3439d73ff4158920276"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/app.js",
+      "sha256": "9f2eed7b518eec0aab01f28d7a5e3acf74dedbe0196418c14a708e12659c7fe7"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/index.html",
+      "sha256": "3074e7d3be4a6403d642b7678818545a0cce0dade1306fa7a521b505fdf3828a"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/styles.css",
+      "sha256": "a0e61702f172922c905cb0025282aff64c2edfdb1bcb63b91dcacc134e87a397"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MINIMUM_RELEASE_VERSION",
+      "sha256": "55eaffb7c98d18b30ea70e771df2f6a56f0e57d89715656fc6aaecde2234bc11"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/PenteFinoPage.cs",
+      "sha256": "e5ba040a169130f097cc2fa61c14a4ad1736329137443abb41cbaa1f631d72cc"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/Contracts.cs",
+      "sha256": "28db1da833887465fd7dc9ccde6e832e8a37f6f2b8d84c58447f8ae0bbe19acc"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/FixEngine.cs",
+      "sha256": "5365ffb489fb895b5bb255723b34496978457281845516a665344dd886de7d5c"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/Presentation.cs",
+      "sha256": "f01cb4cdffcf5cc7a34f1d471df83c724479c789a1fe5572c061e1e154dd952a"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/ScanOrchestrator.cs",
+      "sha256": "db792b2bb090dca6393cfd2139ca0081b4ec40414bff2809f9d1ea6021c3ea52"
+    }
+  ]
+}

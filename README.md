@@ -1,3 +1,13 @@
+# T.I. Digital · base atual 5.0.387
+
+A base de trabalho atual é o backup 5.0.386 anexado nesta solicitação, com a evolução do [Pente-Fino 5.0.387](documentacao/PENTE_FINO_5.0.387.md).
+
+O ZIP incremental desta entrega está em [pacotes/PENTE_FINO_5.0.387_EXTRAIR_NA_RAIZ.zip](pacotes/PENTE_FINO_5.0.387_EXTRAIR_NA_RAIZ.zip). Ele contém apenas os arquivos alterados, com os caminhos prontos para extrair na raiz do cPanel. Depois, atualize o gestor Windows.
+
+Os documentos e pacotes 5.0.152 abaixo são históricos da entrega anterior.
+
+---
+
 # T.I. Digital · Gestores 5.0.152
 
 Esta é a nova base de trabalho: backup enviado em 08/11/2026 às 04:40, versão 5.0.151, com os ajustes da versão 5.0.152. O código antigo foi substituído na árvore atual; o histórico do Git foi preservado.
