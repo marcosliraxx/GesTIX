@@ -180,6 +180,16 @@ try {
         if (!is_array($manifest) || ($manifest['arch'] ?? null) !== $arch || !preg_match('/^\d+\.\d+\.\d+$/D', (string)($manifest['version'] ?? '')) || !isset($manifest['files']) || !is_array($manifest['files'])) {
             throw new RuntimeException('Manifesto da release precompilada invalido para ' . $arch . '.');
         }
+        // Este recurso altera codigo nativo. Nao servir um binario anterior como se contivesse o workspace novo.
+        // O minimo e especifico do agente; futuras alteracoes somente PHP nao invalidam a release nativa.
+        $minimumFile = $nativeRoot . '/MINIMUM_RELEASE_VERSION';
+        if (is_file($minimumFile)) {
+            $minimumVersion = trim((string)file_get_contents($minimumFile));
+            if (!preg_match('/^\d+\.\d+\.\d+$/D', $minimumVersion)) throw new RuntimeException('Versao minima nativa invalida.');
+            if (version_compare((string)$manifest['version'], $minimumVersion, '<')) {
+                http_response_code(404); exit('Release binaria anterior ao workspace publicado; utilizar pacote fonte autenticado.');
+            }
+        }
         $releaseVersion = (string)$manifest['version'];
         $list = $manifest['files'];
         if (count($list) < 2 || count($list) > 3500 || !isset($list['Arcoll.WinUI3.exe'])) throw new RuntimeException('Release precompilada incompleta.');

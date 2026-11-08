@@ -85,7 +85,7 @@ public sealed partial class MainWindow : Window
         RootGrid.SizeChanged += (_, e) => AdaptHybridLayout(e.NewSize.Width);
         RootGrid.Loaded += async (_, _) => await InitializeHybridDashboardAsync();
         _dashboardPage = new(_runtime); _serverPage = new(_hub, () => FooterText.Text);
-        _speedPage = new(_runtime); _devicesPage = new(_runtime, m => FooterText.Text = m); _mapPage = new(_runtime, m => FooterText.Text = m);
+        _speedPage = new(_runtime); _devicesPage = new(_runtime, m => SetWorkspaceFooter(m)); _mapPage = new(_runtime, m => SetWorkspaceFooter(m));
         _programsPage = new(_runtime, ConfirmAsync); _filesPage = new(_runtime); _windowsUpdatePage = new(_runtime);
         var clean = new CleanPage(_runtime, ConfirmAsync); _tools.Add("clean", clean);
         _backupPage = new BackupCenterPage(_runtime);
@@ -298,7 +298,7 @@ public sealed partial class MainWindow : Window
         if (_refreshing) return; _refreshing = true;
         _pending?.Cancel(); _pending?.Dispose(); _pending = new(TimeSpan.FromSeconds(12));
         try { var info = await _agent.HealthAsync(_pending.Token); FooterText.Text = info.Host + " · " + info.Ip + " · v" + info.Version; }
-        catch (Exception ex) { FooterText.Text = ex.Message; }
+        catch (Exception ex) { SetWorkspaceFooter(ex.Message); }
         finally { _refreshing = false; }
     }
     private async Task RefreshBrandAsync()

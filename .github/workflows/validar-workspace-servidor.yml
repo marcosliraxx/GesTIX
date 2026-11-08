@@ -41,3 +41,21 @@ jobs:
           php -S 127.0.0.1:8102 -t validation-source/ApiTests/site > /tmp/ti-probe.log 2>&1 &
       - name: Consulta e distribuicao autenticada
         run: php validation-source/ApiTests/test.php
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preparar testes de interface
+        run: |
+          unzip -q entregas/2026-11-08-workspace-servidor/VALIDACAO_WORKSPACE_WINDOWS.zip -d validation-source
+          npm install --prefix validation-source/BrowserTests --ignore-scripts --no-audit --no-fund
+      - name: Workspace e componentes (dados sinteticos)
+        run: node validation-source/BrowserTests/browser.cjs
+      - name: Regressao da central de atualizacao e seis temas
+        run: node validation-source/BrowserTests/update-regression.cjs
