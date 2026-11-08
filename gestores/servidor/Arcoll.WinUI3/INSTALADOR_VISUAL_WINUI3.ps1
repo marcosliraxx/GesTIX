@@ -1,4 +1,4 @@
-﻿﻿# T.I. Digital - Instalador WPF. Windows PowerShell 5.1 / .NET Framework, sem SDK previo.
+﻿# T.I. Digital - Instalador WPF. Windows PowerShell 5.1 / .NET Framework, sem SDK previo.
 [CmdletBinding()]
 param([switch]$ValidateOnly,[switch]$Preview,[string]$RenderPreview='',
       [ValidateSet('preparing','download','verify','compile','install','ready','failed')][string]$PreviewState='compile',

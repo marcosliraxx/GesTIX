@@ -33,6 +33,14 @@ jobs:
         with:
           name: previa-instalador-wpf
           path: previews/*.png
+  native:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
       - name: Compilar gestor WinUI x64
         run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.152 --self-contained true
       - name: Compilar presenca no boot com envio de logs
