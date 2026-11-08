@@ -43,7 +43,7 @@ public sealed class PenteFinoPage:UserControl
         if(action=="export"){
             if(_report is null)return;var path=store.Export(_report,Text(body,"format")=="html");var package=new DataPackage();package.SetText(path);Clipboard.SetContent(package);_notice="Relatório exportado. Caminho copiado: "+path;Publish();return;
         }
-        _operation=new CancellationTokenSource();_outcome=null;_busy=true;_phase=action;_cancelRequested=false;_notice="";Publish();
+        var operationRequestId=_requestId;_operation=new CancellationTokenSource();_outcome=null;_busy=true;_phase=action;_cancelRequested=false;_notice="";Publish();
         try{
             if(action=="scan"){
                 // A escolha do círculo é parte do próprio comando: evita perder o scan
@@ -54,7 +54,7 @@ public sealed class PenteFinoPage:UserControl
                 if(requestedModules.Length==0||requestedModules.Distinct().Count()!=requestedModules.Length||requestedModules.Any(id=>!ScanOrchestrator.ModuleIds.Contains(id)))throw new InvalidDataException("Selecione ao menos uma área válida para analisar.");
                 _settings=_settings with {Mode="detailed",Modules=requestedModules};store.SaveSettings(_settings);
                 var options=new ScanOptions("detailed",_settings.Modules,_settings.Exclusions,_settings.TrustedCookies);var policy=new PathPolicy(PathPolicy.WindowsRules(options.Mode),options.Exclusions);_settingsHash=ResultsStore.Hash(JsonSerializer.Serialize(_settings));_fix=null;_report=null;
-                var progress=new Progress<ProgressState>(state=>Post(new{type="progress",requestId=_requestId,state}));_report=await new ScanOrchestrator(store).ScanAsync(options,policy,progress,_operation.Token);_historical=_report.Cancelled;_notice=_report.Cancelled?"Análise interrompida; nenhuma correção foi aplicada.":"Análise concluída. Revise e selecione os itens antes de corrigir.";
+                var progress=new Progress<ProgressState>(state=>Post(new{type="progress",requestId=operationRequestId,state}));_report=await new ScanOrchestrator(store).ScanAsync(options,policy,progress,_operation.Token);_historical=_report.Cancelled;_notice=_report.Cancelled?"Análise interrompida; nenhuma correção foi aplicada.":"Análise concluída. Revise e selecione os itens antes de corrigir.";
             }else if(action=="fix"){
                 if(_report is null||_historical||_report.Cancelled||_settingsHash!=ResultsStore.Hash(JsonSerializer.Serialize(store.LoadSettings())))throw new InvalidOperationException("É necessária uma nova análise com as preferências atuais.");var selectedModules=Strings(body,"modules",5);var ids=Presentation.CorrectionIds(_report,Text(body,"reportId"),selectedModules);var summary=Presentation.Summarize(_report);
                 var description=string.Join("\n",summary.Modules.Where(m=>selectedModules.Contains(m.Id)&&m.Fixable>0).Select(m=>m.Title+": "+m.Fixable+" ajuste(s)"));
@@ -62,7 +62,7 @@ public sealed class PenteFinoPage:UserControl
                 if(!await _confirm("Revisar correção do Pente-Fino",description+"\n\nAplicar os "+ids.Length+" ajustes dessas áreas? Arquivos vão para quarentena com backup por 30 dias. Cookies podem encerrar logins. Inicialização altera StartupApproved. Registro recebe backup; na sessão elevada também exige ponto de restauração. Itens de revisão manual não são alterados. Cancelar para as próximas etapas; desfazer é separado.","Corrigir com backup")||!_runtime.Allowed){_notice="Correção cancelada; nenhuma alteração foi iniciada.";return;}
 
                 var modulesById=_report.Modules.SelectMany(m=>m.Items.Select(i=>new{ i.Id,Module=m.Id})).DistinctBy(i=>i.Id).ToDictionary(i=>i.Id,i=>i.Module);
-                var fixProgress=new Progress<FixProgressState>(progress=>Post(new{type="fix-progress",requestId=_requestId,state=new{progress.Completed,progress.Total,progress.State,progress.Succeeded,progress.Failed,module=progress.Id is not null?modulesById.GetValueOrDefault(progress.Id):null}}));
+                var fixProgress=new Progress<FixProgressState>(progress=>Post(new{type="fix-progress",requestId=operationRequestId,state=new{progress.Completed,progress.Total,progress.State,progress.Succeeded,progress.Failed,module=progress.Id is not null?modulesById.GetValueOrDefault(progress.Id):null}}));
                 _fix=await Task.Run(()=>new FixEngine(store,new PathPolicy(PathPolicy.WindowsRules(_settings.Mode),_settings.Exclusions)).FixAsync(_report,ids,_operation.Token,fixProgress));
                 _outcome=new{kind="fix",session=_fix.Session,applied=_fix.Results.Count(r=>r.Ok),failed=_fix.Results.Count(r=>!r.Ok),pending=Math.Max(0,ids.Length-_fix.Results.Count),cancelled=_fix.Cancelled,errors=_fix.Results.Where(r=>!r.Ok).Select(r=>r.Message).Distinct().Take(8).ToArray()};_historical=true;_notice=_fix.Cancelled?"Correção interrompida. Etapas aplicadas estão no histórico e podem ser desfeitas.":"Correção concluída. Revise falhas por item e o histórico de backups.";
             }else if(action=="undo"){
