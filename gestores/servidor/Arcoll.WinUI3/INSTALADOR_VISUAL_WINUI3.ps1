@@ -3,6 +3,7 @@
 param([switch]$ValidateOnly,[switch]$Preview,[string]$RenderPreview='',
       [ValidateSet('preparing','download','verify','compile','install','ready','failed')][string]$PreviewState='compile',
       [string]$ThemeOverrideBase64='')
+trap {if($ValidateOnly){Write-Output $_.ScriptStackTrace};throw}
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
@@ -145,7 +146,7 @@ $xaml=@'
 </Window>
 '@
 $window=[Windows.Markup.XamlReader]::Parse($xaml)
-foreach($key in @('Bg','Surface','Alt','Text','Muted','Accent','Line')){$window.Resources[$key]=New-Object Windows.Media.SolidColorBrush([Windows.Media.ColorConverter]::ConvertFromString($t[$key]))}
+foreach($key in @('Bg','Surface','Alt','Text','Muted','Accent','Line')){$window.Resources[$key].Color=[Windows.Media.ColorConverter]::ConvertFromString($t[$key])}
 $window.Background=$window.Resources['Bg'];$window.Foreground=$window.Resources['Text']
 $controls=@{};foreach($name in @('RootBorder','StageLabel','TitleText','SubtitleText','RingHost','Orbit','CircleTag','PercentText','CircleHint','StatusText','DetailText','NoticeBox','NoticeText','Diagnostics','LogText','ElapsedText','PreviewLabel','CopyButton','FinishButton','Step0','Step1','Step2','Step3','Step4','Step5')){$controls[$name]=$window.FindName($name);if(-not $controls[$name]){throw ('Controle do instalador ausente: '+$name)}}
 $script:ring=New-Object TiInstaller.ProgressRing
@@ -207,7 +208,7 @@ if($Preview -or $RenderPreview){
  $state='working';if($PreviewState -in @('ready','failed')){$state=$PreviewState}
  Show-InstallProgress $previewPercent (@{preparing='Verificando o ambiente Windows…';download='Recebendo os arquivos da plataforma…';verify='Conferindo a integridade SHA-256…';compile='Preparando os arquivos do gestor…';install='Instalando e configurando o gestor…';ready='Instalação concluída. Gestor iniciado.';failed='A conexão foi interrompida durante a preparação.'}[$PreviewState]) $state
  $controls.LogText.Text='PRÉVIA: dados de exemplo. Nenhuma instalação foi executada.';$script:complete=$true
- if($RenderPreview){$root=$controls.RootBorder;foreach($key in @($window.Resources.Keys)){$root.Resources[$key]=$window.Resources[$key]};$window.Content=$null;$root.Width=820;$root.Height=650;$root.Measure((New-Object Windows.Size(820,650)));$root.Arrange((New-Object Windows.Rect(0,0,820,650)));$root.UpdateLayout();$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap(820,650,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($root);$encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$file=[IO.File]::Create([IO.Path]::GetFullPath($RenderPreview));try{$encoder.Save($file)}finally{$file.Dispose()};$window.Close();Write-Output 'Prévia WPF renderizada sem instalar.';exit 0}
+ if($RenderPreview){$root=$controls.RootBorder;$root.Resources.MergedDictionaries.Add($window.Resources);$window.Content=$null;$root.Width=820;$root.Height=650;$root.Measure((New-Object Windows.Size(820,650)));$root.Arrange((New-Object Windows.Rect(0,0,820,650)));$root.UpdateLayout();$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap(820,650,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($root);$encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$file=[IO.File]::Create([IO.Path]::GetFullPath($RenderPreview));try{$encoder.Save($file)}finally{$file.Dispose()};$window.Close();Write-Output 'Prévia WPF renderizada sem instalar.';exit 0}
 }else{
  $window.Add_ContentRendered({
   try{
