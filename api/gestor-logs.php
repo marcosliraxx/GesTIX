@@ -15,7 +15,7 @@ try{
     $pdo=arc_db();
     if(isset($body['installation_token'])){
         $token=(string)$body['installation_token'];if(!preg_match('/^[a-f0-9]{64}$/D',$token))arc_json(['ok'=>false,'error'=>'Instalação não autorizada.'],403);
-        $hash=hash('sha256',$token);$q=$pdo->prepare('SELECT k.account_id,k.network_id,k.token_hash FROM '.arc_table('gestor_download_keys').' k JOIN '.arc_table('managed_networks').' n ON n.id=k.network_id AND n.account_id=k.account_id WHERE k.token_hash=? AND k.created_at>=DATE_SUB(NOW(),INTERVAL 24 HOUR) AND n.is_active=1 AND n.monitoring_enabled=1 LIMIT 1');$q->execute([$hash]);$owner=$q->fetch(PDO::FETCH_ASSOC);
+        $hash=hash('sha256',$token);$q=$pdo->prepare('SELECT k.account_id,k.network_id,k.token_hash FROM '.arc_table('gestor_download_keys').' k JOIN '.arc_table('managed_networks').' n ON n.id=k.network_id AND n.account_id=k.account_id JOIN '.arc_table('user_accounts').' a ON a.id=k.account_id AND a.account_status=\'active\' WHERE k.token_hash=? AND k.created_at>=DATE_SUB(NOW(),INTERVAL 24 HOUR) AND n.is_active=1 AND n.monitoring_enabled=1 LIMIT 1');$q->execute([$hash]);$owner=$q->fetch(PDO::FETCH_ASSOC);
         if(!$owner)arc_json(['ok'=>false,'error'=>'Instalação não autorizada.'],403);
         arc_json(arc_log_accept_batch($body,$owner,'installer'));
     }

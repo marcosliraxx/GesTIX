@@ -202,12 +202,12 @@ public sealed partial class MainWindow : Window
         QuickBar.Background = RibbonBar.Background = StatusBorder.Background = p.Surface; CategoryBar.Background = p.Surface;
         QuickBar.BorderBrush = RibbonBar.BorderBrush = StatusBorder.BorderBrush = p.Line;
         var accent = ((SolidColorBrush)p.Accent).Color;
-        var ink = ThemeService.Brush((accent.R * .299 + accent.G * .587 + accent.B * .114) > 155 ? "#152536" : "#ffffff");
+        var ink = ThemeService.Brush(GestorAreaPalette.Ink(t.Accent));
         foreach (var (key, tab) in _tabs)
         {
             var selected = key == _group;
             tab.Background = selected ? p.Accent : p.Surface;
-            tab.Foreground = selected ? ThemeService.Brush("#ffffff") : p.Text;
+            tab.Foreground = selected ? ink : p.Text;
             tab.BorderBrush = selected ? p.Accent : p.Line;
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(tab, selected ? "Categoria selecionada" : "Abrir categoria");
         }

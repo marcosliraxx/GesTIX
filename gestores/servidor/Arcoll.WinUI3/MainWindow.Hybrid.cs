@@ -29,7 +29,7 @@ public sealed partial class MainWindow
     private static Microsoft.UI.Xaml.Media.Brush InkOn(Microsoft.UI.Xaml.Media.Brush background)
     {
         var color = ((SolidColorBrush)background).Color;
-        return ThemeService.Brush((color.R * .299 + color.G * .587 + color.B * .114) > 160 ? "#152536" : "#FFFFFF");
+        return ThemeService.Brush(GestorAreaPalette.Ink($"#{color.R:X2}{color.G:X2}{color.B:X2}"));
     }
 
     private void ApplyHybridChrome(Palette p)

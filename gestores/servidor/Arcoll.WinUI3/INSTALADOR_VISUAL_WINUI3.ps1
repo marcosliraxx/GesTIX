@@ -190,7 +190,7 @@ $script:ring.Width=252;$script:ring.Height=252;$script:ring.Stroke=$window.Resou
 # Texto do botao sobre o destaque mantem contraste nos dez temas.
 $accent=[Windows.Media.ColorConverter]::ConvertFromString($t.Accent)
 $controls.FinishButton.Foreground=[Windows.Media.Brushes]::White
-if(($accent.R*299+$accent.G*587+$accent.B*114)/1000 -gt 150){$controls.FinishButton.Foreground=[Windows.Media.Brushes]::Black}
+$lum=0.0;$weights=@(.2126,.7152,.0722);$channels=@($accent.R,$accent.G,$accent.B);for($i=0;$i -lt 3;$i++){$c=$channels[$i]/255.0;$linear=if($c -le .04045){$c/12.92}else{[Math]::Pow(($c+.055)/1.055,2.4)};$lum+=$weights[$i]*$linear};if($lum -gt .179){$controls.FinishButton.Foreground=[Windows.Media.Brushes]::Black}
 $script:proc=$null;$script:complete=$false;$script:success=$false;$script:percent=0;$script:session='';$script:stdout='';$script:stderr='';$script:lastLength=-1L;$script:sawDone=$false;$script:failure='';$script:pending='';$script:started=[DateTime]::UtcNow
 $script:stepNames=@('Preparar','Receber','Validar','Preparar arquivos','Instalar','Concluir')
 function Show-InstallProgress([int]$Percent,[string]$Message,[string]$State='working'){
@@ -252,7 +252,7 @@ if($Preview -or $RenderPreview){
    $script:session=New-PrivateInstallFolder
    $logs=Join-Path $env:LOCALAPPDATA 'TI-Digital\logs';[IO.Directory]::CreateDirectory($logs)|Out-Null
    $script:stdout=Join-Path $logs ('Instalacao-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'-'+[guid]::NewGuid().ToString('N').Substring(0,8)+'.log')
-   $script:stderr=Join-Path $script:session 'worker-error.log'
+   $script:stderr=$script:stdout.Replace('.log','-error.log')
    $worker=Join-Path $script:session 'install-worker.ps1';$config=Join-Path $script:session 'install-job.json'
    [IO.File]::WriteAllText($worker,$workerText,(New-Object Text.UTF8Encoding($true)))
    [IO.File]::WriteAllText($config,(@{url=$packageUrl;logpath=$script:stdout}|ConvertTo-Json -Compress),(New-Object Text.UTF8Encoding($false)))
