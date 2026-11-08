@@ -7,7 +7,7 @@ namespace Arcoll.WinUI3.Services;
 /// <summary>Read-only Windows providers. Inventory is cached; no PowerShell, drivers or fabricated counters.</summary>
 public sealed class PerformanceCollector
 {
- private readonly SystemMetrics _basic=new();private DateTimeOffset _inventoryAt;private long _sequence;
+ private SystemMetrics _basic=new();private DateTimeOffset _inventoryAt;private long _sequence;
  private List<Dictionary<string,object?>> _cpu=[],_ram=[],_arrays=[],_disks=[],_volumes=[],_videos=[],_storage=[];
  private readonly Dictionary<int,string[]> _diskVolumes=[];private readonly Dictionary<int,(double Formatted,bool Page)> _diskInfo=[];
  private List<GpuAdapter> _gpu=[];private readonly Queue<bool> _ping=[];
@@ -15,9 +15,10 @@ public sealed class PerformanceCollector
  private readonly List<string> _warnings=[];
  private List<Dictionary<string,object?>> Query(string query,string scope=@"root\cimv2",bool optional=false)
  {
-  try{using var search=new ManagementObjectSearcher(new ManagementScope(scope),new ObjectQuery(query),new EnumerationOptions{ReturnImmediately=false,Timeout=TimeSpan.FromSeconds(3)});using var result=search.Get();var rows=new List<Dictionary<string,object?>>();foreach(ManagementBaseObject row in result){using(row){var d=new Dictionary<string,object?>(StringComparer.OrdinalIgnoreCase);foreach(PropertyData p in row.Properties)d[p.Name]=p.Value;rows.Add(d);}}return rows;}
+  try{using var search=new ManagementObjectSearcher(new ManagementScope(scope),new ObjectQuery(query),new System.Management.EnumerationOptions{ReturnImmediately=false,Timeout=TimeSpan.FromSeconds(3)});using var result=search.Get();var rows=new List<Dictionary<string,object?>>();foreach(ManagementBaseObject row in result){using(row){var d=new Dictionary<string,object?>(StringComparer.OrdinalIgnoreCase);foreach(PropertyData p in row.Properties)d[p.Name]=p.Value;rows.Add(d);}}return rows;}
   catch(Exception e)when(e is ManagementException or COMException or UnauthorizedAccessException or System.Runtime.InteropServices.ExternalException or InvalidOperationException){if(!optional)_warnings.Add("Provedor Windows indisponível: "+query.Split(' ').Last());return [];}
  }
+ public void ResetSampling(){_basic=new SystemMetrics();_previous.Clear();_netStamp=0;_response.Clear();}
  private static object? V(Dictionary<string,object?>? d,string name)=>d is not null&&d.TryGetValue(name,out var v)?v:null;
  private static string S(Dictionary<string,object?>? d,string name)=>Convert.ToString(V(d,name))?.Trim()??"";
  private static double? N(Dictionary<string,object?>? d,string name)=>PerformanceRules.Number(V(d,name));

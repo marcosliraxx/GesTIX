@@ -21,6 +21,8 @@ jobs:
         run: |
           dotnet run --project validation-source/UpdateTests/UpdateTests.csproj -c Release
           dotnet run --project validation-source/ThemeHistoryTests/ThemeHistoryTests.csproj -c Release
+      - name: Coletor real em Windows (somente leitura)
+        run: dotnet run --project validation-source/CollectorSmoke/CollectorSmoke.csproj -c Release
       - name: Compilar agente WinUI x64
         run: dotnet build validation-source/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.118 --self-contained true
   api:
