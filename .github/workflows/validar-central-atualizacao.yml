@@ -15,6 +15,12 @@ jobs:
       - name: Extrair snapshot de compatibilidade
         shell: pwsh
         run: Expand-Archive -LiteralPath entregas/2026-11-07-central-atualizacao/VALIDACAO_CENTRAL_ATUALIZACAO_WINDOWS.zip -DestinationPath validation-source
+      - name: Testar estados, recibos e confirmacao correlacionada
+        shell: pwsh
+        run: dotnet run --project validation-source/UpdateTests/UpdateTests.csproj -c Release
+      - name: Testar handoff com processos simulados
+        shell: pwsh
+        run: ./validation-source/UpdateTests/HandoffTests.ps1
       - name: Compilar agente WinUI x64
         shell: pwsh
         run: dotnet build validation-source/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.114 --self-contained true
