@@ -15,5 +15,6 @@ public static class PerformanceRules
  public static string? GpuLuid(string instance){var m=Regex.Match(instance,@"luid_0x([a-fA-F0-9]{8})_0x([a-fA-F0-9]{8})",RegexOptions.CultureInvariant);return m.Success?m.Groups[1].Value.ToLowerInvariant()+":"+m.Groups[2].Value.ToLowerInvariant():null;}
  public static string? GpuEngine(string instance){var m=Regex.Match(instance,@"phys_(\d+)_eng_(\d+)_engtype_(.+)$",RegexOptions.CultureInvariant);return m.Success?$"{m.Groups[1].Value}:{m.Groups[2].Value}:{m.Groups[3].Value}":null;}
  public static double? Busiest(IEnumerable<double?> values){var a=values.Where(x=>x.HasValue).Select(x=>x!.Value).ToArray();return a.Length==0?null:Math.Clamp(a.Max(),0,100);}
+ public static double? Temperature(uint deciCelsius)=>deciCelsius is >0 and <=2000?deciCelsius/10d:null;
  public static string Percent(double? value)=>value is double n?$"{n:0.0}%":"Indisponível";
 }

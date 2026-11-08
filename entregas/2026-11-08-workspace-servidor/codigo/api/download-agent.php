@@ -126,7 +126,7 @@ try {
         }
 
         // O workspace comum e o monitor de componentes devem acompanhar o pacote inteiro.
-        foreach (['MainWindow.Workspace.cs','Controls/AgentWorkspace.cs','Services/PerformanceModel.cs','Services/PerformanceCollector.cs','Services/NativePerformance.cs','Pages/ServerPage.cs','Assets/hybrid/dashboard/server.html','Assets/hybrid/dashboard/server.css','Assets/hybrid/dashboard/server.js','Assets/hybrid/dashboard/compact-shell.js','Assets/hybrid/dashboard/standard-workspace.css','Assets/hybrid/dashboard/standard-workspace.js','Assets/hybrid/internet/standard-workspace.css','Assets/hybrid/pentefino/standard-workspace.css','Assets/hybrid/backup/standard-workspace.css'] as $workspaceFile) {
+        foreach (['MainWindow.Workspace.cs','Controls/AgentWorkspace.cs','Services/PerformanceModel.cs','Services/PerformanceCollector.cs','Services/NativePerformance.cs','Services/GpuTemperature.cs','Pages/ServerPage.cs','Assets/hybrid/dashboard/server.html','Assets/hybrid/dashboard/server.css','Assets/hybrid/dashboard/server.js','Assets/hybrid/dashboard/compact-shell.js','Assets/hybrid/dashboard/standard-workspace.css','Assets/hybrid/dashboard/standard-workspace.js','Assets/hybrid/internet/standard-workspace.css','Assets/hybrid/pentefino/standard-workspace.css','Assets/hybrid/backup/standard-workspace.css'] as $workspaceFile) {
             if ($zipNative->locateName('Arcoll.WinUI3/'.$workspaceFile)===false) throw new RuntimeException('Workspace do agente incompleto: '.$workspaceFile);
         }
 
