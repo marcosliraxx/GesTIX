@@ -336,7 +336,7 @@ public sealed partial class MainWindow : Window
         var state = _runtime.Allowed ? TrayState.Connected : _runtime.State is AuthState.Pending or AuthState.Checking ? TrayState.Pending : TrayState.Offline;
         _tray.SetState(state, ConnectionLabel.Text);
         if (_trayLast != _runtime.State) { _trayLast = _runtime.State; if (_runtime.Allowed) _ = RefreshBrandAsync(); }
-        if (_runtime.LastActivity.Length > 0 && _runtime.Allowed) FooterText.Text = _runtime.LastActivity;
+        if (_runtime.LastActivity.Length > 0 && _runtime.Allowed) WorkspaceRuntimeActivity(_runtime.LastActivity);
         PublishHybridState();
     }
     private async void GateRetry_Click(object sender, RoutedEventArgs e) { await _runtime.RecheckAsync(); GateText.Text = _runtime.StateNotice; }

@@ -17,7 +17,7 @@ public sealed partial class MainWindow
     private readonly HashSet<WebView2> _compactViews=[];
     private readonly HashSet<UserControl> _compactPages=[];
     private readonly HashSet<CoreWebView2> _compactCores=[];
-    private string? _compactScript;
+    private string? _compactScript;private string _workspaceScript="";
 
     private void CompactShell_Loaded(object sender,RoutedEventArgs args)
     {
@@ -25,6 +25,7 @@ public sealed partial class MainWindow
         InitializeWorkspaceFooter();InitializeAgentAreas();InitializeUpdateArea();
         var path=Path.Combine(AppContext.BaseDirectory,"Assets","hybrid","dashboard","compact-shell.js");
         if(File.Exists(path))_compactScript=File.ReadAllText(path);
+        var workspacePath=Path.Combine(AppContext.BaseDirectory,"Assets","hybrid","dashboard","standard-workspace.js");if(File.Exists(workspacePath))_workspaceScript=File.ReadAllText(workspacePath);
         CompactCategories();CompactNavigation();CompactFooter();
         _runtime.Changed+=CompactRuntimeChanged;
         RootGrid.SizeChanged+=(_,_)=>CompactFooter();
