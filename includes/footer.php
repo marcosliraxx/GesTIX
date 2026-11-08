@@ -20,39 +20,55 @@ declare(strict_types=1);
 $arcNetworkDock = !empty($arcNetworkHeader) && isset($networkId,$network) && (int)$networkId>0;
 if ($arcNetworkDock):
     $arcDockBase = arc_workspace_base_url().'redes/';
-    $arcDockQuery = http_build_query(array_filter(['network'=>(int)$networkId,'agent'=>(int)($_GET['agent']??0)]));
+    $arcDockQuery = http_build_query(array_filter(['network'=>(int)$networkId,'gestor'=>(int)($_GET['gestor']??0)]));
     $arcDockCurrent = (string)($arcSectionFile ?? basename((string)($_SERVER['SCRIPT_NAME']??''),'.php'));
-    $arcDockRights = ($teamRole??'')==='owner' ? null : arc_network_profile_rights($pdo,(int)$networkId,(int)arc_user_id());
-    $arcDockLinks = [
-      ['servidor','Servidor','fa-server'],['velocidade','Internet','fa-tachometer'],
-      ['painel','Painel da Rede','fa-th-large'],['suporte','Suporte','fa-life-ring'],
-      ['liberacao','Mais','fa-ellipsis-h']
-    ];
-    $arcConfigDockItems = [['liberacao','Liberações','fa-check-circle-o'],['usuarios','Usuários','fa-users'],['permissoes','Permissões','fa-lock'],['preferencias','Preferências','fa-sliders'],['cadastros','Cadastro da rede','fa-building-o']];
+    $arcDockRights = in_array(($teamRole??''),['owner','system_admin'],true) ? null : arc_network_profile_rights($pdo,(int)$networkId,(int)arc_user_id());
+    // Todos os rótulos, ícones e destinos são lidos do banco.
+    $arcDockBySection=[];
+    foreach (arc_navigation_items($pdo,'header',(int)$networkId) as $arcDockEntry) {
+        $section=basename((string)parse_url((string)$arcDockEntry['url'],PHP_URL_PATH),'.php');
+        if($section!=='' && !isset($arcDockBySection[$section]))$arcDockBySection[$section]=$arcDockEntry;
+    }
+    $arcDockLinks=[];
+    foreach(['servidor','velocidade','painel','suporte'] as $section){
+        if(!isset($arcDockBySection[$section]))continue;
+        $entry=$arcDockBySection[$section];
+        $arcDockLinks[]=[$section,(string)$entry['label'],(string)$entry['icon'],(string)$entry['url']];
+    }
+    $arcConfigDockItems=[];
+    foreach(['liberacao','usuarios','permissoes','preferencias','cadastros'] as $section){
+        if(!isset($arcDockBySection[$section]))continue;
+        $entry=$arcDockBySection[$section];
+        $arcConfigDockItems[]=[$section,(string)$entry['label'],(string)$entry['icon'],(string)$entry['url']];
+    }
+    // "Mais" é um controle do layout, não uma rota de menu cadastrada.
+    $arcDockLinks[]=['liberacao','Mais','fa-ellipsis-h',''];
     $arcDockAllowed = static function(string $section) use ($arcDockRights): bool {
         return $arcDockRights === null || in_array($section,$arcDockRights,true);
     };
 ?>
 <!-- Navegação completa da rede no desktop, alinhada aos cinco atalhos do celular. -->
 <nav class="arc-network-desktop-dock" aria-label="Navegação da rede no computador">
-<?php foreach ([['servidor','Servidor','fa-server',1],['velocidade','Internet','fa-tachometer',2],['suporte','Suporte','fa-life-ring',4]] as [$section,$label,$icon,$position]):
-    if (!$arcDockAllowed($section)) continue;
-    $arcDesktopUrl = $arcDockBase.$section.'.php?'.$arcDockQuery;
+<?php foreach (['servidor'=>1,'velocidade'=>2,'suporte'=>4] as $section=>$position):
+    if (!isset($arcDockBySection[$section]) || !$arcDockAllowed($section)) continue;
+    $arcDeskEntry=$arcDockBySection[$section];
+    $label=(string)$arcDeskEntry['label'];$icon=(string)$arcDeskEntry['icon'];
+    $arcDesktopUrl = arc_workspace_base_url().(string)$arcDeskEntry['url'];
 ?>
 <a style="grid-column:<?= $position ?>" href="<?=arc_h($arcDesktopUrl)?>" <?= $arcDockCurrent===$section?'aria-current="page"':'' ?>><i class="fa <?=arc_h($icon)?>" aria-hidden="true"></i><span><?=arc_h($label)?></span></a>
 <?php endforeach; ?>
 <button type="button" class="arc-network-desktop-more-trigger" style="grid-column:5" data-mobile-more aria-controls="arc-mobile-more" aria-expanded="false" aria-label="Mais opções da rede"><i class="fa fa-ellipsis-h" aria-hidden="true"></i><span>Mais</span></button>
 </nav>
 <!-- Painel da Rede no footer de computadores — mesmo destino e logo do atalho móvel. -->
-<a class="arc-network-desktop-panel" href="<?=arc_h($arcDockBase.'painel.php?'.$arcDockQuery)?>" aria-label="Abrir Painel da Rede" <?= $arcDockCurrent==='painel'?'aria-current="page"':'' ?>>
+<?php if(isset($arcDockBySection['painel']) && $arcDockAllowed('painel')): ?><a class="arc-network-desktop-panel" href="<?=arc_h(arc_workspace_base_url().(string)$arcDockBySection['painel']['url'])?>" aria-label="Abrir Painel da Rede" <?= $arcDockCurrent==='painel'?'aria-current="page"':'' ?>>
   <span class="arc-network-desktop-bubble">
   <?php if(!empty($network['logo_file'])): ?>
     <img src="<?=arc_h(arc_workspace_base_url().'api/network-logo.php?network='.(int)$networkId)?>" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false">
     <i class="fa fa-sitemap" hidden aria-hidden="true"></i>
   <?php else: ?><i class="fa fa-sitemap" aria-hidden="true"></i><?php endif; ?>
   </span>
-  <span class="arc-network-desktop-panel-label">Painel</span>
-</a>
+  <span class="arc-network-desktop-panel-label"><?=arc_h((string)$arcDockBySection['painel']['label'])?></span>
+</a><?php endif; ?>
 <style>
 /* Caminho: includes/footer.php — Painel da Rede no rodapé do desktop (v2026.11.03.2). */
 .arc-network-desktop-panel{display:none!important}
@@ -94,13 +110,13 @@ if ($arcNetworkDock):
 <?php foreach($arcDockLinks as $i=>$entry):
   if ($entry[0]!=='liberacao' && !$arcDockAllowed($entry[0])) continue;
   $isCurrent = $arcDockCurrent===$entry[0] || ($entry[0]==='liberacao' && in_array($arcDockCurrent,['preferencias','cadastros','usuarios','permissoes'],true));
-  $url=$arcDockBase.$entry[0].'.php?'.$arcDockQuery;
-  $isCenter=$i===2;
+  $url=arc_workspace_base_url().(string)($entry[3]??'');
+  $isCenter=$entry[0]==='painel';
 ?>
 <?php if ($entry[0]==='liberacao'): ?>
 <button type="button" style="grid-column:5" class="arc-network-more-trigger" data-mobile-more aria-controls="arc-mobile-more" aria-expanded="false" aria-label="Mais opções da rede"><i class="fa fa-ellipsis-h" aria-hidden="true"></i><span>Mais</span></button>
 <?php else: ?>
-<a style="grid-column:<?= $i+1 ?>" class="<?= $isCenter?'arc-mobile-start arc-network-mobile-center':'' ?>" href="<?=arc_h($url)?>" aria-label="<?=arc_h($entry[1])?>" <?=$isCurrent?'aria-current="page"':''?>>
+<a style="grid-column:<?= (int)(['servidor'=>1,'velocidade'=>2,'painel'=>3,'suporte'=>4][$entry[0]]??($i+1)) ?>" class="<?= $isCenter?'arc-mobile-start arc-network-mobile-center':'' ?>" href="<?=arc_h($url)?>" aria-label="<?=arc_h($entry[1])?>" <?=$isCurrent?'aria-current="page"':''?>>
 <?php if($isCenter):?><span class="arc-network-mobile-bubble">
 <?php if(!empty($network['logo_file'])):?><img src="<?=arc_h(arc_workspace_base_url().'api/network-logo.php?network='.(int)$networkId)?>" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><i class="fa fa-sitemap" hidden aria-hidden="true"></i><?php else:?><i class="fa fa-sitemap" aria-hidden="true"></i><?php endif;?>
 </span><?php else:?><i class="fa <?=arc_h($entry[2])?>" aria-hidden="true"></i><?php endif;?><span><?=arc_h($entry[1])?></span></a>
@@ -122,14 +138,14 @@ foreach (['sidebar','user','header','mobile','footer','more'] as $place) {
 }
 $arcGlobalChosen = [];
 $arcGlobalTargets = [
-    ['pages/painel.php','Painel','fa-th-large'],
-    ['pages/atendimentos.php','Atendimentos','fa-life-ring'],
-    ['pages/perfil.php','Perfil','fa-user'],
+    'pages/painel.php',
+    'pages/atendimentos.php',
+    'pages/perfil.php',
 ];
-foreach ($arcGlobalTargets as [$target,$name,$icon]) {
+foreach ($arcGlobalTargets as $target) {
     foreach ($arcGlobalMenu as $item) {
         if (parse_url((string)$item['url'], PHP_URL_PATH) !== $target) continue;
-        $arcGlobalChosen[$target] = ['url'=>$item['url'],'label'=>$name,'icon'=>$icon];
+        $arcGlobalChosen[$target] = ['url'=>$item['url'],'label'=>$item['label'],'icon'=>$item['icon']];
         break;
     }
 }
@@ -163,7 +179,7 @@ $arcCanRegisterNetwork = arc_is_user();
 
 <?php /* Dropdown fora do footer para não ser recortado pelo dock móvel. */ ?>
 <?php if ($arcNetworkDock): ?>
-<dialog id="arc-mobile-more" class="arc-mobile-more arc-network-more erp-user-menu-style" aria-labelledby="arc-mobile-more-title"><header><h2 id="arc-mobile-more-title">Configurações da rede</h2><button type="button" data-close-more aria-label="Fechar menu"><i class="fa fa-times" aria-hidden="true"></i></button></header><div class="erp-menu-sep"></div><nav aria-label="Páginas de configurações da rede"><?php $arcDockVisibleCount=0; foreach ($arcConfigDockItems as [$section,$label,$icon]): if (!$arcDockAllowed($section)) continue; $arcDockVisibleCount++; $link=$arcDockBase.$section.'.php?'.$arcDockQuery; ?><a href="<?=arc_h($link)?>" <?= $arcDockCurrent===$section?'aria-current="page"':'' ?>><i class="fa <?=arc_h($icon)?>" aria-hidden="true"></i><span><?=arc_h($label)?></span></a><?php endforeach; if($arcDockVisibleCount===0): ?><p role="status" style="padding:12px;color:var(--muted)">Seu perfil não possui páginas de configuração liberadas.</p><?php endif; ?></nav></dialog>
+<dialog id="arc-mobile-more" class="arc-mobile-more arc-network-more erp-user-menu-style" aria-labelledby="arc-mobile-more-title"><header><h2 id="arc-mobile-more-title">Configurações da rede</h2><button type="button" data-close-more aria-label="Fechar menu"><i class="fa fa-times" aria-hidden="true"></i></button></header><div class="erp-menu-sep"></div><nav aria-label="Páginas de configurações da rede"><?php $arcDockVisibleCount=0; foreach ($arcConfigDockItems as [$section,$label,$icon,$url]): if (!$arcDockAllowed($section)) continue; $arcDockVisibleCount++; $link=arc_workspace_base_url().$url; ?><a href="<?=arc_h($link)?>" <?= $arcDockCurrent===$section?'aria-current="page"':'' ?>><i class="fa <?=arc_h($icon)?>" aria-hidden="true"></i><span><?=arc_h($label)?></span></a><?php endforeach; if($arcDockVisibleCount===0): ?><p role="status" style="padding:12px;color:var(--muted)">Seu perfil não possui páginas de configuração liberadas.</p><?php endif; ?></nav></dialog>
 <?php else: ?>
 <dialog id="arc-mobile-more" class="arc-mobile-more arc-global-more erp-user-menu-style" aria-labelledby="arc-mobile-more-title"><header><h2 id="arc-mobile-more-title">Mais páginas</h2><button type="button" data-close-more aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><div class="erp-menu-sep"></div><nav aria-label="Outras páginas do sistema"><?php foreach($arcGlobalMore as $item): ?><a href="<?=arc_h((string)$item['url'])?>"><span class="arc-db-icon" data-icon="<?=arc_h((string)$item['icon'])?>" aria-hidden="true"></span><span><?=arc_h((string)$item['label'])?></span></a><?php endforeach; ?></nav></dialog>
 <?php endif; ?>

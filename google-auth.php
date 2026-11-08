@@ -90,6 +90,7 @@ try {
    $adminCheck=$pdo->prepare('SELECT id FROM '.arc_table('admins').' WHERE email=? LIMIT 1');$adminCheck->execute([$email]);
    if($adminCheck->fetchColumn()!==false)throw new RuntimeException('A conta administrativa não pôde ser validada.');
    if(arc_platform_setting($pdo,'platform_registration_enabled','1')!=='1')throw new RuntimeException('Cadastro de novas contas desativado.');
+   if(!arc_registration_domain_allowed($pdo,$email))throw new RuntimeException('O cadastro está restrito a domínios de e-mail autorizados.');
    $name=mb_substr(trim((string)($identity['name']??'Usuário Google')),0,120);
    $randomPassword=base64_encode(random_bytes(48));
    $pdo->prepare('INSERT INTO '.arc_table('user_accounts').' (email,email_hash,display_name,password_hash,access_notes) VALUES (?,?,?,?,?)')->execute([$email,hash('sha256',$email),$name,password_hash($randomPassword,PASSWORD_DEFAULT),'']);

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/includes/bootstrap.php';
 $pdo=arc_db();arc_ensure_user_schema($pdo);$networkId=(int)($_GET['network']??$_POST['network']??0);
-if(!arc_is_user()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
+if(!arc_is_user()&&!arc_is_admin()){header('Location: '.arc_workspace_base_url().'index.php',true,303);exit;}
 try{arc_support_access($pdo,$networkId,(int)arc_user_id());}catch(RuntimeException $e){http_response_code(403);exit('Rede não autorizada.');}
 $arcSectionFile=$arcSupportSection;require __DIR__.'/_base.php';
 $error='';
@@ -13,7 +13,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
  // The support workflow is already authorized above; _base handles only its own native management actions.
 
 }
-$write=in_array($teamRole,['owner','administrator','operator'],true);$uid=(int)arc_user_id();
+$write=arc_is_user() && in_array($teamRole,['owner','administrator','operator'],true); // Escrita de chamados aguarda ator administrativo próprio no banco.$uid=(int)arc_user_id();
 $states=['open'=>'Aberto','in_progress'=>'Em atendimento','waiting'=>'Aguardando cliente','resolved'=>'Resolvido','cancelled'=>'Cancelado'];$priorities=['low'=>'Baixa','normal'=>'Normal','high'=>'Alta','urgent'=>'Urgente'];
 $page=max(1,min(10000,(int)($_GET['p']??1)));$offset=($page-1)*50;$filter=(string)($_GET['status']??'active');$search=mb_substr(trim((string)($_GET['q']??'')),0,100);$q=$pdo->prepare('SELECT t.*,u.display_name AS technician,COALESCE((SELECT SUM(e.minutes_spent) FROM '.arc_table('support_events').' e WHERE e.ticket_id=t.id),0) AS minutes FROM '.arc_table('support_tickets').' t LEFT JOIN '.arc_table('user_accounts').' u ON u.id=t.assigned_to WHERE t.network_id=? AND t.account_id=? '.($filter==='active'?"AND t.status NOT IN ('resolved','cancelled') ":(isset($states[$filter])?'AND t.status=? ':'')).($search!==''?"AND (t.title LIKE ? OR CAST(t.id AS CHAR)=?) ":'').'ORDER BY t.due_at ASC,t.id DESC LIMIT 51 OFFSET '.(int)$offset);$params=[$networkId,$account];if(isset($states[$filter]))$params[]=$filter;if($search!==''){$params[]='%'.$search.'%';$params[]=$search;}$q->execute($params);$tickets=$q->fetchAll();$hasNext=count($tickets)>50;$tickets=array_slice($tickets,0,50);
 $selected=null;$events=[];$tid=(int)($_GET['ticket']??0);if($tid){$q=$pdo->prepare('SELECT * FROM '.arc_table('support_tickets').' WHERE id=? AND network_id=? AND account_id=?');$q->execute([$tid,$networkId,$account]);$selected=$q->fetch();if($selected){$q=$pdo->prepare('SELECT e.*,u.display_name FROM '.arc_table('support_events').' e LEFT JOIN '.arc_table('user_accounts').' u ON u.id=e.actor_id WHERE e.ticket_id=? ORDER BY e.id DESC LIMIT 150');$q->execute([$tid]);$events=$q->fetchAll();}}
@@ -26,19 +26,19 @@ $canSupportAdmin=in_array($teamRole,['owner','administrator'],true);
 <div class="arc-support-workspace">
 <nav class="arc-support-mosaic arc-support-page-links" aria-label="Áreas de gestão">
 <?php foreach(['remoto'=>['Acesso remoto','fa-eye'],'suporte'=>['Suporte','fa-life-ring'],'arquivos'=>['Arquivos','fa-folder-open'],'chamados'=>['Chamados','fa-ticket'],'agenda'=>['Agenda','fa-calendar-check-o']] as $file=>$data): ?>
-<a class="arc-tool-card <?= $arcSupportSection===$file?'is-active':'' ?>" href="<?=arc_h(arc_workspace_base_url().'redes/'.$file.'.php?'.http_build_query(['network'=>$networkId,'agent'=>$selectedAgentId]))?>" <?= $arcSupportSection===$file?'aria-current="page"':'' ?>><i class="fa <?=arc_h($data[1])?>" aria-hidden="true"></i><strong><?=arc_h($data[0])?></strong></a>
+<a class="arc-tool-card <?= $arcSupportSection===$file?'is-active':'' ?>" href="<?=arc_h(arc_workspace_base_url().'redes/'.$file.'.php?'.http_build_query(['network'=>$networkId,'gestor'=>$selectedGestorId]))?>" <?= $arcSupportSection===$file?'aria-current="page"':'' ?>><i class="fa <?=arc_h($data[1])?>" aria-hidden="true"></i><strong><?=arc_h($data[0])?></strong></a>
 <?php endforeach; ?></nav>
-<button type="button" id="arc-agent-remote-view" hidden aria-hidden="true" tabindex="-1"></button>
+<button type="button" id="arc-gestor-remote-view" hidden aria-hidden="true" tabindex="-1"></button>
 <div class="arc-support-stage" id="arc-support-stage" aria-label="Área de trabalho do suporte">
 <div class="arc-support-intro" id="arc-support-intro"><i class="fa fa-eye" aria-hidden="true"></i><h2>Acesso</h2><p>Selecione o computador para solicitar acesso.</p></div>
 <section id="arc-support-dashboard" aria-label="Painel de suporte"><header><h2>Painel de suporte</h2><p>Acesso rápido às ferramentas do computador selecionado.</p></header><div id="arc-dashboard-tools"></div></section>
 <section id="arc-support-actions-pane" class="arc-support-actions-pane" hidden aria-label="Ferramentas de suporte"></section>
 <section class="arc-support-page arc-tickets-page arc-service arc-support-tickets" id="arc-support-tickets" aria-label="Chamados da rede" hidden>
 <?php if($error):?><p class="arc-service-error" role="alert"><?=arc_h($error)?></p><?php endif;?>
-<?php if($write):?><dialog id="support-new" class="arc-service-dialog"><header class="arc-service-heading"><h2>Abrir chamado</h2><button type="button" class="arc-icon-action" data-close-dialog aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><form method="post" class="arc-service-form"><input type="hidden" name="_csrf" value="<?=arc_h($csrf)?>"><input type="hidden" name="action" value="ticket_create"><input type="hidden" name="network" value="<?=$networkId?>"><label>Título<input name="title" maxlength="160" required></label><label>Descrição do problema<textarea name="description" maxlength="12000" rows="3" required></textarea></label><div class="arc-service-fields"><label>Prioridade<select name="priority"><?php foreach($priorities as $k=>$label):?><option value="<?=$k?>" <?=$k==='normal'?'selected':''?>><?=$label?></option><?php endforeach;?></select></label><label>Computador<select name="agent_id"><option value="">Não vincular</option><?php foreach($networkAgents as $a):?><option value="<?=(int)$a['id']?>" <?=(int)$a['id']===$selectedAgentId?'selected':''?>><?=arc_h($a['machine_name'])?></option><?php endforeach;?></select></label></div><button class="button primary" aria-label="Criar chamado" title="Criar chamado"><i class="fa fa-plus" aria-hidden="true"></i><span class="arc-action-label">Criar chamado</span></button></form></dialog><?php endif;?>
+<?php if($write):?><dialog id="support-new" class="arc-service-dialog"><header class="arc-service-heading"><h2>Abrir chamado</h2><button type="button" class="arc-icon-action" data-close-dialog aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><form method="post" class="arc-service-form"><input type="hidden" name="_csrf" value="<?=arc_h($csrf)?>"><input type="hidden" name="action" value="ticket_create"><input type="hidden" name="network" value="<?=$networkId?>"><label>Título<input name="title" maxlength="160" required></label><label>Descrição do problema<textarea name="description" maxlength="12000" rows="3" required></textarea></label><div class="arc-service-fields"><label>Prioridade<select name="priority"><?php foreach($priorities as $k=>$label):?><option value="<?=$k?>" <?=$k==='normal'?'selected':''?>><?=$label?></option><?php endforeach;?></select></label><label>Computador<select name="gestor_id"><option value="">Não vincular</option><?php foreach($networkGestores as $a):?><option value="<?=(int)$a['id']?>" <?=(int)$a['id']===$selectedGestorId?'selected':''?>><?=arc_h($a['machine_name'])?></option><?php endforeach;?></select></label></div><button class="button primary" aria-label="Criar chamado" title="Criar chamado"><i class="fa fa-plus" aria-hidden="true"></i><span class="arc-action-label">Criar chamado</span></button></form></dialog><?php endif;?>
 <?php if($selected):?><dialog id="support-ticket" class="arc-service-dialog arc-support-detail"><header class="arc-service-heading"><button type="button" class="arc-icon-action" data-close-dialog aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button><h2>#<?=(int)$selected['id']?> · <?=arc_h($selected['title'])?></h2><span class="arc-service-pill"><?=arc_h($states[$selected['status']])?></span></header><p class="arc-service-prose"><?=arc_h($selected['description'])?></p><p>Prioridade <?=arc_h($priorities[$selected['priority']])?> · prazo <?=arc_h(arc_when($selected['due_at']))?></p><?php if($write):?><form method="post" class="arc-service-form"><input type="hidden" name="_csrf" value="<?=arc_h($csrf)?>"><input type="hidden" name="action" value="ticket_update"><input type="hidden" name="network" value="<?=$networkId?>"><input type="hidden" name="ticket_id" value="<?=(int)$selected['id']?>"><div class="arc-service-fields"><label>Situação<select name="status"><?php foreach($states as $k=>$label):?><option value="<?=$k?>" <?=$selected['status']===$k?'selected':''?>><?=$label?></option><?php endforeach;?></select></label><label>Responsável<select name="assigned_to"><option value="0">Não atribuído</option><?php foreach($technicians as $tech):?><option value="<?=(int)$tech['id']?>" <?=(int)$selected['assigned_to']===(int)$tech['id']?'selected':''?>><?=arc_h($tech['display_name'])?></option><?php endforeach;?></select></label><label>Tempo trabalhado neste registro (minutos)<input type="number" name="minutes" min="0" max="1440" value="0"></label></div><label>Anotação técnica ou solução<textarea name="message" maxlength="12000" rows="3"></textarea></label><button class="button primary" aria-label="Registrar atendimento" title="Registrar atendimento"><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">Registrar atendimento</span></button></form><?php endif;?><h3>Histórico</h3><div class="arc-service-timeline"><?php foreach($events as $e):?><article><small><?=arc_h($e['display_name']??'Conta removida')?> · <?=arc_h(arc_when($e['created_at']))?> · <?=(int)$e['minutes_spent']?> min</small><p class="arc-service-prose"><?=arc_h($e['message'])?></p></article><?php endforeach;?></div></dialog><?php endif;?>
-<section class="arc-support-queue"><form method="get" class="arc-filter-bar"><input type="hidden" name="pane" value="tickets"><input type="hidden" name="network" value="<?=$networkId?>"><input type="hidden" name="agent" value="<?=$selectedAgentId?>"><input type="search" name="q" value="<?=arc_h($search)?>" placeholder="Buscar chamado" aria-label="Buscar chamado"><select name="status" aria-label="Situação dos chamados"><option value="active">Em aberto</option><option value="all" <?=$filter==='all'?'selected':''?>>Todos</option><?php foreach($states as $k=>$label):?><option value="<?=$k?>" <?=$filter===$k?'selected':''?>><?=$label?></option><?php endforeach;?></select><button class="arc-icon-action" aria-label="Filtrar" title="Filtrar"><i class="fa fa-search" aria-hidden="true"></i></button><?php if($write):?>
-<button type="button" class="arc-icon-action" data-open-dialog="support-new" title="Novo chamado" aria-label="Novo chamado"><i class="fa fa-plus" aria-hidden="true"></i></button><?php endif;?></form><div class="arc-service-list"><?php foreach($tickets as $t):?><a href="<?=arc_h(arc_workspace_base_url())?>redes/chamados.php?network=<?=$networkId?>&agent=<?=$selectedAgentId?>&ticket=<?=(int)$t['id']?>" class="arc-service-ticket"><div><strong>#<?=(int)$t['id']?> · <?=arc_h($t['title'])?></strong><p><?=arc_h($t['technician']?:'Sem responsável')?> · <?=arc_h($priorities[$t['priority']])?> · <?=(int)$t['minutes']?> min</p></div><div><span class="arc-service-pill"><?=arc_h($states[$t['status']])?></span><small><?=strtotime($t['due_at'])<time()&&!in_array($t['status'],['resolved','cancelled'],true)?'Prazo excedido · ':''?><?=arc_h(arc_when($t['due_at']))?></small></div></a><?php endforeach;?><?php if(!$tickets):?><p>Nenhum chamado neste filtro.</p><?php endif;?></div><nav class="arc-service-actions" aria-label="Páginas de chamados"><?php if($page>1):?><a class="button" href="<?=arc_h(arc_workspace_base_url().'redes/chamados.php?'.http_build_query(['network'=>$networkId,'agent'=>$selectedAgentId,'q'=>$search,'status'=>$filter,'p'=>$page-1]))?>" aria-label="Anterior" title="Anterior"><i class="fa fa-angle-left" aria-hidden="true"></i><span class="arc-action-label">Anterior</span></a><?php endif;?><span>Página <?=$page?></span><?php if($hasNext):?><a class="button" href="<?=arc_h(arc_workspace_base_url().'redes/chamados.php?'.http_build_query(['network'=>$networkId,'agent'=>$selectedAgentId,'q'=>$search,'status'=>$filter,'p'=>$page+1]))?>" aria-label="Próxima" title="Próxima"><i class="fa fa-angle-right" aria-hidden="true"></i><span class="arc-action-label">Próxima</span></a><?php endif;?></nav></section>
+<section class="arc-support-queue"><form method="get" class="arc-filter-bar"><input type="hidden" name="pane" value="tickets"><input type="hidden" name="network" value="<?=$networkId?>"><input type="hidden" name="gestor" value="<?=$selectedGestorId?>"><input type="search" name="q" value="<?=arc_h($search)?>" placeholder="Buscar chamado" aria-label="Buscar chamado"><select name="status" aria-label="Situação dos chamados"><option value="active">Em aberto</option><option value="all" <?=$filter==='all'?'selected':''?>>Todos</option><?php foreach($states as $k=>$label):?><option value="<?=$k?>" <?=$filter===$k?'selected':''?>><?=$label?></option><?php endforeach;?></select><button class="arc-icon-action" aria-label="Filtrar" title="Filtrar"><i class="fa fa-search" aria-hidden="true"></i></button><?php if($write):?>
+<button type="button" class="arc-icon-action" data-open-dialog="support-new" title="Novo chamado" aria-label="Novo chamado"><i class="fa fa-plus" aria-hidden="true"></i></button><?php endif;?></form><div class="arc-service-list"><?php foreach($tickets as $t):?><a href="<?=arc_h(arc_workspace_base_url())?>redes/chamados.php?network=<?=$networkId?>&gestor=<?=$selectedGestorId?>&ticket=<?=(int)$t['id']?>" class="arc-service-ticket"><div><strong>#<?=(int)$t['id']?> · <?=arc_h($t['title'])?></strong><p><?=arc_h($t['technician']?:'Sem responsável')?> · <?=arc_h($priorities[$t['priority']])?> · <?=(int)$t['minutes']?> min</p></div><div><span class="arc-service-pill"><?=arc_h($states[$t['status']])?></span><small><?=strtotime($t['due_at'])<time()&&!in_array($t['status'],['resolved','cancelled'],true)?'Prazo excedido · ':''?><?=arc_h(arc_when($t['due_at']))?></small></div></a><?php endforeach;?><?php if(!$tickets):?><p>Nenhum chamado neste filtro.</p><?php endif;?></div><nav class="arc-service-actions" aria-label="Páginas de chamados"><?php if($page>1):?><a class="button" href="<?=arc_h(arc_workspace_base_url().'redes/chamados.php?'.http_build_query(['network'=>$networkId,'gestor'=>$selectedGestorId,'q'=>$search,'status'=>$filter,'p'=>$page-1]))?>" aria-label="Anterior" title="Anterior"><i class="fa fa-angle-left" aria-hidden="true"></i><span class="arc-action-label">Anterior</span></a><?php endif;?><span>Página <?=$page?></span><?php if($hasNext):?><a class="button" href="<?=arc_h(arc_workspace_base_url().'redes/chamados.php?'.http_build_query(['network'=>$networkId,'gestor'=>$selectedGestorId,'q'=>$search,'status'=>$filter,'p'=>$page+1]))?>" aria-label="Próxima" title="Próxima"><i class="fa fa-angle-right" aria-hidden="true"></i><span class="arc-action-label">Próxima</span></a><?php endif;?></nav></section>
 <script src="<?=arc_h(arc_workspace_base_url())?>assets/js/support-transfers.js?v=<?=arc_h(arc_app_version())?>"></script>
 <script>document.addEventListener('DOMContentLoaded',()=>{<?php if($selected):?>document.getElementById('support-ticket')?.showModal();<?php elseif(isset($_GET['new'])&&$write):?>document.getElementById('support-new')?.showModal();<?php endif;?>});</script>
 </section>
@@ -73,7 +73,7 @@ $canSupportAdmin=in_array($teamRole,['owner','administrator'],true);
 <input type="search" id="schedule-search" placeholder="Buscar agendamento" aria-label="Buscar agendamentos" tabindex="-1" autocomplete="off">
 <select id="schedule-filter" aria-label="Filtrar agendamentos"><option value="all">Todos</option><option value="active">Ativos</option><option value="inactive">Cancelados ou encerrados</option></select>
 <button class="arc-icon-action" type="button" id="schedule-refresh" aria-label="Atualizar agendamentos" title="Atualizar"><i class="fa fa-refresh" aria-hidden="true"></i></button>
-<button class="arc-icon-action" type="button" id="arc-agent-force-update" title="Forçar atualização do agente selecionado" aria-label="Forçar atualização do agente" <?=!in_array($teamRole,['owner','administrator'],true)?'disabled':''?>> <i class="fa fa-cloud-download" aria-hidden="true"></i></button>
+<button class="arc-icon-action" type="button" id="arc-gestor-force-update" title="Forçar atualização do gestor selecionado" aria-label="Forçar atualização do gestor" <?=!in_array($teamRole,['owner','administrator'],true)?'disabled':''?>> <i class="fa fa-cloud-download" aria-hidden="true"></i></button>
 <button class="arc-icon-action" type="button" id="schedule-new" aria-label="Novo agendamento" title="Novo agendamento"><i class="fa fa-plus" aria-hidden="true"></i></button>
 
 </div>
@@ -86,7 +86,7 @@ $canSupportAdmin=in_array($teamRole,['owner','administrator'],true);
 </dialog>
 
 </section>
-<p id="arc-agent-force-update-status" role="status" aria-live="polite" style="padding:4px 12px;min-height:1.5em;margin:0"></p>
+<p id="arc-gestor-force-update-status" role="status" aria-live="polite" style="padding:4px 12px;min-height:1.5em;margin:0"></p>
 <dialog id="arc-windows-update-dialog" class="arc-service-dialog arc-windows-dialog" aria-labelledby="arc-windows-title"><header><h2 id="arc-windows-title"><i class="fa fa-windows" aria-hidden="true"></i> Atualizações do Windows</h2><button type="button" id="arc-windows-close" class="arc-icon-action" aria-label="Fechar atualizações"><i class="fa fa-times" aria-hidden="true"></i></button></header><p id="arc-windows-feedback" role="status"></p><ul id="arc-windows-updates"></ul><p>O Windows baixa e instala as atualizações listadas e aceita suas licenças. Nenhuma reinicialização automática será solicitada por esta ferramenta.</p><div class="arc-service-actions"><button type="button" class="button primary" id="arc-windows-install" hidden>Baixar e instalar</button><button type="button" class="button" id="arc-windows-rescan">Verificar novamente</button></div></dialog>
 <?php require __DIR__.'/_rodape.php';?>
 <script>
@@ -94,8 +94,8 @@ $canSupportAdmin=in_array($teamRole,['owner','administrator'],true);
 const plain=value=>window.arcPlainMessage?window.arcPlainMessage(value):String(value||'');
 async function json(url,options={}){const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Não foi possível verificar.');return j;}
 const fileDialog=document.getElementById('file-transfer'),fileMessage=document.getElementById('file-feedback');let fileBusy=false,fileLimit=<?=ARC_FILE_MAX_BYTES?>,fileFolderLimit=300;
-const fsDefaultAgent=<?=json_encode((int)$selectedAgentId)?>;
-function fsAgentId(){const selector=document.getElementById('arc-agent-target');const current=Number(selector?.value||0);if(current>0)return current;if(fsDefaultAgent>0){if(selector&&[...selector.options].some(o=>Number(o.value)===fsDefaultAgent))selector.value=String(fsDefaultAgent);return fsDefaultAgent;}return 0;}
+const fsDefaultGestor=<?=json_encode((int)$selectedGestorId)?>;
+function fsGestorId(){const selector=document.getElementById('arc-gestor-target');const current=Number(selector?.value||0);if(current>0)return current;if(fsDefaultGestor>0){if(selector&&[...selector.options].some(o=>Number(o.value)===fsDefaultGestor))selector.value=String(fsDefaultGestor);return fsDefaultGestor;}return 0;}
 const fsEntries=document.getElementById('arc-fs-entries'),fsState=document.getElementById('arc-fs-state'),fsCurrent=document.getElementById('arc-fs-current'),fsSelection=document.getElementById('arc-files-selection');
 let fsPath='',fsBusy=false,fsPendingRoot=false,fsLoadState='idle',fsRows=[],fsHistory=[],fsHistoryIndex=-1,fsInitialized=false;let fsView='details';try{const saved=localStorage.getItem('arc_support_file_view');if(['list','grid','details'].includes(saved))fsView=saved}catch{};fsEntries?.setAttribute('data-view',fsView);const fsCanTransfer=<?=json_encode($canSupportAdmin)?>,fsCanExecute=<?=json_encode(in_array($teamRole,['owner','administrator'],true))?>;
 const fsSelected=new Set();let fsSelectionMode=false;
@@ -153,12 +153,12 @@ async function fsOpen(path=''){
  if(!fsEntries)return;
  if(fsBusy){if(path==='')fsPendingRoot=true;return;}
  if(!fsCanTransfer && path!==''){fsState.textContent='Seu perfil permite visualizar somente os discos.';return;}
- const agent=fsAgentId();
- if(!agent){fsLoadState='idle';fsState.textContent='Selecione um computador conectado.';fsRows=[];renderEntries();return;}
+ const gestor=fsGestorId();
+ if(!gestor){fsLoadState='idle';fsState.textContent='Selecione um computador conectado.';fsRows=[];renderEntries();return;}
  fsBusy=true;fsLoadState='loading';setSelectionMode(false);fsState.textContent='Carregando arquivos…';fsRows=[];renderEntries();
  try{
   await abortThumbnails();
-  const started=await json(base+'api/api.php?action=network-file-browser-start',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:agent,path,_csrf:csrf})});
+  const started=await json(base+'api/api.php?action=network-file-browser-start',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:gestor,path,_csrf:csrf})});
   let result=null;
   for(let i=0;i<24;i++){
    await new Promise(resolve=>setTimeout(resolve,900));
@@ -175,22 +175,22 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function showThumbnail(icon,url,name){if(!icon?.isConnected)return;const el=document.createElement('img');el.className='arc-fs-thumb';el.alt=name;el.src=url;icon.replaceWith(el);}
 function scheduleThumbnail(item,icon){
  if(item.directory||item.drive||!fsCanTransfer||thumbnailUnsupported||!thumbnailTypes.has(extOf(item.name)))return;
- const key=fsAgentId()+':'+item.path,cached=thumbnailCache.get(key);
+ const key=fsGestorId()+':'+item.path,cached=thumbnailCache.get(key);
  if(cached){showThumbnail(icon,cached,item.name);return;}
  thumbnailSlots.set(key,{icon,name:item.name});
  if(cached===undefined){clearTimeout(thumbnailTimer);thumbnailTimer=setTimeout(loadThumbnails,200);}
 }
-async function cancelTransfer(id,agent=fsAgentId()){if(!id)return;const form=new FormData();form.set('network',network);form.set('agent',agent);form.set('id',id);await fileApi('file-cancel',{method:'POST',body:form}).catch(()=>{});}
+async function cancelTransfer(id,gestor=fsGestorId()){if(!id)return;const form=new FormData();form.set('network',network);form.set('gestor',gestor);form.set('id',id);await fileApi('file-cancel',{method:'POST',body:form}).catch(()=>{});}
 /* Todas as imagens da pasta chegam em um único pedido ao computador (até 24 por vez). */
 async function loadThumbnails(){
  if(thumbnailJob||fileBusy||fileDialog.hidden||thumbnailUnsupported||!fsCanTransfer)return;
- const agent=fsAgentId();if(!agent)return;
- const wanted=[...thumbnailSlots.keys()].filter(key=>key.startsWith(agent+':')&&thumbnailCache.get(key)===undefined).slice(0,24);
+ const gestor=fsGestorId();if(!gestor)return;
+ const wanted=[...thumbnailSlots.keys()].filter(key=>key.startsWith(gestor+':')&&thumbnailCache.get(key)===undefined).slice(0,24);
  if(!wanted.length)return;
- const prefix=String(agent).length+1;for(const key of wanted)thumbnailCache.set(key,null);
- const job={agent,id:null,controller:new AbortController(),requested:null};thumbnailJob=job;
+ const prefix=String(gestor).length+1;for(const key of wanted)thumbnailCache.set(key,null);
+ const job={gestor,id:null,controller:new AbortController(),requested:null};thumbnailJob=job;
  try{
-  const form=new FormData();form.set('network',network);form.set('agent',agent);form.set('operation','thumbnails');form.set('paths',JSON.stringify(wanted.map(key=>key.slice(prefix))));form.set('confirmed','1');
+  const form=new FormData();form.set('network',network);form.set('gestor',gestor);form.set('operation','thumbnails');form.set('paths',JSON.stringify(wanted.map(key=>key.slice(prefix))));form.set('confirmed','1');
   job.requested=fileApi('file-operation-request',{method:'POST',body:form});job.id=(await job.requested).id;
   const row=await waitTransfer(job.id,['ready'],job.controller.signal,45000);
   const response=await fetch(base+'api/support.php?action=file-download&id='+row.id,{credentials:'same-origin',cache:'no-store',signal:job.controller.signal});
@@ -201,19 +201,19 @@ async function loadThumbnails(){
   for(const entry of entries){
    const part=bytes.slice(offset,offset+entry.size);offset+=entry.size;
    if(!/^image\/(jpeg|png|webp|gif|bmp)$/.test(entry.type))continue;
-   const key=agent+':'+entry.path,url=URL.createObjectURL(new Blob([part],{type:entry.type}));thumbnailCache.set(key,url);
+   const key=gestor+':'+entry.path,url=URL.createObjectURL(new Blob([part],{type:entry.type}));thumbnailCache.set(key,url);
    const slot=thumbnailSlots.get(key);if(slot)showThumbnail(slot.icon,url,slot.name);
   }
- }catch(error){if(/Atualize o agente/.test(error.message)){thumbnailUnsupported=true;fileMessage.textContent=plain(error.message);}}
+ }catch(error){if(/Atualize o gestor/.test(error.message)){thumbnailUnsupported=true;fileMessage.textContent=plain(error.message);}}
  finally{
   if(thumbnailJob===job)thumbnailJob=null;
   if(job.controller.signal.aborted)for(const key of wanted)if(thumbnailCache.get(key)===null)thumbnailCache.delete(key);
-  await cancelTransfer(job.id,agent);
+  await cancelTransfer(job.id,gestor);
   if(!job.controller.signal.aborted)setTimeout(loadThumbnails,150);
  }
 }
 /* Libera o computador antes de qualquer pedido do usuário. */
-async function abortThumbnails(){const job=thumbnailJob;if(!job)return;thumbnailJob=null;job.controller.abort();const result=await job.requested?.catch(()=>null);await cancelTransfer(result?.id||job.id,job.agent);}
+async function abortThumbnails(){const job=thumbnailJob;if(!job)return;thumbnailJob=null;job.controller.abort();const result=await job.requested?.catch(()=>null);await cancelTransfer(result?.id||job.id,job.gestor);}
 window.addEventListener('pagehide',()=>{for(const url of thumbnailCache.values())if(url)URL.revokeObjectURL(url);});
 let activeTransfer=null;const transferDock=document.getElementById('arc-transfer-dock'),transferProgress=document.getElementById('arc-transfer-progress'),transferDetail=document.getElementById('arc-transfer-detail');document.body.append(transferDock);function transferStart(title){transferDock.hidden=false;document.getElementById('arc-transfer-title').textContent=title;transferProgress.removeAttribute('value');transferDetail.textContent='Iniciando…';}function transferUpdate(loaded,total,started,initialLoaded=0){if(total>0){transferProgress.value=Math.min(100,loaded/total*100);const speed=(Math.max(0,loaded-initialLoaded)/Math.max(.25,(Date.now()-started)/1000));const remaining=speed>0?(total-loaded)/speed:0;transferDetail.textContent=Math.round(loaded/total*100)+'% · '+formatBytes(loaded)+' de '+formatBytes(total)+' · '+(speed<=0?'calculando tempo…':remaining<1?'quase concluído':Math.ceil(remaining)+' s restantes');}else transferDetail.textContent=formatBytes(loaded)+' enviados';}function transferFinish(message=''){if(message)transferDetail.textContent=message;setTimeout(()=>{if(!activeTransfer)transferDock.hidden=true;},2500);}document.getElementById('arc-transfer-cancel').addEventListener('click',()=>{if(activeTransfer){activeTransfer.abort();activeTransfer=null;fileBusy=false;transferFinish('Transferência cancelada.');fileMessage.textContent='Transferência cancelada.';}});const uploadUser=<?=json_encode($uid)?>;
 window.ArcDirectUpload?.purgeLegacyQueue();
@@ -221,17 +221,17 @@ window.ArcDirectUpload?.purgeLegacyQueue();
 async function sendFiles(files,folder=false){
  if(fileBusy||!files.length)return;
  if(!window.ArcDirectUpload){fileMessage.textContent='Recarregue a página para enviar arquivos.';return;}
- if(!fsPath||!fsAgentId()){fileMessage.textContent='Abra a pasta de destino no computador selecionado antes de enviar.';return;}
- fileBusy=true;const controller=new AbortController(),destination=fsPath,agent=fsAgentId(),label=folder?files[0].webkitRelativePath.split('/')[0]:files[0].name;let id=null;
+ if(!fsPath||!fsGestorId()){fileMessage.textContent='Abra a pasta de destino no computador selecionado antes de enviar.';return;}
+ fileBusy=true;const controller=new AbortController(),destination=fsPath,gestor=fsGestorId(),label=folder?files[0].webkitRelativePath.split('/')[0]:files[0].name;let id=null;
  try{
   await abortThumbnails();activeTransfer=controller;transferStart('Enviando '+label);fileMessage.textContent='';const started=Date.now();
-  id=await ArcDirectUpload.send({base,csrf,user:uploadUser,network:Number(network),agent,destination},files,folder,{signal:controller.signal,onProgress:(loaded,total)=>transferUpdate(loaded,total,started)});
+  id=await ArcDirectUpload.send({base,csrf,user:uploadUser,network:Number(network),gestor,destination},files,folder,{signal:controller.signal,onProgress:(loaded,total)=>transferUpdate(loaded,total,started)});
   transferProgress.removeAttribute('value');transferDetail.textContent='Salvando no computador…';
   await waitTransfer(id,['completed'],controller.signal,150000);
   fileMessage.textContent='Enviado: '+label+'.';transferFinish('Enviado · '+label);activeTransfer=null;
-  if(fsPath===destination&&fsAgentId()===agent)await fsOpen(destination);
+  if(fsPath===destination&&fsGestorId()===gestor)await fsOpen(destination);
  }catch(error){
-  if(id&&controller.signal.aborted)await cancelTransfer(id,agent);
+  if(id&&controller.signal.aborted)await cancelTransfer(id,gestor);
   const message=error.name==='AbortError'?'Envio cancelado.':plain(error.message);fileMessage.textContent=message;transferFinish(message);
  }finally{activeTransfer=null;fileBusy=false;document.getElementById('file-source').value='';document.getElementById('folder-source').value='';setTimeout(loadThumbnails,200);}
 }
@@ -245,7 +245,7 @@ function openFileMenu(item=null,position=null){
  const list=document.getElementById('arc-fs-menu-options');list.replaceChildren();document.getElementById('arc-fs-menu-name').textContent=items.length>1?items.length+' itens':item?.name||'Esta pasta';
  for(const [action,label] of Object.entries(operationLabels)){
   const single=items.length===1,regular=single&&!items[0].directory;
-  const available=action==='execute'&&!fsCanExecute?false:action==='paste'?!!clipboard&&clipboard.agent===fsAgentId()&&!!fsPath:action==='execute'?regular&&isExecutable(items[0]):action==='preview'?regular&&previewExtensions.has(extOf(items[0].name)):action==='extract'?regular&&extOf(items[0].name)==='zip':action==='rename'||action==='open'?single:items.length>0;
+  const available=action==='execute'&&!fsCanExecute?false:action==='paste'?!!clipboard&&clipboard.gestor===fsGestorId()&&!!fsPath:action==='execute'?regular&&isExecutable(items[0]):action==='preview'?regular&&previewExtensions.has(extOf(items[0].name)):action==='extract'?regular&&extOf(items[0].name)==='zip':action==='rename'||action==='open'?single:items.length>0;
   const b=document.createElement('button');b.type='button';b.disabled=!available;b.dataset.fileOperation=action;
   const icon=document.createElement('i');icon.className='fa fa-'+operationIcons[action];icon.setAttribute('aria-hidden','true');b.append(icon,document.createTextNode(label));
   b.addEventListener('click',()=>{fileMenu.close();handleFileOption(action,items);});list.append(b);
@@ -259,10 +259,10 @@ function handleFileOption(action,items){
  const paths=items.map(i=>i.path);
  if(action==='select'){setSelectionMode(true);for(const p of paths)fsSelected.add(p);renderSelectionInfo();renderEntries();return;}
  if(action==='open'&&items[0]?.directory){fsOpen(items[0].path);return;}
- if(action==='copy'||action==='cut'){clipboard={agent:fsAgentId(),paths,operation:action==='cut'?'move':'copy'};fileMessage.textContent=paths.length+' item(ns) na área de transferência. Abra o destino e use Colar.';return;}
+ if(action==='copy'||action==='cut'){clipboard={gestor:fsGestorId(),paths,operation:action==='cut'?'move':'copy'};fileMessage.textContent=paths.length+' item(ns) na área de transferência. Abra o destino e use Colar.';return;}
  let name='',destination='';
  if(action==='paste'){
-  if(!clipboard||clipboard.agent!==fsAgentId())return;
+  if(!clipboard||clipboard.gestor!==fsGestorId())return;
   return fileOperation(clipboard.operation,clipboard.paths,{destination:fsPath},false,true);
  }
  if(action==='rename'){name=window.prompt('Novo nome:',items[0].name);if(!name)return;}
@@ -306,12 +306,12 @@ async function showPreview(row,sourcePath){
  download.addEventListener('click',e=>{e.preventDefault();preview.close();fileOperation('download',[sourcePath]);});container.append(download);preview.showModal();
 }
 async function fileOperation(operation,paths,extra={},view=false,clearClipboard=false){
- if(fileBusy||!fsCanTransfer)return;fileBusy=true;const agent=fsAgentId(),controller=new AbortController(),item=fsRows.find(i=>i.path===paths[0]),label=paths.length>1?paths.length+' itens':(item?.name||'arquivo');let id=null;
+ if(fileBusy||!fsCanTransfer)return;fileBusy=true;const gestor=fsGestorId(),controller=new AbortController(),item=fsRows.find(i=>i.path===paths[0]),label=paths.length>1?paths.length+' itens':(item?.name||'arquivo');let id=null;
  try{
   await abortThumbnails();
   if(['download','preview'].includes(operation)){activeTransfer=controller;transferStart((operation==='download'?'Baixando ':'Abrindo ')+label);fileMessage.textContent='';}
   else fileMessage.textContent='Processando '+(operationLabels[operation]||operation).toLowerCase()+'…';
-  const form=new FormData();form.set('network',network);form.set('agent',agent);form.set('operation',operation);form.set('paths',JSON.stringify(paths));form.set('confirmed','1');for(const [key,value] of Object.entries(extra))form.set(key,value);
+  const form=new FormData();form.set('network',network);form.set('gestor',gestor);form.set('operation',operation);form.set('paths',JSON.stringify(paths));form.set('confirmed','1');for(const [key,value] of Object.entries(extra))form.set(key,value);
   const result=await fileApi('file-operation-request',{method:'POST',body:form});id=result.id||null;
   if(id){
    const row=await waitTransfer(id,['ready'],controller.signal);
@@ -320,7 +320,7 @@ async function fileOperation(operation,paths,extra={},view=false,clearClipboard=
   }else{
    let done=false;
    for(let i=0;i<60;i++){
-    await sleep(900);const status=await json(base+'api/api.php?action=network-command-status&network_id='+network+'&agent_id='+agent);const row=(status.commands||[]).find(r=>Number(r.id)===Number(result.command_id));
+    await sleep(900);const status=await json(base+'api/api.php?action=network-command-status&network_id='+network+'&gestor_id='+gestor);const row=(status.commands||[]).find(r=>Number(r.id)===Number(result.command_id));
     if(!row)continue;if(['failed','expired'].includes(row.status))throw Error(row.result_text||'Operação não concluída.');if(row.status==='completed'){done=true;fileMessage.textContent=row.result_text||'Concluído.';break;}
    }
    if(!done)throw Error('O computador não concluiu a operação no prazo.');
@@ -328,7 +328,7 @@ async function fileOperation(operation,paths,extra={},view=false,clearClipboard=
    if(['rename','delete','copy','move','extract'].includes(operation)){setSelectionMode(false);await fsOpen(fsPath);}
   }
  }catch(error){
-  if(id&&controller.signal.aborted)await cancelTransfer(id,agent);
+  if(id&&controller.signal.aborted)await cancelTransfer(id,gestor);
   fileMessage.textContent=error.name==='AbortError'?'Transferência cancelada.':plain(error.message);transferFinish(fileMessage.textContent);
  }finally{activeTransfer=null;fileBusy=false;setTimeout(loadThumbnails,200);}
 }
@@ -355,7 +355,7 @@ let scheduleBusy=false;
 function scheduleFields(){const mode=scheduleForm.elements.recurrence.value;document.querySelector('[data-schedule-days]').hidden=mode!=='weekdays';document.querySelector('[data-schedule-interval]').hidden=mode!=='interval';document.querySelector('[data-schedule-power]').hidden=!scheduleForm.elements.command.value.startsWith('power_');}
 scheduleForm.elements.recurrence.addEventListener('change',scheduleFields);scheduleForm.elements.command.addEventListener('change',scheduleFields);scheduleFields();
 const scheduleDate=value=>value?value.slice(8,10)+'/'+value.slice(5,7)+'/'+value.slice(0,4)+' '+value.slice(11,16):'Encerrado';
-async function scheduleApi(action,data={}){return json(base+'api/support.php?action=schedule-'+action,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:fsAgentId(),...data})});}
+async function scheduleApi(action,data={}){return json(base+'api/support.php?action=schedule-'+action,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:fsGestorId(),...data})});}
 let scheduleRows=[];
 const scheduleSearch=document.getElementById('schedule-search'),scheduleFilter=document.getElementById('schedule-filter');
 const scheduleEditor=document.getElementById('schedule-create-modal'),scheduleHistory=document.getElementById('schedule-history-modal');
@@ -378,14 +378,14 @@ function renderSchedules(){
  if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.className='arc-schedule-empty';td.textContent='Nenhum agendamento encontrado.';tr.append(td);scheduleList.append(tr);}
 }
 async function loadSchedules(){if(!scheduleDialog.open)return;try{
- if(!fsAgentId()){scheduleMessage.textContent='Selecione um computador para consultar os agendamentos.';scheduleRows=[];renderSchedules();scheduleRunRows=[];scheduleRuns.replaceChildren();return;}
+ if(!fsGestorId()){scheduleMessage.textContent='Selecione um computador para consultar os agendamentos.';scheduleRows=[];renderSchedules();scheduleRunRows=[];scheduleRuns.replaceChildren();return;}
  const data=await scheduleApi('list');scheduleRows=Array.isArray(data.schedules)?data.schedules:[];renderSchedules();
  scheduleRunRows=Array.isArray(data.runs)?data.runs:[];
  if(scheduleHistory.open&&selectedScheduleHistory!==null)renderScheduleHistory();
  }catch(e){scheduleMessage.textContent=plain(e.message);}}
 scheduleSearch.addEventListener('input',renderSchedules);scheduleFilter.addEventListener('change',renderSchedules);
 function closeScheduleCreate(){if(scheduleEditor.open)scheduleEditor.close();scheduleNew.setAttribute('aria-expanded','false');scheduleForm.elements.password.value='';scheduleForm.elements.confirmed.checked=false;}
-scheduleNew.addEventListener('click',()=>{if(!fsAgentId()){scheduleMessage.textContent='Selecione um computador para agendar.';return;}scheduleEditor.showModal();scheduleNew.setAttribute('aria-expanded','true');scheduleForm.elements.command.focus();});
+scheduleNew.addEventListener('click',()=>{if(!fsGestorId()){scheduleMessage.textContent='Selecione um computador para agendar.';return;}scheduleEditor.showModal();scheduleNew.setAttribute('aria-expanded','true');scheduleForm.elements.command.focus();});
 document.getElementById('schedule-form-cancel').addEventListener('click',closeScheduleCreate);
 document.getElementById('schedule-modal-close').addEventListener('click',closeScheduleCreate);
 scheduleEditor.addEventListener('close',()=>{scheduleNew.setAttribute('aria-expanded','false');scheduleForm.elements.password.value='';scheduleForm.elements.confirmed.checked=false;});
@@ -454,8 +454,8 @@ function activate(name){
  if(name==='schedules'){document.getElementById('schedule-refresh')?.click();requestAnimationFrame(()=>document.getElementById('schedule-new')?.focus({preventScroll:true}));}
 }
 buttons.forEach(button=>button.addEventListener('click',()=>activate(button.dataset.supportPane)));
-document.querySelectorAll('[data-support-shortcut]').forEach(button=>button.addEventListener('click',()=>{const route={remote:'remoto',support:'suporte',files:'arquivos',tickets:'chamados',schedules:'agenda'}[button.dataset.supportShortcut];if(route)location.assign(base+'redes/'+route+'.php?'+new URLSearchParams({network:String(network),agent:String(fsAgentId())}));}));
-document.getElementById('arc-dashboard-access')?.addEventListener('click',()=>location.assign(base+'redes/remoto.php?'+new URLSearchParams({network:String(network),agent:String(fsAgentId())})));
+document.querySelectorAll('[data-support-shortcut]').forEach(button=>button.addEventListener('click',()=>{const route={remote:'remoto',support:'suporte',files:'arquivos',tickets:'chamados',schedules:'agenda'}[button.dataset.supportShortcut];if(route)location.assign(base+'redes/'+route+'.php?'+new URLSearchParams({network:String(network),gestor:String(fsGestorId())}));}));
+document.getElementById('arc-dashboard-access')?.addEventListener('click',()=>location.assign(base+'redes/remoto.php?'+new URLSearchParams({network:String(network),gestor:String(fsGestorId())})));
 // BLOCO 02 — X acompanha o estado efetivo da sessão.
 const remotePanel=panels.remote;
 if(remotePanel){
@@ -513,44 +513,44 @@ nav?.addEventListener('keydown',e=>{
  index=e.key==='Home'?0:e.key==='End'?available.length-1:(index+(e.key==='ArrowDown'?1:-1)+available.length)%available.length;
  available[index].focus();e.preventDefault();
 });
-document.getElementById('arc-agent-target')?.addEventListener('change',()=>{
+document.getElementById('arc-gestor-target')?.addEventListener('change',()=>{
  if(active==='files'){fsInitialized=false;fsOpen('');}
  if(active==='schedules')document.getElementById('schedule-refresh')?.click();
 });
 
 // Solicita atualização imediata pelo canal autenticado e mostra o estado real.
-const forceUpdateBtn=document.getElementById('arc-agent-force-update');
-const forceUpdateStatus=document.getElementById('arc-agent-force-update-status');
+const forceUpdateBtn=document.getElementById('arc-gestor-force-update');
+const forceUpdateStatus=document.getElementById('arc-gestor-force-update-status');
 if(forceUpdateBtn){forceUpdateBtn.addEventListener('click',async()=>{
- const agent=Number(document.getElementById('arc-agent-target')?.value||0);
- if(!agent){forceUpdateStatus.textContent='Selecione um computador conectado.';return;}
- forceUpdateBtn.disabled=true;forceUpdateStatus.textContent='Verificando compatibilidade do agente…';
+ const gestor=Number(document.getElementById('arc-gestor-target')?.value||0);
+ if(!gestor){forceUpdateStatus.textContent='Selecione um computador conectado.';return;}
+ forceUpdateBtn.disabled=true;forceUpdateStatus.textContent='Verificando compatibilidade do gestor…';
  let pendingCommandId=0;
  try{
-  const versions=await json(base+'api/api.php?action=network-agent-versions&network_id='+network);
-  const selected=(versions.agents||[]).find(item=>Number(item.id)===agent);
-  if(!selected)throw Error('Não foi possível verificar a versão do agente.');
-  if(selected.requires_reinstall)throw Error(selected.update_message||'O agente não informou uma versão válida. Verifique a conexão.');
-  forceUpdateStatus.textContent='Enviando atualização forçada ao agente…';
-  const sent=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:agent,command:'agent_update',force_update:true})});
+  const versions=await json(base+'api/api.php?action=network-gestor-versions&network_id='+network);
+  const selected=(versions.gestores||[]).find(item=>Number(item.id)===gestor);
+  if(!selected)throw Error('Não foi possível verificar a versão do gestor.');
+  if(selected.requires_reinstall)throw Error(selected.update_message||'O gestor não informou uma versão válida. Verifique a conexão.');
+  forceUpdateStatus.textContent='Enviando atualização forçada ao gestor…';
+  const sent=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:gestor,command:'gestor_update',force_update:true})});
   const ident=Number(sent.command_id);pendingCommandId=ident;forceUpdateStatus.textContent='Solicitação #'+ident+' enviada. Aguardando instalação e reinicialização…';
   for(let i=0;i<180;i++){
    await new Promise(resolve=>setTimeout(resolve,5000));
-   const result=await json(base+'api/api.php?action=network-command-status&network_id='+network+'&agent_id='+agent);
+   const result=await json(base+'api/api.php?action=network-command-status&network_id='+network+'&gestor_id='+gestor);
    const record=(result.commands||[]).find(item=>Number(item.id)===ident);
    if(!record)continue;
-   if(record.status==='completed'){forceUpdateStatus.textContent=record.result_text||'Agente atualizado e reiniciado.';return;}
+   if(record.status==='completed'){forceUpdateStatus.textContent=record.result_text||'Gestor atualizado e reiniciado.';return;}
    if(['failed','expired'].includes(record.status))throw Error(record.result_text||'A atualização não foi concluída.');
-   forceUpdateStatus.textContent=record.status==='running'?'Atualização iniciada. Aguardando reinicialização do agente…':'Aguardando o agente receber a solicitação…';
+   forceUpdateStatus.textContent=record.status==='running'?'Atualização iniciada. Aguardando reinicialização do gestor…':'Aguardando o gestor receber a solicitação…';
   }
   forceUpdateStatus.textContent='Ainda sem confirmação. Verifique a conexão do computador e o histórico de comandos.';
- }catch(e){forceUpdateStatus.textContent='Falha na atualização: '+(e.message||String(e));window.arcRemoteFailure?.({command_id:pendingCommandId,agent_id:agent,command:'agent_update',message:e.message||String(e)})}
+ }catch(e){forceUpdateStatus.textContent='Falha na atualização: '+(e.message||String(e));window.arcRemoteFailure?.({command_id:pendingCommandId,gestor_id:gestor,command:'gestor_update',message:e.message||String(e)})}
  finally{forceUpdateBtn.disabled=false;}
 });}
-// Windows Update uses the authenticated queue and results reported by this agent.
+// Windows Update uses the authenticated queue and results reported by this gestor.
 const windowsTile=document.getElementById('arc-windows-update'),windowsDialog=document.getElementById('arc-windows-update-dialog');
 if(windowsTile&&!windowsTile.disabled){
- const version=document.getElementById('arc-windows-version'),status=document.getElementById('arc-windows-status'),list=document.getElementById('arc-windows-updates'),feedback=document.getElementById('arc-windows-feedback'),install=document.getElementById('arc-windows-install'),target=document.getElementById('arc-agent-target');
+ const version=document.getElementById('arc-windows-version'),status=document.getElementById('arc-windows-status'),list=document.getElementById('arc-windows-updates'),feedback=document.getElementById('arc-windows-feedback'),install=document.getElementById('arc-windows-install'),target=document.getElementById('arc-gestor-target');
  let state=null,timer=null,loading=false,generation=0;
  function text(message){status.textContent=message;feedback.textContent=message;}
  function render(data){
@@ -562,8 +562,8 @@ if(windowsTile&&!windowsTile.disabled){
   else {install.hidden=true;if(busy)text('Windows Update em andamento…');else if(data.command?.status==='failed'||data.command?.status==='expired')text(data.command.message||'Não foi possível concluir. Tente novamente.');else if(data.report?.mode==='scan')text('O Windows está atualizado.'+(data.report.reboot_required?' Reinicialização pendente.':''));else if(data.report?.mode==='install'){text(data.command.message||'Confira o resultado da instalação.');for(const row of data.report.results||[]){const item=document.createElement('li');item.textContent=row.id+': '+(row.code===2?'Instalada':'Falha ou instalação incompleta (código '+row.code+')');list.append(item);}}else text('Verificar atualizações');}
   clearTimeout(timer);if(busy)timer=setTimeout(refreshWindows,2000);
  }
- async function refreshWindows(){const agent=Number(target.value),epoch=generation;if(!agent)return;try{const data=await json(base+'api/support.php?action=windows-update-status',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:agent})});if(epoch===generation&&agent===Number(target.value))render(data);}catch(e){if(epoch===generation)text(plain(e.message));}}
- async function requestWindows(mode){if(loading||!target.value||['pending','running'].includes(state?.command?.status))return;loading=true;const epoch=generation,agent=Number(target.value);windowsTile.disabled=true;install.disabled=true;text(mode==='scan'?'Verificando atualizações no computador…':'Baixando e instalando no computador…');try{const data=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:agent,command:'windows_update',update_mode:mode,scan_id:state?.command?.id,confirmed:mode==='install'})});if(epoch===generation){state={command:{id:data.command_id,status:'pending'}};await refreshWindows();}}catch(e){if(epoch===generation){text(plain(e.message));windowsTile.disabled=false;install.disabled=false;}}finally{loading=false;}}
+ async function refreshWindows(){const gestor=Number(target.value),epoch=generation;if(!gestor)return;try{const data=await json(base+'api/support.php?action=windows-update-status',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:gestor})});if(epoch===generation&&gestor===Number(target.value))render(data);}catch(e){if(epoch===generation)text(plain(e.message));}}
+ async function requestWindows(mode){if(loading||!target.value||['pending','running'].includes(state?.command?.status))return;loading=true;const epoch=generation,gestor=Number(target.value);windowsTile.disabled=true;install.disabled=true;text(mode==='scan'?'Verificando atualizações no computador…':'Baixando e instalando no computador…');try{const data=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:gestor,command:'windows_update',update_mode:mode,scan_id:state?.command?.id,confirmed:mode==='install'})});if(epoch===generation){state={command:{id:data.command_id,status:'pending'}};await refreshWindows();}}catch(e){if(epoch===generation){text(plain(e.message));windowsTile.disabled=false;install.disabled=false;}}finally{loading=false;}}
  windowsTile.addEventListener('click',()=>{if(state?.report?.mode==='scan'&&state.report.updates?.length){windowsDialog.showModal();return;}if(state?.report?.mode==='install'){windowsDialog.showModal();return;}requestWindows('scan');});
  install.addEventListener('click',()=>requestWindows('install'));
  document.getElementById('arc-windows-rescan').addEventListener('click',()=>requestWindows('scan'));

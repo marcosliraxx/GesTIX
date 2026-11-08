@@ -1,12 +1,15 @@
 <?php
 /* Caminho: api/remote-screen.php */
-/** Arcoll: acesso remoto temporário e consentido ao computador do agente (tela + controle opcional). */
+/** Arcoll: acesso remoto temporário e consentido ao computador do gestor (tela + controle opcional). */
 declare(strict_types=1);
 require __DIR__.'/../includes/bootstrap.php';
 require_once __DIR__.'/../includes/command-diagnostics.php';
 /* A sessão só é lida; liberar o lock evita que imagem, status e entrada se bloqueiem entre si. */
 if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
-$pdo=arc_db();arc_ensure_user_schema($pdo);
+$pdo=arc_db();
+/* No canal de vídeo, não executar varredura de releases a cada requisição.
+   A verificação de esquema permanece ativa quando o carimbo de instalação expira. */
+if(!arc_schema_stamp_fresh())arc_ensure_user_schema($pdo);
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 $action=(string)($_GET['action']??'');
@@ -14,11 +17,11 @@ $storage=__DIR__.'/../includes/storage/remote-screen';
 if(!is_dir($storage) && !@mkdir($storage,0700,true) && !is_dir($storage)) arc_json(['ok'=>false,'error'=>'Armazenamento indisponível'],503);
 $cmd=(int)($_GET['command_id']??0);
 if($cmd<1)arc_json(['ok'=>false,'error'=>'Sessão inválida'],422);
-$q=$pdo->prepare('SELECT c.id,c.status,c.agent_id,c.account_id,c.network_id,c.command_name,c.created_at,c.result_text FROM '.arc_table('agent_commands').' c WHERE c.id=? AND c.command_name=\'remote_assistance\' LIMIT 1');
+$q=$pdo->prepare('SELECT c.id,c.status,c.gestor_id,c.account_id,c.network_id,c.command_name,c.created_at,c.result_text FROM '.arc_table('gestor_commands').' c WHERE c.id=? AND c.command_name=\'remote_assistance\' LIMIT 1');
 $q->execute([$cmd]);$command=$q->fetch(PDO::FETCH_ASSOC);
 if(!$command)arc_json(['ok'=>false,'error'=>'Sessão inexistente'],404);
 if(strtotime((string)$command['created_at'])<time()-1800){
- $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$cmd]);$command['status']='expired';
+ $pdo->prepare("UPDATE ".arc_table('gestor_commands')." SET status='expired',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$cmd]);$command['status']='expired';
 }
 $file=$storage.'/screen-'.$cmd.'.jpg';
 $stop=$storage.'/stop-'.$cmd;
@@ -29,10 +32,10 @@ $metaFile=$storage.'/meta-'.$cmd.'.json';
 $viewFile=$storage.'/view-'.$cmd.'.json';
 $viewerFile=$storage.'/viewer-'.$cmd;
 $unlockUsed=$storage.'/unlock-'.$cmd.'.json';
-/* Instante do último sinal do agente: quadro novo ou keepalive (tela parada). O ETag só muda com quadro novo. */
+/* Instante do último sinal do gestor: quadro novo ou keepalive (tela parada). O ETag só muda com quadro novo. */
 $frameFreshness=static function() use($file,$aliveFile):int{clearstatcache(true,$file);clearstatcache(true,$aliveFile);return max(is_file($file)?(int)filemtime($file):0,is_file($aliveFile)?(int)filemtime($aliveFile):0);};
 $frameEtag=static function() use($file):string{clearstatcache(true,$file);return '"'.dechex((int)filemtime($file)).'-'.dechex((int)filesize($file)).'-'.dechex((int)fileinode($file)).'"';};
-/* O controle só vale enquanto o agente renovar o sinal (a cada requisição de quadro/consulta). */
+/* O controle só vale enquanto o gestor renovar o sinal (a cada requisição de quadro/consulta). */
 $controlActive=static function() use($controlFlag):bool{clearstatcache(true,$controlFlag);return is_file($controlFlag)&&time()-(int)filemtime($controlFlag)<=8;};
 $readJsonState=static function(string $path,array $fallback=[]):array{
  clearstatcache(true,$path);
@@ -72,8 +75,8 @@ $resolveSelectedMonitor=static function(array $monitors,string $wanted=''):strin
 };
 $cleanup=static function() use($file,$aliveFile,$inputQueue,$controlFlag,$metaFile,$viewFile,$viewerFile,$unlockUsed):void{foreach([$file,$aliveFile,$inputQueue,$controlFlag,$metaFile,$viewFile,$viewerFile,$unlockUsed] as $f){if(is_file($f))@unlink($f);}};
 
-/** Autentica o agente (mesmas regras dos quadros) e devolve o corpo JSON. */
-$authAgent=static function(int $maxBytes) use($pdo,$command,$viewerFile,$stop):array{
+/** Autentica o gestor (mesmas regras dos quadros) e devolve o corpo JSON. */
+$authGestor=static function(int $maxBytes) use($pdo,$command,$viewerFile,$stop):array{
  if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
  $raw=file_get_contents('php://input',false,null,0,$maxBytes+10);
  if(!is_string($raw)||strlen($raw)>$maxBytes)arc_json(['ok'=>false,'error'=>'Requisição muito grande'],413);
@@ -81,14 +84,14 @@ $authAgent=static function(int $maxBytes) use($pdo,$command,$viewerFile,$stop):a
  if(!is_array($body))arc_json(['ok'=>false,'error'=>'Dados inválidos'],400);
  $fp=strtolower((string)($body['fingerprint']??''));$code=strtoupper((string)($body['site_code']??''));$key=(string)($body['download_key']??'');
  if(!preg_match('/^[a-f0-9]{64}$/D',$fp)||!preg_match('/^[A-Z0-9]{5}$/D',$code)||!preg_match('/^[a-f0-9]{64}$/D',$key))arc_json(['ok'=>false,'error'=>'Credenciais inválidas'],403);
- $q=$pdo->prepare('SELECT a.id FROM '.arc_table('network_agents').' a JOIN '.arc_table('managed_networks').' n ON n.id=a.network_id AND n.account_id=a.account_id JOIN '.arc_table('agent_download_keys').' k ON k.account_id=a.account_id AND k.network_id=a.network_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.fingerprint=? AND UPPER(a.site_code)=? AND a.status=\'approved\' AND n.is_active=1 AND n.monitoring_enabled=1 AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
- $q->execute([(int)$command['agent_id'],(int)$command['network_id'],(int)$command['account_id'],$fp,$code,hash('sha256',$key),$fp]);
- if(!$q->fetchColumn())arc_json(['ok'=>false,'error'=>'Agente não autorizado'],403);
+ $q=$pdo->prepare('SELECT a.id FROM '.arc_table('network_gestores').' a JOIN '.arc_table('managed_networks').' n ON n.id=a.network_id AND n.account_id=a.account_id JOIN '.arc_table('gestor_download_keys').' k ON k.account_id=a.account_id AND k.network_id=a.network_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.fingerprint=? AND UPPER(a.site_code)=? AND a.status=\'approved\' AND n.is_active=1 AND n.monitoring_enabled=1 AND k.token_hash=? AND k.fingerprint=? LIMIT 1');
+ $q->execute([(int)$command['gestor_id'],(int)$command['network_id'],(int)$command['account_id'],$fp,$code,hash('sha256',$key),$fp]);
+ if(!$q->fetchColumn())arc_json(['ok'=>false,'error'=>'Gestor não autorizado'],403);
  $q=$pdo->prepare('SELECT technician_id FROM '.arc_table('support_remote_sessions').' WHERE command_id=?');$q->execute([$command['id']]);$technician=(int)$q->fetchColumn();
  if($technician&&!arc_support_remote_allowed($pdo,$command,$technician))arc_json(['ok'=>false,'stop'=>true,'error'=>'Autorização do técnico revogada'],403);
  clearstatcache(true,$viewerFile);
  if(strtotime((string)$command['created_at'])<time()-1800){
-  file_put_contents($stop,'1',LOCK_EX);$pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='expired',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$command['id']]);
+  file_put_contents($stop,'1',LOCK_EX);$pdo->prepare("UPDATE ".arc_table('gestor_commands')." SET status='expired',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$command['id']]);
   arc_json(['ok'=>false,'stop'=>true,'error'=>'Visualizador desconectado'],409);
  }
 
@@ -108,13 +111,13 @@ $syncControl=static function(array $body) use($controlFlag,$inputQueue):void{
 };
 
 if($action==='unlock-authorize'){
- $body=$authAgent(2048);$q=$pdo->prepare('SELECT technician_id FROM '.arc_table('support_remote_sessions').' WHERE command_id=?');$q->execute([$cmd]);$user=(int)$q->fetchColumn();
+ $body=$authGestor(2048);$q=$pdo->prepare('SELECT technician_id FROM '.arc_table('support_remote_sessions').' WHERE command_id=?');$q->execute([$cmd]);$user=(int)$q->fetchColumn();
  $used=$readJsonState($unlockUsed);
  if($command['status']!=='running'||is_file($stop)||!$controlActive()||!arc_support_unlock_allowed($pdo,$command,$user)||($used['request_id']??null)!==($body['request_id']??null)||($used['key_id']??null)!==($body['key_id']??null)||time()>(int)($used['expires']??0))arc_json(['ok'=>false,'error'=>'Desbloqueio revogado ou expirado.'],403);
  arc_json(['ok'=>true]);
 }
 if($action==='frame'){
- $body=$authAgent(650000);
+ $body=$authGestor(650000);
  if($command['status']!=='running'||is_file($stop))arc_json(['ok'=>false,'stop'=>true,'error'=>'Sessão encerrada'],409);
  $syncControl($body);
  /* Persiste monitores recebidos, inclusive quando a tela permanece inalterada. */
@@ -122,11 +125,16 @@ if($action==='frame'){
   if(array_key_exists('monitors',$body)){
    $reported=$sanitizeMonitors($body['monitors']);
    if($reported){
-    $oldMeta=array_merge($oldMeta,['monitors'=>$reported,'selected_monitor'=>$resolveSelectedMonitor($reported,(string)($body['selected_monitor']??'')),'updated_at'=>time()]);
-    $writeJsonState($metaFile,$oldMeta);
+    $reportedSelected=$resolveSelectedMonitor($reported,(string)($body['selected_monitor']??''));
+    // A consulta de quadros e os keepalives chegam continuamente: só persistir mudanças reais.
+    if(($oldMeta['monitors']??null)!==$reported||($oldMeta['selected_monitor']??null)!==$reportedSelected){
+     $oldMeta['monitors']=$reported;$oldMeta['selected_monitor']=$reportedSelected;
+     $oldMeta['updated_at']=time();$writeJsonState($metaFile,$oldMeta);
+    }
    }
   }
   if(isset($body['desktop_state'])&&in_array($body['desktop_state'],['locked','unlocked'],true)){
+   $previousDesktopMeta=$oldMeta;
    $oldMeta['desktop_state']=$body['desktop_state'];if($body['desktop_state']==='unlocked'||array_key_exists('unlock_key',$body))$oldMeta['unlock_key']=null;
    $key=$body['unlock_key']??null;
    if($body['desktop_state']==='locked'&&is_array($key)&&preg_match('/^[a-f0-9]{32}$/D',(string)($key['id']??''))&&preg_match('/^[A-Za-z0-9_-]{342}$/D',(string)($key['jwk']['n']??''))&&($key['jwk']['e']??'')==='AQAB'&&is_numeric($key['expires']??null)){
@@ -143,7 +151,7 @@ if($action==='frame'){
    }
    $result=$body['unlock_result']??[];if(array_key_exists('unlock_result',$body))$oldMeta['unlock_result']=[];
    if(is_array($result)&&in_array($result['status']??'', ['pending','unlocked','failed','unavailable'],true))$oldMeta['unlock_result']=['status'=>$result['status'],'request_id'=>preg_match('/^[a-f0-9]{32}$/D',(string)($result['request_id']??''))?$result['request_id']:null];
-   $writeJsonState($metaFile,$oldMeta);
+   if($oldMeta!==$previousDesktopMeta)$writeJsonState($metaFile,$oldMeta);
   }
   $knownMonitors=is_array($oldMeta['monitors']??null)?$oldMeta['monitors']:[];
   $selected=$resolveSelectedMonitor($knownMonitors,(string)($readJsonState($viewFile,[])['selected_monitor']??($body['selected_monitor']??'')));
@@ -151,12 +159,17 @@ if($action==='frame'){
  $image=base64_decode((string)($body['image']??''),true);
  if(!is_string($image)||strlen($image)<100||strlen($image)>390000||substr($image,0,3)!=="\xff\xd8\xff")arc_json(['ok'=>false,'error'=>'JPEG inválido'],422);
  $tmp=tempnam($storage,'frame');if($tmp===false)arc_json(['ok'=>false,'error'=>'Armazenamento indisponível'],503);
- @chmod($tmp,0600);file_put_contents($tmp,$image,LOCK_EX);rename($tmp,$file);
+ @chmod($tmp,0600);
+ $written=@file_put_contents($tmp,$image,LOCK_EX);
+ if($written!==strlen($image)||!@rename($tmp,$file)){
+  @unlink($tmp);arc_json(['ok'=>false,'error'=>'Falha ao armazenar o quadro remoto'],503);
+ }
+ @chmod($file,0600);
  arc_json(['ok'=>true,'stop'=>false,'selected_monitor'=>$selected,'quality'=>$readJsonState($viewFile)['quality']??'balanced','cursor_overlay'=>!empty($readJsonState($viewFile)['cursor_overlay'])]);
 }
 if($action==='poll'){
- /* O agente busca os eventos de mouse/teclado enfileirados pelo gestor (long-poll curto). */
- $body=$authAgent(2000);
+ /* O gestor busca os eventos de mouse/teclado enfileirados pelo gestor (long-poll curto). */
+ $body=$authGestor(2000);
  if($command['status']!=='running'||is_file($stop))arc_json(['ok'=>false,'stop'=>true,'events'=>[],'error'=>'Sessão encerrada'],409);
  $syncControl($body);
  $events=[];
@@ -186,9 +199,9 @@ if($action==='poll'){
 }
 $nativeUser=arc_support_native_user($pdo,$cmd);
 $viewerUser=$nativeUser ?: (int)(arc_user_id()??0);
-if(!$viewerUser||!arc_support_remote_allowed($pdo,$command,$viewerUser))arc_json(['ok'=>false,'error'=>'Acesso negado'],403);
-$q=$pdo->prepare("SELECT a.id FROM ".arc_table('network_agents')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1");
-$q->execute([$command['agent_id'],$command['network_id'],$command['account_id']]);if(!$q->fetchColumn())arc_json(['ok'=>false,'error'=>'Equipamento revogado'],403);
+if((!$viewerUser&&!arc_is_admin())||!arc_support_remote_allowed($pdo,$command,$viewerUser))arc_json(['ok'=>false,'error'=>'Acesso negado'],403);
+$q=$pdo->prepare("SELECT a.id FROM ".arc_table('network_gestores')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1");
+$q->execute([$command['gestor_id'],$command['network_id'],$command['account_id']]);if(!$q->fetchColumn())arc_json(['ok'=>false,'error'=>'Equipamento revogado'],403);
 if(in_array($action,['image','status','input','select-monitor','preferences'],true)){@touch($viewerFile);@chmod($viewerFile,0600);}
 $viewerCsrf=static function() use($nativeUser):void{if(!$nativeUser)arc_verify_csrf();};
 if($action==='preferences'){
@@ -200,7 +213,7 @@ if($action==='preferences'){
 if($action==='stop'){
  if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
  $viewerCsrf();file_put_contents($stop,'1',LOCK_EX);$cleanup();
- $pdo->prepare("UPDATE ".arc_table('agent_commands')." SET status='completed',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$cmd]);
+ $pdo->prepare("UPDATE ".arc_table('gestor_commands')." SET status='completed',completed_at=NOW() WHERE id=? AND status IN ('pending','running')")->execute([$cmd]);
  $pdo->prepare('DELETE FROM '.arc_table('support_remote_tokens').' WHERE command_id=?')->execute([$cmd]);
  arc_json(['ok'=>true]);
 }
@@ -220,7 +233,7 @@ if($action==='unlock-submit'){
  $event=['t'=>'unlock','key_id'=>$v['key_id'],'request_id'=>$request,'expires'=>$expires,'blocks'=>$blocks];
  clearstatcache(true,$inputQueue);if(is_file($inputQueue)&&filesize($inputQueue)>200000)arc_json(['ok'=>false,'error'=>'Fila ocupada. Aguarde.'],429);
  $line=json_encode($event)."\n";if(file_put_contents($inputQueue,$line,FILE_APPEND|LOCK_EX)!==strlen($line))arc_json(['ok'=>false,'error'=>'Não foi possível enviar o pedido ao componente seguro.'],503);chmod($inputQueue,0600);
- arc_user_audit($pdo,'remote_unlock_requested','Solicitado desbloqueio do agente #'.$command['agent_id'],(int)$command['account_id']);
+ arc_user_audit($pdo,'remote_unlock_requested','Solicitado desbloqueio do gestor #'.$command['gestor_id'],(int)$command['account_id']);
  arc_json(['ok'=>true,'request_id'=>$request]);
 }
 if($action==='input'){
@@ -251,8 +264,19 @@ if($action==='input'){
  $lines='';foreach($clean as $ev)$lines.=json_encode($ev,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)."\n";
  $fh=@fopen($inputQueue,'ab');
  if(!$fh)arc_json(['ok'=>false,'error'=>'Armazenamento indisponível'],503);
- if(flock($fh,LOCK_EX)){fwrite($fh,$lines);fflush($fh);flock($fh,LOCK_UN);}
+ $queued=false;
+ if(flock($fh,LOCK_EX)){
+  // Checagem dentro do lock evita ultrapassar o limite com operadores concorrentes.
+  $size=fstat($fh)['size']??0;
+  if($size+strlen($lines)<=250000){
+   $offset=0;$length=strlen($lines);
+   while($offset<$length){$written=fwrite($fh,substr($lines,$offset));if($written===false||$written===0)break;$offset+=$written;}
+   $queued=$offset===$length&&fflush($fh);
+  }
+  flock($fh,LOCK_UN);
+ }
  fclose($fh);@chmod($inputQueue,0600);
+ if(!$queued)arc_json(['ok'=>false,'error'=>'Fila de entrada indisponível ou cheia'],503);
  arc_json(['ok'=>true,'queued'=>count($clean)]);
 }
 if($action==='select-monitor'){
@@ -264,7 +288,7 @@ if($action==='select-monitor'){
  $meta=$readJsonState($metaFile,[]);
  $monitors=is_array($meta['monitors']??null)?$meta['monitors']:[];
  $selectedMonitor=$resolveSelectedMonitor($monitors,(string)($body['monitor_id']??''));
- if($selectedMonitor==='')arc_json(['ok'=>false,'error'=>'Nenhuma tela disponível no agente remoto.'],422);
+ if($selectedMonitor==='')arc_json(['ok'=>false,'error'=>'Nenhuma tela disponível no gestor remoto.'],422);
  $state=$readJsonState($viewFile);$state['selected_monitor']=$selectedMonitor;$state['updated_at']=time();$writeJsonState($viewFile,$state);
  arc_json(['ok'=>true,'selected_monitor'=>$selectedMonitor,'monitor_count'=>count($monitors)]);
 }
@@ -285,7 +309,7 @@ if($action==='image'){
   $fresh=$frameFreshness();
   if(is_file($file)&&time()-$fresh<=8){
    $etag=$frameEtag();
-   if($etag!==$known){header('ETag: '.$etag);header('Content-Type: image/jpeg');readfile($file);exit;}
+   if($etag!==$known){header('ETag: '.$etag);header('Content-Type: image/jpeg');header('X-Content-Type-Options: nosniff');header('Content-Length: '.filesize($file));readfile($file);exit;}
   }
   if(is_file($stop)||connection_aborted())break;
   usleep(30000);

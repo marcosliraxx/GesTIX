@@ -1,0 +1,2 @@
+/* Caminho: gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/native.css */
+html,body{margin:0;height:100%;overflow:hidden;background:#edf3fb}*{box-sizing:border-box}#backup-center{height:100vh;max-height:100vh;min-height:0}.bc-content{overflow:auto;flex:1}.bc-header{flex-shrink:0}.bc-tabs{flex-shrink:0}.bc-footer{flex-shrink:0}body:has([data-theme=dark]){background:#0b1220}

@@ -21,24 +21,24 @@ function arc_command_error_scrub(string $raw, int $limit = 5500): string
 function arc_command_error_code(string $status, string $provided, string $summary): string
 {
     if (preg_match('/^[A-Z][A-Z0-9_]{1,47}$/D', $provided)) return $provided;
-    if ($status === 'expired') return 'AGENT_TIMEOUT';
+    if ($status === 'expired') return 'GESTOR_TIMEOUT';
     if (preg_match('/\bHTTP\s*(\d{3})\b/i', $summary, $m)) return 'HTTP_'.$m[1];
     if (preg_match('/(permiss|acesso negado|n[aã]o autorizado)/iu', $summary)) return 'ACCESS_DENIED';
     if (preg_match('/(conex|rede|timeout|tempo limite|tempo esgotado)/iu', $summary)) return 'COMMUNICATION_FAILED';
     return 'REMOTE_COMMAND_FAILED';
 }
 
-/** Executed on failures only. No SQL changes are made during healthy agent polling. */
+/** Executed on failures only. No SQL changes are made during healthy gestor polling. */
 function arc_command_error_store(PDO $pdo, array $command, string $code, string $technical): void
 {
     static $ready = false;
     try {
         if (!$ready) {
-            $pdo->exec('CREATE TABLE IF NOT EXISTS '.arc_table('agent_command_errors').' (
+            $pdo->exec('CREATE TABLE IF NOT EXISTS '.arc_table('gestor_command_errors').' (
               command_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
               account_id BIGINT UNSIGNED NOT NULL,
               network_id BIGINT UNSIGNED NOT NULL,
-              agent_id BIGINT UNSIGNED NOT NULL,
+              gestor_id BIGINT UNSIGNED NOT NULL,
               error_code VARCHAR(48) NOT NULL,
               diagnostic_text TEXT NOT NULL,
               recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -46,10 +46,10 @@ function arc_command_error_store(PDO $pdo, array $command, string $code, string 
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
             $ready = true;
         }
-        $save = $pdo->prepare('INSERT INTO '.arc_table('agent_command_errors').' (command_id,account_id,network_id,agent_id,error_code,diagnostic_text) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE error_code=VALUES(error_code),diagnostic_text=VALUES(diagnostic_text),recorded_at=CURRENT_TIMESTAMP');
-        $save->execute([(int)$command['id'],(int)$command['account_id'],(int)$command['network_id'],(int)$command['agent_id'],$code,arc_command_error_scrub($technical)]);
+        $save = $pdo->prepare('INSERT INTO '.arc_table('gestor_command_errors').' (command_id,account_id,network_id,gestor_id,error_code,diagnostic_text) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE error_code=VALUES(error_code),diagnostic_text=VALUES(diagnostic_text),recorded_at=CURRENT_TIMESTAMP');
+        $save->execute([(int)$command['id'],(int)$command['account_id'],(int)$command['network_id'],(int)$command['gestor_id'],$code,arc_command_error_scrub($technical)]);
         // Retain 30 days; avoid a cleanup query on every failed command.
-        if (random_int(1,32)===1) $pdo->exec('DELETE FROM '.arc_table('agent_command_errors').' WHERE recorded_at<DATE_SUB(NOW(),INTERVAL 30 DAY)');
+        if (random_int(1,32)===1) $pdo->exec('DELETE FROM '.arc_table('gestor_command_errors').' WHERE recorded_at<DATE_SUB(NOW(),INTERVAL 30 DAY)');
     } catch (PDOException $e) {
         // The command status itself must still be acknowledged on hosts without CREATE TABLE privilege.
         error_log('remote command diagnostics unavailable: '.$e->getCode());
@@ -60,7 +60,7 @@ function arc_command_error_store(PDO $pdo, array $command, string $code, string 
 function arc_command_error_read(PDO $pdo, int $commandId, int $networkId, int $accountId): ?array
 {
     try {
-        $q=$pdo->prepare('SELECT error_code,diagnostic_text,recorded_at FROM '.arc_table('agent_command_errors').' WHERE command_id=? AND network_id=? AND account_id=? LIMIT 1');
+        $q=$pdo->prepare('SELECT error_code,diagnostic_text,recorded_at FROM '.arc_table('gestor_command_errors').' WHERE command_id=? AND network_id=? AND account_id=? LIMIT 1');
         $q->execute([$commandId,$networkId,$accountId]);
         $row=$q->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;

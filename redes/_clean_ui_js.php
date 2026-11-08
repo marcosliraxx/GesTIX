@@ -1,7 +1,7 @@
 <?php /* Caminho: redes/_clean_ui_js.php | Lógica da interface estilo CCleaner (incluída por _clean_ui.php). */ ?>
 <script>
 (()=>{'use strict';
-const root=document.getElementById('cc'),api=root.dataset.api,network=Number(root.dataset.network),agent=Number(root.dataset.agent),csrf=root.dataset.csrf,cfg=JSON.parse(root.dataset.config),$=id=>document.getElementById(id);
+const root=document.getElementById('cc'),api=root.dataset.api,network=Number(root.dataset.network),gestor=Number(root.dataset.gestor),csrf=root.dataset.csrf,cfg=JSON.parse(root.dataset.config),$=id=>document.getElementById(id);
 const catalog=cfg.catalog,BROWSERS=new Set(cfg.browsers),batchMax=Number(cfg.batch)||100;
 const h=(tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const [k,v] of Object.entries(attrs)){if(v===false||v==null)continue;if(k==='class')e.className=v;else if(k.startsWith('on'))e[k]=v;else if(k==='value')e.value=v;else e.setAttribute(k,v===true?'':v)}for(const x of kids.flat(Infinity))if(x!=null&&x!==false)e.append(x.nodeType?x:document.createTextNode(String(x)));return e};
 const ico=n=>h('i',{class:'fa fa-'+n,'aria-hidden':'true'});
@@ -22,16 +22,16 @@ const selected=new Set(Object.keys(catalog).filter(k=>catalog[k].default)),openG
 let hstate='idle',hstep=0,hsel=new Set(),hfreed={bytes:0,files:0},dupStage='intro',diskStage='intro',startTab='apps',progSearch='',progSort='name',progDir=1,progFilter='all',dupRoots=new Set(['users']),dupMin=1024,diskDrive='C:';
 const status=(m,err)=>{const s=$('cc-status');s.textContent=m;s.classList.toggle('err',!!err)};
 /* ---------- comunicação ---------- */
-async function api2(prefix,action,body,query){const post=body!==undefined,u=new URL(api,location.href);u.searchParams.set('action',prefix+action);if(!post){u.searchParams.set('network_id',network);u.searchParams.set('agent_id',agent);for(const [k,v] of Object.entries(query||{}))u.searchParams.set(k,v)}
- const r=await fetch(u,{method:post?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:post?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{},body:post?JSON.stringify({network_id:network,agent_id:agent,...body}):undefined});let j={};try{j=await r.json()}catch(e){}
+async function api2(prefix,action,body,query){const post=body!==undefined,u=new URL(api,location.href);u.searchParams.set('action',prefix+action);if(!post){u.searchParams.set('network_id',network);u.searchParams.set('gestor_id',gestor);for(const [k,v] of Object.entries(query||{}))u.searchParams.set(k,v)}
+ const r=await fetch(u,{method:post?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:post?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{},body:post?JSON.stringify({network_id:network,gestor_id:gestor,...body}):undefined});let j={};try{j=await r.json()}catch(e){}
  if(!r.ok||!j.ok){const err=new Error(j.error||'Falha na solicitação ('+r.status+')');err.active=j.active||null;throw err}return j}
 const call=(a,b,q)=>api2('network-clean-',a,b,q),pcall=(a,b,q)=>api2('network-program-',a,b,q);
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function setProgress(t){progressText=t;status(t);if(busy){const v=$('cc-view');v.replaceChildren(busyView())}}
-async function track(id,P){const end=Date.now()+7200000;let done=null;while(Date.now()<end){done=await P('status',{command_id:id});if(['completed','failed','expired'].includes(done.status))break;setProgress((done.status==='pending'?'Aguardando o agente receber a solicitação... ':'')+(done.message||'Em execução no computador...'));await wait(3000)}
+async function track(id,P){const end=Date.now()+7200000;let done=null;while(Date.now()<end){done=await P('status',{command_id:id});if(['completed','failed','expired'].includes(done.status))break;setProgress((done.status==='pending'?'Aguardando o gestor receber a solicitação... ':'')+(done.message||'Em execução no computador...'));await wait(3000)}
  if(!done||!['completed','failed','expired'].includes(done.status))throw Error('Operação ainda em andamento. Recarregue a página para retomar.');
- if(done.status!=='completed')throw Error(done.status==='expired'?'O agente não recebeu a solicitação. Verifique a conexão e tente novamente.':(done.message||'Operação não concluída'));return done}
-async function run(start,body,reload,label,P=call){busy=true;busyLabel=label||'Executando no computador';progressText='';render();status('Aguardando agente...');let ok=false;try{let id;try{id=(await P(start,body)).command_id}catch(e){if(e.active&&e.active.command_id){status('Já existe uma operação em andamento. Acompanhando...');id=e.active.command_id}else throw e}
+ if(done.status!=='completed')throw Error(done.status==='expired'?'O gestor não recebeu a solicitação. Verifique a conexão e tente novamente.':(done.message||'Operação não concluída'));return done}
+async function run(start,body,reload,label,P=call){busy=true;busyLabel=label||'Executando no computador';progressText='';render();status('Aguardando gestor...');let ok=false;try{let id;try{id=(await P(start,body)).command_id}catch(e){if(e.active&&e.active.command_id){status('Já existe uma operação em andamento. Acompanhando...');id=e.active.command_id}else throw e}
  activeCommandId=id;window.dispatchEvent(new Event('arc-queue-refresh'));status('Operação adicionada à fila. Acompanhe a bolinha lateral.');ok=true}catch(e){status(e.message,true);window.arcRemoteFailure?.({command_id:activeCommandId,command:label||start,message:e.message})}finally{activeCommandId=0;busy=false;progressText='';render()}return ok}
 const startTool=(payload,kind,label)=>run('tool',payload,()=>loadReport(kind),label);
 const startClean=(mode,cats,days,label)=>run('start',{mode,categories:cats,age_days:days},refreshList,label||(mode==='scan'?'Verificando o computador':'Limpando'));
@@ -46,7 +46,7 @@ function confirmBox(title,nodes,yes='Confirmar',danger=false,validate){return ne
 const ill=(g,tone)=>{const d=document.createElement('div');d.innerHTML='<svg viewBox="0 0 320 220" class="ill" aria-hidden="true"><ellipse cx="160" cy="198" rx="118" ry="11" fill="#171c28"/><circle cx="262" cy="56" r="13" fill="#3f78ff" opacity=".75"/><circle cx="52" cy="92" r="8" fill="#6f9bff" opacity=".55"/><circle cx="278" cy="120" r="5" fill="#ffbf02" opacity=".8"/><rect x="62" y="36" width="196" height="126" rx="11" fill="#9ebfff"/><rect x="72" y="46" width="176" height="106" rx="6" fill="'+(tone||'#2c4fa6')+'"/><path d="M38 168h244l-17 20H55z" fill="#d6e4ff"/><text x="160" y="118" fill="#fff" font-family="FontAwesome" font-size="52" text-anchor="middle">'+g+'</text></svg>';return d.firstChild};
 function pctOf(t){const m=/(\d+)\/(\d+)/.exec(t||'');return m&&Number(m[2])>0?Math.min(99,Math.round((Number(m[1])-1)/Number(m[2])*100)):null}
 function ring(pct){const d=document.createElement('div');d.className='cc-ring'+(pct==null?' ind':'');const C=289;d.innerHTML='<svg viewBox="0 0 104 104"><circle class="bg" cx="52" cy="52" r="46"/><circle class="fg" cx="52" cy="52" r="46" stroke-dasharray="'+C+'" stroke-dashoffset="'+(pct==null?C*0.72:C*(1-pct/100))+'"/></svg><b>'+(pct==null?'':pct+'<small>%</small>')+'</b>';return d}
-function busyView(){return h('div',{class:'cc-center'},ring(pctOf(progressText)),h('h2',{},busyLabel||'Trabalhando...'),h('p',{class:'mut',style:'max-width:520px'},progressText||'Aguardando o agente...'),h('button',{class:'cc-pill red',style:'display:none',onclick:async()=>{if(!await confirmBox('Cancelar operação',[h('p',{},'O agente derruba imediatamente os processos em andamento no computador e libera a tela. Alterações já realizadas não serão revertidas.')],'Cancelar tudo',true))return;try{await api2('network-clean-','cancel',{command_id:activeCommandId||0});activeCommandId=0;busy=false;progressText='';render();status('Operação cancelada. O agente está encerrando os processos.')}catch(e){status(e.message,true)}}},'Cancelar operação'))}
+function busyView(){return h('div',{class:'cc-center'},ring(pctOf(progressText)),h('h2',{},busyLabel||'Trabalhando...'),h('p',{class:'mut',style:'max-width:520px'},progressText||'Aguardando o gestor...'),h('button',{class:'cc-pill red',style:'display:none',onclick:async()=>{if(!await confirmBox('Cancelar operação',[h('p',{},'O gestor derruba imediatamente os processos em andamento no computador e libera a tela. Alterações já realizadas não serão revertidas.')],'Cancelar tudo',true))return;try{await api2('network-clean-','cancel',{command_id:activeCommandId||0});activeCommandId=0;busy=false;progressText='';render();status('Operação cancelada. O gestor está encerrando os processos.')}catch(e){status(e.message,true)}}},'Cancelar operação'))}
 const intro=(g,title,lead,feats,btn,tone)=>h('div',{class:'cc-intro'},h('div',{class:'tx'},h('h2',{},title),lead&&h('p',{class:'mut'},lead),feats.map(([i,t,s])=>h('div',{class:'ft'},ico(i),h('div',{},h('b',{},t),h('span',{},s)))),h('div',{},btn)),ill(g,tone));
 const can=()=>!busy&&headless&&online;
 const stamp=k=>stamps[k]?'Última verificação: '+stamps[k]:'';
@@ -54,8 +54,8 @@ const stamp=k=>stamps[k]?'Última verificação: '+stamps[k]:'';
 function renderNav(){const nav=$('cc-nav'),fn=$('cc-foot-nav');nav.replaceChildren();fn.replaceChildren();
  const mk=([key,label,icon])=>h('button',{type:'button',class:key===section?'on':'',title:label,onclick:()=>{if(busy||key===section)return;section=key;render()}},ico(icon),h('span',{},label));
  for(const n of NAV)if(ALLOWED.has(n[0]))nav.append(mk(n));if(ALLOWED.has(OPT[0]))fn.append(mk(OPT));
- const a=$('cc-agent');a.className='cc-agent '+(online?'on':'off');a.lastChild.textContent=online?(headless?'Agente conectado':'Agente conectado (sem modo sem monitor)'):'Agente desconectado'}
-function banner(){const b=$('cc-banner');b.replaceChildren();if(section==='backup'){b.append(h('div',{class:'cc-banner'},'Escolha o destino e as pastas aqui; o agente Windows envia os arquivos automaticamente e você acompanha tudo nesta tela.'));return}if(!online)b.append(h('div',{class:'cc-banner'},'Agente desconectado: as solicitações só funcionam com o computador online.'));else if(!headless)b.append(h('div',{class:'cc-banner'},'Ative o modo sem monitor no agente para analisar ou limpar remotamente.'))}
+ const a=$('cc-gestor');a.className='cc-gestor '+(online?'on':'off');a.lastChild.textContent=online?(headless?'Gestor conectado':'Gestor conectado (sem modo sem monitor)'):'Gestor desconectado'}
+function banner(){const b=$('cc-banner');b.replaceChildren();if(section==='backup'){b.append(h('div',{class:'cc-banner'},'Escolha o destino e as pastas aqui; o gestor Windows envia os arquivos automaticamente e você acompanha tudo nesta tela.'));return}if(!online)b.append(h('div',{class:'cc-banner'},'Gestor desconectado: as solicitações só funcionam com o computador online.'));else if(!headless)b.append(h('div',{class:'cc-banner'},'Ative o modo sem monitor no gestor para analisar ou limpar remotamente.'))}
 const VIEWS={};
 function render(){renderNav();banner();const v=$('cc-view');const keep=[...v.querySelectorAll('[data-keep]')].map(e=>[e.dataset.keep,e.scrollTop]);const key=[section,busy,tab,hstate,hstep,dupStage,diskStage,startTab].join('|');if(section==='backup'&&BK.dirty&&BK.tab==='setup'&&BK.saving===false&&v.querySelector('.cb-step')&&document.activeElement&&v.contains(document.activeElement)&&/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)&&document.activeElement.type!=='checkbox'&&document.activeElement.type!=='radio')return;v.replaceChildren();if(key!==lastKey){v.style.animation='none';void v.offsetWidth;v.style.animation='';lastKey=key}
  if(busy){v.append(busyView());return}
@@ -64,11 +64,11 @@ function render(){renderNav();banner();const v=$('cc-view');const keep=[...v.que
 function ensureLoaded(){}
 // Cada ferramenta consulta somente pelo seu botão de ação, nunca ao entrar na aba.
 const tri=(cb,keys,set)=>{const n=keys.filter(k=>set.has(k)).length;cb.checked=keys.length>0&&n===keys.length;cb.indeterminate=n>0&&n<keys.length;return cb};
-/* ---------- Windows Update: visual do Windows 11 e ações pelo agente autorizado ---------- */
+/* ---------- Windows Update: visual do Windows 11 e ações pelo gestor autorizado ---------- */
 let wuState=null,wuBusy=false,wuTimer=null,wuScreen='home',wuLastScan=null,wuHistory=null,wuSettings=null,wuScanId=0;
 const wuCard=(symbol,title,subtitle,action,tail)=>h('div',{class:'wu-row',role:action?'button':null,tabindex:action?'0':null,onclick:action||null,onkeydown:action?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();action()}}:null},h('div',{class:'wu-symbol'},ico(symbol)),h('div',{class:'wu-description'},h('div',{class:'wu-row-title'},title),subtitle&&h('div',{class:'wu-subtitle'},subtitle)),h('div',{class:'wu-tail'},tail||ico('angle-right')));
 const wuBusyNow=()=>wuBusy||['pending','running'].includes(wuState?.command?.status);
-async function wuApi(action,body){const url=new URL(action==='windows-update-status'?api.replace(/api\/api\.php(?:\?.*)?$/,'api/support.php'):api,location.href);url.searchParams.set('action',action);const resp=await fetch(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:agent,...body})});let data={};try{data=await resp.json()}catch{}if(!resp.ok||!data.ok)throw Error(data.error||'Falha no Windows Update');return data}
+async function wuApi(action,body){const url=new URL(action==='windows-update-status'?api.replace(/api\/api\.php(?:\?.*)?$/,'api/support.php'):api,location.href);url.searchParams.set('action',action);const resp=await fetch(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:gestor,...body})});let data={};try{data=await resp.json()}catch{}if(!resp.ok||!data.ok)throw Error(data.error||'Falha no Windows Update');return data}
 async function wuRefresh(){try{wuState=await wuApi('windows-update-status',{});if(['failed','expired'].includes(wuState?.command?.status))window.arcRemoteFailure?.({command_id:wuState.command.id,command:'windows_update',message:wuState.command.message||'Falha no Windows Update'});if(wuState.scan_report){wuLastScan=wuState.scan_report;wuScanId=wuState.scan_id}const r=wuState.report;if(r?.mode==='scan'){wuLastScan=r;wuScanId=wuState.command.id}else if(r?.mode==='history')wuHistory=r;else if(r?.mode==='settings')wuSettings=r;render()}catch(e){status(e.message,true)}finally{clearTimeout(wuTimer);if(section==='windows_update'&&['pending','running'].includes(wuState?.command?.status))wuTimer=setTimeout(wuRefresh,2800)}}
 async function wuRun(mode){if(wuBusyNow())return;wuBusy=true;render();try{await wuApi('network-command',{command:'windows_update',update_mode:mode,scan_id:wuScanId,confirmed:mode==='install'});await wuRefresh()}catch(e){status(e.message,true);window.arcRemoteFailure?.({command:'windows_update',message:e.message})}finally{wuBusy=false;render()}}
 function wuBack(){wuScreen='home';render()}
@@ -79,13 +79,13 @@ VIEWS.windows_update=b=>{
  const note=(text)=>h('p',{class:'wu-note'},text);
  const row=(i,t,d,fn,tail)=>wuCard(i,t,d,fn,tail);
  if(wuScreen==='history'){
-  b.append(wuDetail('Histórico de atualização','Atualizações registradas pelo Windows Update Agent no computador selecionado.',
+  b.append(wuDetail('Histórico de atualização','Atualizações registradas pelo Windows Update Gestor no computador selecionado.',
    h('div',{class:'wu-detail-actions'},btn('Atualizar histórico','history'),btn('Abrir histórico no Windows','advanced','wu-btn secondary')),
    h('div',{class:'wu-history'},...((wuHistory?.history||[]).map(x=>row(x.result===2?'check-circle':'info-circle',x.title||'Atualização',x.date+' · '+(x.result===2?'Instalada':'Resultado '+x.result),null))))));return;
  }
  if(wuScreen==='advanced'){
   b.append(wuDetail('Opções avançadas','Gerencie a entrega e a instalação no próprio Windows, incluindo atualizações opcionais, horas ativas e otimização de entrega.',
-   h('div',{class:'wu-detail-actions'},btn('Abrir opções avançadas no agente','advanced'),btn('Consultar configurações','settings','wu-btn secondary')),
+   h('div',{class:'wu-detail-actions'},btn('Abrir opções avançadas no gestor','advanced'),btn('Consultar configurações','settings','wu-btn secondary')),
    row('clock-o','Horas ativas','Evite reinicializações durante o uso. Configuração disponível no Windows.',()=>wuRun('advanced')),
    row('download','Atualizações opcionais','Drivers e componentes adicionais disponibilizados pela Microsoft.',()=>wuRun('advanced')),
    row('exchange','Otimização de entrega','Configure como o Windows recebe atualizações.',()=>wuRun('advanced')),
@@ -93,15 +93,15 @@ VIEWS.windows_update=b=>{
  }
  if(wuScreen==='insider'){
   b.append(wuDetail('Programa Windows Insider','Participar do programa exige vínculo e consentimento na conta Microsoft utilizada no Windows.',
-   row('users','Programa Windows Insider','Abra as configurações no agente para visualizar a inscrição e os canais disponíveis.',()=>wuRun('insider')),
-   btn('Abrir Windows Insider no agente','insider')));return;
+   row('users','Programa Windows Insider','Abra as configurações no gestor para visualizar a inscrição e os canais disponíveis.',()=>wuRun('insider')),
+   btn('Abrir Windows Insider no gestor','insider')));return;
  }
  const known=r?.mode==='scan',updates=r?.updates||[],latest=wuSettings?.latest_opt_in??r?.latest_opt_in;
  b.append(h('div',{class:'wu-page'},
   h('h2',{class:'wu-heading'},'Windows Update'),
   h('div',{class:'wu-status'},h('div',{class:'wu-status-icon'},ico('refresh'),h('span',{class:'wu-check'},ico('check'))),
    h('div',{class:'wu-status-text'},h('h3',{},known?(updates.length?'Atualizações disponíveis':'Você está atualizado'):'Verifique as atualizações'),
-    note(known?'Última verificação concluída no agente'+(r.windows?' · '+r.windows:''):'Status do Windows obtido diretamente do computador remoto.')),
+    note(known?'Última verificação concluída no gestor'+(r.windows?' · '+r.windows:''):'Status do Windows obtido diretamente do computador remoto.')),
    btn(working?'Executando...':'Verificar se há atualizações','scan','wu-btn primary')),
   working&&h('div',{class:'wu-running'},h('span',{},ico('spinner'),' ',c?.message||'Executando no Windows...'),h('button',{class:'wu-btn secondary',onclick:async()=>{if(await confirmBox('Cancelar Windows Update',[note('O cancelamento de operações pendentes é imediato. O instalador do Windows poderá concluir uma etapa em andamento antes de parar.')],'Solicitar cancelamento')){try{await wuApi('windows-update-cancel',{command_id:c?.id});await wuRefresh()}catch(e){status(e.message,true)}}}},'Cancelar')),
   r?.reboot_required&&h('div',{class:'wu-alert'},ico('exclamation-triangle'),' Há uma reinicialização pendente; ela não será iniciada automaticamente.'),
@@ -109,14 +109,14 @@ VIEWS.windows_update=b=>{
   h('h4',{class:'wu-more'},'Mais opções'),
   row('bullhorn','Obtenha as atualizações mais recentes assim que elas estiverem disponíveis',
    'Esteja entre os primeiros a obter as atualizações, correções e melhorias que não são de segurança mais recentes.',()=>{if(latest==null)wuRun('settings');else wuRun(latest?'latest_off':'latest_on')},h('span',{class:'wu-switch-info'},latest==null?'Consultar':latest?'Ativado':'Desativado',h('span',{class:'wu-switch'+(latest?' active':'')},h('i',{})))),
-  row('pause','Pausar atualizações','Escolha uma data no Windows ou pause pelo mecanismo do agente.',()=>{wuScreen='pause';render()},h('span',{class:'wu-selectdate'},'Escolha uma data ',ico('calendar'))),
+  row('pause','Pausar atualizações','Escolha uma data no Windows ou pause pelo mecanismo do gestor.',()=>{wuScreen='pause';render()},h('span',{class:'wu-selectdate'},'Escolha uma data ',ico('calendar'))),
   row('history','Histórico de atualização',null,()=>{wuScreen='history';render();wuRun('history')}),
   row('cogs','Opções avançadas','Otimização de entrega, atualizações opcionais, horas ativas, outras configurações de atualização',()=>{wuScreen='advanced';render()}),
   row('users','Programa Windows Insider','Obtenha versões prévias do Windows para compartilhar comentários sobre novas funcionalidades e atualizações',()=>{wuScreen='insider';render()})
  ));
  if(wuScreen==='pause'){
   b.replaceChildren(wuDetail('Pausar atualizações','A duração exata da pausa é gerenciada pelo Windows. A solicitação remota não define uma data arbitrária.',
-   row('pause','Pausar atualizações','Pausar pelo mecanismo oficial do Windows Update Agent.',()=>wuRun('pause')),
+   row('pause','Pausar atualizações','Pausar pelo mecanismo oficial do Windows Update Gestor.',()=>wuRun('pause')),
    row('play','Retomar atualizações','Retomar o Windows Update quando estiver pausado.',()=>wuRun('resume')),
    btn('Abrir escolha de data no Windows','advanced','wu-btn secondary')));
  }
@@ -126,7 +126,7 @@ VIEWS.health=b=>{const r=reports.health;
  if(!r||hstate==='idle')return void b.append(h('div',{class:'cc-center'},ill('\uf08a','#2a3f86'),h('h2',{},r?'Bom retorno ao Health Check':'Health Check'),h('p',{class:'mut',style:'max-width:430px'},r?'Continue escaneando seu PC para aplicar atualizações e mantê-lo funcionando sem problemas.':'Analisa espaço em disco, privacidade, inicialização e registro do computador. Nada é excluído durante a verificação.'),h('button',{class:'cc-pill blue',disabled:!can(),onclick:startHealth},'Verificar agora'),h('span',{class:'mut'},stamp('health'))));
  if(hstate==='done')return void b.append(h('div',{class:'cc-center'},ill('\uf00c','#1f6b45'),h('h2',{},'Tudo pronto!'),h('p',{class:'mut'},hfreed.files>0?fmt(hfreed.files)+' arquivos removidos · '+size(hfreed.bytes)+' liberados.':'Nenhuma limpeza foi aplicada nesta verificação.'),h('button',{class:'cc-pill blue',disabled:!can(),onclick:startHealth},'Verificar novamente')));
  if(r.incomplete)b.append(h('div',{style:'margin:12px 20px;padding:12px;border:1px solid #d9a358;border-radius:10px;color:#f4cc85'},
-     h('b',{},'Verificação parcial do agente nativo'),h('p',{},r.note||'Algumas categorias não foram verificadas.'),
+     h('b',{},'Verificação parcial do gestor nativo'),h('p',{},r.note||'Algumas categorias não foram verificadas.'),
      h('small',{},r.registry?.complete===false?'Consulta do registro não confirmada.':'Revise falhas e limites por categoria; o registro não é corrigido automaticamente.')));
  const labels=['Mais privacidade','Mais espaço','Resolver problemas'],st=h('div',{class:'cc-steps'});
  labels.forEach((l,i)=>{if(i)st.append(h('div',{class:'cc-ln'}));st.append(h('div',{class:'cc-st '+(i<hstep?'done':i===hstep?'on':'dot')},h('i',{},i<hstep?'✓':i===hstep?'!':''),l))});b.append(st);
@@ -269,11 +269,11 @@ VIEWS.restore=b=>{const r=reports.restore,d=s=>s.length>=14?s.slice(6,8)+'/'+s.s
 VIEWS.options=b=>{const ex=h('textarea',{class:'cc-area',id:'cc-ex','aria-label':'Exclusões',placeholder:'C:\\Users\\Maria\\AppData\\Local\\Temp\\meu-app\n*\\NomeDoArquivo.tmp'});ex.value=settings.exclusions.join('\n');const cu=h('textarea',{class:'cc-area',id:'cc-cu','aria-label':'Pastas personalizadas',placeholder:'D:\\Dados\\Temporarios'});cu.value=settings.custom_folders.join('\n');
  const lines=el=>el.value.split('\n').map(s=>s.trim()).filter(Boolean);
  b.append(h('div',{class:'cc-head'},h('h2',{},'Configurações')),h('div',{class:'cc-scroll','data-keep':'opt'},h('h3',{style:'margin:8px 0 4px'},'Excluir (Exclusões)'),h('p',{class:'mut',style:'margin-bottom:8px'},'Um caminho por linha (aceita *). Nada que corresponda será apagado por nenhuma limpeza deste computador.'),ex,
-  h('h3',{style:'margin:18px 0 4px'},'Incluir (Pastas personalizadas)'),h('p',{class:'mut',style:'margin-bottom:8px'},'Um caminho por linha. Habilita o item "Pastas personalizadas" na Limpeza personalizada. Raízes, perfis, Documentos, Desktop, AppData, Windows e Arquivos de Programas são sempre recusados pelo agente.'),cu,
-  h('p',{class:'mut',style:'margin-top:12px'},'Estas listas são as mesmas usadas pela tela Clean do agente instalado no Windows.')),
+  h('h3',{style:'margin:18px 0 4px'},'Incluir (Pastas personalizadas)'),h('p',{class:'mut',style:'margin-bottom:8px'},'Um caminho por linha. Habilita o item "Pastas personalizadas" na Limpeza personalizada. Raízes, perfis, Documentos, Desktop, AppData, Windows e Arquivos de Programas são sempre recusados pelo gestor.'),cu,
+  h('p',{class:'mut',style:'margin-top:12px'},'Estas listas são as mesmas usadas pela tela Clean do gestor instalado no Windows.')),
   h('div',{class:'cc-foot'},h('button',{class:'cc-pill blue',disabled:busy,onclick:async()=>{try{const r=await call('settings-save',{exclusions:lines(ex),custom_folders:lines(cu)});settings=r.settings;status('Configurações salvas');render()}catch(e){status(e.message,true)}}},'Salvar')))};
 /* ---------- início e sincronização ---------- */
-<?php require __DIR__.'/_clean_ui_backup.php'; ?>
+/* Backup possui área própria em redes/backup.php. */
 
 $('cc-burger').onclick=()=>root.classList.toggle('mini');
 function hasClean(){return [...ALLOWED].some(k=>k!=='uninstall')}

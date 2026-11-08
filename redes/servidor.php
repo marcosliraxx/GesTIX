@@ -32,7 +32,7 @@ function arc_server_fallback_components(array $m): array {
         'internet',
         $lat,
         'ms',
-        'Latência, download, upload e perdas acompanhados pelo agente.',
+        'Latência, download, upload e perdas acompanhados pelo gestor.',
         'Latência • tráfego • perdas',
         ['latency_ms' => $lat, 'download_mbps' => $download, 'upload_mbps' => $upload, 'loss_percent' => $loss],
         [
@@ -86,12 +86,12 @@ function arc_server_sanitize_component(array $component): array {
     ];
 }
 
-function arc_server_feed(PDO $pdo, int $networkId, int $account, int $agentId): array {
+function arc_server_feed(PDO $pdo, int $networkId, int $account, int $gestorId): array {
     $rows = [];
-    if ($agentId > 0) {
+    if ($gestorId > 0) {
         try {
-            $q = $pdo->prepare('SELECT t.payload_json,t.captured_at,UNIX_TIMESTAMP(t.captured_at) AS captured_unix FROM '.arc_table('agent_telemetry').' t WHERE t.network_id=? AND t.account_id=? AND t.agent_id=? AND t.event_type=\'server_metrics\' ORDER BY t.id DESC LIMIT 180');
-            $q->execute([$networkId, $account, $agentId]);
+            $q = $pdo->prepare('SELECT t.payload_json,t.captured_at,UNIX_TIMESTAMP(t.captured_at) AS captured_unix FROM '.arc_table('gestor_telemetry').' t WHERE t.network_id=? AND t.account_id=? AND t.gestor_id=? AND t.event_type=\'server_metrics\' ORDER BY t.id DESC LIMIT 180');
+            $q->execute([$networkId, $account, $gestorId]);
             $rows = $q->fetchAll(PDO::FETCH_ASSOC);
         } catch (Throwable $e) {
             error_log('Arcoll servidor feed: '.$e->getMessage());
@@ -113,7 +113,7 @@ function arc_server_feed(PDO $pdo, int $networkId, int $account, int $agentId): 
             }
         }
         // Compatibilidade: remove o agregado Rede se houver interfaces individuais.
-        // O gráfico Rede continua visível para agentes antigos que não identificam adaptadores.
+        // O gráfico Rede continua visível para gestores antigos que não identificam adaptadores.
         $hasInterface = false;
         foreach ($components as $item) {
             if (preg_match('/^network_[0-9]+$/', $item['key'])) {
@@ -143,11 +143,11 @@ function arc_server_feed(PDO $pdo, int $networkId, int $account, int $agentId): 
         'updated_at' => $rows[0]['captured_at'] ?? null,
         'updated_unix' => $last,
         'server_time' => time(),
-        'agent_selected' => $agentId > 0,
+        'gestor_selected' => $gestorId > 0,
     ];
 }
 
-$feed = arc_server_feed($pdo, (int)$networkId, (int)$account, (int)$selectedAgentId);
+$feed = arc_server_feed($pdo, (int)$networkId, (int)$account, (int)$selectedGestorId);
 if (($_GET['feed'] ?? '') === '1') {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store, private');
@@ -201,7 +201,7 @@ require __DIR__.'/_topo.php';
 }
 @media (max-width:600px) and (max-height:700px){.arc-server{height:calc(100dvh - 153px);max-height:calc(100dvh - 135px)}.arc-server-item{height:49px;min-height:49px}.arc-server-main{padding:6px}.arc-server-stats{margin:4px 0}.arc-server-note{max-height:2.5em}}
 </style>
-<section class="arc-server" aria-label="Desempenho do computador com agente Windows">
+<section class="arc-server" aria-label="Desempenho do computador com gestor Windows">
   <aside class="arc-server-sidebar">
     <h3>Componentes</h3>
     <div class="arc-server-list" id="arc-server-list"></div>

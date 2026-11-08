@@ -3,19 +3,19 @@
 /* Caminho: includes/network-clean.php */
 /* Fonte única de Programas (inventário/desinstalação) e Clean (limpeza, registro, inicialização, disco, duplicados,
    restauração do sistema, atualizador de software e verificação de integridade): catálogos, limites, validações,
-   higienização dos relatórios do agente, configurações, histórico, operação ativa e política de tempo limite.
+   higienização dos relatórios do gestor, configurações, histórico, operação ativa e política de tempo limite.
    Usado por api/api.php, includes/bootstrap.php, redes/programas.php e redes/clean.php.
-   As chaves e limites são o contrato com agentes/windows/arcoll_clean.py e arcoll_programs.py: a plataforma nunca
-   envia caminhos para exclusão; envia chaves de catálogo e identificadores que o próprio agente produziu. */
+   As chaves e limites são o contrato com gestores/windows/arcoll_clean.py e arcoll_programs.py: a plataforma nunca
+   envia caminhos para exclusão; envia chaves de catálogo e identificadores que o próprio gestor produziu. */
 declare(strict_types=1);
 
-/** Máximo de programas por desinstalação (tela, API e agente usam o mesmo valor). */
+/** Máximo de programas por desinstalação (tela, API e gestor usam o mesmo valor). */
 const ARC_PROGRAM_BATCH_MAX = 100;
 
 /** Idade máxima (segundos) do inventário aceito para desinstalar. */
 const ARC_PROGRAM_INVENTORY_MAX_AGE = 1800;
 
-/** Limites compartilhados com o agente. */
+/** Limites compartilhados com o gestor. */
 const ARC_CLEAN_MAX_EXCLUSIONS = 50;
 const ARC_CLEAN_MAX_CUSTOM_FOLDERS = 20;
 const ARC_CLEAN_MAX_REGISTRY_IDS = 1500;
@@ -63,7 +63,7 @@ function arc_clean_browser_facets(): array
     ];
 }
 
-/** Categorias de limpeza: chave => tab, group, label, hint, default, danger. A chave é o contrato com o agente. */
+/** Categorias de limpeza: chave => tab, group, label, hint, default, danger. A chave é o contrato com o gestor. */
 function arc_clean_catalog(): array
 {
     $c = [];
@@ -131,7 +131,7 @@ function arc_clean_health_sets(): array
     return ['space' => $space, 'privacy' => $privacy];
 }
 
-/** Verificações do limpador de registro (chaves = contrato com o agente). */
+/** Verificações do limpador de registro (chaves = contrato com o gestor). */
 function arc_clean_registry_checks(): array
 {
     return [
@@ -210,11 +210,11 @@ function arc_clean_validate_settings(mixed $body): array
     return $out;
 }
 
-function arc_clean_settings_get(PDO $pdo, int $agentId, int $networkId, int $accountId): array
+function arc_clean_settings_get(PDO $pdo, int $gestorId, int $networkId, int $accountId): array
 {
     try {
-        $q = $pdo->prepare('SELECT settings_json FROM ' . arc_table('clean_settings') . ' WHERE agent_id=? AND network_id=? AND account_id=?');
-        $q->execute([$agentId, $networkId, $accountId]);
+        $q = $pdo->prepare('SELECT settings_json FROM ' . arc_table('clean_settings') . ' WHERE gestor_id=? AND network_id=? AND account_id=?');
+        $q->execute([$gestorId, $networkId, $accountId]);
         $data = json_decode((string)$q->fetchColumn(), true);
     } catch (Throwable $e) {
         $data = null;
@@ -226,14 +226,14 @@ function arc_clean_settings_get(PDO $pdo, int $agentId, int $networkId, int $acc
     }
 }
 
-function arc_clean_settings_save(PDO $pdo, int $agentId, int $networkId, int $accountId, array $settings): void
+function arc_clean_settings_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $settings): void
 {
-    $pdo->prepare('INSERT INTO ' . arc_table('clean_settings') . ' (agent_id,network_id,account_id,settings_json) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),settings_json=VALUES(settings_json)')
-        ->execute([$agentId, $networkId, $accountId, json_encode($settings, JSON_UNESCAPED_UNICODE)]);
+    $pdo->prepare('INSERT INTO ' . arc_table('clean_settings') . ' (gestor_id,network_id,account_id,settings_json) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),settings_json=VALUES(settings_json)')
+        ->execute([$gestorId, $networkId, $accountId, json_encode($settings, JSON_UNESCAPED_UNICODE)]);
 }
 
-/** Valida um pedido de ferramenta e devolve a carga enviada ao agente. $last é o último relatório da mesma ferramenta
-    (os identificadores aceitos são somente os que o agente produziu). Lança InvalidArgumentException. */
+/** Valida um pedido de ferramenta e devolve a carga enviada ao gestor. $last é o último relatório da mesma ferramenta
+    (os identificadores aceitos são somente os que o gestor produziu). Lança InvalidArgumentException. */
 function arc_clean_validate_tool(array $body, ?array $last): array
 {
     $tool = (string)($body['tool'] ?? '');
@@ -315,7 +315,7 @@ function arc_clean_validate_tool(array $body, ?array $last): array
     return $payload;
 }
 
-/** Inteiros não negativos e textos curtos: o relatório do agente nunca é guardado como veio. */
+/** Inteiros não negativos e textos curtos: o relatório do gestor nunca é guardado como veio. */
 function arc_clean_text(mixed $v, int $max): string
 {
     return mb_substr(preg_replace('/[\x00-\x1f\x7f]/u', ' ', (string)$v) ?? '', 0, $max);
@@ -327,7 +327,7 @@ function arc_clean_count(mixed $v): int
 }
 
 /** Mantém somente campos conhecidos e numéricos do relatório da Limpeza personalizada.
-    $execute vem do nome do comando solicitado, nunca do corpo enviado pelo agente. */
+    $execute vem do nome do comando solicitado, nunca do corpo enviado pelo gestor. */
 function arc_clean_sanitize_report(array $report, bool $execute): array
 {
     $age = (int)($report['age_days'] ?? 7);
@@ -485,51 +485,51 @@ function arc_clean_sanitize_tool_report(string $tool, array $r): array
 }
 
 /** Último relatório de uma ferramenta/limpeza da máquina (tipo "clean" para a Limpeza personalizada). */
-function arc_clean_report_get(PDO $pdo, int $agentId, int $networkId, int $accountId, string $kind): ?array
+function arc_clean_report_get(PDO $pdo, int $gestorId, int $networkId, int $accountId, string $kind): ?array
 {
-    $q = $pdo->prepare('SELECT report_json,collected_at FROM ' . arc_table('agent_clean_inventory') . ' WHERE agent_id=? AND network_id=? AND account_id=? AND kind=?');
-    $q->execute([$agentId, $networkId, $accountId, $kind]);
+    $q = $pdo->prepare('SELECT report_json,collected_at FROM ' . arc_table('gestor_clean_inventory') . ' WHERE gestor_id=? AND network_id=? AND account_id=? AND kind=?');
+    $q->execute([$gestorId, $networkId, $accountId, $kind]);
     $row = $q->fetch(PDO::FETCH_ASSOC);
     if (!$row) return null;
     $report = json_decode((string)$row['report_json'], true);
     return is_array($report) ? ['report' => $report, 'collected_at' => $row['collected_at']] : null;
 }
 
-function arc_clean_report_save(PDO $pdo, int $agentId, int $networkId, int $accountId, string $kind, array $report): void
+function arc_clean_report_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, string $kind, array $report): void
 {
-    $pdo->prepare('INSERT INTO ' . arc_table('agent_clean_inventory') . ' (agent_id,kind,network_id,account_id,report_json) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),report_json=VALUES(report_json),collected_at=CURRENT_TIMESTAMP')
-        ->execute([$agentId, $kind, $networkId, $accountId, json_encode($report, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
+    $pdo->prepare('INSERT INTO ' . arc_table('gestor_clean_inventory') . ' (gestor_id,kind,network_id,account_id,report_json) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),report_json=VALUES(report_json),collected_at=CURRENT_TIMESTAMP')
+        ->execute([$gestorId, $kind, $networkId, $accountId, json_encode($report, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
 }
 
 /** Datas da última execução de cada ferramenta (a tela só baixa o relatório da ferramenta aberta). */
-function arc_clean_report_index(PDO $pdo, int $agentId, int $networkId, int $accountId): array
+function arc_clean_report_index(PDO $pdo, int $gestorId, int $networkId, int $accountId): array
 {
-    $q = $pdo->prepare('SELECT kind,collected_at FROM ' . arc_table('agent_clean_inventory') . ' WHERE agent_id=? AND network_id=? AND account_id=?');
-    $q->execute([$agentId, $networkId, $accountId]);
+    $q = $pdo->prepare('SELECT kind,collected_at FROM ' . arc_table('gestor_clean_inventory') . ' WHERE gestor_id=? AND network_id=? AND account_id=?');
+    $q->execute([$gestorId, $networkId, $accountId]);
     return $q->fetchAll(PDO::FETCH_KEY_PAIR);
 }
 
 /** Guarda a linha do histórico e preserva apenas as 30 mais recentes por máquina.
     O histórico é auxiliar: se a tabela ainda não existir, a limpeza continua válida. */
-function arc_clean_record_history(PDO $pdo, int $agentId, int $networkId, int $accountId, array $report): void
+function arc_clean_record_history(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $report): void
 {
     try {
         $table = arc_table('clean_history');
-        $pdo->prepare('INSERT INTO ' . $table . ' (agent_id,network_id,account_id,mode,age_days,file_count,bytes,errors,categories) VALUES (?,?,?,?,?,?,?,?,?)')
-            ->execute([$agentId, $networkId, $accountId, $report['execute'] ? 'execute' : 'scan', $report['age_days'], $report['file_count'], $report['bytes'], $report['errors'], mb_substr(implode(',', array_keys($report['categories'])), 0, 255)]);
-        $pdo->prepare('DELETE FROM ' . $table . ' WHERE agent_id=? AND id NOT IN (SELECT id FROM (SELECT id FROM ' . $table . ' WHERE agent_id=? ORDER BY id DESC LIMIT 30) keep)')
-            ->execute([$agentId, $agentId]);
+        $pdo->prepare('INSERT INTO ' . $table . ' (gestor_id,network_id,account_id,mode,age_days,file_count,bytes,errors,categories) VALUES (?,?,?,?,?,?,?,?,?)')
+            ->execute([$gestorId, $networkId, $accountId, $report['execute'] ? 'execute' : 'scan', $report['age_days'], $report['file_count'], $report['bytes'], $report['errors'], mb_substr(implode(',', array_keys($report['categories'])), 0, 255)]);
+        $pdo->prepare('DELETE FROM ' . $table . ' WHERE gestor_id=? AND id NOT IN (SELECT id FROM (SELECT id FROM ' . $table . ' WHERE gestor_id=? ORDER BY id DESC LIMIT 30) keep)')
+            ->execute([$gestorId, $gestorId]);
     } catch (Throwable $e) {
         error_log('Arcoll clean history: ' . $e->getMessage());
     }
 }
 
 /** Últimas execuções da máquina, mais recentes primeiro. Lista vazia se a tabela ainda não existir. */
-function arc_clean_history(PDO $pdo, int $agentId, int $networkId, int $accountId, int $limit = 8): array
+function arc_clean_history(PDO $pdo, int $gestorId, int $networkId, int $accountId, int $limit = 8): array
 {
     try {
-        $q = $pdo->prepare('SELECT mode,age_days,file_count,bytes,errors,categories,created_at FROM ' . arc_table('clean_history') . ' WHERE agent_id=? AND network_id=? AND account_id=? ORDER BY id DESC LIMIT ' . max(1, min(30, $limit)));
-        $q->execute([$agentId, $networkId, $accountId]);
+        $q = $pdo->prepare('SELECT mode,age_days,file_count,bytes,errors,categories,created_at FROM ' . arc_table('clean_history') . ' WHERE gestor_id=? AND network_id=? AND account_id=? ORDER BY id DESC LIMIT ' . max(1, min(30, $limit)));
+        $q->execute([$gestorId, $networkId, $accountId]);
         return $q->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         return [];
@@ -541,24 +541,24 @@ function arc_clean_history(PDO $pdo, int $agentId, int $networkId, int $accountI
 function arc_clean_ensure_schema(PDO $pdo): void
 {
     $engine = ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('agent_clean_inventory') . ' (
-        agent_id BIGINT UNSIGNED NOT NULL,
+    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('gestor_clean_inventory') . ' (
+        gestor_id BIGINT UNSIGNED NOT NULL,
         kind VARCHAR(24) NOT NULL DEFAULT \'clean\',
         network_id BIGINT UNSIGNED NOT NULL,
         account_id BIGINT UNSIGNED NOT NULL,
         report_json MEDIUMTEXT NOT NULL,
         collected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (agent_id,kind),
+        PRIMARY KEY (gestor_id,kind),
         KEY idx_clean_network (network_id,account_id)
     )' . $engine);
     $has = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=\'kind\'');
-    $has->execute([arc_prefix() . 'agent_clean_inventory']);
+    $has->execute([arc_prefix() . 'gestor_clean_inventory']);
     if ((int)$has->fetchColumn() === 0) {
-        $pdo->exec('ALTER TABLE ' . arc_table('agent_clean_inventory') . ' ADD COLUMN kind VARCHAR(24) NOT NULL DEFAULT \'clean\' AFTER agent_id, DROP PRIMARY KEY, ADD PRIMARY KEY (agent_id,kind)');
+        $pdo->exec('ALTER TABLE ' . arc_table('gestor_clean_inventory') . ' ADD COLUMN kind VARCHAR(24) NOT NULL DEFAULT \'clean\' AFTER gestor_id, DROP PRIMARY KEY, ADD PRIMARY KEY (gestor_id,kind)');
     }
     $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('clean_history') . ' (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        agent_id BIGINT UNSIGNED NOT NULL,
+        gestor_id BIGINT UNSIGNED NOT NULL,
         network_id BIGINT UNSIGNED NOT NULL,
         account_id BIGINT UNSIGNED NOT NULL,
         mode ENUM(\'scan\',\'execute\') NOT NULL DEFAULT \'scan\',
@@ -568,11 +568,11 @@ function arc_clean_ensure_schema(PDO $pdo): void
         errors INT UNSIGNED NOT NULL DEFAULT 0,
         categories VARCHAR(255) NOT NULL DEFAULT \'\',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_clean_history_agent (agent_id,id),
+        KEY idx_clean_history_gestor (gestor_id,id),
         KEY idx_clean_history_network (network_id,account_id)
     )' . $engine);
     $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('clean_settings') . ' (
-        agent_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+        gestor_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
         network_id BIGINT UNSIGNED NOT NULL,
         account_id BIGINT UNSIGNED NOT NULL,
         settings_json TEXT NOT NULL,
@@ -583,7 +583,7 @@ function arc_clean_ensure_schema(PDO $pdo): void
 
 
 /** Catálogo explícito para instalação remota via WinGet (IDs fixos, sem comandos personalizados). */
-/** Domínio do site oficial de cada pacote do catálogo: origem do logo exibido na plataforma (api/program-logo.php) e no agente. */
+/** Domínio do site oficial de cada pacote do catálogo: origem do logo exibido na plataforma (api/program-logo.php) e no gestor. */
 function arc_program_logo_domains(): array
 {
     return [
@@ -870,7 +870,7 @@ function arc_program_install_catalog(): array
     return $rows;
 }
 
-/** Comandos de cada tela (nomes usados na fila agent_commands). */
+/** Comandos de cada tela (nomes usados na fila gestor_commands). */
 function arc_network_operation_commands(): array
 {
     return ['program' => ['program_inventory', 'program_uninstall', 'program_install'], 'clean' => ['clean_scan', 'clean_execute', 'clean_tool']];
@@ -890,7 +890,7 @@ function arc_program_restore_mode(mixed $value): string
     return in_array($value, ['off', 'try', 'require'], true) ? (string)$value : 'try';
 }
 
-/** Higieniza o inventário enviado pelo agente. Cada programa é identificado por um SHA-256 local da máquina. */
+/** Higieniza o inventário enviado pelo gestor. Cada programa é identificado por um SHA-256 local da máquina. */
 function arc_program_sanitize_inventory(array $programs): array
 {
     $clean = [];
@@ -934,30 +934,30 @@ function arc_program_validate_uninstall(mixed $ids, array $inventoryRows): array
 }
 
 /** Operação ainda pendente/em andamento (permite à tela retomar o acompanhamento após recarregar). */
-function arc_network_active_operation(PDO $pdo, int $agentId, int $networkId, int $accountId, array $names): ?array
+function arc_network_active_operation(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $names): ?array
 {
     $in = implode(',', array_fill(0, count($names), '?'));
-    $q = $pdo->prepare('SELECT id,command_name,status,result_text FROM ' . arc_table('agent_commands') . " WHERE agent_id=? AND network_id=? AND account_id=? AND status IN ('pending','running') AND created_at>DATE_SUB(NOW(),INTERVAL 3 HOUR) AND command_name IN ($in) ORDER BY id DESC LIMIT 1");
-    $q->execute(array_merge([$agentId, $networkId, $accountId], $names));
+    $q = $pdo->prepare('SELECT id,command_name,status,result_text FROM ' . arc_table('gestor_commands') . " WHERE gestor_id=? AND network_id=? AND account_id=? AND status IN ('pending','running') AND created_at>DATE_SUB(NOW(),INTERVAL 3 HOUR) AND command_name IN ($in) ORDER BY id DESC LIMIT 1");
+    $q->execute(array_merge([$gestorId, $networkId, $accountId], $names));
     $row = $q->fetch(PDO::FETCH_ASSOC);
     return $row ? ['command_id' => (int)$row['id'], 'command_name' => $row['command_name'], 'status' => $row['status'], 'message' => (string)$row['result_text']] : null;
 }
 
 
-/** Estado que o agente baixa para espelhar a plataforma: configurações, histórico, último relatório de cada ferramenta e inventário de programas. */
-function arc_clean_agent_state(PDO $pdo, int $agentId, int $networkId, int $accountId, array $kinds): array
+/** Estado que o gestor baixa para espelhar a plataforma: configurações, histórico, último relatório de cada ferramenta e inventário de programas. */
+function arc_clean_gestor_state(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $kinds): array
 {
     $reports = [];
     foreach ($kinds as $kind) {
         if ($kind !== 'clean' && !isset(arc_clean_tools()[$kind])) continue;
-        $row = arc_clean_report_get($pdo, $agentId, $networkId, $accountId, (string)$kind);
+        $row = arc_clean_report_get($pdo, $gestorId, $networkId, $accountId, (string)$kind);
         if ($row) $reports[$kind] = ['report' => $row['report'], 'collected_at' => $row['collected_at']];
     }
-    $q = $pdo->prepare('SELECT programs_json,collected_at FROM ' . arc_table('agent_software_inventory') . ' WHERE agent_id=? AND network_id=? AND account_id=?');
-    $q->execute([$agentId, $networkId, $accountId]);
+    $q = $pdo->prepare('SELECT programs_json,collected_at FROM ' . arc_table('gestor_software_inventory') . ' WHERE gestor_id=? AND network_id=? AND account_id=?');
+    $q->execute([$gestorId, $networkId, $accountId]);
     $inventory = $q->fetch(PDO::FETCH_ASSOC);
     $programs = $inventory ? json_decode((string)$inventory['programs_json'], true) : [];
-    return ['settings' => arc_clean_settings_get($pdo, $agentId, $networkId, $accountId), 'history' => arc_clean_history($pdo, $agentId, $networkId, $accountId),
-            'index' => arc_clean_report_index($pdo, $agentId, $networkId, $accountId), 'reports' => $reports,
+    return ['settings' => arc_clean_settings_get($pdo, $gestorId, $networkId, $accountId), 'history' => arc_clean_history($pdo, $gestorId, $networkId, $accountId),
+            'index' => arc_clean_report_index($pdo, $gestorId, $networkId, $accountId), 'reports' => $reports,
             'programs' => is_array($programs) ? $programs : [], 'programs_at' => $inventory['collected_at'] ?? null];
 }

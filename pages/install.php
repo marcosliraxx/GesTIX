@@ -61,7 +61,7 @@ function install_schema(PDO $pdo, string $prefix): void
         'feature_monitor_title' => ['Medição contínua', 'text'],
         'feature_monitor_text' => ['Latência, variação, qualidade e histórico de amostras.', 'text'],
         'feature_devices_title' => ['Inventário de rede', 'text'],
-        'feature_devices_text' => ['Identifique este aparelho e, com o agente local, outros dispositivos autorizados.', 'text'],
+        'feature_devices_text' => ['Identifique este aparelho e, com o gestor local, outros dispositivos autorizados.', 'text'],
         'feature_reports_title' => ['Relatórios e alertas', 'text'],
         'feature_reports_text' => ['Registros, alertas e exportação para apoiar diagnósticos.', 'text'],
         'measurement_endpoint' => ['cloudflare', 'choice'],
@@ -85,7 +85,7 @@ function install_schema(PDO $pdo, string $prefix): void
         ['nettools', 'Utilitários de rede', 'Ferramentas locais para diagnóstico autorizado.', 'pulse', 'nettools', 'system', 9],
         ['tools', 'Ferramentas', 'Atalhos operacionais de análise e exportação.', 'layers', 'tools', 'system', 10],
         ['settings', 'Ajustes', 'Preferências do aplicativo.', 'settings', 'settings', 'system', 11],
-        ['install', 'Instalar e conectar', 'Instalação do PWA e agente local.', 'download', 'setup', 'system', 12],
+        ['install', 'Instalar e conectar', 'Instalação do PWA e gestor local.', 'download', 'setup', 'system', 12],
     ];
     $pageInsert = $pdo->prepare(
         'INSERT IGNORE INTO `' . $prefix . 'pages` (slug, title, subtitle, content, icon, screen_id, page_type, nav_order, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)'

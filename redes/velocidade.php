@@ -3,7 +3,7 @@
 declare(strict_types=1);
 $arcSectionFile='velocidade';
 require __DIR__.'/_base.php';
-// Os comandos continuam protegidos por login, titularidade da rede e agente aprovado.
+// Os comandos continuam protegidos por login, titularidade da rede e gestor aprovado.
 if (($_GET['speed_feed']??'')==='1') {
     $lastResult=null; $lastProgress=null;
     $requestedCommand=max(0,(int)($_GET['command_id']??0));
@@ -16,12 +16,12 @@ if (($_GET['speed_feed']??'')==='1') {
         if ($lastResult && $lastProgress) break;
     }
     // Consultar o diagnóstico diretamente, pois o feed geral tem limite de 150 eventos.
-    // A consulta permanece restrita à conta, rede e agente já autorizados em _base.php.
+    // A consulta permanece restrita à conta, rede e gestor já autorizados em _base.php.
     $latestDiagId=0;
     $latestDiagAt='';
     try {
-        $diagStmt=$pdo->prepare('SELECT id,captured_at FROM '.arc_table('agent_telemetry')." WHERE account_id=? AND network_id=? AND agent_id=? AND event_type='diagnostic' ORDER BY id DESC LIMIT 1");
-        $diagStmt->execute([(int)$account,(int)$networkId,(int)$selectedAgentId]);
+        $diagStmt=$pdo->prepare('SELECT id,captured_at FROM '.arc_table('gestor_telemetry')." WHERE account_id=? AND network_id=? AND gestor_id=? AND event_type='diagnostic' ORDER BY id DESC LIMIT 1");
+        $diagStmt->execute([(int)$account,(int)$networkId,(int)$selectedGestorId]);
         $diagRow=$diagStmt->fetch(PDO::FETCH_ASSOC);
         if ($diagRow) { $latestDiagId=(int)$diagRow['id']; $latestDiagAt=(string)$diagRow['captured_at']; }
     } catch (Throwable $e) { error_log('Velocidade diagnóstico feed: '.$e->getMessage()); }
@@ -29,12 +29,12 @@ if (($_GET['speed_feed']??'')==='1') {
     header('Cache-Control: no-store, private');
     echo json_encode(['ok'=>true,'result'=>$lastResult,'progress'=>$lastProgress,'diagnostic_id'=>$latestDiagId,'diagnostic_at'=>$latestDiagAt],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;
 }
-// Localização confirmada: ação explícita do gestor, por rede e agente.
+// Localização confirmada: ação explícita do gestor, por rede e gestor.
 // A tabela mantém apenas o último ponto autorizado por origem/destino.
 $geoTable = arc_table('network_geo_points');
 $geoAvailable = true;
 try {
-    $pdo->exec('CREATE TABLE IF NOT EXISTS '.$geoTable.' (network_id BIGINT NOT NULL,account_id BIGINT NOT NULL,agent_id BIGINT NOT NULL DEFAULT 0,kind VARCHAR(12) NOT NULL,latitude DECIMAL(10,7) NOT NULL,longitude DECIMAL(11,7) NOT NULL,accuracy_m FLOAT NULL,source VARCHAR(40) NOT NULL,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY(network_id,account_id,agent_id,kind)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS '.$geoTable.' (network_id BIGINT NOT NULL,account_id BIGINT NOT NULL,gestor_id BIGINT NOT NULL DEFAULT 0,kind VARCHAR(12) NOT NULL,latitude DECIMAL(10,7) NOT NULL,longitude DECIMAL(11,7) NOT NULL,accuracy_m FLOAT NULL,source VARCHAR(40) NOT NULL,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY(network_id,account_id,gestor_id,kind)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 } catch (Throwable $e) { $geoAvailable = false; error_log('Conexao GPS storage: '.$e->getMessage()); }
 if (($_GET['gps_action'] ?? '') === 'save') {
     header('Content-Type: application/json; charset=utf-8');
@@ -51,16 +51,16 @@ if (($_GET['gps_action'] ?? '') === 'save') {
     $acc=$posted['accuracy_m'] ?? null;
     if ($acc !== null && (!is_numeric($acc) || (float)$acc<0 || (float)$acc>100000)) $fail('Precisão inválida.');
     $src=in_array(($posted['source'] ?? ''),['browser_geolocation','manual_verified'],true) ? $posted['source'] : 'manual_verified';
-    $pointAgent=$kind==='origin' ? 0 : (int)$selectedAgentId;
-    $q=$pdo->prepare('INSERT INTO '.$geoTable.' (network_id,account_id,agent_id,kind,latitude,longitude,accuracy_m,source) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE latitude=VALUES(latitude),longitude=VALUES(longitude),accuracy_m=VALUES(accuracy_m),source=VALUES(source),updated_at=CURRENT_TIMESTAMP');
-    try {$q->execute([(int)$networkId,(int)$account,$pointAgent,$kind,(float)$lat,(float)$lon,$acc===null?null:(float)$acc,$src]);}catch(Throwable $e){error_log('Conexao GPS save: '.$e->getMessage());$fail('Não foi possível salvar localização.',500);}
+    $pointGestor=$kind==='origin' ? 0 : (int)$selectedGestorId;
+    $q=$pdo->prepare('INSERT INTO '.$geoTable.' (network_id,account_id,gestor_id,kind,latitude,longitude,accuracy_m,source) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE latitude=VALUES(latitude),longitude=VALUES(longitude),accuracy_m=VALUES(accuracy_m),source=VALUES(source),updated_at=CURRENT_TIMESTAMP');
+    try {$q->execute([(int)$networkId,(int)$account,$pointGestor,$kind,(float)$lat,(float)$lon,$acc===null?null:(float)$acc,$src]);}catch(Throwable $e){error_log('Conexao GPS save: '.$e->getMessage());$fail('Não foi possível salvar localização.',500);}
     echo json_encode(['ok'=>true],JSON_UNESCAPED_UNICODE);exit;
 }
 $geoPoints=[];
 if ($geoAvailable) {
     try {
-        $q=$pdo->prepare('SELECT kind,agent_id,latitude,longitude,accuracy_m,source,updated_at FROM '.$geoTable.' WHERE network_id=? AND account_id=? AND (agent_id=0 OR agent_id=?) ORDER BY updated_at DESC');
-        $q->execute([(int)$networkId,(int)$account,(int)$selectedAgentId]);
+        $q=$pdo->prepare('SELECT kind,gestor_id,latitude,longitude,accuracy_m,source,updated_at FROM '.$geoTable.' WHERE network_id=? AND account_id=? AND (gestor_id=0 OR gestor_id=?) ORDER BY updated_at DESC');
+        $q->execute([(int)$networkId,(int)$account,(int)$selectedGestorId]);
         foreach($q->fetchAll(PDO::FETCH_ASSOC) as $pt){$key=(string)$pt['kind'];if(!isset($geoPoints[$key]))$geoPoints[$key]=$pt;}
     } catch(Throwable $e){error_log('Conexao GPS read: '.$e->getMessage());}
 }
@@ -69,8 +69,8 @@ $diagnosticEvents = $remoteByType['diagnostic'] ?? [];
 // O histórico de telemetria da página é limitado; buscar o último diagnóstico
 // diretamente evita que eventos de progresso ocultem os dados da conexão.
 try {
-    $lastDiagnosticStmt=$pdo->prepare('SELECT payload_json,captured_at FROM '.arc_table('agent_telemetry')." WHERE account_id=? AND network_id=? AND agent_id=? AND event_type='diagnostic' ORDER BY id DESC LIMIT 1");
-    $lastDiagnosticStmt->execute([(int)$account,(int)$networkId,(int)$selectedAgentId]);
+    $lastDiagnosticStmt=$pdo->prepare('SELECT payload_json,captured_at FROM '.arc_table('gestor_telemetry')." WHERE account_id=? AND network_id=? AND gestor_id=? AND event_type='diagnostic' ORDER BY id DESC LIMIT 1");
+    $lastDiagnosticStmt->execute([(int)$account,(int)$networkId,(int)$selectedGestorId]);
     $latestDiagnosticRow=$lastDiagnosticStmt->fetch(PDO::FETCH_ASSOC);
     if ($latestDiagnosticRow) {
         $diagnosticEvents=[['payload_json'=>$latestDiagnosticRow['payload_json'],'captured_at'=>$latestDiagnosticRow['captured_at'],'machine_name'=>'']];
@@ -110,23 +110,23 @@ if ($destCity !== '') {
     $destCity = mb_convert_case(mb_strtolower($destCity, 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
     $destCity = preg_replace_callback('/\s(De|Da|Do|Das|Dos|E)\s/u', static fn($m) => ' '.mb_strtolower($m[1], 'UTF-8').' ', $destCity) ?? $destCity;
 }
-$agentGps=null;
-if ((int)$selectedAgentId>0) {
+$gestorGps=null;
+if ((int)$selectedGestorId>0) {
     try {
-        $q=$pdo->prepare('SELECT payload_json,captured_at FROM '.arc_table('agent_telemetry')." WHERE account_id=? AND network_id=? AND agent_id=? AND event_type='connection_gps' ORDER BY id DESC LIMIT 1");
-        $q->execute([(int)$account,(int)$networkId,(int)$selectedAgentId]);
+        $q=$pdo->prepare('SELECT payload_json,captured_at FROM '.arc_table('gestor_telemetry')." WHERE account_id=? AND network_id=? AND gestor_id=? AND event_type='connection_gps' ORDER BY id DESC LIMIT 1");
+        $q->execute([(int)$account,(int)$networkId,(int)$selectedGestorId]);
         $r=$q->fetch(PDO::FETCH_ASSOC);
-        if($r){$g=json_decode((string)$r['payload_json'],true);if(is_array($g)&&is_numeric($g['latitude']??null)&&is_numeric($g['longitude']??null)&&abs((float)$g['latitude'])<=90&&abs((float)$g['longitude'])<=180){$agentGps=['latitude'=>(float)$g['latitude'],'longitude'=>(float)$g['longitude'],'accuracy_m'=>is_numeric($g['accuracy_m']??null)?(float)$g['accuracy_m']:null,'source'=>'windows_location','updated_at'=>$r['captured_at']];}}
-    } catch(Throwable $e){error_log('Conexao agent GPS: '.$e->getMessage());}
+        if($r){$g=json_decode((string)$r['payload_json'],true);if(is_array($g)&&is_numeric($g['latitude']??null)&&is_numeric($g['longitude']??null)&&abs((float)$g['latitude'])<=90&&abs((float)$g['longitude'])<=180){$gestorGps=['latitude'=>(float)$g['latitude'],'longitude'=>(float)$g['longitude'],'accuracy_m'=>is_numeric($g['accuracy_m']??null)?(float)$g['accuracy_m']:null,'source'=>'windows_location','updated_at'=>$r['captured_at']];}}
+    } catch(Throwable $e){error_log('Conexao gestor GPS: '.$e->getMessage());}
 }
 $initial = [
- 'geoPoints'=>$geoPoints,'agentGps'=>$agentGps,'geoAvailable'=>$geoAvailable,'gpsCsrf'=>$csrf,
+ 'geoPoints'=>$geoPoints,'gestorGps'=>$gestorGps,'geoAvailable'=>$geoAvailable,'gpsCsrf'=>$csrf,
  'publicIp'=>$publicIp, 'localIp'=>$localIp, 'gateway'=>$gateway,'dns'=>(string)$dns,
- 'agentId'=>(int)$selectedAgentId,'networkId'=>(int)$networkId,
+ 'gestorId'=>(int)$selectedGestorId,'networkId'=>(int)$networkId,
  'latestAt'=>$latestEvent ? arc_when($latestEvent['captured_at']) : null,
  'diagnosticAt'=>$latestDiagnostic ? arc_when($latestDiagnostic['captured_at']) : null,
  'diagnostic'=>$diagText,
- 'agentName'=>(string)($latestEvent['machine_name'] ?? $latestDiagnostic['machine_name'] ?? ''),
+ 'gestorName'=>(string)($latestEvent['machine_name'] ?? $latestDiagnostic['machine_name'] ?? ''),
  'networkName'=>(string)($network['name'] ?? ''),
  'measured'=>$diagPayload['schema'] ?? null,
  'provider'=>isset($diagPayload['provider']) && is_array($diagPayload['provider']) ? $diagPayload['provider'] : [],
@@ -142,7 +142,7 @@ require __DIR__.'/_topo.php';
 ?>
 <section class="arc-speed-view" aria-label="Velocidade e mapa de conexão">
  <div class="arc-speed-launch" id="arc-speed-launch">
-  <button class="arc-speed-start" id="arc-speed-start" type="button" aria-label="Iniciar medição real no agente" aria-busy="false"><span id="arc-speed-text">START</span><small id="arc-speed-gauge">INICIAR MEDIÇÃO</small></button>
+  <button class="arc-speed-start" id="arc-speed-start" type="button" aria-label="Iniciar medição real no gestor" aria-busy="false"><span id="arc-speed-text">START</span><small id="arc-speed-gauge">INICIAR MEDIÇÃO</small></button>
   <div class="arc-speed-caption" id="arc-speed-caption" role="status" aria-live="polite"></div>
   <div class="arc-speed-progress" role="progressbar" aria-label="Progresso do teste" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="arc-speed-progress" hidden><span id="arc-speed-bar"></span></div>
  </div>
@@ -152,8 +152,8 @@ require __DIR__.'/_topo.php';
     <div class="arc-speed-result"><span><i class="fa fa-arrow-down"></i> DOWNLOAD</span><strong id="arc-speed-down">—</strong><small>Mbps</small></div>
     <div class="arc-speed-result"><span><i class="fa fa-arrow-up"></i> UPLOAD</span><strong id="arc-speed-up">—</strong><small>Mbps</small></div>
     <div class="arc-speed-result"><span><i class="fa fa-clock-o"></i> LATÊNCIA</span><strong id="arc-speed-ping">—</strong><small>ms</small></div>
-    <div class="arc-speed-result"><span><i class="fa fa-signal"></i> PERDAS</span><strong id="arc-speed-loss">Não aferido</strong><small id="arc-speed-loss-unit">Sem dado do agente</small></div>
-   </div><div class="arc-speed-note" id="arc-speed-note">Aguardando dados reais do agente.</div>
+    <div class="arc-speed-result"><span><i class="fa fa-signal"></i> PERDAS</span><strong id="arc-speed-loss">Não aferido</strong><small id="arc-speed-loss-unit">Sem dado do gestor</small></div>
+   </div><div class="arc-speed-note" id="arc-speed-note">Aguardando dados reais do gestor.</div>
   </div>
   <div class="arc-speed-map-pane">
 <style>
@@ -251,15 +251,25 @@ require __DIR__.'/_topo.php';
     pointer-events: none !important;
   }
 }
+
+/* Diagnóstico avançado: componentes isolados do tema global */
+.arc-speed-quality{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:15px}
+.arc-speed-quality-card{position:relative;overflow:hidden;background:linear-gradient(145deg,var(--surface-alt),var(--surface));border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:inset 0 1px #ffffff12;transition:transform .22s,border-color .22s}
+.arc-speed-quality-card:hover{transform:translateY(-2px);border-color:var(--primary)}
+.arc-speed-quality-card small{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}
+.arc-speed-quality-card strong{color:var(--text);font-size:clamp(14px,2vw,21px);font-weight:800;font-variant-numeric:tabular-nums}
+.arc-speed-quality-note{grid-column:1/-1;color:var(--muted);font-size:11px;line-height:1.5;margin:0}
+@media(max-width:630px){.arc-speed-quality{grid-template-columns:1fr}.arc-speed-quality-note{grid-column:auto}}
+@media(prefers-reduced-motion:reduce){.arc-speed-quality-card{transition:none}}
 </style>
 <section class="asc-ops arc-connect" aria-label="Mapa da conexão">
  <div class="cc-board">
-  <header class="cc-head"><div class="cc-heading"><small>MAPA DA CONEXÃO</small></div><span id="cc-status" class="cc-status">Dados reais do agente</span></header>
+  <header class="cc-head"><div class="cc-heading"><small>MAPA DA CONEXÃO</small></div><span id="cc-status" class="cc-status">Dados reais do gestor</span></header>
   <div class="cc-surface">
    <div class="cc-stage" aria-label="Mapa da região: cidade de origem do provedor e cidade de destino da rede">
     <div class="cc-map" id="cc-map" role="application" aria-label="Mapa interativo da região da conexão"></div>
     <div class="cc-ui cc-route" id="cc-route" aria-live="polite">
-     <div class="cc-route-kicker"><i class="fa fa-random" aria-hidden="true"></i> ROTA DA CONEXÃO</div>
+     <div class="cc-route-kicker"><i class="fa fa-random" aria-hidden="true"></i> LIGAÇÃO GEOGRÁFICA ILUSTRATIVA</div>
      <div class="cc-stop origin"><span class="cc-stop-ico"><i class="fa fa-globe" aria-hidden="true"></i></span><div><small>DE ONDE VEM · PROVEDOR</small><strong id="cc-r-from">—</strong></div></div>
      <div class="cc-link"><span id="cc-r-dist">&nbsp;</span></div>
      <div class="cc-stop dest"><span class="cc-stop-ico"><i class="fa fa-home" aria-hidden="true"></i></span><div><small>PARA ONDE VAI · REDE</small><strong id="cc-r-to">—</strong></div></div>
@@ -302,10 +312,10 @@ const verifiedCoord=v=>Array.isArray(v)&&v.length===2&&validLL(num(v[0]),num(v[1
 const points=state.geoPoints||{};
 const pointCoords=pt=>pt&&validLL(num(pt.latitude),num(pt.longitude))?[Number(pt.latitude),Number(pt.longitude)]:null;
 const savedOrigin=pointCoords(points.origin),savedDest=pointCoords(points.dest);
-const agentPoint=state.agentGps||null,agentCoords=pointCoords(agentPoint);
+const gestorPoint=state.gestorGps||null,gestorCoords=pointCoords(gestorPoint);
 if(savedOrigin){origin.ll=savedOrigin;origin.fromIp=false;origin.gpsVerified=true;origin.geoSource=String(points.origin.source||'manual_verified');origin.accuracy_m=points.origin.accuracy_m;}
 if(savedDest){dest.ll=savedDest;dest.gpsVerified=true;dest.geocodeSource='localização confirmada da rede';dest.accuracy_m=points.dest.accuracy_m;}
-else if(agentCoords){dest.ll=agentCoords;dest.gpsVerified=true;dest.geocodeSource='localização autorizada do Windows';dest.accuracy_m=agentPoint.accuracy_m;}
+else if(gestorCoords){dest.ll=gestorCoords;dest.gpsVerified=true;dest.geocodeSource='localização autorizada do Windows';dest.accuracy_m=gestorPoint.accuracy_m;}
 
 const originLabel=label(origin.city,origin.uf||origin.region);
 const destLabel=label(dest.city,dest.uf);
@@ -316,7 +326,7 @@ const ms=h=>{const v=h?lat[h]:null;return v&&v.responded&&v.avg_ms!=null?Number(
 const inet=[ms('1.1.1.1'),ms('8.8.8.8')].filter(v=>v!=null);
 const inetAvg=inet.length?inet.reduce((a,b)=>a+b,0)/inet.length:null;
 const quality=v=>v==null?null:v<40?['Excelente','#3ddc97']:v<80?['Boa','#8be28b']:v<150?['Regular','#ffc857']:['Alta','#ff7b7b'];
-$('cc-status').textContent=measured?'Diagnóstico recebido':'Aguardando agente';
+$('cc-status').textContent=measured?'Diagnóstico recebido':'Aguardando gestor';
 $('cc-r-from').textContent=originLabel||(measured?'Cidade não identificada':'Aguardando diagnóstico');
 $('cc-r-to').textContent=destLabel||'Cidade não informada';
 
@@ -389,7 +399,7 @@ function drawRoute(a,b,distKm){
   const m=L.marker(chipLL,{icon:L.divIcon({className:'cc-chip-wrap',html:w,iconSize:[0,0]}),title:'Detalhes da rota',keyboard:true}).addTo(map);
   m.bindPopup(routeCard(distKm),popupOpts(-14));
  };
- const packet=()=>{
+ const packet=()=>{if(reduce)return;
   if(reduce)return;
   const head=L.circleMarker(pts[0],{radius:6,color:'#fff',weight:2,fillColor:'#52d6f5',fillOpacity:1,interactive:false}).addTo(map);
   const lags=[.035,.07,.105,.14],trail=lags.map((d,i)=>L.circleMarker(pts[0],{radius:5-i,stroke:false,fillColor:'#52d6f5',fillOpacity:.5-i*.1,interactive:false}).addTo(map));
@@ -414,7 +424,7 @@ function originCard(){
 function destCard(){
  const gw=state.gateway?ms(state.gateway):null;
  return card({tone:'dest',icon:'fa-home',kicker:'PARA ONDE VAI · REDE',title:destLabel,sub:esc(D.name||state.networkName),
-  rows:[['Rede',D.name],['Cliente',D.client],['Código',D.site],['Endereço',D.address],['Cidade',label(dest.city,dest.uf)],['CEP',D.cep],['Agente',state.agentName?state.agentName+(state.localIp?' · '+state.localIp:''):state.localIp],['Gateway',state.gateway?(state.gateway):''],['Latência gateway',gw!=null?latNode(gw):''],['DNS',state.dns]],
+  rows:[['Rede',D.name],['Cliente',D.client],['Código',D.site],['Endereço',D.address],['Cidade',label(dest.city,dest.uf)],['CEP',D.cep],['Gestor',state.gestorName?state.gestorName+(state.localIp?' · '+state.localIp:''):state.localIp],['Gateway',state.gateway?(state.gateway):''],['Latência gateway',gw!=null?latNode(gw):''],['DNS',state.dns]],
   note:'Posição aproximada obtida por geocodificação: '+(dest.geocodeSource||'município informado')+'. Para precisão física, confirme coordenadas GPS no local.'});
 }
 function routeCard(distKm){
@@ -470,7 +480,7 @@ async function boot(){
   const d=km(origin.ll,dest.ll),out=$('cc-r-dist');out.replaceChildren(el('b',null,'≈ '+fmtKm(d)),document.createTextNode(' em linha reta'));
   if(d>=.4)drawRoute(origin.ll,dest.ll,d);else out.textContent='mesma localidade';
  }
- if(!markers.length){setEmpty(measured?'Não foi possível localizar a cidade do provedor no mapa e a rede não tem uma cidade válida no endereço.':'Aguardando o diagnóstico do agente. Use “Diagnosticar” para identificar a provedora e a região.');return}
+ if(!markers.length){setEmpty(measured?'Não foi possível localizar a cidade do provedor no mapa e a rede não tem uma cidade válida no endereço.':'Aguardando o diagnóstico do gestor. Use “Diagnosticar” para identificar a provedora e a região.');return}
  setState(!measured?'Aguardando diagnóstico para identificar o provedor.':!origin.ll?'Cidade do provedor não localizada no mapa.':!dest.city?'Informe a cidade no endereço da rede (formato CIDADE/UF) para exibir o destino.':!dest.ll?'Cidade do destino não localizada no mapa.':'');
  fit(true);
 }
@@ -488,30 +498,30 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{if(map){map.inva
 <script>
 (()=>{'use strict';
  const base=<?=json_encode(arc_workspace_base_url())?>,network=<?= (int)$networkId ?>,csrf=<?=json_encode($csrf)?>;
- const get=id=>document.getElementById(id), start=get('arc-speed-start'),target=get('arc-agent-target'),caption=get('arc-speed-caption'),text=get('arc-speed-text'),gauge=get('arc-speed-gauge'),progress=get('arc-speed-progress'),bar=get('arc-speed-bar'),results=get('arc-speed-results'),dashboard=get('arc-speed-dashboard'),launch=get('arc-speed-launch');
- let commandId=0,diagnosticCommandId=0,diagnosticBaselineId=0,measurement=null,diagnosticRequestError='',busy=false,startedAt=0,baseline='',timer=null,activeAgent='';const showOnLoad=new URLSearchParams(location.search).get('show_result')==='1';
+ const get=id=>document.getElementById(id), start=get('arc-speed-start'),target=get('arc-gestor-target'),caption=get('arc-speed-caption'),text=get('arc-speed-text'),gauge=get('arc-speed-gauge'),progress=get('arc-speed-progress'),bar=get('arc-speed-bar'),results=get('arc-speed-results'),dashboard=get('arc-speed-dashboard'),launch=get('arc-speed-launch');
+ let commandId=0,diagnosticCommandId=0,diagnosticBaselineId=0,measurement=null,diagnosticRequestError='',busy=false,startedAt=0,baseline='',timer=null,activeGestor='';const showOnLoad=new URLSearchParams(location.search).get('show_result')==='1';
  const numeral=x=>x===null||x===undefined||!Number.isFinite(Number(x))?'--':Number(x).toFixed(2);
  function percent(x){const n=Math.min(100,Math.max(0,Number(x)||0));progress.setAttribute('aria-valuenow',String(Math.round(n)));bar.style.width=n+'%'}
  function setBusy(v){busy=v;start.disabled=v;start.setAttribute('aria-busy',String(v));if(!v){text.textContent='START';gauge.textContent='INICIAR MEDIÇÃO'}}
  async function json(url,opts){const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...opts});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Erro de comunicação com o servidor');return j}
- function display(d){dashboard.hidden=false;launch.hidden=true;get('arc-speed-down').textContent=numeral(d.download_mbps);get('arc-speed-up').textContent=numeral(d.upload_mbps);get('arc-speed-ping').textContent=numeral(d.latency_ms);const loss=d.packet_loss_pct??d.loss_pct??d.packet_loss_percent;get('arc-speed-loss').textContent=loss==null?'Não aferido':numeral(loss);get('arc-speed-loss-unit').textContent=loss==null?'Sem dado do agente':'%'}
+ function display(d){dashboard.hidden=false;launch.hidden=true;get('arc-speed-down').textContent=numeral(d.download_mbps);get('arc-speed-up').textContent=numeral(d.upload_mbps);get('arc-speed-ping').textContent=numeral(d.latency_ms);const loss=d.packet_loss_pct??d.loss_pct??d.packet_loss_percent;get('arc-speed-loss').textContent=loss==null?'Não aferido':numeral(loss);get('arc-speed-loss-unit').textContent=loss==null?'Sem dado do gestor':'%';let extra=get('arc-speed-quality');if(!extra){extra=document.createElement('div');extra.id='arc-speed-quality';extra.className='arc-speed-quality';results.append(extra)}if(extra){const vals=[['Jitter HTTP',d.jitter_ms,'ms'],['Latência sob download',d.loaded_download_ms,'ms'],['Latência sob upload',d.loaded_upload_ms,'ms']];extra.replaceChildren();for(const [name,value,unit] of vals){const card=document.createElement('div');card.className='arc-speed-quality-card';const title=document.createElement('small');title.textContent=name;const number=document.createElement('strong');number.textContent=value==null?'Não aferido':numeral(value)+' '+unit;card.append(title,number);extra.append(card)}const note=document.createElement('p');note.className='arc-speed-quality-note';note.textContent='Medição HTTP/TLS realizada no gestor Windows, com fluxos paralelos e limite de tráfego. Latência com carga é estimada durante a transferência. O resultado varia conforme o servidor de teste e a conexão.';extra.append(note)}}
  function stamp(x){return x?String(x.time||'')+':'+String(x.data?.command_id||''):''}
  async function check(){
   if(!target.value)return;
   try{
-   const [cmds,feed]=await Promise.all([json(base+'api/api.php?action=network-command-status&network_id='+network),json(location.pathname+'?network='+network+'&agent='+encodeURIComponent(target.value)+'&speed_feed=1'+(commandId?'&command_id='+commandId:''))]);
-   const allCommands=(cmds.commands||[]).filter(c=>Number(c.agent_id)===Number(target.value));
+   const [cmds,feed]=await Promise.all([json(base+'api/api.php?action=network-command-status&network_id='+network),json(location.pathname+'?network='+network+'&gestor='+encodeURIComponent(target.value)+'&speed_feed=1'+(commandId?'&command_id='+commandId:''))]);
+   const allCommands=(cmds.commands||[]).filter(c=>Number(c.gestor_id)===Number(target.value));
    const commands=allCommands.filter(c=>c.command_name==='speed_test');
    const diagCmd=diagnosticCommandId?allCommands.find(c=>Number(c.id)===diagnosticCommandId):null;
-   if(busy && !commandId){const active=commands.find(c=>c.status==='pending'||c.status==='running');if(active){commandId=Number(active.id);setBusy(true);startedAt=Date.now();caption.textContent='Teste em execução no agente Windows. Sincronizando progresso…';gauge.textContent='MEDINDO';text.textContent='...'}}
+   if(busy && !commandId){const active=commands.find(c=>c.status==='pending'||c.status==='running');if(active){commandId=Number(active.id);setBusy(true);startedAt=Date.now();caption.textContent='Teste em execução no gestor Windows. Sincronizando progresso…';gauge.textContent='MEDINDO';text.textContent='...'}}
    const mine=commands.find(c=>Number(c.id)===commandId);
    const progressData=feed.progress;
    if(busy){
     if(progressData && stamp(progressData)!==baseline && Number(progressData.data?.command_id)===commandId){
-     const d=progressData.data||{}; percent(d.percent);caption.textContent=d.message||'Medição em andamento no agente Windows';gauge.textContent=Math.round(Number(d.percent)||0)+'%';
+     const d=progressData.data||{}; percent(d.percent);caption.textContent=d.message||'Medição em andamento no gestor Windows';gauge.textContent=Math.round(Number(d.percent)||0)+'%';
      // Resultados exibidos juntos somente após a conclusão da medição.
     }
-    if(mine && mine.status==='failed'){setBusy(false);caption.textContent='Teste interrompido: '+(mine.result_text||'falha no agente');return}
+    if(mine && mine.status==='failed'){setBusy(false);caption.textContent='Teste interrompido: '+(mine.result_text||'falha no gestor');return}
     if(mine && mine.status==='completed' && !measurement && feed.result && Number(feed.result.data?.command_id)===commandId){
       measurement=feed.result.data;
       percent(100);
@@ -523,30 +533,30 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{if(map){map.inva
       const diagnosticTimeOut=Date.now()-startedAt>150000;
       if(arrived || diagFailed || diagnosticTimeOut){
         setBusy(false);
-        sessionStorage.setItem('arc-speed-complete-'+network+'-'+target.value,JSON.stringify({commandId,data:measurement,diagnosticReady:arrived,diagnosticError:diagFailed?(diagnosticRequestError||diagCmd?.result_text||'O agente não conseguiu concluir o diagnóstico'):diagnosticTimeOut?'O diagnóstico não foi recebido dentro do prazo':null}));
-        location.assign(location.pathname+'?network='+network+'&agent='+encodeURIComponent(target.value)+'&show_result=1');return;
+        sessionStorage.setItem('arc-speed-complete-'+network+'-'+target.value,JSON.stringify({commandId,data:measurement,diagnosticReady:arrived,diagnosticError:diagFailed?(diagnosticRequestError||diagCmd?.result_text||'O gestor não conseguiu concluir o diagnóstico'):diagnosticTimeOut?'O diagnóstico não foi recebido dentro do prazo':null}));
+        location.assign(location.pathname+'?network='+network+'&gestor='+encodeURIComponent(target.value)+'&show_result=1');return;
       }
-      caption.textContent='Velocidade medida. Aguardando dados reais da conexão do agente…';
+      caption.textContent='Velocidade medida. Aguardando dados reais da conexão do gestor…';
     }
-    if(Date.now()-startedAt>150000 && !measurement){setBusy(false);caption.textContent='Tempo limite do teste de velocidade. Confira a conexão do agente.'}
+    if(Date.now()-startedAt>150000 && !measurement){setBusy(false);caption.textContent='Tempo limite do teste de velocidade. Confira a conexão do gestor.'}
    }
   }catch(e){if(busy)caption.textContent='Aguardando comunicação: '+e.message}
  }
  start.addEventListener('click',async()=>{
-  if(busy)return;if(!target.value){caption.textContent='Selecione um agente Windows aprovado na barra superior.';return}
-  setBusy(true);get('arc-speed-progress').hidden=false;percent(0);dashboard.hidden=true;launch.hidden=false;text.textContent='0%';gauge.textContent='PREPARANDO';caption.textContent='Enviando comando ao agente Windows…';
-  commandId=0;diagnosticCommandId=0;diagnosticRequestError='';measurement=null;startedAt=Date.now();activeAgent=target.value;
+  if(busy)return;if(!target.value){caption.textContent='Selecione um gestor Windows aprovado na barra superior.';return}
+  setBusy(true);get('arc-speed-progress').hidden=false;percent(0);dashboard.hidden=true;launch.hidden=false;text.textContent='0%';gauge.textContent='PREPARANDO';caption.textContent='Enviando comando ao gestor Windows…';
+  commandId=0;diagnosticCommandId=0;diagnosticRequestError='';measurement=null;startedAt=Date.now();activeGestor=target.value;
   try{
-   const previous=await json(location.pathname+'?network='+network+'&agent='+encodeURIComponent(target.value)+'&speed_feed=1'+(commandId?'&command_id='+commandId:''));baseline=stamp(previous.progress);diagnosticBaselineId=Number(previous.diagnostic_id||0);
-   // O diagnóstico aproveita o comando nativo do agente e não substitui a medição real.
-   try{const diagResponse=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:Number(target.value),command:'diagnostic',_csrf:csrf})});diagnosticCommandId=Number(diagResponse.command_id||0)}catch(err){diagnosticRequestError=err.message;console.warn('Diagnóstico não disponibilizado:',err.message)}
-   const j=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:Number(target.value),command:'speed_test',_csrf:csrf})});
-   commandId=Number(j.command_id);caption.textContent='Comando enviado. Aguardando o agente iniciar…';
+   const previous=await json(location.pathname+'?network='+network+'&gestor='+encodeURIComponent(target.value)+'&speed_feed=1'+(commandId?'&command_id='+commandId:''));baseline=stamp(previous.progress);diagnosticBaselineId=Number(previous.diagnostic_id||0);
+   // O diagnóstico aproveita o comando nativo do gestor e não substitui a medição real.
+   try{const diagResponse=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(target.value),command:'diagnostic',_csrf:csrf})});diagnosticCommandId=Number(diagResponse.command_id||0)}catch(err){diagnosticRequestError=err.message;console.warn('Diagnóstico não disponibilizado:',err.message)}
+   const j=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(target.value),command:'speed_test',_csrf:csrf})});
+   commandId=Number(j.command_id);caption.textContent='Comando enviado. Aguardando o gestor iniciar…';
   }catch(e){setBusy(false);caption.textContent=e.message}
  });
  if(showOnLoad&&target.value){try{const saved=JSON.parse(sessionStorage.getItem('arc-speed-complete-'+network+'-'+target.value)||'null');if(saved?.data){display(saved.data);window.dispatchEvent(new Event('resize'));get('arc-speed-note').textContent=saved.diagnosticReady?'Medição real concluída e diagnóstico da conexão sincronizado.':('Medição de velocidade concluída. '+(saved.diagnosticError||'Não foi possível atualizar o diagnóstico; os dados do mapa podem estar desatualizados.'));}}catch(e){}}
  get('arc-speed-repeat').addEventListener('click',()=>{dashboard.hidden=true;launch.hidden=false;get('arc-speed-progress').hidden=true;commandId=0;caption.textContent='';});
- timer=setInterval(()=>{if(!document.hidden && busy && target.value && activeAgent===target.value)check()},2000);
+ timer=setInterval(()=>{if(!document.hidden && busy && target.value && activeGestor===target.value)check()},2000);
 })();
 </script>
 <?php require __DIR__.'/_rodape.php';

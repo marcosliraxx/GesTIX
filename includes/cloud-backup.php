@@ -3,9 +3,9 @@
    Backup em Nuvem (Gestão de Redes > Clean > Backup em Nuvem).
 
    Princípios:
-   - Nenhum arquivo do usuário é gravado na plataforma: os blocos enviados pelo agente são repassados ao provedor em memória
+   - Nenhum arquivo do usuário é gravado na plataforma: os blocos enviados pelo gestor são repassados ao provedor em memória
      (php://input -> cURL). Só ficam no banco metadados mínimos: conexão, configuração, estado do envio em andamento.
-   - Tokens OAuth e chaves S3 ficam criptografados (arc_platform_encrypt) e nunca são enviados ao agente.
+   - Tokens OAuth e chaves S3 ficam criptografados (arc_platform_encrypt) e nunca são enviados ao gestor.
    - As credenciais de API de cada provedor são configuradas pelo administrador em admin/configuracoes.php (aba Drive).
    - Provedores: Google Drive, Microsoft OneDrive, Dropbox e Amazon S3 (ou compatível: Wasabi, Backblaze B2, Cloudflare R2, MinIO).
      Para incluir outro provedor basta registrá-lo em arc_cloud_providers() e implementar as funções arc_cloud_<chave>_*. */
@@ -54,7 +54,7 @@ function arc_cloud_ensure_schema(PDO $pdo): void
         KEY idx_cloud_connections_network (network_id,account_id)
     )' . $engine);
     $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('cloud_backup_jobs') . ' (
-        agent_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+        gestor_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
         network_id BIGINT UNSIGNED NOT NULL,
         account_id BIGINT UNSIGNED NOT NULL,
         connection_id BIGINT UNSIGNED NULL DEFAULT NULL,
@@ -66,7 +66,7 @@ function arc_cloud_ensure_schema(PDO $pdo): void
         KEY idx_cloud_jobs_connection (connection_id)
     )' . $engine);
     $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('cloud_backup_status') . ' (
-        agent_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+        gestor_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
         network_id BIGINT UNSIGNED NOT NULL,
         account_id BIGINT UNSIGNED NOT NULL,
         state VARCHAR(16) NOT NULL DEFAULT \'idle\',
@@ -76,7 +76,7 @@ function arc_cloud_ensure_schema(PDO $pdo): void
     )' . $engine);
     $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('cloud_backup_uploads') . ' (
         id CHAR(32) NOT NULL PRIMARY KEY,
-        agent_id BIGINT UNSIGNED NOT NULL,
+        gestor_id BIGINT UNSIGNED NOT NULL,
         network_id BIGINT UNSIGNED NOT NULL,
         account_id BIGINT UNSIGNED NOT NULL,
         connection_id BIGINT UNSIGNED NOT NULL,
@@ -85,7 +85,7 @@ function arc_cloud_ensure_schema(PDO $pdo): void
         state_enc TEXT NOT NULL,
         expires_at DATETIME NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_cloud_uploads_agent (agent_id),
+        KEY idx_cloud_uploads_gestor (gestor_id),
         KEY idx_cloud_uploads_expires (expires_at),
         KEY idx_cloud_uploads_network (network_id,account_id)
     )' . $engine);
@@ -236,7 +236,7 @@ function arc_cloud_state_verify(string $state): ?array
 }
 
 /** URL de autorização do provedor. O verificador PKCE fica só na sessão do navegador que iniciou a conexão. */
-function arc_cloud_oauth_start(PDO $pdo, string $provider, int $networkId, int $agentId, int $userId, bool $managed = false): string
+function arc_cloud_oauth_start(PDO $pdo, string $provider, int $networkId, int $gestorId, int $userId, bool $managed = false): string
 {
     $meta = arc_cloud_providers()[$provider] ?? null;
     $config = arc_cloud_provider_config($pdo, $provider);
@@ -245,7 +245,7 @@ function arc_cloud_oauth_start(PDO $pdo, string $provider, int $networkId, int $
     $nonce = bin2hex(random_bytes(16));
     $verifier = arc_cloud_b64url(random_bytes(48));
     $_SESSION['arc_cloud_oauth'] = [$nonce => ['verifier' => $verifier, 'time' => time()]] + array_slice((array)($_SESSION['arc_cloud_oauth'] ?? []), 0, 3, true);
-    $state = arc_cloud_state_sign(['n' => $nonce, 'p' => $provider, 'net' => $networkId, 'ag' => $agentId, 'u' => $userId, 'managed' => $managed ? 1 : 0, 'exp' => time() + 900]);
+    $state = arc_cloud_state_sign(['n' => $nonce, 'p' => $provider, 'net' => $networkId, 'ag' => $gestorId, 'u' => $userId, 'managed' => $managed ? 1 : 0, 'exp' => time() + 900]);
     $common = ['client_id' => $config['client_id'], 'redirect_uri' => arc_cloud_redirect_uri(), 'response_type' => 'code', 'state' => $state,
         'code_challenge' => arc_cloud_b64url(hash('sha256', $verifier, true)), 'code_challenge_method' => 'S256'];
     return match ($provider) {
@@ -448,7 +448,7 @@ function arc_cloud_clean_segment(string $name, int $max = 150): string
     return mb_substr($name, 0, $max);
 }
 
-/** Valida o que o gestor ou o agente enviou. Lança InvalidArgumentException com mensagem pronta para a tela. */
+/** Valida o que o gestor ou o gestor enviou. Lança InvalidArgumentException com mensagem pronta para a tela. */
 function arc_cloud_validate_settings(array $input): array
 {
     $out = arc_cloud_default_settings();
@@ -460,7 +460,7 @@ function arc_cloud_validate_settings(array $input): array
         if ($path === '') continue;
         if (mb_strlen($path) > 260 || preg_match('/[\x00-\x1f"<>|*?]/', $path) || preg_match('~(^|[\\\\/])\.\.([\\\\/]|$)~', $path)) throw new InvalidArgumentException('Caminho de pasta inválido: ' . mb_substr($path, 0, 60));
         if (!preg_match('~^(?:[A-Za-z]:[\\\\/]|%[A-Za-z_][A-Za-z0-9_]*%[\\\\/]|\\\\\\\\[^\\\\/]+[\\\\/][^\\\\/]+)~', $path)) throw new InvalidArgumentException('Use um caminho completo do Windows (ex.: C:\\Dados ou %USERPROFILE%\\Documents): ' . mb_substr($path, 0, 60));
-        if (str_starts_with($path, '\\\\') || str_starts_with($path, '//')) throw new InvalidArgumentException('Selecione pastas de discos locais no agente.');
+        if (str_starts_with($path, '\\\\') || str_starts_with($path, '//')) throw new InvalidArgumentException('Selecione pastas de discos locais no gestor.');
         $plain = rtrim(str_replace('/', '\\', $path), '\\');
         if (preg_match('~^[A-Za-z]:$~', $plain) || preg_match('~^[A-Za-z]:\\\\(?:Windows|Program Files(?: \(x86\))?|ProgramData|\$Recycle\.Bin|System Volume Information)(?:\\\\|$)~i', $plain)) {
             throw new InvalidArgumentException('Esta pasta não pode ser incluída (raiz do disco ou pasta do sistema): ' . mb_substr($path, 0, 60));
@@ -508,10 +508,10 @@ function arc_cloud_validate_settings(array $input): array
     return $out;
 }
 
-function arc_cloud_job_get(PDO $pdo, int $agentId, int $networkId, int $accountId): array
+function arc_cloud_job_get(PDO $pdo, int $gestorId, int $networkId, int $accountId): array
 {
-    $q = $pdo->prepare('SELECT connection_id,enabled,settings_json,run_request,updated_at FROM ' . arc_table('cloud_backup_jobs') . ' WHERE agent_id=? AND network_id=? AND account_id=?');
-    $q->execute([$agentId, $networkId, $accountId]);
+    $q = $pdo->prepare('SELECT connection_id,enabled,settings_json,run_request,updated_at FROM ' . arc_table('cloud_backup_jobs') . ' WHERE gestor_id=? AND network_id=? AND account_id=?');
+    $q->execute([$gestorId, $networkId, $accountId]);
     $row = $q->fetch(PDO::FETCH_ASSOC);
     $stored = $row ? json_decode((string)$row['settings_json'], true) : null;
     return ['connection_id' => $row && $row['connection_id'] !== null ? (int)$row['connection_id'] : null, 'enabled' => $row ? (bool)$row['enabled'] : false,
@@ -519,9 +519,9 @@ function arc_cloud_job_get(PDO $pdo, int $agentId, int $networkId, int $accountI
         'updated_at' => $row ? (string)$row['updated_at'] : null];
 }
 
-function arc_cloud_job_save(PDO $pdo, int $agentId, int $networkId, int $accountId, ?int $connectionId, bool $enabled, array $settings, bool $keepConnection = false): void
+function arc_cloud_job_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, ?int $connectionId, bool $enabled, array $settings, bool $keepConnection = false): void
 {
-    $current = arc_cloud_job_get($pdo, $agentId, $networkId, $accountId);
+    $current = arc_cloud_job_get($pdo, $gestorId, $networkId, $accountId);
     if ($keepConnection) $connectionId = $current['connection_id'];
     if ($connectionId !== null) {
         $selected = arc_cloud_connection_get($pdo, $connectionId, $networkId, $accountId);
@@ -529,20 +529,20 @@ function arc_cloud_job_save(PDO $pdo, int $agentId, int $networkId, int $account
         arc_cloud_assert_destination_allowed($pdo, $selected);
     }
     if ($enabled && $connectionId === null) throw new InvalidArgumentException('Conecte uma conta de nuvem antes de ativar o backup.');
-    $pdo->prepare('INSERT INTO ' . arc_table('cloud_backup_jobs') . ' (agent_id,network_id,account_id,connection_id,enabled,settings_json) VALUES (?,?,?,?,?,?) '
+    $pdo->prepare('INSERT INTO ' . arc_table('cloud_backup_jobs') . ' (gestor_id,network_id,account_id,connection_id,enabled,settings_json) VALUES (?,?,?,?,?,?) '
         . 'ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),connection_id=VALUES(connection_id),enabled=VALUES(enabled),settings_json=VALUES(settings_json)')
-        ->execute([$agentId, $networkId, $accountId, $connectionId, $enabled ? 1 : 0, json_encode($settings, JSON_UNESCAPED_UNICODE)]);
+        ->execute([$gestorId, $networkId, $accountId, $connectionId, $enabled ? 1 : 0, json_encode($settings, JSON_UNESCAPED_UNICODE)]);
 }
 
-/** Pede ao agente uma execução imediata (o agente compara o contador com o último atendido). */
-function arc_cloud_job_run_now(PDO $pdo, int $agentId, int $networkId, int $accountId): void
+/** Pede ao gestor uma execução imediata (o gestor compara o contador com o último atendido). */
+function arc_cloud_job_run_now(PDO $pdo, int $gestorId, int $networkId, int $accountId): void
 {
-    $pdo->prepare('UPDATE ' . arc_table('cloud_backup_jobs') . ' SET run_request=run_request+1 WHERE agent_id=? AND network_id=? AND account_id=?')->execute([$agentId, $networkId, $accountId]);
+    $pdo->prepare('UPDATE ' . arc_table('cloud_backup_jobs') . ' SET run_request=run_request+1 WHERE gestor_id=? AND network_id=? AND account_id=?')->execute([$gestorId, $networkId, $accountId]);
 }
 
 const ARC_CLOUD_STATES = ['idle', 'waiting', 'scanning', 'uploading', 'paused', 'error', 'disabled'];
 
-/** Sanitiza o estado informado pelo agente (nada além de contadores e textos curtos chega à tela). */
+/** Sanitiza o estado informado pelo gestor (nada além de contadores e textos curtos chega à tela). */
 function arc_cloud_sanitize_status(array $in): array
 {
     $int = static fn(mixed $v): int => max(0, min(PHP_INT_MAX >> 1, (int)$v));
@@ -552,7 +552,7 @@ function arc_cloud_sanitize_status(array $in): array
         'files_total' => $int($in['files_total'] ?? 0), 'files_done' => $int($in['files_done'] ?? 0), 'bytes_total' => $int($in['bytes_total'] ?? 0), 'bytes_done' => $int($in['bytes_done'] ?? 0),
         'errors' => $int($in['errors'] ?? 0), 'skipped' => $int($in['skipped'] ?? 0), 'vdrive' => $text($in['vdrive'] ?? '', 160), 'synced_files' => $int($in['synced_files'] ?? 0), 'synced_bytes' => $int($in['synced_bytes'] ?? 0),
         'speed_bps' => $int($in['speed_bps'] ?? 0), 'started_at' => $text($in['started_at'] ?? '', 25), 'last_run_at' => $text($in['last_run_at'] ?? '', 25),
-        'last_success_at' => $text($in['last_success_at'] ?? '', 25), 'next_run_at' => $text($in['next_run_at'] ?? '', 25), 'agent_version' => $text($in['agent_version'] ?? '', 20),
+        'last_success_at' => $text($in['last_success_at'] ?? '', 25), 'next_run_at' => $text($in['next_run_at'] ?? '', 25), 'gestor_version' => $text($in['gestor_version'] ?? '', 20),
         'run_ack' => $int($in['run_ack'] ?? 0), 'runs' => [], 'failures' => [], 'folders' => []];
     foreach (array_slice(is_array($in['runs'] ?? null) ? $in['runs'] : [], 0, 15) as $run) {
         if (!is_array($run)) continue;
@@ -569,17 +569,17 @@ function arc_cloud_sanitize_status(array $in): array
     return $out;
 }
 
-function arc_cloud_status_save(PDO $pdo, int $agentId, int $networkId, int $accountId, array $status): void
+function arc_cloud_status_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $status): void
 {
-    $pdo->prepare('INSERT INTO ' . arc_table('cloud_backup_status') . ' (agent_id,network_id,account_id,state,status_json) VALUES (?,?,?,?,?) '
+    $pdo->prepare('INSERT INTO ' . arc_table('cloud_backup_status') . ' (gestor_id,network_id,account_id,state,status_json) VALUES (?,?,?,?,?) '
         . 'ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),state=VALUES(state),status_json=VALUES(status_json),reported_at=CURRENT_TIMESTAMP')
-        ->execute([$agentId, $networkId, $accountId, $status['state'], json_encode($status, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
+        ->execute([$gestorId, $networkId, $accountId, $status['state'], json_encode($status, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
 }
 
-function arc_cloud_status_get(PDO $pdo, int $agentId, int $networkId, int $accountId): ?array
+function arc_cloud_status_get(PDO $pdo, int $gestorId, int $networkId, int $accountId): ?array
 {
-    $q = $pdo->prepare('SELECT status_json,reported_at FROM ' . arc_table('cloud_backup_status') . ' WHERE agent_id=? AND network_id=? AND account_id=?');
-    $q->execute([$agentId, $networkId, $accountId]);
+    $q = $pdo->prepare('SELECT status_json,reported_at FROM ' . arc_table('cloud_backup_status') . ' WHERE gestor_id=? AND network_id=? AND account_id=?');
+    $q->execute([$gestorId, $networkId, $accountId]);
     $row = $q->fetch(PDO::FETCH_ASSOC);
     $status = $row ? json_decode((string)$row['status_json'], true) : null;
     if (!is_array($status)) return null;
@@ -591,12 +591,12 @@ function arc_cloud_status_get(PDO $pdo, int $agentId, int $networkId, int $accou
 /* ============================================================
    Envio: caminhos remotos e sessões de upload (repasse em memória)
    ============================================================ */
-/** Segmentos do destino: raiz / computador / pasta / caminho relativo. Retorna null se o caminho enviado pelo agente não for aceitável. */
+/** Segmentos do destino: raiz / computador / pasta / caminho relativo. Retorna null se o caminho enviado pelo gestor não for aceitável. */
 function arc_cloud_remote_segments(array $job, string $machine, int $folderIndex, string $relative): ?array
 {
     $folder = $job['settings']['folders'][$folderIndex] ?? null;
     if (!is_array($folder) || $relative === '' || strlen($relative) > 700 || str_starts_with($relative, '/') || preg_match('/[\x00-\x1f]/', $relative)) return null;
-    $segments = [arc_cloud_clean_segment((string)$job['settings']['remote_root'], 80), 'Rede-' . (int)$job['network_id'], 'Computador-' . (int)$job['agent_id'], arc_cloud_clean_segment((string)$folder['label'], 65) . '-' . substr(hash('sha256',strtolower((string)$folder['path'])),0,12)];
+    $segments = [arc_cloud_clean_segment((string)$job['settings']['remote_root'], 80), 'Rede-' . (int)$job['network_id'], 'Computador-' . (int)$job['gestor_id'], arc_cloud_clean_segment((string)$folder['label'], 65) . '-' . substr(hash('sha256',strtolower((string)$folder['path'])),0,12)];
     foreach (explode('/', $relative) as $part) {
         if ($part === '' || $part === '.' || $part === '..') return null;
         if (arc_cloud_clean_segment($part) !== $part) return null;
@@ -629,7 +629,7 @@ function arc_cloud_purge_uploads(PDO $pdo): void
 }
 
 /** Inicia o envio de um arquivo. Retorna ['upload_id'=>?,'chunk'=>int,'done'=>bool]. */
-function arc_cloud_upload_begin(PDO $pdo, array $connection, int $agentId, array $segments, int $size, int $mtime, ?string $requestId = null, ?int $networkId = null, ?int $accountId = null): array
+function arc_cloud_upload_begin(PDO $pdo, array $connection, int $gestorId, array $segments, int $size, int $mtime, ?string $requestId = null, ?int $networkId = null, ?int $accountId = null): array
 {
     $provider = (string)$connection['provider'];
     $meta = arc_cloud_providers()[$provider];
@@ -645,8 +645,8 @@ function arc_cloud_upload_begin(PDO $pdo, array $connection, int $agentId, array
     $done = !empty($state['done']);
     $id = $requestId ?? bin2hex(random_bytes(16));
     if ($done) $state = ['done'=>true];
-    $pdo->prepare('INSERT INTO ' . arc_table('cloud_backup_uploads') . ' (id,agent_id,network_id,account_id,connection_id,total_size,received,state_enc,expires_at) VALUES (?,?,?,?,?,?,0,?,?)')
-        ->execute([$id, $agentId, $networkId ?? (int)$connection['network_id'], $accountId ?? (int)$connection['account_id'], (int)$connection['id'], $size, arc_platform_encrypt(json_encode($state, JSON_UNESCAPED_UNICODE)), date('Y-m-d H:i:s', time() + ARC_CLOUD_UPLOAD_TTL)]);
+    $pdo->prepare('INSERT INTO ' . arc_table('cloud_backup_uploads') . ' (id,gestor_id,network_id,account_id,connection_id,total_size,received,state_enc,expires_at) VALUES (?,?,?,?,?,?,0,?,?)')
+        ->execute([$id, $gestorId, $networkId ?? (int)$connection['network_id'], $accountId ?? (int)$connection['account_id'], (int)$connection['id'], $size, arc_platform_encrypt(json_encode($state, JSON_UNESCAPED_UNICODE)), date('Y-m-d H:i:s', time() + ARC_CLOUD_UPLOAD_TTL)]);
     if ($done) arc_cloud_state_write($pdo,$id,$state,$size);
     return ['upload_id' => $id, 'chunk' => $meta['chunk'], 'done' => $done, 'next_offset'=>$done?$size:0];
 }
@@ -1006,16 +1006,16 @@ function arc_cloud_access(PDO $pdo,int $network,int $user): array
     $access=arc_network_team_access($pdo,$network,$user);
     if ($q->fetchColumn()!=='active' || !$access || !in_array($access['role'],['owner','administrator'],true)) throw new RuntimeException('Acesso de gestão necessário.',403);
     $rights=arc_network_profile_rights($pdo,$network,$user);
-    if ($access['role']!=='owner' && $rights!==null && !in_array('clean',$rights,true)) throw new RuntimeException('Perfil sem permissão Clean.',403);
+    if ($access['role']!=='owner' && $rights!==null && !in_array('clean',$rights,true)&&!in_array('backup',$rights,true)) throw new RuntimeException('Perfil sem permissão Clean.',403);
     $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1');$q->execute([$network,$access['account_id']]);
     if (!$q->fetchColumn()) throw new RuntimeException('Rede indisponível.',403);
     arc_billing_assert_active($pdo,(int)$access['account_id']);
     return $access;
 }
 
-function arc_cloud_agent_row(PDO $pdo,int $id,int $network,int $account): array
+function arc_cloud_gestor_row(PDO $pdo,int $id,int $network,int $account): array
 {
-    $q=$pdo->prepare('SELECT id,network_id,account_id,machine_name FROM '.arc_table('network_agents')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");
+    $q=$pdo->prepare('SELECT id,network_id,account_id,machine_name FROM '.arc_table('network_gestores')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");
     $q->execute([$id,$network,$account]);$a=$q->fetch(PDO::FETCH_ASSOC);
     if (!$a) throw new RuntimeException('Computador não autorizado nesta rede.',403);
     return $a;
@@ -1040,7 +1040,7 @@ function arc_cloud_onedrive_folders(string $token,array $folders): void
 }
 
 /** Lista arquivos existentes no destino da conexão, sem conceder token ao navegador. Apenas o prefixo do backup gerenciado é exposto. */
-function arc_cloud_browse(PDO $pdo, array $connection, string $relative = '', string $root = ARC_CLOUD_DEFAULT_ROOT, ?int $networkId = null, ?int $agentId = null, ?string $page = null): array
+function arc_cloud_browse(PDO $pdo, array $connection, string $relative = '', string $root = ARC_CLOUD_DEFAULT_ROOT, ?int $networkId = null, ?int $gestorId = null, ?string $page = null): array
 {
     if (strlen($relative) > 560 || str_contains($relative, "\\") || str_contains($relative, chr(0))) throw new InvalidArgumentException('Pasta remota inválida.');
     $parts = $relative === '' ? [] : explode('/', $relative);
@@ -1049,8 +1049,8 @@ function arc_cloud_browse(PDO $pdo, array $connection, string $relative = '', st
     $token = $provider === 's3' ? '' : arc_cloud_access_token($pdo, $connection);
     $root = arc_cloud_clean_segment($root,80);
     $scope=($connection['network_id']??null) !== null && (int)$connection['network_id']===0 && (int)$connection['account_id']===0;
-    if($scope){if(!$networkId || !$agentId)throw new RuntimeException('Escopo do backup inválido.',403);}
-    $rootSegments=arc_cloud_scope_segments($connection,$root,(int)$networkId,(int)$agentId);
+    if($scope){if(!$networkId || !$gestorId)throw new RuntimeException('Escopo do backup inválido.',403);}
+    $rootSegments=arc_cloud_scope_segments($connection,$root,(int)$networkId,(int)$gestorId);
     $result = [];
     $nextPage = '';
     if ($provider === 'gdrive') {
@@ -1093,12 +1093,12 @@ function arc_cloud_browse(PDO $pdo, array $connection, string $relative = '', st
 }
 
 /** Revalida autorização e configuração antes de cada bloco; não persiste conteúdo. */
-function arc_cloud_agent_job(PDO $pdo,array $agent): array
+function arc_cloud_gestor_job(PDO $pdo,array $gestor): array
 {
-    arc_billing_assert_active($pdo,(int)$agent['account_id']);
-    $job=arc_cloud_job_get($pdo,(int)$agent['id'],(int)$agent['network_id'],(int)$agent['account_id']);
-    $job['agent_id']=(int)$agent['id'];$job['network_id']=(int)$agent['network_id'];
-    $connection=$job['connection_id']?arc_cloud_connection_get($pdo,$job['connection_id'],(int)$agent['network_id'],(int)$agent['account_id']):null;
+    arc_billing_assert_active($pdo,(int)$gestor['account_id']);
+    $job=arc_cloud_job_get($pdo,(int)$gestor['id'],(int)$gestor['network_id'],(int)$gestor['account_id']);
+    $job['gestor_id']=(int)$gestor['id'];$job['network_id']=(int)$gestor['network_id'];
+    $connection=$job['connection_id']?arc_cloud_connection_get($pdo,$job['connection_id'],(int)$gestor['network_id'],(int)$gestor['account_id']):null;
     $allowed=true;if($connection){try{arc_cloud_assert_destination_allowed($pdo,$connection);}catch(InvalidArgumentException $e){$allowed=false;}}
     $job['available']=$job['enabled'] && $connection && $allowed && arc_cloud_provider_config($pdo,(string)$connection['provider'])['ready'];
     $policy=arc_cloud_policy($pdo);
@@ -1128,7 +1128,7 @@ function arc_cloud_dropbox_folders(PDO $pdo,array $connection,string $token,arra
 /** Nomes amigáveis para a navegação (estilo Google Drive): Rede-12 vira o nome da rede, Computador-5 o nome da máquina e o sufixo técnico das pastas some. */
 function arc_cloud_browse_decorate(PDO $pdo, array $browser, int $accountId): array
 {
-    $networks = [];$agents = [];
+    $networks = [];$gestores = [];
     foreach ($browser['entries'] as &$entry) {
         $entry['display'] = $entry['name'];
         if (!$entry['directory']) { $entry['type'] = arc_cloud_file_type($entry['name']); continue; }
@@ -1139,8 +1139,8 @@ function arc_cloud_browse_decorate(PDO $pdo, array $browser, int $accountId): ar
             if ($networks[$id] !== '') { $entry['display'] = $networks[$id]; $entry['type'] = 'network'; }
         } elseif (preg_match('/^Computador-(\d+)$/D', $entry['name'], $m)) {
             $id = (int)$m[1];
-            if (!isset($agents[$id])) { $q = $pdo->prepare('SELECT machine_name FROM ' . arc_table('network_agents') . ' WHERE id=? AND account_id=?'); $q->execute([$id, $accountId]); $agents[$id] = (string)($q->fetchColumn() ?: ''); }
-            if ($agents[$id] !== '') { $entry['display'] = $agents[$id]; $entry['type'] = 'computer'; }
+            if (!isset($gestores[$id])) { $q = $pdo->prepare('SELECT machine_name FROM ' . arc_table('network_gestores') . ' WHERE id=? AND account_id=?'); $q->execute([$id, $accountId]); $gestores[$id] = (string)($q->fetchColumn() ?: ''); }
+            if ($gestores[$id] !== '') { $entry['display'] = $gestores[$id]; $entry['type'] = 'computer'; }
         } elseif (preg_match('/^(.+)-[0-9a-f]{12}$/D', $entry['name'], $m)) {
             $entry['display'] = $m[1];
         }
@@ -1171,15 +1171,15 @@ function arc_cloud_file_type(string $name): string
    Navegação, download e disco virtual (v3.10)
    ============================================================ */
 /** Segmentos-base visíveis: Drive da plataforma = só o computador; conta própria = só a rede (nunca outras redes da mesma conta). */
-function arc_cloud_scope_segments(array $connection, string $root, int $networkId, int $agentId): array
+function arc_cloud_scope_segments(array $connection, string $root, int $networkId, int $gestorId): array
 {
     $root = arc_cloud_clean_segment($root, 80);
     $managed = (int)$connection['network_id'] === 0 && (int)$connection['account_id'] === 0;
-    if ($managed) return [$root, 'Rede-' . $networkId, 'Computador-' . $agentId];
+    if ($managed) return [$root, 'Rede-' . $networkId, 'Computador-' . $gestorId];
     return $networkId > 0 ? [$root, 'Rede-' . $networkId] : [$root];
 }
 
-/** Valida um caminho relativo (a/b/c) vindo da tela ou do agente e devolve as partes. */
+/** Valida um caminho relativo (a/b/c) vindo da tela ou do gestor e devolve as partes. */
 function arc_cloud_relative_parts(string $relative): array
 {
     if ($relative === '') return [];
@@ -1237,11 +1237,11 @@ function arc_cloud_read_plan(PDO $pdo, array $connection, array $segments): arra
 }
 
 /** Envia o arquivo ao cliente em fluxo, com suporte a Range (retomar download e reprodução de vídeo/áudio). */
-function arc_cloud_stream_file(PDO $pdo, array $connection, array $segments, bool $inline, ?string $rangeHeader = null): void
+function arc_cloud_stream_file(PDO $pdo, array $connection, array $segments, bool $inline, ?string $rangeHeader = null, ?string $downloadName = null): void
 {
     $plan = arc_cloud_read_plan($pdo, $connection, $segments);
     [$method, $url, $headers, $body, $size] = $plan;
-    $name = (string)end($segments);
+    $name = $downloadName ?? (string)end($segments);
     [$mime, $viewable] = arc_cloud_mime($name);
     $range = null;
     if ($rangeHeader !== null && preg_match('/^bytes=(\d*)-(\d*)$/D', trim($rangeHeader))) $range = trim($rangeHeader);

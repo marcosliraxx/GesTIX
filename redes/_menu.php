@@ -6,56 +6,21 @@
  * Mantém a checagem de permissões e a navegação de páginas complementares.
  */
 $arcNetworkLinks = arc_navigation_items($pdo, 'header', (int)$networkId);
-$arcAllowedMenu = ($teamRole ?? '') === 'owner'
+$arcAllowedMenu = in_array(($teamRole ?? ''), ['owner','system_admin'], true)
     ? null
     : arc_network_profile_rights($pdo, (int)$networkId, (int)arc_user_id());
-$arcSupportPages = [
-    'clean' => ['Clean', 'fa-magic'],
-    'remoto'   => ['Remoto', 'fa-eye'],
-    'arquivos' => ['Arquivos', 'fa-folder-open'],
-    'chamados' => ['Chamados', 'fa-ticket'],
-    'agenda'   => ['Agenda', 'fa-calendar'],
-];
-// Itens já presentes no footer, incluindo as páginas agrupadas em Mais.
 $arcFooterSections = [
     'servidor', 'velocidade', 'painel', 'suporte',
     'liberacao', 'liberacoes', 'usuarios', 'permissoes',
     'preferencias', 'cadastros', 'cadastro', 'configuracao', 'configuracoes',
 ];
 $arcTopItems = [];
-// Ferramenta integrada mesmo quando o menu configurável ainda não tiver rota cadastrada.
-foreach (['clean'=>['Clean','fa-magic'],'programas'=>['Programas','fa-download']] as $toolKey=>$toolMeta) {
-if (($teamRole ?? '') === 'owner' || (($teamRole ?? '') === 'administrator' && ($arcAllowedMenu === null || in_array($toolKey,$arcAllowedMenu,true)))) {
-    $params=['network'=>(int)$networkId];
-    if(!empty($_GET['agent']))$params['agent']=(int)$_GET['agent'];
-    $arcTopItems[]=['section'=>$toolKey,'label'=>$toolMeta[0],'icon'=>$toolMeta[1],'href'=>arc_workspace_base_url().'redes/'.$toolKey.'.php?'.http_build_query($params),'fa'=>true];
-}
-}
-
-$arcSeenTop = ['programas'=>true,'clean'=>true];
+$arcSeenTop = [];
+// Fonte única dos atalhos: registros ativos e autorizados em arc_navigation_items.
+// Não criar links fixos por arquivo, nome ou seção.
 foreach ($arcNetworkLinks as $item) {
     $sectionName = basename((string)parse_url((string)$item['url'], PHP_URL_PATH), '.php');
-    if (in_array($sectionName, $arcFooterSections, true)) {
-        if ($sectionName === 'suporte') {
-            foreach ($arcSupportPages as $key => $meta) {
-                if ($arcAllowedMenu !== null
-                    && !in_array($key, $arcAllowedMenu, true)
-                    && !in_array('suporte', $arcAllowedMenu, true)) continue;
-                if (isset($arcSeenTop[$key])) continue;
-                $arcSeenTop[$key] = true;
-                $query = ['network' => (int)$networkId];
-                if (!empty($_GET['agent'])) $query['agent'] = (int)$_GET['agent'];
-                $arcTopItems[] = [
-                    'section' => $key,
-                    'label' => $meta[0],
-                    'icon' => $meta[1],
-                    'href' => arc_workspace_base_url().'redes/'.$key.'.php?'.http_build_query($query),
-                    'fa' => true,
-                ];
-            }
-        }
-        continue;
-    }
+    if (in_array($sectionName, $arcFooterSections, true)) continue;
     if ($arcAllowedMenu !== null && !in_array($sectionName, $arcAllowedMenu, true)) continue;
     if (isset($arcSeenTop[$sectionName])) continue;
     $arcSeenTop[$sectionName] = true;

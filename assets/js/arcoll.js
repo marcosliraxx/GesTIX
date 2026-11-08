@@ -636,7 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ARCOLL SPEED CONNECTION — Camada de interação moderna (v2.4)
    Integra-se aos botões [data-arc-command] já existentes (mesmo canal seguro de comandos
-   Plataforma → Agente). Não cria nenhum canal novo e não executa nada por conta própria. */
+   Plataforma → Gestor). Não cria nenhum canal novo e não executa nada por conta própria. */
 (function () {
   'use strict';
   var page = document.querySelector('.arc-redes-page');
@@ -712,7 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { t: 'Testar DNS', i: 'fa-compass', c: 'dns_test', h: 'Tempo de resolução' },
     { t: 'Descobrir IP público', i: 'fa-map-marker', c: 'public_ip', h: 'IP de saída da rede' },
     { t: 'Ver sinal do Wi-Fi', i: 'fa-wifi', c: 'wifi_info', h: 'Sinal, canal, taxa' },
-    { t: 'Recursos do computador (CPU/RAM/disco)', i: 'fa-microchip', c: 'system_snapshot', h: 'Instantâneo do agente' },
+    { t: 'Recursos do computador (CPU/RAM/disco)', i: 'fa-microchip', c: 'system_snapshot', h: 'Instantâneo do gestor' },
     { t: 'Limpar cache DNS do Windows', i: 'fa-eraser', c: 'flush_dns', h: 'Ação de manutenção' },
     { t: 'Iniciar monitoramento', i: 'fa-play', c: 'monitor_start', h: 'Retoma a coleta' },
     { t: 'Pausar monitoramento', i: 'fa-pause', c: 'monitor_pause', h: 'Interrompe a coleta' }
@@ -789,22 +789,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 (function(){
  'use strict';
- const labels={online:'Todos os agentes online',partial:'Atenção: alguns agentes offline',offline:'Alerta: todos os agentes offline',none:'Nenhum agente instalado'};
- const source=new URL('api/api.php?action=network-agent-states',document.baseURI);
+ const labels={online:'Todos os gestores online',partial:'Atenção: alguns gestores offline',offline:'Alerta: todos os gestores offline',none:'Nenhum gestor instalado'};
+ const source=new URL('api/api.php?action=network-gestor-states',document.baseURI);
  let inFlight=false, states={};
  function update(){
    document.querySelectorAll('[data-panel-network], [data-network-status-id]').forEach(el=>{
      const id=el.getAttribute('data-panel-network')||el.getAttribute('data-network-status-id');
      const s=states[id];if(!s)return;
-     el.dataset.agentState=s.state;el.dataset.online=el.hasAttribute('data-panel-network')?(el.dataset.active==='1'&&Number(s.online)>0?'1':'0'):(s.state==='online'?'1':'0');
+     el.dataset.gestorState=s.state;el.dataset.online=el.hasAttribute('data-panel-network')?(el.dataset.active==='1'&&Number(s.online)>0?'1':'0'):(s.state==='online'?'1':'0');
      const description=labels[s.state]+' ('+s.online+'/'+s.total+' online)';
      el.title=(el.getAttribute('data-name')||'Rede')+' — '+description;
-     if(el.hasAttribute('data-panel-network')){el.setAttribute('aria-label',el.title);const label=el.querySelector('.arc-panel-network-state');if(label)label.textContent=el.dataset.active!=='1'?'Rede arquivada':({online:'Todos os agentes online',partial:'Parte dos agentes offline',offline:'Agentes offline',none:'Sem agentes'}[s.state]||description);}
+     if(el.hasAttribute('data-panel-network')){el.setAttribute('aria-label',el.title);const label=el.querySelector('.arc-panel-network-state');if(label)label.textContent=el.dataset.active!=='1'?'Rede arquivada':({online:'Todos os gestores online',partial:'Parte dos gestores offline',offline:'Gestores offline',none:'Sem gestores'}[s.state]||description);}
    });
    const sync=document.getElementById('arc-panel-sync');if(sync){sync.classList.remove('is-stale');sync.replaceChildren(document.createElement('span'),document.createTextNode(' Atualizado agora'));}
    window.dispatchEvent(new Event('arc:network-status'));
    const selected=document.getElementById('arc-network-global-state');
-   if(selected){const id=selected.dataset.networkStatusId, s=states[id];if(s){selected.dataset.agentState=s.state;selected.title=labels[s.state]+' — '+s.online+' de '+s.total+' agentes online';selected.setAttribute('aria-label',selected.title);/* Status exibido apenas pelo ícone; totais no título acessível. */}}
+   if(selected){const id=selected.dataset.networkStatusId, s=states[id];if(s){selected.dataset.gestorState=s.state;selected.title=labels[s.state]+' — '+s.online+' de '+s.total+' gestores online';selected.setAttribute('aria-label',selected.title);/* Status exibido apenas pelo ícone; totais no título acessível. */}}
  }
  async function refresh(){
    if(document.hidden||inFlight)return;
@@ -815,7 +815,7 @@ document.addEventListener('DOMContentLoaded', () => {
    }catch(_){/* Falha de conexão: não mostrar estado falso. */}
    finally{inFlight=false;}
  }
- window.arcNetworkAgentStates={refresh:refresh,get:function(id){return states[String(id)]||null;}};
+ window.arcNetworkGestorStates={refresh:refresh,get:function(id){return states[String(id)]||null;}};
  const alertButton=document.getElementById('arc-network-global-overview');
  const alertOverlay=document.getElementById('arc-network-alert-dialog');
  const alertList=document.getElementById('arc-network-alert-list');
@@ -836,7 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
    const fraction=total?offline.length/total:0;
    const health=total===0?'none':fraction>0.30?'critical':offline.length?'warning':'healthy';
    alertButton.dataset.health=health;
-   alertButton.dataset.agentState=health==='healthy'?'online':health==='warning'?'partial':health==='critical'?'offline':'none';
+   alertButton.dataset.gestorState=health==='healthy'?'online':health==='warning'?'partial':health==='critical'?'offline':'none';
    alertButton.title=total===0?'Nenhuma rede cadastrada':(offline.length+' de '+total+' redes offline');
    alertButton.setAttribute('aria-label',alertButton.title+'. Clique para detalhes.');
    if(!alertOverlay||alertOverlay.hidden)return;
@@ -846,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
    offline.forEach(n=>{
      const item=document.createElement('div');item.className='arc-network-alert-item';
      const name=document.createElement('strong');name.textContent=n.name;
-     const detail=document.createElement('small');detail.textContent=n.inactive?'Rede arquivada/inativa':n.no_agent?'Sem agente aprovado — '+elapsed(n.last_seen,now):elapsed(n.last_seen,now);
+     const detail=document.createElement('small');detail.textContent=n.inactive?'Rede arquivada/inativa':n.no_gestor?'Sem gestor aprovado — '+elapsed(n.last_seen,now):elapsed(n.last_seen,now);
      item.append(name,detail);alertList.appendChild(item);
    });
  }
@@ -871,7 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
 /* Diálogos declarados nos componentes: detalhes sob demanda e retorno de foco. */
 (()=>{const openers=new WeakMap();document.addEventListener('click',event=>{const opener=event.target.closest('[data-open-dialog]');if(opener){const dialog=document.getElementById(opener.dataset.openDialog);if(dialog instanceof HTMLDialogElement){openers.set(dialog,opener);dialog.showModal();}return;}const closer=event.target.closest('[data-close-dialog]');if(closer)closer.closest('dialog')?.close();});document.querySelectorAll('dialog').forEach(dialog=>{dialog.addEventListener('close',()=>openers.get(dialog)?.focus({preventScroll:true}));dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();});});})();
 
-window.arcPlainMessage=(value)=>{const text=String(value??'');if(/SQLSTATE|Traceback|Uncaught|stack trace|Unexpected token|not valid JSON|JSON.parse|[{}].*"(?:error|status|payload)"/i.test(text))return 'Não foi possível concluir. Tente novamente em instantes.';return text.replace(/\bremote_assistance\b/g,'acesso remoto').replace(/\bagent_update\b/g,'atualização do aplicativo').replace(/\bheadless_mode\b/g,'acesso sem confirmação local');};
+window.arcPlainMessage=(value)=>{const text=String(value??'');if(/SQLSTATE|Traceback|Uncaught|stack trace|Unexpected token|not valid JSON|JSON.parse|[{}].*"(?:error|status|payload)"/i.test(text))return 'Não foi possível concluir. Tente novamente em instantes.';return text.replace(/\bremote_assistance\b/g,'acesso remoto').replace(/\bgestor_update\b/g,'atualização do aplicativo').replace(/\bheadless_mode\b/g,'acesso sem confirmação local');};
 
 
 /* Credenciais: alternância local de visibilidade para campos de senha e segredo. */

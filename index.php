@@ -29,6 +29,11 @@ if($maintenanceOn && !arc_is_admin() && (string)($_GET['admin_login']??'')!=='1'
     $mText=arc_platform_setting($pdo,'platform_maintenance_message','Estamos aprimorando nossos serviços.');
     $mUntil=arc_platform_setting($pdo,'platform_maintenance_until','');
     $mImage=arc_platform_setting($pdo,'platform_maintenance_image','');
+    $mContact=implode(' · ',array_filter([
+        arc_platform_setting($pdo,'platform_support_email',''),
+        arc_platform_setting($pdo,'platform_support_phone',''),
+        arc_platform_setting($pdo,'platform_support_hours',''),
+    ],static fn(string $v):bool=>$v!==''));
     $mColor=(string)($settingsForMaintenanceColor=arc_platform_setting($pdo,'accent_color','#2878df'));
     if(!preg_match('/^#[0-9a-fA-F]{6}$/',$mColor))$mColor='#102f49';
     if(!str_starts_with($mImage,'https://') && !preg_match('~^/[a-zA-Z0-9/_\\.-]+$~',$mImage))$mImage='';
@@ -92,7 +97,7 @@ if($maintenanceOn && !arc_is_admin() && (string)($_GET['admin_login']??'')!=='1'
 }
 </style><script src="assets/js/arcoll.js?v=<?=arc_h(arc_app_version())?>" defer></script><script>try{const c=document.documentElement.dataset.arcSystemTheme||'auto';document.documentElement.dataset.theme=c==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):c}catch{document.documentElement.dataset.theme='light'}</script></head><body><main class="panel">
     <?php if($mImage!==''):?><img src="<?= $escape($mImage) ?>" alt="Imagem de manutenção"><?php else:?><img src="api/brand-logo.php" alt="Logo da plataforma"><?php endif;?>
-    <h1><?= $escape($mTitle) ?></h1><p><?= nl2br($escape($mText)) ?></p><div class="countdown" id="countdown" aria-live="off"></div><div class="note" id="maintenance-note">Acompanhe a previsão de retorno.</div><a href="index.php?admin_login=1" style="display:inline-block;margin-top:25px;color:#d4ebf8;font-size:11px">Acesso administrativo</a></main>
+    <h1><?= $escape($mTitle) ?></h1><p><?= nl2br($escape($mText)) ?></p><div class="countdown" id="countdown" aria-live="off"></div><div class="note" id="maintenance-note">Acompanhe a previsão de retorno.</div><?php if($mContact!==''):?><div class="note" id="maintenance-contact"><?= $escape($mContact) ?></div><?php endif;?><a href="index.php?admin_login=1" style="display:inline-block;margin-top:25px;color:#d4ebf8;font-size:11px">Acesso administrativo</a></main>
     <script>const until=<?= json_encode($mUntil,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;const target=until?new Date(until.replace(' ','T')).getTime():0;const node=document.getElementById('countdown');function tick(){if(!target||!Number.isFinite(target)){node.hidden=true;return}const delta=Math.max(0,target-Date.now());const units=[Math.floor(delta/86400000),Math.floor(delta/3600000)%24,Math.floor(delta/60000)%60,Math.floor(delta/1000)%60];node.innerHTML=units.map((v,i)=>'<span>'+String(v).padStart(2,'0')+'<small>'+['Dias','Horas','Min','Seg'][i]+'</small></span>').join('');if(delta===0)document.getElementById('maintenance-note').textContent='A previsão foi alcançada. Aguarde a liberação do serviço.';}tick();setInterval(tick,1000);</script></body></html>
     <?php exit;
 }
@@ -123,6 +128,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Sua sessão expirou. Atualize a página e tente novamente.';
     } elseif (!filter_var($postedEmail, FILTER_VALIDATE_EMAIL) || strlen($postedEmail) > 254) {
         $error = 'Informe um e-mail válido.';
+    } elseif ($mode === 'register' && !arc_registration_domain_allowed($pdo, $postedEmail)) {
+        $error = 'O cadastro está restrito a domínios de e-mail autorizados pela administração.';
     } elseif ($password === '') {
         $error = 'Informe sua senha.';
     } elseif ($mode === 'register' && (mb_strlen($postedName) < 2 || mb_strlen($postedName) > 120)) {

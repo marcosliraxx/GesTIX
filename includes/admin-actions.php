@@ -52,7 +52,7 @@ function arc_admin_redirect(string $anchor = ''): never
         exit;
     }
     $view = in_array($anchor, $views, true) ? $anchor : ($actionViews[$action] ?? 'overview');
-    $destination = ['identity'=>'configuracoes.php?tab=dados','security'=>'configuracoes.php?tab=seguranca','users'=>'clientes.php','releases'=>'agentwin.php','overview'=>'painel.php'][$view] ?? 'painel.php';
+    $destination = ['identity'=>'configuracoes.php?tab=dados','security'=>'configuracoes.php?tab=seguranca','users'=>'clientes.php','releases'=>'gestorwin.php','overview'=>'painel.php'][$view] ?? 'painel.php';
     header('Location: ' . arc_workspace_base_url() . 'pages/' . $destination . ($anchor !== '' && $anchor!=='releases' ? '#' . rawurlencode($anchor) : ''), true, 303);
     exit;
 }
@@ -374,7 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanL
             $pdo->prepare(
                 'INSERT INTO ' . arc_table('releases') . ' (id, version, platform, original_name, stored_name, mime_type, file_size, sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([$id, $version, $platform, $original, $id . '.bin', $mime, filesize($path), $sha]);
-            $pdo->prepare('INSERT INTO '.arc_table('agent_release_metadata').' (release_id,notes,channel) VALUES (?,?,?)')->execute([$id,$notes,$channel]);
+            $pdo->prepare('INSERT INTO '.arc_table('gestor_release_metadata').' (release_id,notes,channel) VALUES (?,?,?)')->execute([$id,$notes,$channel]);
             arc_audit($pdo, 'release.created', 'Arquivo publicado: ' . $version . ' (' . $platform . ').');
             arc_admin_flash('Arquivo publicado e disponível para download.', 'success');
             arc_admin_redirect('releases');
@@ -390,7 +390,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$arcConfigLocalPost && !$arcCleanL
             $version = $query->fetchColumn();
             if ($version !== false) {
                 @unlink(arc_upload_dir('releases') . '/' . $id . '.bin');
-                $pdo->prepare('DELETE FROM '.arc_table('agent_release_metadata').' WHERE release_id=?')->execute([$id]);
+                $pdo->prepare('DELETE FROM '.arc_table('gestor_release_metadata').' WHERE release_id=?')->execute([$id]);
                 $pdo->prepare('DELETE FROM ' . arc_table('releases') . ' WHERE id=?')->execute([$id]);
                 arc_audit($pdo, 'release.deleted', 'Arquivo ' . (string)$version . ' removido.');
             }

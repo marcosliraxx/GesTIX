@@ -5,17 +5,28 @@ require dirname(__DIR__).'/includes/admin-actions.php';
 if(!arc_is_admin()){header('Location: '.arc_workspace_base_url().'index.php',true,302);exit;}
 $pdo=arc_db();
 $notice='';$error='';
-$tabs=['aparencia'=>'Temas globais','designer'=>'Designer','dados'=>'Dados do sistema','login'=>'Login e acesso','smtp'=>'E-mail SMTP','apis'=>'Drive','log'=>'Auditoria e logs','manutencao'=>'Manutenção'];
+$groups=[
+ 'geral'=>['Geral','fa-home',['dados'=>['Dados do sistema','fa-building-o'],'aparencia'=>['Temas globais','fa-paint-brush'],'designer'=>['Designer','fa-picture-o'],'contato'=>['Contato e suporte','fa-phone']]],
+ 'acesso'=>['Acesso','fa-lock',['login'=>['Login e cadastro','fa-sign-in'],'seguranca'=>['Segurança','fa-shield']]],
+ 'comunicacao'=>['Comunicação','fa-envelope-o',['smtp'=>['E-mail SMTP','fa-envelope-o']]],
+ 'armazenamento'=>['Armazenamento','fa-cloud',['apis'=>['Drive','fa-plug'],'backup'=>['Backup','fa-database']]],
+ 'gestores'=>['Gestores','fa-desktop',['gestores'=>['Presença','fa-heartbeat']]],
+ 'sistema'=>['Sistema','fa-wrench',['log'=>['Auditoria e logs','fa-history'],'manutencao'=>['Manutenção','fa-cogs'],'diagnostico'=>['Diagnóstico','fa-stethoscope'],'arquivos'=>['Arquivos','fa-folder-open']]],
+];
+$tabs=[];$tabIcons=[];$tabGroup=[];
+foreach($groups as $groupKey=>[$groupLabel,$groupIcon,$groupTabs])foreach($groupTabs as $tabKey=>[$tabLabel,$tabIcon]){$tabs[$tabKey]=$tabLabel;$tabIcons[$tabKey]=$tabIcon;$tabGroup[$tabKey]=$groupKey;}
 $schema=[
  'aparencia'=>[
- 'platform_visual_theme'=>['Tema para toda a plataforma e agentes','select:windows|ocean|crystal|graphite|neon|emerald','windows'],
- 'platform_visual_mode'=>['Luminosidade (tema = padrão do tema)','select:theme|light|dark|auto','theme']],
+ 'platform_visual_theme'=>['Tema para toda a plataforma e gestores','select:windows|ocean|crystal|graphite|neon|emerald|sapphire|sandstone|aurora|slate','windows'],
+ 'platform_visual_mode'=>['Luminosidade (tema = padrão do tema)','select:theme|light|dark|auto','theme'],
+ 'platform_border_radius'=>['Arredondamento dos painéis (px)','number:0:28','14'],
+ 'platform_font_family'=>['Tipografia global','select:system|segoe|inter|arial','system']],
  'designer'=>[
- 'platform_agent_palette'=>['Paleta do agente','select:azul|violeta|verde|laranja|personalizada','azul'],
+ 'platform_gestor_palette'=>['Paleta do gestor','select:azul|violeta|verde|laranja|personalizada','azul'],
  'platform_support_palette'=>['Paleta do suporte','select:azul|violeta|verde|laranja|personalizada','violeta'],
- 'platform_agent_accent'=>['Cor personalizada do agente','color','#087eac'],
+ 'platform_gestor_accent'=>['Cor personalizada do gestor','color','#087eac'],
  'platform_support_accent'=>['Cor personalizada do suporte','color','#8b5cf6'],
- 'platform_agent_icon'=>['Ícone do agente (URL HTTPS; vazio usa a logo do sistema)','url',''],
+ 'platform_gestor_icon'=>['Ícone do gestor (URL HTTPS; vazio usa a logo do sistema)','url',''],
  'platform_support_icon'=>['Ícone do suporte (URL HTTPS; vazio usa a logo do sistema)','url','']],
  'dados'=>[
  'platform_webhook_url'=>['Webhook de eventos (HTTPS)','url',''],
@@ -42,7 +53,6 @@ $schema=[
  'platform_login_show_subtitle'=>['Exibir subtítulo','bool','0'],
  'platform_login_show_footer'=>['Exibir texto informativo do rodapé','bool','0'],
  'platform_login_show_theme'=>['Exibir seletor de tema','bool','0'],
- 'platform_registration_password_policy'=>['Exigência de senha no cadastro','select:none|basic|medium|advanced','medium'],
  'platform_login_layout'=>['Posição do formulário','select:left|center|right','right'],
  'platform_login_heading'=>['Título do formulário','text','Bem-vindo de volta'],
  'platform_login_subtitle'=>['Subtítulo do formulário','textarea','Entre com suas credenciais para acessar a plataforma.'],
@@ -51,9 +61,20 @@ $schema=[
  'platform_login_hero_description'=>['Descrição do painel de apresentação','textarea','Monitore dispositivos, conexões e atendimentos em um único ambiente seguro.'],
  'platform_login_footer_text'=>['Aviso no rodapé do login','textarea','Área restrita. Sua sessão é protegida e os acessos são registrados.'],
  'platform_login_show_password_toggle'=>['Permitir mostrar/ocultar senha','bool','1'],
- 'platform_login_show_strength'=>['Mostrar indicador de força da senha no cadastro','bool','1'],
- 'platform_login_max_attempts'=>['Tentativas de login por IP (15 minutos)','number:3:30','5'],
- 'platform_session_idle_minutes'=>['Inatividade máxima (minutos)','number:5:1440','120']],
+ 'platform_login_show_strength'=>['Mostrar indicador de força da senha no cadastro','bool','1']],
+ 'seguranca'=>[
+ 'platform_registration_password_policy'=>['Exigência de senha no cadastro','select:none|basic|medium|advanced','medium','Nível mínimo de complexidade exigido de novas contas.'],
+ 'platform_registration_allowed_domains'=>['Domínios de e-mail autorizados no cadastro','domains','','Separe por vírgula (ex.: empresa.com.br, outra.com). Vazio permite qualquer domínio. Vale também para o cadastro via Google.'],
+ 'platform_login_max_attempts'=>['Tentativas de login por IP','number:3:30','5','Máximo de tentativas antes do bloqueio temporário.'],
+ 'platform_login_window_minutes'=>['Janela de bloqueio (minutos)','number:5:240','15','Período em que as tentativas são contadas e o IP permanece bloqueado.'],
+ 'platform_session_idle_minutes'=>['Inatividade máxima da sessão (minutos)','number:5:1440','120','Após esse tempo sem uso, a sessão é encerrada.']],
+ 'contato'=>[
+ 'platform_support_email'=>['E-mail de suporte','email','','Exibido na tela pública de manutenção.'],
+ 'platform_support_phone'=>['Telefone / WhatsApp de suporte','text','','Exibido na tela pública de manutenção.'],
+ 'platform_support_hours'=>['Horário de atendimento','text','','Ex.: Seg a Sex, 8h às 18h.']],
+ 'gestores'=>[
+ 'platform_gestor_presence_seconds'=>['Tempo para considerar um gestor offline (segundos)','number:15:600','45','Sem sinal do gestor por esse período, ele passa a aparecer como offline nos painéis.']],
+ 'backup'=>[],
  'manutencao'=>[
  'platform_maintenance_enabled'=>['Ativar manutenção pública','bool','0'],
  'platform_maintenance_title'=>['Título da manutenção','text','Plataforma em manutenção'],
@@ -61,11 +82,11 @@ $schema=[
  'platform_maintenance_until'=>['Previsão de conclusão','datetime',''],
  'platform_maintenance_image'=>['Imagem da manutenção (URL HTTPS ou arquivo)','url','']],
 ];
-$schema['manutencao']['platform_cloud_max_file_mb']=['Limite por arquivo (MB)','number:1:51200','5120'];
-$schema['manutencao']['platform_cloud_allow_own']=['Backup: permitir conta própria do cliente (Google Drive, OneDrive, Dropbox, S3)','bool','1'];
-$schema['manutencao']['platform_cloud_allow_platform']=['Backup: permitir o Drive da plataforma','bool','1'];
-$schema['manutencao']['platform_cloud_allow_vdrive']=['Backup: permitir o disco virtual no Windows (abrir os arquivos da nuvem pelo Explorador)','bool','1'];
-$schema['manutencao']['platform_cloud_allow_folder_picker']=['Backup: permitir escolher discos e pastas do computador pela plataforma','bool','1'];
+$schema['backup']['platform_cloud_max_file_mb']=['Limite por arquivo (MB)','number:1:51200','5120','Limite por arquivo em megabytes, aplicado a todas as redes.'];
+$schema['backup']['platform_cloud_allow_own']=['Backup: permitir conta própria do cliente (Google Drive, OneDrive, Dropbox, S3)','bool','1','Quando ativo, o gestor da rede escolhe entre conectar a própria conta ou usar o Drive da plataforma.'];
+$schema['backup']['platform_cloud_allow_platform']=['Backup: permitir o Drive da plataforma','bool','1','Quando ativo e com uma conta conectada em Armazenamento › Drive, as redes podem guardar backups nela, em pastas separadas por rede e computador.'];
+$schema['backup']['platform_cloud_allow_vdrive']=['Backup: permitir o disco virtual no Windows (abrir os arquivos da nuvem pelo Explorador)','bool','1','Permite montar a nuvem do backup como unidade (ex.: Z:) no Windows, somente leitura.'];
+$schema['backup']['platform_cloud_allow_folder_picker']=['Backup: permitir escolher discos e pastas do computador pela plataforma','bool','1','Permite navegar pelos discos e pastas do computador na plataforma (somente nomes) para escolher o que sincronizar.'];
 foreach (arc_cloud_providers() as $provider=>$meta) {
  $prefix='platform_cloud_'.$provider.'_';
  $schema['apis'][$prefix.'enabled']=['Disponibilizar '.$meta['name'],'bool','0'];
@@ -82,14 +103,14 @@ $values=[];
 foreach($schema as $items)foreach($items as $key=>$meta)$values[$key]=arc_platform_setting($pdo,$key,$meta[2]);
 $tab=(string)($_POST['tab']??$_GET['tab']??'dados');
 if($tab==='nuvem')$tab='apis';
-if($tab==='monitoramento')$tab='manutencao';
-if($tab==='seguranca')$tab='login';
+if($tab==='monitoramento')$tab='gestores';
 if(!isset($tabs[$tab]))$tab='dados';
 function arc_cfg_validate(string $key,string $value,string $type):string {
  if(strlen($value)>2048)throw new RuntimeException('Campo muito longo: '.$key);
  if($type==='version'&&!preg_match('/^\d+\.\d+\.\d+(?:[-.][A-Za-z0-9]+)?$/D',$value))throw new RuntimeException('Versão inválida. Utilize X.Y.Z.');
  if($type==='email'&&$value!==''&&!filter_var($value,FILTER_VALIDATE_EMAIL))throw new RuntimeException('E-mail inválido.');
  if($type==='url'&&$value!==''&&(!filter_var($value,FILTER_VALIDATE_URL)||!str_starts_with($value,'https://')))throw new RuntimeException('Utilize uma URL HTTPS.');
+ if($type==='domains'&&$value!==''){foreach(preg_split('/[\\s,;]+/',strtolower($value),-1,PREG_SPLIT_NO_EMPTY) as $domain){if(!preg_match('/^@?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/D',$domain))throw new RuntimeException('Domínio inválido: '.$domain);}}
  if($type==='color'&&!preg_match('/^#[a-f0-9]{6}$/i',$value))throw new RuntimeException('Cor inválida.');
  if(str_starts_with($type,'select:')&&!in_array($value,explode('|',substr($type,7)),true))throw new RuntimeException('Opção inválida.');
  if(str_starts_with($type,'number:')){$bounds=explode(':',$type);if(filter_var($value,FILTER_VALIDATE_INT)===false||(int)$value<(int)$bounds[1]||(int)$value>(int)$bounds[2])throw new RuntimeException('Número fora do intervalo.');}
@@ -101,6 +122,16 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
  else{
   try{
    $action=(string)($_POST['action']??'save');
+   if($action==='save_theme'){
+    $theme=arc_cfg_validate('platform_visual_theme',trim((string)($_POST['platform_visual_theme']??'')),$schema['aparencia']['platform_visual_theme'][1]);
+    $mode=arc_cfg_validate('platform_visual_mode',trim((string)($_POST['platform_visual_mode']??'theme')),$schema['aparencia']['platform_visual_mode'][1]);
+    $pdo->beginTransaction();
+    try {arc_platform_save_setting($pdo,'platform_visual_theme',$theme);arc_platform_save_setting($pdo,'platform_visual_mode',$mode);$pdo->commit();}
+    catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    $values['platform_visual_theme']=$theme;$values['platform_visual_mode']=$mode;
+    header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
+    echo json_encode(['ok'=>true,'theme'=>$theme,'mode'=>$mode],JSON_THROW_ON_ERROR);exit;
+   }
    if($action==='save'||$action==='save_group'){
     if(!isset($schema[$tab]))throw new RuntimeException('Aba inválida.');
     $changes=[];
@@ -127,7 +158,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     foreach($changes as $key=>$value)$values[$key]=$value;
     $notice=$action==='save_group'?'Integração salva. O destaque verde indica credenciais completas e provedor habilitado.':'Configurações salvas e aplicadas.';
    }elseif($action==='upload_designer_icon'){
-    $component=(string)($_POST['component']??'');if(!in_array($component,['agent','support'],true))throw new RuntimeException('Aplicativo inválido.');
+    $component=(string)($_POST['component']??'');if(!in_array($component,['gestor','support'],true))throw new RuntimeException('Aplicativo inválido.');
     $file=$_FILES['designer_icon']??null;if(!$file||(int)$file['error']!==UPLOAD_ERR_OK||(int)$file['size']>1572864)throw new RuntimeException('Envie uma imagem de até 1,5 MB.');
     $mime=(new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);$ext=['image/png'=>'png','image/jpeg'=>'jpg','image/webp'=>'webp'][$mime]??null;$info=getimagesize($file['tmp_name']);if(!$ext||!$info||$info[0]>2048||$info[1]>2048)throw new RuntimeException('Use PNG, JPG ou WebP de até 2048 pixels.');
     $name=bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($file['tmp_name'],arc_upload_dir('brand').'/'.$name))throw new RuntimeException('Não foi possível salvar o ícone.');
@@ -176,8 +207,33 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     $stmt=$pdo->prepare("DELETE FROM $table WHERE id IN ($marks)");
     $stmt->execute($ids);
     $notice=$stmt->rowCount().' registro(s) de auditoria excluído(s).';
+   }elseif($action==='export_settings'){
+    $export=[];
+    foreach($schema as $items)foreach($items as $key=>$meta){if($meta[1]==='secret')continue;$export[$key]=$values[$key]??$meta[2];}
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename="arcoll-configuracoes-'.date('Ymd-His').'.json"');
+    echo json_encode(['format'=>'arcoll-settings-1','exported_at'=>date('c'),'settings'=>$export],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    exit;
+   }elseif($action==='import_settings'){
+    $file=$_FILES['settings_file']??null;
+    if(!$file||(int)$file['error']!==UPLOAD_ERR_OK||(int)$file['size']>262144)throw new RuntimeException('Envie um arquivo JSON de até 256 KB.');
+    $data=json_decode((string)file_get_contents($file['tmp_name']),true);
+    if(!is_array($data)||($data['format']??'')!=='arcoll-settings-1'||!is_array($data['settings']??null))throw new RuntimeException('Arquivo de configurações inválido.');
+    $flat=[];foreach($schema as $items)foreach($items as $key=>$meta)$flat[$key]=$meta;
+    $changes=[];
+    foreach($data['settings'] as $key=>$raw){
+     if(!is_string($key)||!isset($flat[$key])||$flat[$key][1]==='secret'||!is_scalar($raw))continue;
+     $type=$flat[$key][1];
+     $value=$type==='bool'?(in_array($raw,['1',1,true],true)?'1':'0'):trim((string)$raw);
+     $changes[$key]=arc_cfg_validate($key,$value,$type);
+    }
+    if(!$changes)throw new RuntimeException('O arquivo não contém configurações aplicáveis.');
+    $pdo->beginTransaction();
+    try{foreach($changes as $key=>$value)arc_platform_save_setting($pdo,$key,$value);$pdo->commit();}catch(Throwable $e){$pdo->rollBack();throw $e;}
+    foreach($changes as $key=>$value)$values[$key]=$value;
+    $notice=count($changes).' configuração(ões) importada(s). Segredos e senhas não são importados.';
    }elseif($action==='clear_cache'){
-    // Limpa somente o cache de sessão desta solicitação; não remove dados de agentes ou usuários.
+    // Limpa somente o cache de sessão desta solicitação; não remove dados de gestores ou usuários.
     clearstatcache(true);
     if(function_exists('opcache_reset'))@opcache_reset();
     $notice='Cache de arquivos e OPcache reiniciados, quando disponíveis.';
@@ -196,30 +252,51 @@ try {
  $arcLogChoice=(string)($_GET['source']??'account_audit');if(!isset($arcLogTables[$arcLogChoice]))$arcLogChoice=(string)(array_key_first($arcLogTables)??'');
  if($arcLogChoice!==''){
   $table=$arcLogTables[$arcLogChoice]['table'];
-  $arcLogColumns=array_values(array_filter($pdo->query('SHOW COLUMNS FROM `'.str_replace('`','``',$table).'`')->fetchAll(PDO::FETCH_COLUMN),static fn($c)=>in_array($c,['id','created_at','updated_at','attempted_at','event_type','event','action','status','user_id','admin_id','network_id','agent_id','message','description','details','account_id','attempted_at','ip_address'],true))); if(!$arcLogColumns)$arcLogColumns=['id'];
+  $arcLogColumns=array_values(array_filter($pdo->query('SHOW COLUMNS FROM `'.str_replace('`','``',$table).'`')->fetchAll(PDO::FETCH_COLUMN),static fn($c)=>in_array($c,['id','created_at','updated_at','attempted_at','event_type','event','action','status','user_id','admin_id','network_id','gestor_id','message','description','details','account_id','attempted_at','ip_address'],true))); if(!$arcLogColumns)$arcLogColumns=['id'];
   $arcLogTotal=(int)$pdo->query('SELECT COUNT(*) FROM `'.str_replace('`','``',$table).'`')->fetchColumn();
   $order=in_array('created_at',$arcLogColumns,true)?'created_at':(in_array('id',$arcLogColumns,true)?'id':$arcLogColumns[0]);
   $arcLogRows=$pdo->query('SELECT '.implode(',',array_map(static fn($c)=>'`'.str_replace('`','``',$c).'`',$arcLogColumns)).' FROM `'.str_replace('`','``',$table).'` ORDER BY `'.str_replace('`','``',$order).'` DESC LIMIT 50')->fetchAll(PDO::FETCH_ASSOC);
  }
 } catch(Throwable $e){error_log('Consulta de logs: '.$e->getMessage());$arcLogError='Não foi possível consultar os logs com as permissões atuais.';}
 function arc_cfg_log_title(string $event):string {
- $titles=['network_created'=>'Rede cadastrada','network_deleted'=>'Rede excluída','network_updated'=>'Rede atualizada','network_agent_requested'=>'Solicitação de novo agente','network_agent_approved'=>'Agente autorizado','network_agent_rejected'=>'Agente recusado','agent_command_queued'=>'Ação enviada ao agente','password_changed'=>'Senha alterada','admin.login'=>'Entrada de administrador','admin.logout'=>'Saída do administrador','login_success'=>'Acesso autorizado','login_failed'=>'Falha ao entrar','agent_online'=>'Agente conectado','agent_offline'=>'Agente desconectado'];
+ $titles=['network_created'=>'Rede cadastrada','network_deleted'=>'Rede excluída','network_updated'=>'Rede atualizada','network_gestor_requested'=>'Solicitação de novo gestor','network_gestor_approved'=>'Gestor autorizado','network_gestor_rejected'=>'Gestor recusado','gestor_command_queued'=>'Ação enviada ao gestor','password_changed'=>'Senha alterada','admin.login'=>'Entrada de administrador','admin.logout'=>'Saída do administrador','login_success'=>'Acesso autorizado','login_failed'=>'Falha ao entrar','gestor_online'=>'Gestor conectado','gestor_offline'=>'Gestor desconectado'];
  if(isset($titles[$event]))return $titles[$event];
  $clean=str_replace(['_','.','-'],' ',$event);return mb_convert_case($clean,MB_CASE_TITLE,'UTF-8');
 }
 function arc_cfg_log_description(array $row):string {
  $details=trim((string)($row['details']??$row['description']??$row['message']??''));
  $event=(string)($row['event_type']??$row['event']??$row['action']??'');
- if($event==='agent_command_queued')$details=str_replace(['monitor_start','monitor_stop','approved'],['iniciar monitoramento','parar monitoramento','aprovado'],$details);
- if($event==='network_agent_approved')$details=str_replace('approved','aprovado',$details);
+ if($event==='gestor_command_queued')$details=str_replace(['monitor_start','monitor_stop','approved'],['iniciar monitoramento','parar monitoramento','aprovado'],$details);
+ if($event==='network_gestor_approved')$details=str_replace('approved','aprovado',$details);
  if($details==='')return 'O sistema registrou este evento; não há descrição complementar disponível.';
  return $details;
 }
 function arc_cfg_log_safe_data(array $row):array {
- $labels=['id'=>'Registro','created_at'=>'Data e hora','updated_at'=>'Atualização','attempted_at'=>'Data da tentativa','event_type'=>'Ocorrência','event'=>'Ocorrência','action'=>'Ação','status'=>'Situação','user_id'=>'Usuário (ID)','account_id'=>'Conta (ID)','admin_id'=>'Administrador (ID)','agent_id'=>'Agente (ID)','network_id'=>'Rede (ID)','message'=>'Mensagem','description'=>'Descrição','details'=>'Detalhes','ip_address'=>'Endereço IP'];
+ $labels=['id'=>'Registro','created_at'=>'Data e hora','updated_at'=>'Atualização','attempted_at'=>'Data da tentativa','event_type'=>'Ocorrência','event'=>'Ocorrência','action'=>'Ação','status'=>'Situação','user_id'=>'Usuário (ID)','account_id'=>'Conta (ID)','admin_id'=>'Administrador (ID)','gestor_id'=>'Gestor (ID)','network_id'=>'Rede (ID)','message'=>'Mensagem','description'=>'Descrição','details'=>'Detalhes','ip_address'=>'Endereço IP'];
  $out=[];foreach($row as $key=>$value){if(preg_match('/pass|token|secret|cookie|session|credential|authorization|api_key|ip_hash|identifier_hash/i',(string)$key))continue;$text=trim((string)($value??''));$out[$labels[$key]??mb_convert_case(str_replace('_',' ',(string)$key),MB_CASE_TITLE,'UTF-8')]=$text===''?'Não informado':mb_substr($text,0,500);}
  return $out;
 }
+$diag=[];
+try{
+ $dbVersion=(string)$pdo->query('SELECT VERSION()')->fetchColumn();
+ $free=@disk_free_space(dirname(__DIR__));$total=@disk_total_space(dirname(__DIR__));
+ $uploadOk=false;try{$uploadOk=is_writable(arc_upload_dir('brand'));}catch(Throwable $e){}
+ $missingExt=array_values(array_filter(['pdo_mysql','curl','openssl','mbstring','fileinfo','gd'],static fn($e)=>!extension_loaded($e)));
+ $versionFile=dirname(__DIR__).'/VERSION';
+ $diag=[
+  ['Versão do sistema',is_file($versionFile)?trim((string)file_get_contents($versionFile)):'Não informada',true],
+  ['PHP',PHP_VERSION,version_compare(PHP_VERSION,'8.1.0','>=')],
+  ['Banco de dados',$dbVersion,true],
+  ['Extensões PHP obrigatórias',$missingExt?'Ausentes: '.implode(', ',$missingExt):'Todas carregadas',!$missingExt],
+  ['Conexão segura (HTTPS)',arc_is_https()?'Ativa':'Inativa',arc_is_https()],
+  ['Pasta de uploads',$uploadOk?'Gravável':'Sem permissão de escrita',$uploadOk],
+  ['Espaço livre em disco',$free!==false&&$total?number_format($free/1073741824,1,',','.').' GB livres de '.number_format($total/1073741824,1,',','.').' GB':'Indisponível',$free===false||!$total||($free/$total)>0.1],
+  ['Limite de upload do PHP',(string)ini_get('upload_max_filesize'),true],
+  ['OPcache',function_exists('opcache_get_status')&&@opcache_get_status(false)?'Ativo':'Inativo',true],
+  ['Envio de e-mail (SMTP)',($values['platform_smtp_enabled']??'0')==='1'&&($values['platform_smtp_host']??'')!==''?'Configurado':'Não configurado',($values['platform_smtp_enabled']??'0')==='1'&&($values['platform_smtp_host']??'')!==''],
+  ['Modo de manutenção',($values['platform_maintenance_enabled']??'0')==='1'?'Ativo (visitantes bloqueados)':'Desativado',($values['platform_maintenance_enabled']??'0')!=='1'],
+ ];
+}catch(Throwable $e){error_log('Diagnóstico: '.$e->getMessage());}
 $base=arc_workspace_base_url();
 $redirect=(arc_is_https()?'https':'http').'://'.(string)($_SERVER['HTTP_HOST']??'').$base.'google-auth.php';
 $ARCPageTitle='Configurações da plataforma';$ARCActiveNav='platform_settings';$ARCMode='app';
@@ -229,15 +306,35 @@ require dirname(__DIR__).'/includes/header.php';
 require dirname(__DIR__).'/includes/sidebar.php';
 ?>
 <main class="app-main"><div class="page-content arc-platform-settings arc-config-v3">
-<nav class="arc-config-tabs arc-config-compact-tabs" role="tablist" aria-label="Configurações">
-<?php foreach($tabs as $key=>$label):?><button type="button" class="<?= $key===$tab?'active':'' ?>" data-config-tab="<?=arc_h($key)?>" role="tab" aria-selected="<?= $key===$tab?'true':'false' ?>"><i class="fa <?=arc_h(match($key){'dados'=>'fa-building-o','seguranca'=>'fa-shield','smtp'=>'fa-envelope-o','apis'=>'fa-plug','login'=>'fa-sign-in','log'=>'fa-history',default=>'fa-wrench'})?>"></i><span><?=arc_h($label)?></span></button><?php endforeach;?>
+<nav class="arc-ribbon" aria-label="Configurações">
+<div class="arc-ribbon-groups" role="tablist"><?php foreach($groups as $groupKey=>[$groupLabel,$groupIcon,$groupTabs]):?><button type="button" role="tab" data-config-group="<?=arc_h($groupKey)?>" aria-selected="<?= $groupKey===($tabGroup[$tab]??'')?'true':'false' ?>" class="<?= $groupKey===($tabGroup[$tab]??'')?'active':'' ?>"><i class="fa <?=arc_h($groupIcon)?>" aria-hidden="true"></i><span><?=arc_h($groupLabel)?></span></button><?php endforeach;?></div>
+<div class="arc-ribbon-items"><?php foreach($groups as $groupKey=>[$groupLabel,$groupIcon,$groupTabs]):?><div class="arc-ribbon-set" data-ribbon-set="<?=arc_h($groupKey)?>" role="tablist" <?= $groupKey===($tabGroup[$tab]??'')?'':'hidden' ?>><?php foreach($groupTabs as $tabKey=>[$tabLabel,$tabIcon]):?><button type="button" role="tab" data-config-tab="<?=arc_h($tabKey)?>" aria-selected="<?= $tabKey===$tab?'true':'false' ?>" class="<?= $tabKey===$tab?'active':'' ?>"><i class="fa <?=arc_h($tabIcon)?>" aria-hidden="true"></i><span><?=arc_h($tabLabel)?></span></button><?php endforeach;?></div><?php endforeach;?></div>
 </nav>
 <div class="arc-config-form" id="arc-config-form">
 
 <?php foreach($tabs as $key=>$label):?>
 <section class="arc-config-panel <?= $key===$tab?'active':'' ?>" data-config-panel="<?=arc_h($key)?>" role="tabpanel" <?= $key===$tab?'':'hidden' ?>>
 <div class="card arc-settings-form">
-<div class="arc-settings-heading"><i class="fa fa-sliders"></i><div><h2><?=arc_h($label)?></h2><p>Alterações armazenadas na configuração central da plataforma.</p></div><?php if($key==='log'):?><button type="button" class="button secondary arc-log-settings-open" onclick="document.getElementById('arc-log-policy-modal').hidden=false"><i class="fa fa-cog"></i> Configurações do Log</button><?php endif;?></div>
+<div class="arc-settings-heading"><i class="fa <?=arc_h($tabIcons[$key]??'fa-sliders')?>"></i><div><h2><?=arc_h($label)?></h2><p>Alterações armazenadas na configuração central da plataforma.</p></div><?php if($key==='log'):?><button type="button" class="button secondary arc-log-settings-open" onclick="document.getElementById('arc-log-policy-modal').hidden=false"><i class="fa fa-cog"></i> Configurações do Log</button><?php endif;?></div>
+<?php if($key==='arquivos'):?>
+<div class="gsti-files" id="gsti-files" data-api="<?=arc_h(arc_workspace_base_url().'api/arquivos-api.php')?>" data-csrf="<?=arc_h(arc_csrf_token())?>">
+<p>Inventário de arquivos e pastas da plataforma. A identificação de candidatos é heurística e não comprova desuso. Nenhuma exclusão acontece sem confirmação administrativa e cópia ZIP verificada em <code>bkp/</code>.</p>
+<div class="gsti-files-toolbar"><button type="button" class="button primary" id="gsti-scan"><i class="fa fa-search"></i> Analisar</button><input id="gsti-filter" type="search" placeholder="Filtrar por caminho, motivo ou extensão" aria-label="Pesquisar arquivos"><select id="gsti-status" aria-label="Tipo de arquivo"><option value="all">Todos</option><option value="candidate">Candidatos</option><option value="active">Em uso / não classificados</option></select><button type="button" class="button secondary" id="gsti-bulk" disabled>Excluir selecionados</button><button type="button" class="button secondary" id="gsti-select-filtered" disabled>Marcar filtrados</button><button type="button" class="button secondary" id="gsti-clear" disabled>Limpar seleção</button></div>
+<div class="gsti-files-summary" id="gsti-summary" aria-live="polite">Selecione Analisar para carregar o inventário.</div>
+<div class="gsti-files-grid"><table id="gsti-table"><thead><tr><th><input id="gsti-all" type="checkbox" aria-label="Selecionar todos os arquivos visíveis"></th><th><button type="button" data-sort="path">Caminho ↕</button></th><th><button type="button" data-sort="status">Situação ↕</button></th><th><button type="button" data-sort="bytes">Tamanho ↕</button></th><th><button type="button" data-sort="mtime">Modificado ↕</button></th><th>Motivo</th><th>Ações</th></tr></thead><tbody></tbody></table></div>
+<div class="gsti-files-footer"><span id="gsti-count"></span><button type="button" class="button secondary" id="gsti-prev">Anterior</button><button type="button" class="button secondary" id="gsti-next">Próximo</button></div>
+<dialog id="gsti-editor" class="gsti-edit-dialog"><form method="dialog"><header><h3 id="gsti-edit-title">Editar arquivo</h3><button type="submit" aria-label="Fechar">×</button></header></form><p id="gsti-edit-path"></p><textarea id="gsti-edit-text" spellcheck="false" rows="18" aria-label="Conteúdo do arquivo"></textarea><footer><button type="button" class="button secondary" id="gsti-edit-cancel">Cancelar</button><button type="button" class="button primary" id="gsti-edit-save">Salvar com backup</button></footer></dialog>
+<dialog id="gsti-confirm" class="gsti-confirm-dialog" aria-labelledby="gsti-confirm-heading" aria-modal="true">
+ <div class="gsti-confirm-icon"><i class="fa fa-shield"></i></div>
+ <h3 id="gsti-confirm-heading">Confirmar operação</h3>
+ <p id="gsti-confirm-message"></p>
+ <label id="gsti-confirm-label" hidden>Nome do arquivo<input type="text" id="gsti-confirm-input" maxlength="160" autocomplete="off" spellcheck="false"></label>
+ <p class="gsti-confirm-note">Será criado um backup ZIP verificado antes de qualquer alteração. A operação será registrada.</p>
+ <footer><button type="button" class="button secondary" id="gsti-confirm-cancel">Cancelar</button><button type="button" class="button primary" id="gsti-confirm-yes">Confirmar</button></footer>
+</dialog>
+<p id="gsti-message" role="status" aria-live="polite"></p>
+</div>
+<?php endif;?>
 <?php if($key==='dados'):
 $setting=static fn(string $name,string $default='')=>arc_platform_setting($pdo,$name,$default);
 ?>
@@ -261,19 +358,19 @@ $setting=static fn(string $name,string $default='')=>arc_platform_setting($pdo,$
 <input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>">
 <input type="hidden" name="tab" value="<?=arc_h($key)?>">
 <input type="hidden" name="action" value="save">
-<?php if($key==='aparencia'):?><div class="arc-theme-library"><p>O tema global é obrigatório e é sincronizado com a interface Windows dos agentes conectados. Na opção Automático, cada equipamento acompanha o modo de luminosidade do sistema operacional.</p><div class="arc-theme-tiles"><?php foreach(arc_visual_themes() as $themeId=>$preset):?><label class="arc-theme-tile" style="--tile-bg:<?=arc_h($preset['bg'])?>;--tile-accent:<?=arc_h($preset['accent'])?>;--tile-surface:<?=arc_h($preset['surface'])?>"><input type="radio" name="platform_visual_theme" value="<?=arc_h($themeId)?>" <?=($values['platform_visual_theme']??'windows')===$themeId?'checked':''?>><span class="arc-theme-swatch"><i></i><b></b><b></b></span><strong><?=arc_h($preset['name'])?></strong></label><?php endforeach;?></div></div><?php endif;?>
+<?php if($key==='aparencia'):?><div class="arc-theme-library"><p>O tema global é obrigatório e é sincronizado com a interface Windows dos gestores conectados. Na opção Automático, cada equipamento acompanha o modo de luminosidade do sistema operacional.</p><div class="arc-theme-tiles"><?php foreach(arc_visual_themes() as $themeId=>$preset):?><label class="arc-theme-tile" style="--tile-bg:<?=arc_h($preset['bg'])?>;--tile-accent:<?=arc_h($preset['accent'])?>;--tile-surface:<?=arc_h($preset['surface'])?>"><input type="radio" name="platform_visual_theme" value="<?=arc_h($themeId)?>" <?=($values['platform_visual_theme']??'windows')===$themeId?'checked':''?>><span class="arc-theme-swatch"><i></i><b></b><b></b></span><strong><?=arc_h($preset['name'])?></strong></label><?php endforeach;?></div></div><?php endif;?>
 <div class="arc-settings-grid">
 <?php foreach($schema[$key] as $field=>$meta): if($key==='aparencia' && $field==='platform_visual_theme')continue;
 [$title,$type,$default]=$meta;$value=$values[$field]??$default;$secret=$type==='secret';
 ?>
 <?php if($type==='bool'):?>
-<label class="arc-settings-toggle"><input type="checkbox" name="<?=arc_h($field)?>" value="1" <?=$value==='1'?'checked':''?>><span><strong><?=arc_h($title)?></strong><small>Aplicar esta preferência à plataforma.</small></span></label>
+<label class="arc-settings-toggle"><input type="checkbox" name="<?=arc_h($field)?>" value="1" <?=$value==='1'?'checked':''?>><span><strong><?=arc_h($title)?></strong><small><?=arc_h($meta[3]??'Aplicar esta preferência à plataforma.')?></small></span></label>
 <?php elseif($type==='textarea'):?>
 <label class="arc-full"><?=arc_h($title)?><textarea name="<?=arc_h($field)?>" maxlength="2048" rows="3"><?=arc_h($value)?></textarea></label>
 <?php elseif(str_starts_with($type,'select:')):?>
-<label><?=arc_h($title)?><select name="<?=arc_h($field)?>"><?php foreach(explode('|',substr($type,7)) as $opt):?><option value="<?=arc_h($opt)?>" <?=$value===$opt?'selected':''?>><?=arc_h(ucfirst($opt))?></option><?php endforeach;?></select></label>
+<label><?=arc_h($title)?><select name="<?=arc_h($field)?>"><?php foreach(explode('|',substr($type,7)) as $opt):?><option value="<?=arc_h($opt)?>" <?=$value===$opt?'selected':''?>><?=arc_h(ucfirst($opt))?></option><?php endforeach;?></select><?php if(!empty($meta[3])):?><small class="arc-field-hint"><?=arc_h($meta[3])?></small><?php endif;?></label>
 <?php else:?>
-<label><?=arc_h($title)?><input name="<?=arc_h($field)?>" type="<?=arc_h(match(true){$secret=>'password',$type==='color'=>'color',$type==='email'=>'email',$type==='url'=>'url',$type==='datetime'=>'datetime-local',str_starts_with($type,'number:')=>'number',default=>'text'})?>" value="<?= $secret?'':arc_h($value) ?>" <?= $secret?'autocomplete="new-password" placeholder="Deixe vazio para manter"':'' ?> <?=str_starts_with($type,'number:')?'min="'.arc_h(explode(':',$type)[1]).'" max="'.arc_h(explode(':',$type)[2]).'"':''?>></label>
+<label><?=arc_h($title)?><input name="<?=arc_h($field)?>" type="<?=arc_h(match(true){$secret=>'password',$type==='color'=>'color',$type==='email'=>'email',$type==='url'=>'url',$type==='datetime'=>'datetime-local',str_starts_with($type,'number:')=>'number',default=>'text'})?>" value="<?= $secret?'':arc_h($value) ?>" <?= $secret?'autocomplete="new-password" placeholder="Deixe vazio para manter"':'' ?> <?=str_starts_with($type,'number:')?'min="'.arc_h(explode(':',$type)[1]).'" max="'.arc_h(explode(':',$type)[2]).'"':''?>><?php if(!empty($meta[3])):?><small class="arc-field-hint"><?=arc_h($meta[3])?></small><?php endif;?></label>
 <?php endif;endforeach;?>
 </div>
 <div class="arc-config-actions"><button class="button primary" type="submit"><i class="fa fa-save"></i> Salvar <?=arc_h($label)?></button></div></form>
@@ -286,7 +383,7 @@ $setting=static fn(string $name,string $default='')=>arc_platform_setting($pdo,$
 <label class="arc-settings-toggle"><input type="checkbox" name="platform_api_external_enabled" value="1" <?=($values['platform_api_external_enabled']??'0')==='1'?'checked':''?>><span><strong>Habilitar integrações externas</strong></span></label>
 <button type="submit" class="button secondary"><i class="fa fa-save"></i> Salvar integração</button></form></section>
 <?php elseif($key==='designer'):?>
-<div class="arc-config-extra"><?php foreach(['agent'=>'Agente Windows','support'=>'Aplicativo de suporte'] as $component=>$name):?><form method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="tab" value="designer"><input type="hidden" name="action" value="upload_designer_icon"><input type="hidden" name="component" value="<?=$component?>"><label>Ícone · <?=$name?><input type="file" name="designer_icon" accept="image/png,image/jpeg,image/webp" required></label><button class="button" type="submit">Enviar ícone</button></form><?php endforeach;?></div>
+<div class="arc-config-extra"><?php foreach(['gestor'=>'Gestor Windows','support'=>'Aplicativo de suporte'] as $component=>$name):?><form method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="tab" value="designer"><input type="hidden" name="action" value="upload_designer_icon"><input type="hidden" name="component" value="<?=$component?>"><label>Ícone · <?=$name?><input type="file" name="designer_icon" accept="image/png,image/jpeg,image/webp" required></label><button class="button" type="submit">Enviar ícone</button></form><?php endforeach;?></div>
 <?php elseif($key==='apis'):?>
 <?php
 $cfgFields=static function(array $fieldNames)use($schema,$values):void {
@@ -395,10 +492,17 @@ $managedConnections=[];foreach($managedQ->fetchAll(PDO::FETCH_ASSOC) as $managed
 <?php if(($values['platform_google_enabled']??'0')==='1' && ($values['platform_google_client_id']??'')!=='' && arc_platform_decrypt($values['platform_google_client_secret']??'')===''):?><p role="alert">O Client Secret do Google não está disponível ou não pôde ser decifrado. Salve novamente o segredo emitido no Google Cloud Console.</p><?php endif;?>
 </div>
 <?php elseif($key==='manutencao'):?>
-<section class="arc-config-extra" aria-labelledby="arc-retention-heading"><h3 id="arc-retention-heading">Histórico de medições e alertas</h3><p class="arc-config-context">Define por quantos dias as amostras e alertas de rede são mantidos. A limpeza desses registros é aplicada pelo backend ao receber novas medições de cada sessão; não altera a frequência de monitoramento dos agentes.</p>
+<section class="arc-config-extra" aria-labelledby="arc-retention-heading"><h3 id="arc-retention-heading">Histórico de medições e alertas</h3><p class="arc-config-context">Define por quantos dias as amostras e alertas de rede são mantidos. A limpeza desses registros é aplicada pelo backend ao receber novas medições de cada sessão; não altera a frequência de monitoramento dos gestores.</p>
 <form method="post" action="<?=arc_h($base)?>admin/configuracoes.php?tab=manutencao#manutencao"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="action" value="save_settings"><input type="hidden" name="tab" value="retencao"><label>Retenção de medições e alertas (dias)<input type="number" min="1" max="3650" name="retention_days" required value="<?=arc_h(arc_platform_setting($pdo,'retention_days','90'))?>"></label><button class="button secondary" type="submit"><i class="fa fa-save"></i> Salvar retenção</button></form></section>
+<section class="arc-config-extra"><h3>Cópia das configurações</h3><p class="arc-config-context">Exporte as configurações da plataforma em JSON (sem senhas e segredos) ou importe um arquivo exportado anteriormente.</p>
+<div class="arc-config-inline"><form method="post" action="<?=arc_h($base)?>admin/configuracoes.php?tab=manutencao#manutencao"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="tab" value="manutencao"><input type="hidden" name="action" value="export_settings"><button type="submit" class="button secondary"><i class="fa fa-download"></i> Exportar configurações</button></form>
+<form method="post" enctype="multipart/form-data" action="<?=arc_h($base)?>admin/configuracoes.php?tab=manutencao#manutencao"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="tab" value="manutencao"><input type="hidden" name="action" value="import_settings"><label>Arquivo JSON<input type="file" name="settings_file" accept="application/json,.json" required></label><button type="submit" class="button secondary" onclick="return confirm('Aplicar as configurações do arquivo?')"><i class="fa fa-upload"></i> Importar</button></form></div></section>
 <div class="arc-config-extra"><form method="post" enctype="multipart/form-data" action="<?=arc_h(arc_workspace_base_url())?>admin/configuracoes.php"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="tab" value="manutencao"><input type="hidden" name="action" value="upload_maintenance_image"><label>Importar imagem de manutenção (PNG, JPG ou WebP, até 1,5 MB)<input type="file" name="maintenance_image" accept="image/png,image/jpeg,image/webp" required></label><button class="button secondary" type="submit"><i class="fa fa-upload"></i> Importar imagem</button></form></div>
-<div class="arc-config-extra"><span class="arc-page-help"><button type="button" class="arc-icon-action" data-open-dialog="page-help-4" aria-label="Saiba mais sobre esta área" title="Saiba mais"><i class="fa fa-info" aria-hidden="true"></i></button></span><dialog id="page-help-4" class="arc-service-dialog"><header class="arc-service-heading"><h2>Saiba mais</h2><button type="button" class="arc-icon-action" data-close-dialog aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><p>Durante a manutenção, visitantes recebem a tela pública de aviso com contagem regressiva. Administradores autenticados continuam com acesso às configurações. APIs dos agentes permanecem operacionais.</p></dialog></div>
+<div class="arc-config-extra"><span class="arc-page-help"><button type="button" class="arc-icon-action" data-open-dialog="page-help-4" aria-label="Saiba mais sobre esta área" title="Saiba mais"><i class="fa fa-info" aria-hidden="true"></i></button></span><dialog id="page-help-4" class="arc-service-dialog"><header class="arc-service-heading"><h2>Saiba mais</h2><button type="button" class="arc-icon-action" data-close-dialog aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><p>Durante a manutenção, visitantes recebem a tela pública de aviso com contagem regressiva. Administradores autenticados continuam com acesso às configurações. APIs dos gestores permanecem operacionais.</p></dialog></div>
+<?php elseif($key==='diagnostico'):?>
+<div class="arc-diag-grid" role="list"><?php foreach($diag as [$diagLabel,$diagValue,$diagOk]):?><div class="arc-diag-item <?= $diagOk?'is-ok':'is-warn' ?>" role="listitem"><i class="fa <?= $diagOk?'fa-check-circle':'fa-exclamation-triangle' ?>" aria-hidden="true"></i><span><strong><?=arc_h($diagLabel)?></strong><small><?=arc_h($diagValue)?></small></span></div><?php endforeach;?><?php if(!$diag):?><p class="arc-audit-empty">Não foi possível coletar o diagnóstico.</p><?php endif;?></div>
+<div class="arc-config-extra"><h3>Cache</h3><p class="arc-config-context">Reinicia o cache de arquivos e o OPcache do servidor, quando disponíveis. Não remove dados de gestores, redes ou usuários.</p>
+<form method="post" action="<?=arc_h($base)?>admin/configuracoes.php?tab=diagnostico#diagnostico"><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="tab" value="diagnostico"><input type="hidden" name="action" value="clear_cache"><button type="submit" class="button secondary"><i class="fa fa-refresh"></i> Limpar cache</button></form></div>
 <?php elseif($key==='log'):?>
 <div class="arc-audit-console"><div class="arc-log-admin-actions"><button class="button secondary" type="button" id="arcLogCleanOpen"><i class="fa fa-trash-o"></i> Limpar todas as auditorias e logs</button><span>Limpeza total, backup e manutenção centralizados na Central de Manutenção.</span></div>
 
@@ -422,7 +526,7 @@ $managedConnections=[];foreach($managedQ->fetchAll(PDO::FETCH_ASSOC) as $managed
 <?php endif;?>
 <form id="arc-audit-delete-form" method="post" action="<?=arc_h(arc_workspace_base_url())?>admin/configuracoes.php?tab=log&amp;source=<?=urlencode($arcLogChoice)?>#log" hidden><input type="hidden" name="_csrf" value="<?=arc_h(arc_csrf_token())?>"><input type="hidden" name="tab" value="log"><input type="hidden" name="action" value="delete_audit_rows"><input type="hidden" name="audit_ids" id="arc-audit-ids"><input type="hidden" name="confirm_delete" value="yes"></form>
 </div>
-<div class="arc-audit-modal" id="arc-log-clean-modal" hidden role="dialog" aria-modal="true" aria-labelledby="arc-log-clean-title"><div class="arc-audit-modal-inner"><header><h3 id="arc-log-clean-title">Limpar auditorias e logs</h3><button type="button" id="arcLogCleanClose" aria-label="Fechar"><i class="fa fa-times"></i></button></header><p>Selecione os históricos para exclusão. Nenhum cadastro ou rede será removido.</p><form id="arcLogCleanForm"><input name="_csrf" type="hidden" value="<?=arc_h(arc_csrf_token())?>"><input name="action" type="hidden" value="logs_purge"><input name="ajax" type="hidden" value="1"><div class="arc-log-clean-options"><?php foreach(arc_log_catalog($pdo) as $key=>$source):?><label><input type="checkbox" name="sources[]" value="<?=arc_h($key)?>"> <?=arc_h($source['name'])?></label><?php endforeach;?></div><p id="arcLogCleanResult" role="status" aria-live="polite"></p><footer><button type="button" class="button secondary" id="arcLogCleanCancel">Cancelar</button><button type="submit" class="button primary" id="arcLogCleanSubmit">Limpar selecionados</button></footer></form></div></div>
+<div class="arc-audit-modal" id="arc-log-clean-modal" hidden role="dialog" aria-modal="true" aria-labelledby="arc-log-clean-title"><div class="arc-audit-modal-inner"><header><h3 id="arc-log-clean-title">Limpar auditorias e logs</h3><button type="button" id="arcLogCleanClose" aria-label="Fechar"><i class="fa fa-times"></i></button></header><p>Selecione os históricos para exclusão. Nenhum cadastro ou rede será removido.</p><form id="arcLogCleanForm"><input name="_csrf" type="hidden" value="<?=arc_h(arc_csrf_token())?>"><input name="action" type="hidden" value="logs_purge"><input name="ajax" type="hidden" value="1"><div class="arc-log-clean-options"><?php foreach(arc_log_catalog($pdo) as $logSourceKey=>$source):?><label><input type="checkbox" name="sources[]" value="<?=arc_h($logSourceKey)?>"> <?=arc_h($source['name'])?></label><?php endforeach;?></div><p id="arcLogCleanResult" role="status" aria-live="polite"></p><footer><button type="button" class="button secondary" id="arcLogCleanCancel">Cancelar</button><button type="submit" class="button primary" id="arcLogCleanSubmit">Limpar selecionados</button></footer></form></div></div>
 <div class="arc-audit-modal" id="arc-log-policy-modal" hidden role="dialog" aria-modal="true" aria-labelledby="arc-log-policy-title"><div class="arc-audit-modal-inner arc-log-policy-inner">
 <header><div><small>CONFIGURAÇÕES GLOBAIS</small><h3 id="arc-log-policy-title">Políticas de logs</h3></div><button type="button" aria-label="Fechar" onclick="this.closest('.arc-audit-modal').hidden=true"><i class="fa fa-times"></i></button></header>
 <div class="arc-log-policy-tabs"><button type="button" class="active" data-log-pane-button="record">O que registrar</button><button type="button" data-log-pane-button="retention">Retenção e espaço</button></div>
@@ -443,15 +547,23 @@ $managedConnections=[];foreach($managedQ->fetchAll(PDO::FETCH_ASSOC) as $managed
 </div></main>
 <style>
 .arc-config-panel[hidden]{display:none!important}
-.arc-config-compact-tabs{scroll-margin-top:12px}
 
-.arc-config-v3{--setting-border:rgba(116,143,175,.20);font-size:12px}.arc-config-compact-tabs{display:flex;flex-wrap:wrap;gap:5px;padding:5px;border:1px solid var(--setting-border);border-radius:11px;margin-bottom:10px;background:color-mix(in srgb, var(--surface-alt) 5%, transparent)}
-.arc-config-compact-tabs button{border:0;border-radius:7px;padding:7px 10px;font-size:11px;font-weight:650;background:transparent;color:inherit;cursor:pointer;white-space:nowrap;display:flex;gap:6px;align-items:center}.arc-config-compact-tabs button.active{background:var(--accent-color,#2878df);color:var(--text)}.arc-config-compact-tabs button:not(.active):hover{background:#5c89be}
+.arc-config-v3{--setting-border:rgba(116,143,175,.20);font-size:12px}.arc-ribbon{margin-bottom:12px;border:1px solid var(--setting-border);border-radius:11px;overflow:hidden;background:var(--surface)}
+.arc-ribbon-groups{display:flex;gap:2px;padding:5px 6px 0;overflow-x:auto;background:var(--primary,#1595b5);scrollbar-width:none}.arc-ribbon-groups::-webkit-scrollbar{display:none}
+.arc-ribbon-groups button{flex:none;display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:0;border-radius:8px 8px 0 0;background:transparent;color:#fff;font-size:12px;font-weight:650;cursor:pointer;white-space:nowrap}
+.arc-ribbon-groups button:hover{background:rgba(255,255,255,.16)}.arc-ribbon-groups button.active{background:var(--surface);color:var(--text)}.arc-ribbon-groups button.active i{color:var(--primary,#1595b5)}
+.arc-ribbon-items{background:var(--surface);min-height:62px}.arc-ribbon-set{display:flex;gap:2px;padding:6px;overflow-x:auto}.arc-ribbon-set[hidden]{display:none!important}
+.arc-ribbon-set button{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:84px;padding:8px 14px;border:0;border-radius:8px;background:transparent;color:var(--muted,inherit);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.arc-ribbon-set button i{font-size:18px}.arc-ribbon-set button:hover{background:var(--surface-alt);color:var(--text)}.arc-ribbon-set button.active{background:var(--surface-alt);color:var(--primary,#1595b5);box-shadow:inset 0 -2px 0 var(--primary,#1595b5)}
+.arc-ribbon button:focus-visible{outline:2px solid var(--primary,#1595b5);outline-offset:-2px}
+.arc-field-hint{display:block;font-size:10px;font-weight:400;opacity:.7;line-height:1.4}
+.arc-diag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:9px}.arc-diag-item{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--setting-border);border-radius:9px}.arc-diag-item span{display:flex;flex-direction:column;min-width:0}.arc-diag-item small{font-size:11px;opacity:.8;overflow-wrap:anywhere}.arc-diag-item.is-ok>i{color:#22b573}.arc-diag-item.is-warn{border-color:#d97706}.arc-diag-item.is-warn>i{color:#d97706}
+.arc-config-inline{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}.arc-config-inline form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
 .arc-config-v3 .arc-settings-form{padding:13px 15px;border-radius:11px}.arc-config-v3 .arc-settings-heading{margin-bottom:9px}.arc-config-v3 .arc-settings-heading h2{font-size:15px;margin:0}.arc-config-v3 .arc-settings-heading p{margin:3px 0;font-size:11px;opacity:.7}.arc-config-v3 .arc-settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 12px}.arc-config-v3 .arc-settings-grid>label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:650;min-width:0}.arc-config-v3 .arc-settings-grid input:not([type=checkbox]){height:33px;min-width:0;width:100%;font-size:12px;padding:6px 9px;border-radius:7px}.arc-config-v3 .arc-settings-grid select{height:33px;min-width:0;width:100%;font-size:12px;padding:6px 9px;border-radius:7px}.arc-config-v3 .arc-settings-grid textarea{height:55px;min-width:0;width:100%;font-size:12px;padding:6px 9px;border-radius:7px;resize:vertical}.arc-config-v3 .arc-settings-grid input[type=color]{padding:3px;width:72px}.arc-config-v3 .arc-settings-grid .arc-full{grid-column:1/-1}.arc-config-v3 .arc-settings-toggle{display:flex!important;flex-direction:row!important;gap:8px;align-items:center;border:1px solid var(--setting-border);padding:9px;border-radius:8px}.arc-config-v3 .arc-settings-toggle span{display:flex;flex-direction:column}.arc-config-v3 .arc-settings-toggle small{font-size:10px;font-weight:400;opacity:.65}.arc-config-v3 .arc-config-actions{margin-top:10px;padding-top:9px;border-top:1px solid var(--setting-border)}.arc-config-v3 .arc-config-extra{border:1px solid var(--setting-border);border-radius:9px;padding:12px;margin-top:10px}.arc-config-v3 .arc-config-extra h3{font-size:13px;margin:0 0 5px}.arc-config-v3 .arc-config-extra p{font-size:11px}.arc-log-selector{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:10px 0}.arc-log-selector label{min-width:195px}.arc-log-table-scroll{overflow:auto;max-height:350px;border:1px solid var(--setting-border);border-radius:8px}.arc-log-table{width:100%;border-collapse:collapse;font-size:10px}.arc-log-table th{padding:7px 9px;white-space:nowrap;text-align:left;border-bottom:1px solid var(--setting-border)}.arc-log-table td{padding:7px 9px;white-space:nowrap;text-align:left;border-bottom:1px solid var(--setting-border)}.arc-log-table thead{position:sticky;top:0;background:var(--bg,#fff)}
 
 .arc-brand-settings{display:grid;grid-template-columns:155px 1fr;gap:16px;align-items:stretch}.arc-brand-upload{position:relative;border:1px dashed var(--setting-border);border-radius:12px;min-height:140px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:color-mix(in srgb, var(--surface-alt) 5%, transparent)}.arc-brand-upload img{width:100%;height:106px;object-fit:contain;padding:12px}.arc-brand-upload input{position:absolute;width:1px;height:1px;opacity:0}.arc-brand-upload span{position:absolute;bottom:4px;left:4px;right:4px;text-align:center;border-radius:7px;background:color-mix(in srgb, var(--surface-alt) 84%, transparent);color:var(--text);padding:6px;font-size:11px}.arc-brand-main-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 75px;gap:9px}.arc-brand-main-fields label{font-size:11px;font-weight:650;display:flex;flex-direction:column;gap:5px;min-width:0}.arc-brand-main-fields input:not([type=color]){height:35px;padding:7px 9px;border-radius:7px;width:100%;min-width:0}.arc-color-circle{display:flex;width:36px;height:36px;overflow:hidden;border-radius:50%;border:2px solid color-mix(in srgb, var(--border) 35%, transparent);cursor:pointer}.arc-color-circle input{width:50px;height:50px;min-width:50px;border:0;padding:0;cursor:pointer;transform:translate(-7px,-7px)}
 .arc-audit-console{min-width:0}.arc-log-commandbar{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;overflow-x:auto;padding:8px;border:1px solid var(--setting-border);border-radius:10px;margin:8px 0 10px}.arc-log-commandbar select{width:175px;min-width:130px;height:33px}.arc-audit-search{position:relative;flex:1;min-width:125px}.arc-audit-search i{position:absolute;left:10px;top:10px;opacity:.65}.arc-audit-search input{width:100%;height:33px;padding-left:30px!important}.arc-audit-count{white-space:nowrap;font-size:11px}.arc-log-commandbar .button{height:33px;display:inline-flex;align-items:center;gap:5px;flex:none;font-size:11px;white-space:nowrap;padding:6px 9px}.arc-audit-grid-wrap{max-height:480px;overflow:auto;border:1px solid var(--setting-border);border-radius:10px}.arc-audit-grid{width:100%;border-collapse:collapse;font-size:11px}.arc-audit-grid thead{position:sticky;top:0;z-index:1;background:var(--bg,#f8fafc)}.arc-audit-grid td{padding:10px 9px;border-bottom:1px solid var(--setting-border);text-align:left}.arc-audit-grid th{padding:10px 9px;border-bottom:1px solid var(--setting-border);text-align:left;white-space:nowrap}.arc-audit-grid th button{cursor:pointer;background:none;border:0;color:inherit;font:inherit;font-weight:700;padding:0}.arc-audit-grid th button i{opacity:.5}.arc-audit-grid td:nth-child(3){white-space:nowrap}.arc-audit-grid tbody tr:hover{background:#4b82c8}.arc-audit-grid tbody tr.arc-selected{background:#2d78dc}.arc-audit-desc{min-width:180px;max-width:480px;line-height:1.45}.arc-audit-event{font-weight:650;white-space:nowrap}.arc-audit-event i{color:var(--accent-color,#2878df);margin-right:5px}.arc-audit-row-actions{display:flex;gap:5px}.arc-audit-row-actions button{width:28px;height:28px;border:1px solid var(--setting-border);background:transparent;color:inherit;cursor:pointer;border-radius:7px}.arc-audit-row-actions button:hover:not(:disabled){background:#4682dc}.arc-audit-row-actions button:disabled{opacity:.25;cursor:not-allowed}.arc-audit-hint{opacity:.68;font-size:10px;margin:9px 0}.arc-audit-empty{text-align:center;opacity:.65;padding:28px}.arc-audit-modal[hidden]{display:none!important}.arc-audit-modal{position:fixed;inset:0;z-index:9000;background:color-mix(in srgb, var(--surface) 65%, transparent);display:flex;align-items:center;justify-content:center;padding:15px}.arc-audit-modal-inner{width:min(580px,100%);max-height:90vh;overflow:auto;border-radius:13px;background:var(--bg,#fff);color:inherit;padding:18px;box-shadow:0 22px 70px rgba(0,0,0,.24)}.arc-audit-modal header{display:flex;justify-content:space-between;align-items:center;gap:15px}.arc-audit-modal header small{font-size:10px;opacity:.6}.arc-audit-modal h3{font-size:17px;margin:4px 0}.arc-audit-modal header button{border:0;background:transparent;color:inherit;cursor:pointer;font-size:17px}.arc-audit-modal-inner>p{font-size:12px;opacity:.75}.arc-audit-modal dl{display:grid;grid-template-columns:150px 1fr;gap:0;font-size:12px}.arc-audit-modal dd{margin:0;padding:10px;border-bottom:1px solid var(--setting-border);overflow-wrap:anywhere}.arc-audit-modal dt{margin:0;padding:10px;border-bottom:1px solid var(--setting-border);overflow-wrap:anywhere;font-weight:700;opacity:.7}.arc-audit-modal footer{display:flex;justify-content:flex-end;margin-top:14px}
-@media(max-width:800px){.arc-config-v3 .arc-settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.arc-brand-settings{grid-template-columns:110px 1fr}.arc-brand-main-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.arc-audit-grid th{padding:8px 6px}.arc-audit-grid td{padding:8px 6px}}@media(max-width:520px){.arc-config-v3 .arc-settings-grid{grid-template-columns:1fr}.arc-config-compact-tabs{flex-wrap:nowrap;overflow-x:auto}.arc-config-compact-tabs button{flex:none;padding:7px}.arc-config-v3 .arc-settings-form{padding:9px}}@media(max-width:490px){.arc-brand-main-fields{grid-template-columns:1fr}.arc-brand-settings{grid-template-columns:100px 1fr}.arc-audit-modal dl{grid-template-columns:1fr}.arc-audit-modal dt{border:0;padding-bottom:0}}@media(prefers-reduced-motion:reduce){.arc-config-v3 *{scroll-behavior:auto!important}}
+@media(max-width:800px){.arc-config-v3 .arc-settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.arc-brand-settings{grid-template-columns:110px 1fr}.arc-brand-main-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.arc-audit-grid th{padding:8px 6px}.arc-audit-grid td{padding:8px 6px}}@media(max-width:520px){.arc-config-v3 .arc-settings-grid{grid-template-columns:1fr}.arc-config-v3 .arc-settings-form{padding:9px}}@media(max-width:490px){.arc-brand-main-fields{grid-template-columns:1fr}.arc-brand-settings{grid-template-columns:100px 1fr}.arc-audit-modal dl{grid-template-columns:1fr}.arc-audit-modal dt{border:0;padding-bottom:0}}@media(prefers-reduced-motion:reduce){.arc-config-v3 *{scroll-behavior:auto!important}}
 .arc-log-clean-options{display:grid;gap:8px;margin:12px 0}.arc-log-clean-options label{display:flex;gap:9px;align-items:center;padding:10px;border:1px solid var(--setting-border);border-radius:8px}.arc-log-field-opts{display:flex;gap:9px;flex-wrap:wrap;font-size:11px}.arc-log-field-opts label{display:flex;gap:4px;align-items:center}.arc-log-settings-open{margin-left:auto;white-space:nowrap}.arc-log-admin-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0;font-size:11px}.arc-log-admin-actions span{opacity:.7}.arc-log-policy-inner{max-height:85vh;display:flex;flex-direction:column;gap:10px}.arc-log-policy-form{min-height:0;overflow:auto}.arc-log-policy-tabs{display:flex;border-bottom:1px solid var(--setting-border);gap:6px}.arc-log-policy-tabs button{border:0;background:transparent;color:inherit;padding:10px;cursor:pointer}.arc-log-policy-tabs button.active{border-bottom:2px solid var(--accent-color,#2878df);font-weight:700}.arc-log-policy-row,.arc-log-retention-row{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid var(--setting-border);padding:9px}.arc-log-policy-row small{display:block;opacity:.65}.arc-log-retention-row{flex-wrap:wrap}.arc-log-retention-row label{display:grid;font-size:11px;gap:4px}.arc-log-retention-row input{width:100px;padding:8px;background:var(--surface);color:inherit;border:1px solid var(--setting-border);border-radius:7px}.arc-log-policy-form footer{display:flex;justify-content:end;gap:8px;padding-top:12px}@media(max-width:650px){.arc-settings-heading{flex-wrap:wrap}.arc-log-field-opts{display:flex;gap:9px;flex-wrap:wrap;font-size:11px}.arc-log-field-opts label{display:flex;gap:4px;align-items:center}.arc-log-settings-open{margin-left:0}}
 
 .arc-config-context{font-size:12px;line-height:1.6;opacity:.85;margin:12px 0}
@@ -481,8 +593,11 @@ $managedConnections=[];foreach($managedQ->fetchAll(PDO::FETCH_ASSOC) as $managed
 <script>
 (function(){
 document.querySelectorAll('[data-copy-uri]').forEach(button=>button.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(button.dataset.copyUri);button.textContent='Copiado';setTimeout(()=>button.textContent='Copiar',1500)}catch{button.textContent='Selecione e copie o endereço acima';}}));
-const tabs=[...document.querySelectorAll('[data-config-tab]')],panels=[...document.querySelectorAll('[data-config-panel]')];
-function show(key){tabs.forEach(t=>{let on=t.dataset.configTab===key;t.classList.toggle('active',on);t.setAttribute('aria-selected',String(on));});panels.forEach(p=>{let on=p.dataset.configPanel===key;p.classList.toggle('active',on);p.hidden=!on;p.querySelectorAll('input,select,textarea').forEach(el=>{el.disabled=!on;});});const canonical=new URL('admin/configuracoes.php',document.baseURI);
+const tabs=[...document.querySelectorAll('[data-config-tab]')],panels=[...document.querySelectorAll('[data-config-panel]')],groupButtons=[...document.querySelectorAll('[data-config-group]')],ribbonSets=[...document.querySelectorAll('[data-ribbon-set]')];
+const tabGroups=<?=json_encode($tabGroup,JSON_UNESCAPED_UNICODE)?>,lastTab={};
+function showGroup(group){groupButtons.forEach(b=>{const on=b.dataset.configGroup===group;b.classList.toggle('active',on);b.setAttribute('aria-selected',String(on));});ribbonSets.forEach(set=>{set.hidden=set.dataset.ribbonSet!==group;});}
+groupButtons.forEach(b=>b.addEventListener('click',()=>{const group=b.dataset.configGroup;const set=ribbonSets.find(x=>x.dataset.ribbonSet===group);const target=lastTab[group]||set?.querySelector('[data-config-tab]')?.dataset.configTab;if(target)show(target);}));
+function show(key){const group=tabGroups[key];if(group){lastTab[group]=key;showGroup(group);}tabs.forEach(t=>{let on=t.dataset.configTab===key;t.classList.toggle('active',on);t.setAttribute('aria-selected',String(on));});panels.forEach(p=>{let on=p.dataset.configPanel===key;p.classList.toggle('active',on);p.hidden=!on;p.querySelectorAll('input,select,textarea').forEach(el=>{el.disabled=!on;});});const canonical=new URL('admin/configuracoes.php',document.baseURI);
 const parameters=new URLSearchParams(location.search);
 parameters.set('tab',key);
 canonical.search=parameters.toString();
@@ -493,7 +608,7 @@ if(location.pathname+location.search+location.hash!==canonical.pathname+canonica
 tabs.forEach(t=>t.addEventListener('click',()=>show(t.dataset.configTab)));
 document.querySelectorAll('[data-open-settings]').forEach(b=>b.addEventListener('click',()=>{show(b.dataset.openSettings);window.scrollTo({top:0,behavior:'smooth'});}));
 const filter=document.getElementById('arc-db-filter');if(filter)filter.addEventListener('input',()=>{const query=filter.value.toLocaleLowerCase('pt-BR').trim();document.querySelectorAll('[data-db-search]').forEach(t=>{t.hidden=query!==''&&!t.dataset.dbSearch.includes(query);});});
-const remap=key=>key==='nuvem'?'apis':(key==='seguranca'?'login':(key==='monitoramento'?'manutencao':key));const hash=remap(location.hash.substring(1));const requested=remap(new URLSearchParams(location.search).get('tab'));const preferred=tabs.some(t=>t.dataset.configTab===hash)?hash:(tabs.some(t=>t.dataset.configTab===requested)?requested:'dados');show(preferred);
+const remap=key=>key==='nuvem'?'apis':(key==='monitoramento'?'gestores':key);const hash=remap(location.hash.substring(1));const requested=remap(new URLSearchParams(location.search).get('tab'));const preferred=tabs.some(t=>t.dataset.configTab===hash)?hash:(tabs.some(t=>t.dataset.configTab===requested)?requested:'dados');show(preferred);
 
 document.querySelectorAll('[data-log-pane-button]').forEach(button=>button.addEventListener('click',()=>{const id=button.dataset.logPaneButton;document.querySelectorAll('[data-log-pane-button]').forEach(b=>b.classList.toggle('active',b===button));document.querySelectorAll('[data-log-pane]').forEach(p=>p.hidden=p.dataset.logPane!==id)}));
 const cleanModal=document.getElementById('arc-log-clean-modal'),cleanForm=document.getElementById('arcLogCleanForm');if(cleanModal&&cleanForm){const close=()=>cleanModal.hidden=true;document.getElementById('arcLogCleanOpen')?.addEventListener('click',()=>{cleanForm.reset();document.getElementById('arcLogCleanResult').textContent='';cleanModal.hidden=false});document.getElementById('arcLogCleanClose').onclick=document.getElementById('arcLogCleanCancel').onclick=close;cleanModal.addEventListener('click',e=>{if(e.target===cleanModal)close()});document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});cleanForm.addEventListener('submit',async e=>{e.preventDefault();const output=document.getElementById('arcLogCleanResult'),button=document.getElementById('arcLogCleanSubmit');if(!cleanForm.querySelector('[name="sources[]"]:checked')){output.textContent='Selecione pelo menos uma categoria.';return}button.disabled=true;output.textContent='Limpando…';try{const r=await fetch(<?=json_encode(arc_workspace_base_url().'admin/clean.php')?>,{method:'POST',credentials:'same-origin',body:new FormData(cleanForm)});const contentType=r.headers.get('content-type')||'';if(!contentType.toLowerCase().includes('application/json'))throw Error('Servidor retornou uma resposta inesperada (HTTP '+r.status+'). Confira a sessao administrativa e o log do PHP.');const j=await r.json();if(!r.ok||!j.ok)throw Error(j.message||'Falha ao limpar');output.textContent=j.message;setTimeout(()=>location.reload(),1300)}catch(error){output.textContent='Erro: '+error.message}finally{button.disabled=false}})}
@@ -536,4 +651,68 @@ document.querySelectorAll('[data-managed-s3-save]').forEach(btn=>btn.addEventLis
 })));
 })();
 </script>
+<?php if($tab==='aparencia'):?>
+<script>
+/* Caminho: admin/configuracoes.php — atualização imediata dos temas, com CSRF e confirmação do servidor. */
+(()=>{
+ const form=document.querySelector('form.arc-config-section-form input[name="tab"][value="aparencia"]')?.closest('form');
+ if(!form)return;
+ const radios=[...form.querySelectorAll('input[name="platform_visual_theme"]')],mode=form.querySelector('[name="platform_visual_mode"]');
+ if(!radios.length||!mode)return;
+ const info=document.createElement('small');info.setAttribute('role','status');info.className='arc-theme-save-state';
+ info.style.cssText='display:block;margin:8px 0;color:var(--muted)';
+ form.querySelector('.arc-theme-library')?.append(info);
+ const root=document.documentElement,initial={design:root.dataset.arcDesign,theme:root.dataset.theme,system:root.dataset.arcSystemTheme};
+ const csrf=form.querySelector('[name="_csrf"]')?.value||'';
+ let last={theme:radios.find(r=>r.checked)?.value||'windows',mode:mode.value},version=0,controller=null;
+ const lightThemes=new Set(['windows','crystal','sandstone','slate']);
+ function apply(theme,brightness){root.dataset.arcDesign=theme;const effective=brightness==='theme'?(lightThemes.has(theme)?'light':'dark'):brightness;root.dataset.arcSystemTheme=effective;root.dataset.arcTheme=effective;root.dataset.theme=effective==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):effective;}
+ async function save(){
+  const selection=radios.find(r=>r.checked)?.value||last.theme,brightness=mode.value;
+  const v=++version;controller?.abort();controller=new AbortController();apply(selection,brightness);
+  info.textContent='Aplicando tema a toda a plataforma...';
+  const body=new URLSearchParams({_csrf:csrf,action:'save_theme',tab:'aparencia',platform_visual_theme:selection,platform_visual_mode:brightness});
+  try{const response=await fetch(form.action,{method:'POST',body,credentials:'same-origin',cache:'no-store',signal:controller.signal,headers:{'Accept':'application/json'}});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Falha ao salvar tema.');if(v!==version)return;last={theme:data.theme,mode:data.mode};info.textContent='Tema global aplicado e salvo.';}
+  catch(e){if(e.name==='AbortError'||v!==version)return;radios.find(r=>r.value===last.theme).checked=true;mode.value=last.mode;apply(last.theme,last.mode);info.textContent='Não foi possível salvar. Tema anterior restaurado.';}
+ }
+ radios.forEach(r=>r.addEventListener('change',save));mode.addEventListener('change',save);
+})();
+</script>
+<?php endif;?>
 <?php require dirname(__DIR__).'/includes/footer.php'; ?>
+
+<style>
+.gsti-files{font-size:13px}.gsti-files-toolbar,.gsti-files-footer{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:14px 0}.gsti-files-toolbar input{flex:1 1 220px;min-width:120px;padding:9px;border-radius:7px;border:1px solid #77869a55;background:var(--surface);color:var(--text)}.gsti-files-toolbar select{padding:9px;border-radius:7px;background:var(--surface);color:var(--text);border:1px solid #77869a55}.gsti-files-grid{overflow:auto;border:1px solid #7892a044;border-radius:9px}.gsti-files table{width:100%;border-collapse:collapse;font-size:12px;min-width:1050px}.gsti-files th,.gsti-files td{padding:9px;border-bottom:1px solid #7892a033;text-align:left;vertical-align:middle}.gsti-files th{position:sticky;top:0;background:var(--surface);z-index:1}.gsti-files th button{border:0;background:none;font:inherit;font-weight:700;color:inherit;cursor:pointer}.gsti-files td.path{max-width:390px;overflow-wrap:anywhere}.gsti-files .gsti-tag{border-radius:7px;padding:3px 7px;background:rgba(150,160,170,.16)}.gsti-files .gsti-candidate{color:#d18f25}.gsti-files .gsti-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:0}.gsti-files tr.gsti-located{outline:2px solid #23b6ed;outline-offset:-2px}.gsti-files .gsti-actions button:focus-visible{outline:2px solid #23b6ed}.gsti-files .gsti-actions button{border:1px solid #7892a055;border-radius:5px;background:transparent;color:inherit;padding:4px 6px;cursor:pointer}.gsti-files-summary{padding:10px;background:var(--surface);border-radius:7px;margin:12px 0}.gsti-files-footer span{margin-right:auto}.gsti-edit-dialog{border:1px solid #7892a055;border-radius:12px;padding:18px;width:min(900px,95vw);max-height:90vh;background:var(--surface);color:var(--text)}.gsti-edit-dialog::backdrop{background:#0009}.gsti-edit-dialog header,.gsti-edit-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:10px}.gsti-edit-dialog textarea{width:100%;height:min(55vh,500px);background:var(--surface);color:var(--text);font:12px monospace;padding:10px}.gsti-edit-dialog p{overflow-wrap:anywhere}
+
+.gsti-files td.path .gsti-path-check{border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;text-align:left;padding:2px 0;overflow-wrap:anywhere;max-width:100%;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px}.gsti-files td.path .gsti-path-check:hover,.gsti-files td.path .gsti-path-check:focus-visible{text-decoration-color:currentColor;color:#32c1f4}.gsti-files tr.gsti-selected{background:rgba(35,182,237,.075)}
+.gsti-confirm-dialog{border:1px solid #28b6e466;border-radius:17px;padding:26px;width:min(440px,calc(100vw - 28px));background:#102a43;color:#e8f5ff;box-shadow:0 28px 85px #0009;text-align:center}.gsti-confirm-dialog::backdrop{background:rgba(2,12,24,.75);backdrop-filter:blur(4px)}.gsti-confirm-icon{display:grid;place-items:center;margin:0 auto 12px;border-radius:50%;width:58px;height:58px;background:rgba(35,182,237,.15);color:#29b9eb;font-size:24px}.gsti-confirm-dialog h3{font-size:19px;margin:4px 0 11px}.gsti-confirm-dialog p{font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}.gsti-confirm-dialog .gsti-confirm-note{font-size:11px;color:#abc0d1;border-top:1px solid #ffffff18;padding-top:12px;margin-top:16px}.gsti-confirm-dialog footer{display:flex;justify-content:center;gap:10px;margin-top:18px}.gsti-confirm-dialog footer button{min-width:115px}.gsti-confirm-dialog label{display:block;text-align:left;font-size:12px;margin:15px 0}.gsti-confirm-dialog label input{display:block;width:100%;margin-top:6px;padding:11px;border-radius:8px;background:#0c2034;color:#fff;border:1px solid #28b6e47a}.gsti-confirm-dialog label[hidden]{display:none}
+</style>
+<script>
+/* Caminho: admin/configuracoes.php — módulo Sistema / Arquivos */
+(()=>{const wrap=document.getElementById('gsti-files');if(!wrap)return;
+const $=id=>document.getElementById(id),body=$('gsti-table').tBodies[0];let rows=[],view=[],page=0,sort='path',desc=false,selected=new Set(),current='',limit=80;
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>new Intl.NumberFormat('pt-BR').format(n),sz=n=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(1)} KB`:`${(n/1048576).toFixed(1)} MB`;
+const message=t=>$('gsti-message').textContent=t;
+async function api(action,fields={}){const data=new FormData();data.set('action',action);data.set('_csrf',wrap.dataset.csrf);for(const [key,val] of Object.entries(fields)){if(Array.isArray(val))val.forEach(x=>data.append(key+'[]',x));else data.set(key,val);}const res=await fetch(wrap.dataset.api,{method:'POST',body:data,credentials:'same-origin'});let j;try{j=await res.json()}catch{throw Error(`Resposta inesperada do servidor (HTTP ${res.status}).`)}if(!res.ok||!j.ok)throw Error(j.message||`HTTP ${res.status}`);return j;}
+function refresh(){const q=$('gsti-filter').value.toLocaleLowerCase('pt-BR').trim(),filter=$('gsti-status').value;view=rows.filter(r=>(filter==='all'||(filter==='candidate')===(r.status==='candidate'))&&(!q||(r.path+' '+r.reason).toLocaleLowerCase('pt-BR').includes(q)));view.sort((a,b)=>{let x=a[sort],y=b[sort],v=typeof x==='number'?x-y:String(x).localeCompare(String(y),'pt-BR');return desc?-v:v;});page=Math.min(page,Math.max(0,Math.ceil(view.length/limit)-1));render();}
+function render(){const subset=view.slice(page*limit,(page+1)*limit);body.innerHTML=subset.map(r=>`<tr class="${selected.has(r.path)?'gsti-selected':''}" data-file-row="${esc(r.path)}"><td><input type="checkbox" data-check="${esc(r.path)}" ${selected.has(r.path)?'checked':''}></td><td class="path"><button type="button" class="gsti-path-check" data-toggle-path="${esc(r.path)}" aria-label="Marcar ou desmarcar ${esc(r.path)}">${esc(r.path)}</button></td><td><span class="gsti-tag ${r.status==='candidate'?'gsti-candidate':''}">${r.status==='candidate'?'Candidato':'Não classificado'}</span></td><td>${sz(r.bytes)}</td><td>${new Date(r.mtime*1000).toLocaleDateString('pt-BR')}</td><td>${esc(r.reason)}</td><td><div class="gsti-actions"><button type="button" data-do="edit" data-path="${esc(r.path)}" title="Editar arquivo">Editar</button><button type="button" data-do="rename" data-path="${esc(r.path)}" title="Renomear arquivo">Renomear</button><button type="button" data-do="delete" data-path="${esc(r.path)}" title="Excluir após backup">Excluir</button><button type="button" data-do="download" data-path="${esc(r.path)}" title="Baixar arquivo">Baixar</button><button type="button" data-do="locate" data-path="${esc(r.path)}" title="Localizar o arquivo na grade">Localizar</button><button type="button" data-do="web" data-path="${esc(r.path)}" title="Abrir na web, se público">Web</button></div></td></tr>`).join('');$('gsti-count').textContent=`${fmt(view.length)} arquivos filtrados · página ${page+1} de ${Math.max(1,Math.ceil(view.length/limit))} · ${selected.size} selecionados`;$('gsti-bulk').disabled=!selected.size;$('gsti-clear').disabled=!selected.size;$('gsti-select-filtered').disabled=!view.length;$('gsti-prev').disabled=page===0;$('gsti-next').disabled=(page+1)*limit>=view.length;const checked=subset.filter(r=>selected.has(r.path)).length;$('gsti-all').checked=!!subset.length&&checked===subset.length;$('gsti-all').indeterminate=checked>0&&checked<subset.length;}
+function locate(path){$('gsti-filter').value=path;$('gsti-status').value='all';refresh();const tr=[...body.querySelectorAll('tr')].find(tr=>tr.dataset.fileRow===path);if(tr){tr.classList.add('gsti-located');tr.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>tr.classList.remove('gsti-located'),2500);}}
+async function download(path){const data=new FormData();data.set('action','download');data.set('_csrf',wrap.dataset.csrf);data.set('path',path);const res=await fetch(wrap.dataset.api,{method:'POST',body:data,credentials:'same-origin'});if(!res.ok){let j;try{j=await res.json()}catch{}throw Error(j?.message||`Falha ao baixar (HTTP ${res.status}).`);}const blob=await res.blob(),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download=path.split('/').pop();document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
+async function webOpen(path){const j=await api('web',{path});window.open(j.url,'_blank','noopener,noreferrer');}
+
+async function scan(){message('Analisando arquivos...');$('gsti-scan').disabled=true;try{const j=await api('scan');rows=j.report.files||[];selected.clear();page=0;$('gsti-summary').textContent=`${fmt(j.report.scanned)} arquivos examinados · ${fmt(j.report.candidates)} candidatos · ${fmt(j.report.directories)} pastas · ${j.report.truncated?'Resultado limitado.':''}`;refresh();message('Análise concluída. Verifique cada candidato antes de excluir.')}catch(e){message('Erro: '+e.message)}finally{$('gsti-scan').disabled=false}}
+function ask({title='Confirmar operação',message:description='',inputLabel='',inputValue='',danger=false}={}){
+ return new Promise(resolve=>{const dialog=$('gsti-confirm'),heading=$('gsti-confirm-heading'),info=$('gsti-confirm-message'),label=$('gsti-confirm-label'),field=$('gsti-confirm-input'),yes=$('gsti-confirm-yes'),no=$('gsti-confirm-cancel');heading.textContent=title;info.textContent=description;label.hidden=!inputLabel;field.value=inputValue;label.firstChild.textContent=inputLabel||'';yes.style.background=danger?'#b72f43':'';let done=false;
+ const finish=value=>{if(done)return;done=true;yes.removeEventListener('click',onYes);no.removeEventListener('click',onNo);dialog.removeEventListener('cancel',onCancel);dialog.removeEventListener('close',onClose);if(dialog.open)dialog.close();resolve(value)};
+ const onYes=()=>{if(inputLabel&&!field.value.trim()){field.focus();return}finish(inputLabel?field.value.trim():true)},onNo=()=>finish(null),onCancel=e=>{e.preventDefault();finish(null)},onClose=()=>finish(null);yes.addEventListener('click',onYes);no.addEventListener('click',onNo);dialog.addEventListener('cancel',onCancel);dialog.addEventListener('close',onClose);dialog.showModal();if(inputLabel)field.focus();else yes.focus();
+ });
+}
+async function authorization(operation,fields){return (await api('authorize',{operation,...fields})).approval}
+async function deletion(paths){if(!paths.length)return;if(paths.length>100){message('Limite: 100 arquivos por exclusão. Reduza a seleção.');return;}const known=rows.filter(r=>paths.includes(r.path)),unknown=known.filter(r=>r.status!=='candidate');const msg=`Excluir ${paths.length} arquivo(s)?\n${unknown.length?unknown.length+' não possuem evidência de obsolescência e sua exclusão pode interromper o sistema.\n':''}Uma cópia ZIP será criada e verificada antes da remoção.`;if(!await ask({title:'Confirmar exclusão',message:msg,danger:true}))return;try{message('Criando backup e processando...');const approval=await authorization('delete',{paths});const j=await api('delete',{paths,approval});message(`Backup: ${j.archive}. Excluídos: ${j.removed.length}. Falhas: ${j.failed.length}.`);await scan()}catch(e){message('Erro: '+e.message)}}
+$('gsti-scan').onclick=scan;$('gsti-filter').oninput=()=>{page=0;refresh()};$('gsti-status').onchange=()=>{page=0;refresh()};document.querySelectorAll('#gsti-table [data-sort]').forEach(b=>b.onclick=()=>{desc=sort===b.dataset.sort?!desc:false;sort=b.dataset.sort;refresh()});$('gsti-prev').onclick=()=>{page--;render()};$('gsti-next').onclick=()=>{page++;render()};$('gsti-all').onchange=e=>{view.slice(page*limit,(page+1)*limit).forEach(r=>e.target.checked?selected.add(r.path):selected.delete(r.path));render()};$('gsti-bulk').onclick=()=>deletion([...selected]);$('gsti-select-filtered').onclick=()=>{view.forEach(r=>selected.add(r.path));render()};$('gsti-clear').onclick=()=>{selected.clear();render()};
+body.addEventListener('change',e=>{if(e.target.matches('[data-check]')){let p=e.target.dataset.check;e.target.checked?selected.add(p):selected.delete(p);render()}});
+body.addEventListener('click',async e=>{const toggle=e.target.closest('[data-toggle-path]');if(toggle){const path=toggle.dataset.togglePath;selected.has(path)?selected.delete(path):selected.add(path);render();return;}const b=e.target.closest('[data-do]');if(!b)return;const path=b.dataset.path;try{if(b.dataset.do==='delete'){await deletion([path]);return;}if(b.dataset.do==='locate'){locate(path);return;}if(b.dataset.do==='download'){await download(path);return;}if(b.dataset.do==='web'){await webOpen(path);return;}if(b.dataset.do==='rename'){const name=await ask({title:'Renomear arquivo',message:`Arquivo: ${path}\nAtenção: referências no código não serão atualizadas.`,inputLabel:'Novo nome',inputValue:path.split('/').pop()});if(!name||name===path.split('/').pop())return;const approval=await authorization('rename',{path,name});const j=await api('rename',{path,name,approval});message(`Renomeado. Backup: ${j.archive}`);await scan();return;}const j=await api('read',{path});current=path;$('gsti-edit-title').textContent='Editar';$('gsti-edit-path').textContent=path;$('gsti-edit-text').value=j.content;$('gsti-editor').showModal();}catch(err){message('Erro: '+err.message)}});
+$('gsti-edit-cancel').onclick=()=>$('gsti-editor').close();$('gsti-edit-save').onclick=async()=>{const content=$('gsti-edit-text').value;if(!await ask({title:'Salvar alterações',message:`Salvar alterações em ${current}? Será criado um ZIP verificado com o original.`}))return;try{const approval=await authorization('edit',{path:current,content});const j=await api('edit',{path:current,content,approval});$('gsti-editor').close();message('Arquivo atualizado. Backup: '+j.archive);await scan()}catch(e){message('Erro: '+e.message)}};
+})();
+</script>

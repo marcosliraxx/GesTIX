@@ -16,7 +16,7 @@
 (function(){
 'use strict';
 const networkId=<?= (int)$networkId ?>, csrf=<?= json_encode($csrf) ?>, base=<?= json_encode(arc_workspace_base_url()) ?>;
-const target=document.getElementById('arc-agent-target'), log=document.getElementById('arc-command-log'), status=document.getElementById('arc-connection-status'), refresh=document.getElementById('arc-network-global-state');
+const target=document.getElementById('arc-gestor-target'), log=document.getElementById('arc-command-log'), status=document.getElementById('arc-connection-status'), refresh=document.getElementById('arc-network-global-state');
 if(!target||!log||!status)return;
 // BLOCO 01 — AVISO ÚNICO PARA COMANDOS DA REDE (SEM BARRA DUPLICADA).
 // Percentuais reais vêm da API; na ausência deles, há estimativa visual identificada e animação de atividade.
@@ -34,7 +34,7 @@ const dismissButton=document.createElement('button');dismissButton.type='button'
 const cancelCommandButton=document.createElement('button');cancelCommandButton.type='button';cancelCommandButton.className='arc-notice-error-action';cancelCommandButton.textContent='Cancelar';cancelCommandButton.hidden=true;
 progressHeader.append(cancelCommandButton,errorButton,dismissButton);log.replaceChildren(progressHeader,progressTrack);
 const errorDialog=document.createElement('dialog');errorDialog.id='arc-remote-error-details';errorDialog.setAttribute('aria-labelledby','arc-remote-error-title');
-errorDialog.innerHTML=`<div class="arc-error-head"><div><h2 id="arc-remote-error-title">Diagnóstico de operação remota</h2><small>Relatório técnico da plataforma e do agente</small></div><button type="button" data-error-close aria-label="Fechar">×</button></div><div class="arc-error-body"><p id="arc-error-explanation">Carregando diagnóstico…</p><pre id="arc-error-report" tabindex="0"></pre><div class="arc-error-history" id="arc-error-history" hidden></div></div><footer class="arc-error-actions"><button type="button" data-error-history>Falhas recentes</button><button type="button" data-error-copy>Copiar relatório</button><button type="button" data-error-close>Fechar</button></footer>`;
+errorDialog.innerHTML=`<div class="arc-error-head"><div><h2 id="arc-remote-error-title">Diagnóstico de operação remota</h2><small>Relatório técnico da plataforma e do gestor</small></div><button type="button" data-error-close aria-label="Fechar">×</button></div><div class="arc-error-body"><p id="arc-error-explanation">Carregando diagnóstico…</p><pre id="arc-error-report" tabindex="0"></pre><div class="arc-error-history" id="arc-error-history" hidden></div></div><footer class="arc-error-actions"><button type="button" data-error-history>Falhas recentes</button><button type="button" data-error-copy>Copiar relatório</button><button type="button" data-error-close>Fechar</button></footer>`;
 document.body.append(errorDialog);
 const style=document.createElement('style');style.textContent=`
 body>.arc-command-log.arc-operation-notice{position:fixed!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 78px)!important;left:auto!important;right:12px!important;width:min(420px,calc(100vw - 24px))!important;max-width:none!important;min-width:0!important;z-index:2147483000!important;box-sizing:border-box!important;pointer-events:none!important;margin:0!important;padding:9px 12px 11px!important;max-height:64px!important;border:1px solid rgba(105,196,235,.6)!important;border-radius:12px!important;background:rgba(15,32,56,.79)!important;backdrop-filter:blur(18px) saturate(140%)!important;-webkit-backdrop-filter:blur(18px) saturate(140%)!important;box-shadow:0 10px 26px #0007!important;transform:translateX(calc(100% + 24px))!important;opacity:0!important;visibility:hidden!important;transition:transform .25s ease,opacity .25s ease,visibility .25s!important}
@@ -82,7 +82,7 @@ body>.arc-command-log.arc-operation-notice[data-kind=error]{pointer-events:auto!
 cancelCommandButton.addEventListener('click',async()=>{
  if(!window.confirm('Cancelar a operação remota em andamento?'))return;
  cancelCommandButton.disabled=true;
- try{const response=await fetch(base+'api/api.php?action=network-operation-cancel',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value)})});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Cancelamento não confirmado');notice('Cancelamento solicitado à plataforma.','info',false,0)}catch(e){showFailure({command:'operation_cancel',message:e.message})}finally{cancelCommandButton.disabled=false;cancelCommandButton.hidden=true}
+ try{const response=await fetch(base+'api/api.php?action=network-operation-cancel',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,gestor_id:Number(target.value)})});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Cancelamento não confirmado');notice('Cancelamento solicitado à plataforma.','info',false,0)}catch(e){showFailure({command:'operation_cancel',message:e.message})}finally{cancelCommandButton.disabled=false;cancelCommandButton.hidden=true}
 });
 let pollBusy=false;
 let toastTimer, lastSignature='', activeCommand=false,queuedCommandId=0,activeProgressId=0;
@@ -97,7 +97,7 @@ function dismissFailure(){cancelCommandButton.hidden=true;stickyError=false;sele
 function showFailure(info){
  const item=info||{};const id=Number(item.command_id||item.id)||0;
  if(id)persistSeenError(id);
- selectedError={command_id:id,command:item.command||item.command_name||'Operação remota',message:String(item.message||item.result_text||'Falha não detalhada'),time:item.completed_at||new Date().toISOString(),agent:target?.selectedOptions?.[0]?.textContent?.trim()||'Agente não identificado'};
+ selectedError={command_id:id,command:item.command||item.command_name||'Operação remota',message:String(item.message||item.result_text||'Falha não detalhada'),time:item.completed_at||new Date().toISOString(),gestor:target?.selectedOptions?.[0]?.textContent?.trim()||'Gestor não identificado'};
  stickyError=true;activeProgressId=0;cancelCommandButton.hidden=true;
  notice('Erro em '+(labels[selectedError.command]||selectedError.command)+' · '+selectedError.message,'error',false,0);
  clearTimeout(toastTimer);errorButton.hidden=true;dismissButton.hidden=true;log.hidden=true;
@@ -111,14 +111,14 @@ function composeReport(row){
  return ['DIAGNÓSTICO REMOTO — T.I Digital',
  'Comando: '+(row.command_name||row.command||'Desconhecido'),
  'ID do comando: '+(row.command_id||'Não enviado'),
- 'Computador: '+(row.machine_name||row.agent||'Não identificado'),
- 'Versão do agente: '+(row.agent_version||'Não informada'),
+ 'Computador: '+(row.machine_name||row.gestor||'Não identificado'),
+ 'Versão do gestor: '+(row.gestor_version||'Não informada'),
  'Status: '+(row.status||'Falhou'),
  'Código: '+(row.error_code||'Não informado'),
  'Solicitado: '+(row.created_at||''),
  'Finalizado: '+(row.completed_at||row.time||''),
- 'Origem do diagnóstico: '+(row.source==='agent_report'?'Agente Windows':row.source==='platform_status'?'Plataforma':'Interface'),
- '', 'MOTIVO', row.summary||row.message||'Não informado', '', 'DETALHES TÉCNICOS', row.details||row.message||'O agente não enviou mais detalhes.'].join('\n');
+ 'Origem do diagnóstico: '+(row.source==='gestor_report'?'Gestor Windows':row.source==='platform_status'?'Plataforma':'Interface'),
+ '', 'MOTIVO', row.summary||row.message||'Não informado', '', 'DETALHES TÉCNICOS', row.details||row.message||'O gestor não enviou mais detalhes.'].join('\n');
 }
 async function openErrorDetails(info=selectedError){
  if(!info)return;
@@ -130,7 +130,7 @@ async function openErrorDetails(info=selectedError){
   const row=info.command_id?await diagnostic(info.command_id):{...info,source:'interface',summary:info.message,details:info.message};
   errorReport=composeReport(row);
   errorDialog.querySelector('#arc-error-report').textContent=errorReport;
-  errorDialog.querySelector('#arc-error-explanation').textContent=row.source==='platform_status'?'O agente não enviou informações adicionais; este relatório mostra o estado registrado pelo servidor.':'Copie o relatório para análise técnica. Informações sensíveis conhecidas são ocultadas automaticamente.';
+  errorDialog.querySelector('#arc-error-explanation').textContent=row.source==='platform_status'?'O gestor não enviou informações adicionais; este relatório mostra o estado registrado pelo servidor.':'Copie o relatório para análise técnica. Informações sensíveis conhecidas são ocultadas automaticamente.';
  }catch(e){errorReport=composeReport({...info,source:'interface',details:'Não foi possível consultar os detalhes no servidor: '+e.message});errorDialog.querySelector('#arc-error-report').textContent=errorReport;errorDialog.querySelector('#arc-error-explanation').textContent='A consulta falhou; os dados disponíveis ainda podem ser copiados.';}
 }
 errorButton.addEventListener('click',()=>openErrorDetails());dismissButton.addEventListener('click',dismissFailure);
@@ -146,14 +146,14 @@ errorDialog.querySelector('[data-error-copy]').addEventListener('click',async e=
 errorDialog.querySelector('[data-error-history]').addEventListener('click',async()=>{
  const el=errorDialog.querySelector('#arc-error-history');el.hidden=false;el.replaceChildren();el.textContent='Consultando falhas recentes…';
  try{
-  const u=new URL(base+'api/api.php',location.href);u.searchParams.set('action','network-command-errors');u.searchParams.set('network_id',networkId);if(target.value)u.searchParams.set('agent_id',target.value);
+  const u=new URL(base+'api/api.php',location.href);u.searchParams.set('action','network-command-errors');u.searchParams.set('network_id',networkId);if(target.value)u.searchParams.set('gestor_id',target.value);
   const r=await fetch(u,{credentials:'same-origin',cache:'no-store'});const data=await r.json();if(!r.ok||!data.ok)throw Error(data.error||'Histórico indisponível');
-  el.replaceChildren();if(!data.failures?.length){el.textContent='Nenhuma falha registrada para este agente.';return}
+  el.replaceChildren();if(!data.failures?.length){el.textContent='Nenhuma falha registrada para este gestor.';return}
   data.failures.forEach(row=>{const b=document.createElement('button');b.type='button';b.textContent='#'+row.command_id+' · '+(labels[row.command_name]||row.command_name)+' · '+(row.summary||row.status);b.addEventListener('click',()=>openErrorDetails({command_id:row.command_id,command:row.command_name,message:row.summary}));el.append(b)});
  }catch(e){el.textContent=e.message}
 });
 window.arcRemoteFailure=showFailure;
-document.addEventListener('arc:remote-error',e=>{if(!e.detail)return;const d=e.detail;if(d.agent_id&&Number(d.agent_id)!==Number(target.value))return;showFailure(d)});
+document.addEventListener('arc:remote-error',e=>{if(!e.detail)return;const d=e.detail;if(d.gestor_id&&Number(d.gestor_id)!==Number(target.value))return;showFailure(d)});
 
 // BLOCO 02 — Animação independente das consultas ao servidor, sem simular confirmação.
 let estimateActive=false,estimateStarted=0,estimateFloor=5,estimateShown=0,estimateTimer=null,realPercent=null;
@@ -180,7 +180,7 @@ function notice(message,type='info',working=false,pct=null,stageFloor=null){
  if(working){
   if(!estimateActive){estimateActive=true;estimateStarted=performance.now();estimateFloor=5;estimateShown=5;realPercent=null;estimateTimer=setInterval(tickProgress,100)}
   if(Number.isFinite(stageFloor))estimateFloor=Math.max(estimateFloor,Math.min(95,stageFloor));
-  if(valid){realPercent=Math.min(99,Math.max(0,Number(pct)));progressFill.style.width=realPercent+'%';progressPercent.textContent=Math.round(realPercent)+'%';progressPercent.title='Progresso informado pelo agente';progressPercent.setAttribute('aria-label','Progresso informado pelo agente: '+Math.round(realPercent)+' por cento')}
+  if(valid){realPercent=Math.min(99,Math.max(0,Number(pct)));progressFill.style.width=realPercent+'%';progressPercent.textContent=Math.round(realPercent)+'%';progressPercent.title='Progresso informado pelo gestor';progressPercent.setAttribute('aria-label','Progresso informado pelo gestor: '+Math.round(realPercent)+' por cento')}
   else{realPercent=null;tickProgress()}
  }else{
   stopProgressAnimation();realPercent=null;
@@ -193,113 +193,13 @@ function toast(message,type='info'){if(activeProgressId||(stickyError&&type!=='e
 function showProgress(label,state='Tudo certo, estou aguardando o computador…',id=0){activeProgressId=Number(id)||0;notice(state,'info',true,null,25)}
 function endProgress(label,ok){activeProgressId=0;notice(label,ok?'success':'error',false,ok?100:0)}
 function setRunning(on){}
-function setOnline(online){const wrap=status.closest('.arc-agent-select-wrap');if(wrap){wrap.classList.toggle('is-online',!!online);wrap.classList.toggle('is-offline',!online)}status.classList.toggle('is-online',!!online);status.classList.toggle('is-offline',!online);status.title=online?'Agente online':'Agente offline';status.setAttribute('aria-label',status.title)}
-let releaseStatus=null,releaseNotes='',selectedVersion='',selectedAgentPolicy=null;
-let canManageAgent=<?= in_array($teamRole,['owner','administrator'],true)?'true':'false' ?>,versionLookupFailed=false;
-const headerUpdate=document.getElementById('arc-header-agent-update');
-const versionInfo=document.getElementById('arc-agent-version-info');
-const updateTiles=()=>document.querySelectorAll('[data-arc-command="agent_update"]');
-async function refreshAgentVersions(){
- if(!versionInfo&&!headerUpdate)return;
- try{
-  const resp=await fetch(base+'api/api.php?action=network-agent-versions&network_id='+networkId,{cache:'no-store',credentials:'same-origin'});
-  const result=await resp.json();if(!resp.ok||!result.ok)throw Error(result.error||'Consulta indisponível');
-  versionLookupFailed=false;
-  canManageAgent=result.can_update===true;
-  releaseStatus=result.release||null;releaseNotes=String(result.release_notes||'');selectedVersion=String(result.published_version||'');document.dispatchEvent(new CustomEvent('arc:release-status',{detail:releaseStatus}));
-  const current=(result.agents||[]).find(a=>Number(a.id)===Number(target.value));
-  selectedAgentPolicy=current||null;
-  if(versionInfo)versionInfo.textContent=current?.version?'v. '+String(current.version).replace(/^v\.?\s*/i,''):'v. --';
-  document.querySelectorAll('[data-tile-version]').forEach(el=>{const type=el.dataset.tileVersion;el.textContent=type==='agent'?'v'+(result.display_agent_version||result.published_version||'--'):type==='update'?'v'+(result.display_agent_version||result.published_version||'--'):type==='support'?'v'+(result.support_version||'--'):'v'+(result.access_version||'--')});
-  const published=String(result.published_version||'');
-  const installed=String(current?.version||'');
-  // O aviso visual informa versões disponíveis mesmo a quem não pode disparar atualização.
-  const outdated=!!current?.outdated;
-  const needsInstall=!!current?.requires_reinstall;
-  if(headerUpdate){
-   headerUpdate.classList.toggle('arc-update-available',outdated);
-   headerUpdate.dataset.updateAvailable=outdated?'1':'0';
-   headerUpdate.title=outdated?'Atualização Windows disponível: '+(installed||'versão desconhecida')+' → '+published:'Agente Windows: instalar ou atualizar';
-   headerUpdate.setAttribute('aria-label',headerUpdate.title);
-  }
-  updateTiles().forEach(btn=>{
-   btn.classList.toggle('arc-update-available',outdated);
-   btn.setAttribute('aria-label',outdated?'Atualização disponível: '+installed+' → '+published:'Atualizar agente');
-   btn.title=needsInstall?'Identifique a versão do agente antes da atualização remota':outdated?'Atualização disponível: '+installed+' → '+published:'Atualizar os arquivos do agente';
-   btn.dataset.updateAvailable=outdated?'1':'0';
-   btn.dataset.requiresReinstall=needsInstall?'1':'0';
-   btn.disabled=!canManageAgent||!target.value;
-   const subtitle=btn.querySelector('small');
-   if(needsInstall&&subtitle)subtitle.textContent='Versão não identificada';
-  });
- }catch(_e){
-  versionLookupFailed=true;selectedAgentPolicy=null;releaseStatus=null;releaseNotes='';selectedVersion='';
-  if(headerUpdate){headerUpdate.classList.remove('arc-update-available');headerUpdate.dataset.updateAvailable='0';headerUpdate.title='Agente Windows: consultar instalação e atualizações';headerUpdate.setAttribute('aria-label',headerUpdate.title)}
-  document.dispatchEvent(new CustomEvent('arc:release-status',{detail:null}));
-  if(versionInfo)versionInfo.textContent='v. --';updateTiles().forEach(btn=>btn.classList.remove('arc-update-available'));
- }
-}
-refreshAgentVersions(); // Atualização de versões apenas na abertura e após operações explícitas.
-target.addEventListener('change',()=>document.getElementById('arc-agent-form').requestSubmit());
-document.addEventListener('arc:command-queued',e=>{const d=e.detail||{};if(d.command_id&&Number(d.agent_id)===Number(target.value)&&!activeProgressId)showProgress(labels[d.command]||'Comando remoto','Aguardando o agente',Number(d.command_id))});
-const labels={monitor_start:'Monitoramento iniciado',monitor_pause:'Monitoramento pausado',speed_test:'Teste de velocidade',scan_devices:'Varredura de dispositivos',scan_map:'Atualização da topologia',diagnostic:'Diagnóstico',quick_health:'Saúde rápida',dns_test:'Teste de DNS',public_ip:'IP público',system_snapshot:'Recursos do computador',flush_dns:'Limpeza de DNS',wifi_info:'Sinal Wi-Fi',agent_update:'Atualização remota do agente',power_shutdown:'Desligamento',power_restart:'Reinicialização',power_cancel:'Cancelamento do agendamento'};
-async function askRemoteUpdateConfirm(){
- // A consulta ocorre por clique no ícone ou ao abrir a página, nunca em polling ocioso.
- await refreshAgentVersions();
- return new Promise(resolve=>{
-  const dialog=document.getElementById('arc-agent-update-confirm');
-  if(!dialog||typeof dialog.showModal!=='function')return resolve(null);
-  const agent=(document.querySelector('#arc-agent-target option:checked')?.textContent||'Nenhum agente selecionado').trim();
-  const installed=String(selectedAgentPolicy?.version||'não identificada');
-  const published=selectedVersion||'indisponível';
-  const outdated=!!selectedAgentPolicy?.outdated;
-  const selected=!!target.value;
-  const updatable=selected&&canManageAgent;
-  dialog.querySelector('[data-update-agent-name]').textContent=agent;
-  dialog.querySelector('[data-update-modal-version]').textContent='Versão publicada: '+published;
-  dialog.querySelector('[data-update-agent-details]').textContent='Instalada: '+installed+' · Publicada: '+published+'.';
-  let description;
-  if(versionLookupFailed)description='A consulta de versões está indisponível. O servidor verificará as condições no envio; a atualização forçada exige um agente conectado.';
-  else if(!selected)description='Selecione um agente para atualizar remotamente ou baixe o instalador para um novo computador.';
-  else if(!canManageAgent)description='Seu perfil pode consultar a atualização. A execução remota exige permissão administrativa.';
-  else if(selectedAgentPolicy?.requires_reinstall)description='Versão não identificada: a atualização normal pode exigir reinstalação; a forçada tentará recuperar o agente conectado.';
-  else if(selectedAgentPolicy?.migrate_native)description='O agente antigo será migrado para WinUI 3 pelo canal remoto autorizado. Se ocorrer falha, a versão anterior permanecerá disponível para recuperação.';
-  else if(outdated)description='Uma nova versão está disponível para este computador.';
-  else description='Nenhuma atualização nova detectada. Você ainda pode solicitar uma atualização ou reinstalação forçada, conforme sua permissão.';
-  dialog.querySelector('[data-update-status]').textContent=description;
-  dialog.querySelector('[data-update-release]').textContent=releaseNotes.trim()||'Nenhuma nota de versão foi publicada para esta atualização.';
-  const cancel=dialog.querySelector('[data-update-cancel]');
-  const normal=dialog.querySelector('[data-update-confirm]');
-  const force=dialog.querySelector('[data-update-force-confirm]');
-  normal.disabled=!updatable;
-  force.disabled=!updatable;
-  normal.title=!canManageAgent?'Disponível apenas para administradores':!selected?'Selecione um agente':'Solicitar atualização remota';
-  force.title=!canManageAgent?'Disponível apenas para administradores':!selected?'Selecione um agente':'Solicitar reinstalação remota autorizada';
-  let finished=false;
-  function cleanup(answer){if(finished)return;finished=true;normal.removeEventListener('click',onNormal);force.removeEventListener('click',onForce);cancel.removeEventListener('click',onCancel);dialog.removeEventListener('cancel',onCancel);dialog.removeEventListener('close',onClose);if(dialog.open)dialog.close();resolve(answer)}
-  function onNormal(e){e.preventDefault();if(updatable)cleanup('normal')}
-  function onForce(e){e.preventDefault();if(updatable)cleanup('force')}
-  function onCancel(e){e?.preventDefault();cleanup(null)}
-  function onClose(){cleanup(null)}
-  normal.addEventListener('click',onNormal);force.addEventListener('click',onForce);cancel.addEventListener('click',onCancel);dialog.addEventListener('cancel',onCancel);dialog.addEventListener('close',onClose);
-  dialog.showModal();
- });
-}
-// A mesma fila autenticada executa as duas ações; não há canal remoto alternativo.
-async function queueAgentUpdate(mode){
- await refreshAgentVersions();
- if(!canManageAgent){notice('Seu perfil não tem permissão para atualizar agentes.','error');return;}
- // A API valida autenticação, versão e presença. Falha na consulta auxiliar não bloqueia o envio.
- if(!target.value){notice('Selecione um agente aprovado.','error');return}
- notice('Enviando pedido de atualização…','info',true,null,5);
- try{
-  const resp=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value),command:'agent_update',force_update:mode==='force',_csrf:csrf})});
-  const data=await resp.json();if(!resp.ok||!data.ok)throw Error(data.error||'Falha ao solicitar atualização');
-  activeCommand=true;queuedCommandId=Number(data.command_id||0);showProgress('Atualizando agente','Comando enviado. Aguardando execução no computador…',queuedCommandId);
-  document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:'agent_update',command_id:queuedCommandId,agent_id:Number(target.value)}}));poll(false);
- }catch(err){showFailure({command:'agent_update',message:'Não foi possível solicitar a atualização: '+err.message})}
-}
-headerUpdate?.addEventListener('click',async()=>{const mode=await askRemoteUpdateConfirm();if(mode)await queueAgentUpdate(mode)});
+function setOnline(online){const wrap=status.closest('.arc-gestor-select-wrap');if(wrap){wrap.classList.toggle('is-online',!!online);wrap.classList.toggle('is-offline',!online)}status.classList.toggle('is-online',!!online);status.classList.toggle('is-offline',!online);status.title=online?'Gestor online':'Gestor offline';status.setAttribute('aria-label',status.title)}
+// Modal, versões e envio de atualização do gestor: assets/js/gestor-update.js (window.arcGestorUpdate).
+target.addEventListener('change',()=>document.getElementById('arc-gestor-form').requestSubmit());
+document.addEventListener('arc:command-queued',e=>{const d=e.detail||{};if(d.command_id&&Number(d.gestor_id)===Number(target.value)&&!activeProgressId)showProgress(labels[d.command]||'Comando remoto','Aguardando o gestor',Number(d.command_id))});
+const labels={monitor_start:'Monitoramento iniciado',monitor_pause:'Monitoramento pausado',speed_test:'Teste de velocidade',scan_devices:'Varredura de dispositivos',scan_map:'Atualização da topologia',diagnostic:'Diagnóstico',quick_health:'Saúde rápida',dns_test:'Teste de DNS',public_ip:'IP público',system_snapshot:'Recursos do computador',flush_dns:'Limpeza de DNS',wifi_info:'Sinal Wi-Fi',gestor_update:'Atualização remota do gestor',power_shutdown:'Desligamento',power_restart:'Reinicialização',power_cancel:'Cancelamento do agendamento'};
+// O módulo gestor-update.js avisa quando um pedido de atualização entra na fila; aqui só acompanhamos o progresso.
+document.addEventListener('arc:gestor-update-queued',e=>{const d=e.detail||{};activeCommand=true;queuedCommandId=Number(d.command_id||0);poll(false)});
 
 async function poll(notify=false){
  if(pollBusy)return;pollBusy=true;
@@ -308,9 +208,9 @@ async function poll(notify=false){
  try{
  const r=await fetch(base+'api/api.php?action=network-command-status&network_id='+networkId,{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error('Não foi possível consultar os comandos');
  const j=await r.json();if(!j.ok)throw Error(j.error||'Erro de sincronização');
- const heartbeat=(j.agents||[]).find(a=>Number(a.id)===Number(target.value));
+ const heartbeat=(j.gestores||[]).find(a=>Number(a.id)===Number(target.value));
  setOnline(!!heartbeat&&heartbeat.status==='approved'&&Number(j.server_time)-Number(heartbeat.last_seen_unix||0)<120);
- const commands=(j.commands||[]).filter(x=>Number(x.agent_id)===Number(target.value));
+ const commands=(j.commands||[]).filter(x=>Number(x.gestor_id)===Number(target.value));
  if(!initialErrorsChecked){
   commands.filter(c=>['failed','expired'].includes(String(c.status).toLowerCase())).forEach(c=>persistSeenError(c.id));
   initialErrorsChecked=true;
@@ -330,7 +230,7 @@ async function poll(notify=false){
    const steps={queued:'Já mandei! Assim que o computador responder, aviso aqui.',pending:'Chegou ao servidor. Falta o computador confirmar.',running:'O computador já começou. Acompanhando por aqui…',processing:'Está em andamento. Aviso assim que terminar.'};
    const detail=String(x.result_text||'').trim();
    const reported=x.progress_percent===undefined||x.progress_percent===null||x.progress_percent===''?null:Number(x.progress_percent);
-   const updatePercent=x.command_name==='agent_update'?String(x.result_text||'').match(/(?:WinUI 3|Atualização)\s+(\d{1,3})%/i):null;
+   const updatePercent=x.command_name==='gestor_update'?String(x.result_text||'').match(/(?:WinUI 3|Atualização)\s+(\d{1,3})%/i):null;
    const pct=updatePercent?Math.min(99,Number(updatePercent[1])):reported;
    const phases={queued:25,pending:40,running:70,processing:70};notice(detail||steps[state]||'Estou acompanhando a execução…','info',true,Number.isFinite(pct)?Math.min(99,pct):null,phases[state]??25);
   }else{
@@ -342,7 +242,7 @@ async function poll(notify=false){
    if(!ok)showFailure(x);
    document.dispatchEvent(new CustomEvent('arc:operation-updated',{detail:{id:x.id,status:state,command:x.command_name}}));
    if(ok&&['scan_devices','scan_map','diagnostic','speed_test'].includes(x.command_name))setTimeout(()=>location.reload(),1400);
-   if(x.command_name==='agent_update')refreshAgentVersions();
+   if(x.command_name==='gestor_update')window.arcGestorUpdate?.refresh();
   }
  }
 
@@ -353,17 +253,16 @@ async function poll(notify=false){
 refresh?.addEventListener('click',()=>{refresh.classList.add('is-refreshing');poll(true).finally(()=>setTimeout(()=>refresh.classList.remove('is-refreshing'),650))});
 document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-arc-command]');if(!b)return;
- e.preventDefault();if(!target.value){toast('Selecione um agente aprovado antes de executar comandos.','error');return}
+ e.preventDefault();if(!target.value){toast('Selecione um gestor aprovado antes de executar comandos.','error');return}
  if(b.disabled)return;
- if(b.dataset.arcCommand==='agent_update'){
-  // Botão normal: envia a atualização imediatamente. Apenas a reinstalação
-  // forçada exige confirmação específica, mantendo o mesmo canal autenticado.
-  if(b.dataset.updateForce==='1'){const mode=await askRemoteUpdateConfirm();if(mode==='force')await queueAgentUpdate('force');}
-  else await queueAgentUpdate('normal');
+ if(b.dataset.arcCommand==='gestor_update'){
+  // Tratado por gestor-update.js (captura o clique antes deste ouvinte); este desvio só cobre o carregamento tardio.
+  if(window.arcGestorUpdate){if(b.dataset.updateForce==='1')window.arcGestorUpdate.open();else window.arcGestorUpdate.queue('normal');}
+  else toast('Carregando o módulo de atualização. Tente novamente em instantes.','info');
   return;
  }
  b.disabled=true;setRunning(true);notice('Só um instante, estou enviando…','info',true,null,5);
- try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,agent_id:Number(target.value),command:b.dataset.arcCommand,_csrf:csrf})});const j=await r.json();if(!r.ok||!j.ok){const error=Error(j.error||'Falha ao enviar comando');error.supportRef=j.error_ref||'';throw error;}activeCommand=true;queuedCommandId=Number(j.command_id||0);showProgress(labels[b.dataset.arcCommand]||b.dataset.arcCommand,'Enviei! Estou aguardando o computador confirmar…',queuedCommandId);document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:b.dataset.arcCommand,command_id:Number(j.command_id),agent_id:Number(target.value)}}));poll(false)}catch(err){setRunning(false);activeProgressId=0;showFailure({command:b.dataset.arcCommand,message:'Falha ao enviar comando: '+err.message+(err.supportRef?' Referência: '+err.supportRef:'')})}finally{b.disabled=false}
+ try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:networkId,gestor_id:Number(target.value),command:b.dataset.arcCommand,_csrf:csrf})});const j=await r.json();if(!r.ok||!j.ok){const error=Error(j.error||'Falha ao enviar comando');error.supportRef=j.error_ref||'';throw error;}activeCommand=true;queuedCommandId=Number(j.command_id||0);showProgress(labels[b.dataset.arcCommand]||b.dataset.arcCommand,'Enviei! Estou aguardando o computador confirmar…',queuedCommandId);document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:b.dataset.arcCommand,command_id:Number(j.command_id),gestor_id:Number(target.value)}}));poll(false)}catch(err){setRunning(false);activeProgressId=0;showFailure({command:b.dataset.arcCommand,message:'Falha ao enviar comando: '+err.message+(err.supportRef?' Referência: '+err.supportRef:'')})}finally{b.disabled=false}
 });
 const powerDlg=document.getElementById('arc-power-schedule');
 const powerForm=document.getElementById('arc-power-form');
@@ -375,7 +274,7 @@ function drawCountdown(){for(const [command,data] of deadlines){const tile=docum
 setInterval(drawCountdown,1000);
 function chooseDelay(command){return new Promise(resolve=>{const dlg=powerDlg;if(!dlg||!dlg.showModal)return resolve(null);powerForm.reset();powerForm.elements.custom.disabled=true;dlg.querySelector('#arc-power-title').textContent=command==='power_restart'?'Reiniciar computador':command==='screen_lock'?'Bloquear computador':'Desligar computador';const finish=()=>{dlg.removeEventListener('close',finish);if(dlg.returnValue!=='confirm')return resolve(null);const v=powerForm.querySelector('[name="delay"]:checked')?.value;const seconds=Number(v==='custom'?powerForm.elements.custom.value:v);resolve(Number.isInteger(seconds)&&seconds>=5&&seconds<=3600?seconds:null)};dlg.addEventListener('close',finish);dlg.showModal();});}
 async function sendPower(command,delay,tile){
- const body={network_id:networkId,agent_id:Number(target.value),command,_csrf:csrf,confirmed:true};
+ const body={network_id:networkId,gestor_id:Number(target.value),command,_csrf:csrf,confirmed:true};
  if(delay!==undefined)body.delay_seconds=delay;
  tile.disabled=true;notice('Já estou enviando para o computador…','info',true,null,5);
  try{const r=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Não consegui enviar o pedido');activeProgressId=Number(j.command_id||0);showProgress('','Agendando para '+(delay===undefined?'agora':delay>=60?(delay/60+' min'):(delay+' segundos'))+'…',activeProgressId);const id=Number(j.command_id||0);if(delay!==undefined){if(command==='screen_lock'){deadlines.set(command,{until:Date.now()+delay*1000});drawCountdown()}const check=async()=>{for(let tries=0;tries<45;tries++){await new Promise(resolve=>setTimeout(resolve,2000));const response=await fetch(base+'api/api.php?action=network-command-status&network_id='+networkId,{credentials:'same-origin',cache:'no-store'});if(!response.ok)continue;const data=await response.json();const item=(data.commands||[]).find(x=>Number(x.id)===id);if(item&&['failed','expired'].includes(item.status)){deadlines.delete(command);document.querySelector('[data-power-tile="'+command+'"] .arc-power-countdown')?.remove();return;}if(item?.status==='completed'){if(delay!==undefined)notice('Pronto! Prazo selecionado: '+(delay>=60?(delay/60+' min'):(delay+' segundos'))+'.','success',false,100);const tileCmd=command==='power_cancel'?'power_shutdown':command;if(command==='power_cancel'){deadlines.delete('power_shutdown');document.querySelector('[data-power-tile="power_shutdown"] .arc-power-countdown')?.remove();swapShutdown(false)}else if(command!=='screen_lock'){deadlines.set(tileCmd,{until:Date.now()+delay*1000});drawCountdown();if(command==='power_shutdown')swapShutdown(true)}return}}};check().catch(()=>{})}poll()}
@@ -443,14 +342,14 @@ poll();setInterval(()=>{if(!document.hidden && activeProgressId)poll()},1000);
      <p>Os controles de zoom e qualidade não alteram a autorização da sessão remota.</p>
    </div>
  </dialog>
- <div class="arc-remote-screen-canvas" id="arc-remote-canvas" tabindex="0"><textarea id="arc-remote-mobile-input" aria-label="Teclado do computador remoto" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" tabindex="-1"></textarea><img id="arc-remote-screen-image" alt="Tela compartilhada pelo agente autorizado" draggable="false" hidden><div id="arc-remote-screen-placeholder"><div class="arc-access-only"><button type="button" class="arc-remote-request" id="arc-remote-assistance-send"><i class="fa fa-eye" aria-hidden="true"></i><span>Solicitar acesso</span><small class="arc-tile-version" data-tile-version="access">Versão: verificando…</small></button></div></div></div>
+ <div class="arc-remote-screen-canvas" id="arc-remote-canvas" tabindex="0"><textarea id="arc-remote-mobile-input" aria-label="Teclado do computador remoto" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" tabindex="-1"></textarea><img id="arc-remote-screen-image" alt="Tela compartilhada pelo gestor autorizado" draggable="false" hidden><div id="arc-remote-screen-placeholder"><div class="arc-access-only"><button type="button" class="arc-remote-request" id="arc-remote-assistance-send"><i class="fa fa-eye" aria-hidden="true"></i><span>Solicitar acesso</span><small class="arc-tile-version" data-tile-version="access">Versão: verificando…</small></button></div></div></div>
  <div class="arc-remote-screen-actions"><small id="arc-remote-assistance-state" role="status">Aguardando solicitação de acesso.</small><small id="arc-remote-control-hint" hidden></small><button type="button" id="arc-remote-screen-stop" hidden>Encerrar sessão</button></div>
 </dialog>
 <div id="arc-support-moved-grid" class="arc-support-action-grid" hidden>
 
 <a class="arc-remote-request arc-remote-download" id="arc-remote-support-download" href="<?=arc_h(arc_workspace_base_url().'api/download-support.php')?>" download><i class="fa fa-download"></i><span>Baixar suporte</span><small class="arc-tile-version" data-tile-version="support">Versão: verificando…</small></a>
-<button type="button" class="arc-remote-request" data-arc-command="agent_update" title="Atualizar arquivos do agente instalado"><i class="fa fa-refresh" aria-hidden="true"></i><span>Atualizar agente</span><small class="arc-tile-version" data-tile-version="update">Versão: verificando…</small></button>
-<button type="button" class="arc-remote-request" data-arc-command="agent_update" data-update-force="1" title="Reinstalar integralmente o pacote gerenciado, preservando cadastro e configurações"><i class="fa fa-cloud-download" aria-hidden="true"></i><span>Atualização forçada</span><small>Reinstalar pacote completo</small></button>
+<button type="button" class="arc-remote-request" data-arc-command="gestor_update" title="Atualizar arquivos do gestor instalado"><i class="fa fa-refresh" aria-hidden="true"></i><span>Atualizar gestor</span><small class="arc-tile-version" data-tile-version="update">Versão: verificando…</small></button>
+<button type="button" class="arc-remote-request" data-arc-command="gestor_update" data-update-force="1" title="Reinstalar integralmente o pacote gerenciado, preservando cadastro e configurações"><i class="fa fa-cloud-download" aria-hidden="true"></i><span>Atualização forçada</span><small>Reinstalar pacote completo</small></button>
 <button type="button" class="arc-remote-request" data-support-action="power_restart" data-power-tile="power_restart"><i class="fa fa-refresh"></i><span>Reiniciar PC</span></button>
 <button type="button" class="arc-remote-request" data-support-action="screen_lock" data-power-tile="screen_lock"><i class="fa fa-lock"></i><span>Bloquear PC</span></button>
 <button type="button" class="arc-remote-request" id="arc-unlock-pc" <?=!in_array($teamRole,['owner','administrator'],true)?'disabled aria-disabled="true"':''?>><i class="fa fa-unlock-alt" aria-hidden="true"></i><span>Desbloquear PC</span></button>
@@ -459,8 +358,8 @@ poll();setInterval(()=>{if(!document.hidden && activeProgressId)poll()},1000);
 <button type="button" class="arc-remote-request <?=!in_array($teamRole,['owner','administrator'],true)?'arc-action-locked':''?>" data-support-action="power_shutdown" data-power-tile="power_shutdown" <?=!in_array($teamRole,['owner','administrator'],true)?'disabled aria-disabled="true"':''?>><i class="fa fa-power-off"></i><span>Desligar PC</span><?=!in_array($teamRole,['owner','administrator'],true)?'<small><i class="fa fa-lock"></i> Somente admin</small>':''?></button><button type="button" class="arc-power-cancel arc-remote-request" data-power-cancel="1" hidden title="Cancelar desligamento agendado" style="font-size:11px;border:1px solid #376587;border-radius:8px;color:#bfe9ff;background:#193149;padding:8px">Cancelar desligamento</button>
 </div>
 
-<!-- Confirmação de sessão para agentes autorizados pelo gestor como "sem monitor/teclado/mouse"
-     (aba Agentes do gerenciador da rede). Faz parte do mesmo botão "Solicitar acesso" acima — não é um
+<!-- Confirmação de sessão para gestores autorizados pelo gestor como "sem monitor/teclado/mouse"
+     (aba Gestores do gerenciador da rede). Faz parte do mesmo botão "Solicitar acesso" acima — não é um
      atalho separado nem escondido; só aparece quando não há como o computador remoto pedir confirmação
      a ninguém. A sessão continua visível na tela remota (se houver uma) e registrada na auditoria. -->
 <dialog id="arc-remote-auto-modal" class="arc-remote-auto-modal" aria-labelledby="arc-remote-auto-title">
@@ -479,7 +378,7 @@ poll();setInterval(()=>{if(!document.hidden && activeProgressId)poll()},1000);
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
-const dialog=$('arc-remote-assistance-modal'),open=$('arc-agent-remote-view'),send=$('arc-remote-assistance-send'),close=$('arc-remote-assistance-close'),stop=$('arc-remote-screen-stop'),state=$('arc-remote-assistance-state'),select=$('arc-agent-target'),host=$('arc-remote-assistance-host'),image=$('arc-remote-screen-image'),placeholder=$('arc-remote-screen-placeholder'),canvas=$('arc-remote-canvas'),tools=$('arc-remote-tools'),hint=$('arc-remote-control-hint'),mobileInput=$('arc-remote-mobile-input'),fsBtn=$('arc-remote-fullscreen'),monitorWrap=$('arc-remote-monitor-wrap'),monitorSelect=$('arc-remote-monitor');
+const dialog=$('arc-remote-assistance-modal'),open=$('arc-gestor-remote-view'),send=$('arc-remote-assistance-send'),close=$('arc-remote-assistance-close'),stop=$('arc-remote-screen-stop'),state=$('arc-remote-assistance-state'),select=$('arc-gestor-target'),host=$('arc-remote-assistance-host'),image=$('arc-remote-screen-image'),placeholder=$('arc-remote-screen-placeholder'),canvas=$('arc-remote-canvas'),tools=$('arc-remote-tools'),hint=$('arc-remote-control-hint'),mobileInput=$('arc-remote-mobile-input'),fsBtn=$('arc-remote-fullscreen'),monitorWrap=$('arc-remote-monitor-wrap'),monitorSelect=$('arc-remote-monitor');
 if(!dialog||!open||!send||!select)return;
 const network=<?= (int)$networkId ?>,csrf=<?= json_encode($csrf) ?>,base=<?= json_encode(arc_workspace_base_url()) ?>;
 const HINT_VIEW='Tela completa, incluindo a barra de tarefas. O controle de mouse e teclado depende da autorização no computador remoto.';
@@ -487,7 +386,7 @@ const HINT_CTRL='Controle ativo: toque ou clique para controlar. No celular, use
 let commandId=0,timer=null,locked=false,live=false,controlOn=false,pumping=false,lastMonitorKey='';
 // BLOCO 31 — SESSÃO PERSISTENTE: compartilhada entre abas da mesma origem e rede.
 const REMOTE_KEY='arcoll:remote-session:'+network;
-function saveRemoteSession(){try{if(commandId)localStorage.setItem(REMOTE_KEY,JSON.stringify({command_id:commandId,agent_id:Number(select.value),saved_at:Date.now()}));}catch(e){}}
+function saveRemoteSession(){try{if(commandId)localStorage.setItem(REMOTE_KEY,JSON.stringify({command_id:commandId,gestor_id:Number(select.value),saved_at:Date.now()}));}catch(e){}}
 function clearRemoteSession(){try{localStorage.removeItem(REMOTE_KEY)}catch(e){}}
 function showRemoteViewer(activate=true){
  const stage=document.getElementById('arc-support-stage');
@@ -499,19 +398,19 @@ function showRemoteViewer(activate=true){
 async function restoreRemoteSession(){
  if(commandId)return;
  let saved=null;try{saved=JSON.parse(localStorage.getItem(REMOTE_KEY)||'null')}catch(e){clearRemoteSession()}
- const agent=Number(select.value||0);
- let id=0,chosenAgent=agent;
- if(saved&&Number(saved.command_id)>0&&Date.now()-Number(saved.saved_at||0)<1800000){id=Number(saved.command_id);chosenAgent=Number(saved.agent_id||agent)}
- const option=[...select.options].find(opt=>Number(opt.value)===chosenAgent);
- if(id&&!option){id=0;chosenAgent=agent}
- if(!id&&agent){
+ const gestor=Number(select.value||0);
+ let id=0,chosenGestor=gestor;
+ if(saved&&Number(saved.command_id)>0&&Date.now()-Number(saved.saved_at||0)<1800000){id=Number(saved.command_id);chosenGestor=Number(saved.gestor_id||gestor)}
+ const option=[...select.options].find(opt=>Number(opt.value)===chosenGestor);
+ if(id&&!option){id=0;chosenGestor=gestor}
+ if(!id&&gestor){
   try{
-   const response=await fetch(base+'api/api.php?action=network-remote-existing&network_id='+network+'&agent_id='+agent,{credentials:'same-origin',cache:'no-store'});
+   const response=await fetch(base+'api/api.php?action=network-remote-existing&network_id='+network+'&gestor_id='+gestor,{credentials:'same-origin',cache:'no-store'});
    const found=await response.json();if(response.ok&&found.ok&&Number(found.command_id)>0)id=Number(found.command_id);
   }catch(e){}
  }
  if(!id)return;
- const activeOption=[...select.options].find(opt=>Number(opt.value)===chosenAgent);
+ const activeOption=[...select.options].find(opt=>Number(opt.value)===chosenGestor);
  if(!activeOption)return;
  select.value=activeOption.value;commandId=id;
  try{
@@ -519,7 +418,7 @@ async function restoreRemoteSession(){
   const result=await response.json();
   if(!response.ok||!result.ok||result.stopped||['failed','completed','expired'].includes(result.status))throw Error('Sessão encerrada');
   saveRemoteSession();showRemoteViewer(false);send.hidden=true;stop.hidden=false;
-  host.textContent='• '+(activeOption.textContent||'Agente');
+  host.textContent='• '+(activeOption.textContent||'Gestor');
   clearTimers();timer=setInterval(refresh,1200);await refresh();
  }catch(e){commandId=0;clearRemoteSession();send.hidden=false;stop.hidden=true}
 }
@@ -562,7 +461,7 @@ function setControl(on){
  if(!on){releaseAll();inq=[];mobileInput.blur();cursor.hidden=true;cancelHold();touchStart=null;}
 }
 /* ---------- quadros: carrega o próximo assim que o anterior chega ---------- */
-let frameEtag='',slowFrames=0,fastFrames=0,autoQuality='balanced';
+let frameEtag='',slowFrames=0,fastFrames=0,autoQuality='balanced',lastDownloadMs=0;
 async function pump(){
  if(pumping)return;pumping=true;
  try{while(live&&commandId&&dialog.open&&!document.hidden){
@@ -570,11 +469,11 @@ async function pump(){
   const abort=new AbortController(),expiry=setTimeout(()=>abort.abort(),8000);let changed=false,idle=0;
   try{
    const response=await fetch(frameUrl('image'),{credentials:'same-origin',cache:'no-store',headers:frameEtag?{'If-None-Match':frameEtag}:{},signal:abort.signal});
-   const headersAt=performance.now();/* o servidor espera por quadro novo: só o download do quadro mede a qualidade da conexão */
+   const headersAt=performance.now();/* Medir a recepção do quadro sem contar o tempo de decodificação na tela. */
    if(!response.ok)idle=response.status===304?0:300;/* 304: o servidor já esperou por um quadro novo; 404: ainda sem quadro */
-   if(response.ok){const blob=await response.blob(),url=URL.createObjectURL(blob),old=image.src;image.src=url;image.hidden=false;placeholder.hidden=true;try{await image.decode();}catch(_){}if(old.startsWith('blob:'))URL.revokeObjectURL(old);frameEtag=response.headers.get('ETag')||'';changed=true;}
+   if(response.ok){const blob=await response.blob(),downloadMs=performance.now()-headersAt,url=URL.createObjectURL(blob),old=image.src;image.src=url;image.hidden=false;placeholder.hidden=true;try{await image.decode();}catch(_){}if(old.startsWith('blob:'))URL.revokeObjectURL(old);frameEtag=response.headers.get('ETag')||'';changed=true;lastDownloadMs=downloadMs;}
    if(changed&&qualitySelect?.value==='auto'){
-    const elapsed=performance.now()-headersAt;slowFrames=elapsed>350?slowFrames+1:0;fastFrames=elapsed<140?fastFrames+1:0;
+    const elapsed=lastDownloadMs;slowFrames=elapsed>350?slowFrames+1:0;fastFrames=elapsed<140?fastFrames+1:0;
     if(slowFrames>=3&&autoQuality!=='low'){autoQuality='low';qualitySelect.dispatchEvent(new Event('change'));slowFrames=0;}
     if(fastFrames>=20&&autoQuality!=='balanced'){autoQuality='balanced';qualitySelect.dispatchEvent(new Event('change'));fastFrames=0;}
    }
@@ -603,8 +502,8 @@ async function refresh(){
    if(!live){live=true;pump();qualitySelect?.dispatchEvent(new Event('change'))}
    setControl(result.control);
    setState(result.control?'● Acesso remoto ativo · controle de mouse e teclado autorizado':'● Visualização ativa · controle não autorizado (somente tela)');
-  }else if(result.status==='pending')setState('Pedido aguardando entrega ao agente Windows. Confirme se o agente está conectado e atualizado.');
-  else if(Number(result.elapsed_seconds||0)>45)setState('Ainda sem imagem. Confira no computador a janela de autorização do agente. '+String(result.state_message||''));
+  }else if(result.status==='pending')setState('Pedido aguardando entrega ao gestor Windows. Confirme se o gestor está conectado e atualizado.');
+  else if(Number(result.elapsed_seconds||0)>45)setState('Ainda sem imagem. Confira no computador a janela de autorização do gestor. '+String(result.state_message||''));
   else setState(String(result.state_message||'Aguardando autorização ou primeira imagem do computador...'));
  }catch(e){setState('Falha ao consultar sessão remota: '+(e.message||'erro desconhecido'))}finally{locked=false}
 }
@@ -745,16 +644,16 @@ $('arc-remote-snapshot')?.addEventListener('click',()=>{
 const unlockDialog=$('arc-unlock-dialog'),unlockForm=$('arc-unlock-form'),unlockFeedback=$('arc-unlock-feedback'),unlockSubmit=$('arc-unlock-submit');let unlockGeneration=0,unlockBusy=false,unlockCommandId=0,unlockOwnSession=false,unlockStatusBusy=false;
 const unlockButton=$('arc-unlock-pc'),unlockRoleAllowed=!!unlockButton&&!unlockButton.disabled;
 const unlockUrl=action=>base+'api/remote-screen.php?action='+action+'&command_id='+unlockCommandId;
-async function queryUnlockStatus(){const response=await fetch(base+'api/support.php?action=unlock-status',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:Number(select.value),_csrf:csrf})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Não foi possível consultar o Windows.');return result;}
-async function refreshUnlockButton(){if(!unlockButton||!unlockRoleAllowed||unlockStatusBusy)return;unlockStatusBusy=true;const agent=select.value;try{const status=await queryUnlockStatus();if(agent!==select.value)return;unlockButton.disabled=!status.available||status.desktop_state!=='locked';unlockButton.title=status.desktop_state==='unlocked'?'O computador já está desbloqueado':status.desktop_state==='locked'?'Desbloquear Windows':'Aguardando o agente atualizado informar o estado do Windows';}catch{unlockButton.disabled=true;unlockButton.title='Estado do Windows indisponível';}finally{unlockStatusBusy=false;}}
+async function queryUnlockStatus(){const response=await fetch(base+'api/support.php?action=unlock-status',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(select.value),_csrf:csrf})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Não foi possível consultar o Windows.');return result;}
+async function refreshUnlockButton(){if(!unlockButton||!unlockRoleAllowed||unlockStatusBusy)return;unlockStatusBusy=true;const gestor=select.value;try{const status=await queryUnlockStatus();if(gestor!==select.value)return;unlockButton.disabled=!status.available||status.desktop_state!=='locked';unlockButton.title=status.desktop_state==='unlocked'?'O computador já está desbloqueado':status.desktop_state==='locked'?'Desbloquear Windows':'Aguardando o gestor atualizado informar o estado do Windows';}catch{unlockButton.disabled=true;unlockButton.title='Estado do Windows indisponível';}finally{unlockStatusBusy=false;}}
 if(unlockButton)unlockButton.disabled=true;setInterval(refreshUnlockButton,5000);select.addEventListener('change',()=>{if(unlockButton)unlockButton.disabled=true;refreshUnlockButton();});refreshUnlockButton();
 unlockButton?.addEventListener('click',async()=>{
  unlockForm.reset();const generation=++unlockGeneration;unlockFeedback.textContent='Consultando usuários no computador…';unlockSubmit.disabled=true;
  const users=unlockForm.elements.windows_user;users.replaceChildren(new Option('Carregando usuários…',''));$('arc-unlock-host').textContent=select.selectedOptions[0]?.textContent||'Computador selecionado';unlockDialog.showModal();
  try{const status=await queryUnlockStatus();if(generation!==unlockGeneration)return;
-  if(!status.available||status.desktop_state!=='locked')throw Error('O computador não está bloqueado ou o agente precisa ser atualizado.');
-  if(status.windows_users_error)throw Error('O agente não conseguiu consultar as contas locais do Windows. Verifique as permissões do serviço do agente.');
-  if(!status.windows_users?.length)throw Error('Nenhuma conta foi informada. Aguarde a atualização do agente e tente novamente.');
+  if(!status.available||status.desktop_state!=='locked')throw Error('O computador não está bloqueado ou o gestor precisa ser atualizado.');
+  if(status.windows_users_error)throw Error('O gestor não conseguiu consultar as contas locais do Windows. Verifique as permissões do serviço do gestor.');
+  if(!status.windows_users?.length)throw Error('Nenhuma conta foi informada. Aguarde a atualização do gestor e tente novamente.');
   users.replaceChildren(new Option('Selecione seu usuário',''));for(const entry of status.windows_users)users.add(new Option(entry.label,entry.username));if(status.windows_users.length===1)users.selectedIndex=1;
   unlockFeedback.textContent='Selecione o usuário e digite a senha. O desbloqueio não abre acesso remoto.';unlockSubmit.disabled=false;unlockForm.elements.windows_password.focus();
  }catch(error){if(generation===unlockGeneration){users.replaceChildren(new Option('Usuários indisponíveis',''));unlockFeedback.textContent=error.message;}}});
@@ -774,7 +673,7 @@ unlockForm.addEventListener('submit',async e=>{
  try{
   if(!window.isSecureContext||!crypto.subtle)throw Error('Desbloqueio requer conexão HTTPS e navegador atualizado.');
   unlockFeedback.textContent='Preparando sessão segura…';
-  const response=await fetch(base+'api/support.php?action=unlock-session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:Number(select.value),_csrf:csrf})});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Não foi possível preparar o desbloqueio.');
+  const response=await fetch(base+'api/support.php?action=unlock-session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(select.value),_csrf:csrf})});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Não foi possível preparar o desbloqueio.');
   if(generation!==unlockGeneration)return;
   unlockCommandId=Number(data.command_id);unlockOwnSession=!!data.created;
   let publicKey=null;
@@ -785,7 +684,7 @@ unlockForm.addEventListener('submit',async e=>{
    if(status.control&&status.unlock_key&&status.unlock_key.expires*1000>Date.now()){publicKey=status.unlock_key;break;}
    await new Promise(resolve=>setTimeout(resolve,1000));
   }
-  if(!publicKey)throw Error('O componente seguro não respondeu. Atualize/reinstale o agente como administrador e tente novamente.');
+  if(!publicKey)throw Error('O componente seguro não respondeu. Atualize/reinstale o gestor como administrador e tente novamente.');
   const blocks=await encryptUnlock(publicKey,credentials,unlockCommandId);credentials.username='';credentials.password='';
   if(generation!==unlockGeneration)return;
   const sent=await fetch(unlockUrl('unlock-submit'),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({key_id:publicKey.id,blocks,_csrf:csrf})});blocks.fill('');const queued=await sent.json();if(!sent.ok||!queued.ok)throw Error(queued.error||'Desbloqueio não autorizado.');
@@ -802,12 +701,12 @@ unlockForm.addEventListener('submit',async e=>{
 });
 /* ---------- solicitação ---------- */
 open.addEventListener('click',()=>{
- if(!select.value){setState('Selecione um agente aprovado.');return;}
- host.textContent='• '+(select.selectedOptions[0]?.textContent||'Agente');setState('Solicite autorização ao operador do computador.');
+ if(!select.value){setState('Selecione um gestor aprovado.');return;}
+ host.textContent='• '+(select.selectedOptions[0]?.textContent||'Gestor');setState('Solicite autorização ao operador do computador.');
  if(!document.getElementById('arc-support-stage')?.contains(dialog))dialog.showModal();
 });
-async function sendRemoteAssistanceRequest(agent,confirmPassword){
- const payload={network_id:network,agent_id:agent,command:'remote_assistance',_csrf:csrf};
+async function sendRemoteAssistanceRequest(gestor,confirmPassword){
+ const payload={network_id:network,gestor_id:gestor,command:'remote_assistance',_csrf:csrf};
  if(confirmPassword)payload.confirm_password=confirmPassword;
  const res=await fetch(base+'api/api.php?action=network-command',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
  const value=await res.json().catch(()=>({error:'O servidor retornou uma resposta inválida. Verifique o log PHP (HTTP '+res.status+').'}));if(!res.ok||!value.ok||!value.command_id)throw Error(value.error||'Falha ao solicitar acesso');
@@ -819,11 +718,11 @@ const autoDialog=$('arc-remote-auto-modal'),autoForm=$('arc-remote-auto-form'),a
 const forceStop=$('arc-remote-auto-force');
 function remoteConflict(message){return /Já existe uma solicitação remota|Encerre-a antes/i.test(String(message||''))}
 async function forceCloseStuckSession(){
- const agent=Number(select.value);if(!agent)return;
+ const gestor=Number(select.value);if(!gestor)return;
  if(!window.confirm('Encerrar a solicitação remota anterior deste computador? A conexão atual será interrompida e a ação registrada na auditoria.'))return;
  forceStop.disabled=true;autoError.textContent='Encerrando sessão anterior...';
  try{
-  const response=await fetch(base+'api/api.php?action=network-remote-force-stop',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,agent_id:agent,_csrf:csrf})});
+  const response=await fetch(base+'api/api.php?action=network-remote-force-stop',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:gestor,_csrf:csrf})});
   const data=await response.json().catch(()=>({error:'Resposta inválida do servidor'}));
   if(!response.ok||!data.ok)throw Error(data.error||'Não foi possível encerrar a sessão');
   autoError.textContent=(Number(data.closed)||0)+' sessão(ões) encerrada(s). Agora confirme para abrir um novo acesso.';
@@ -836,18 +735,18 @@ forceStop?.addEventListener('click',forceCloseStuckSession);
 send.addEventListener('click',async()=>{
  await restoreRemoteSession();
  if(commandId){showRemoteViewer();refresh();return;}
- const agent=Number(select.value);if(!agent)return setState('Selecione um agente aprovado.');
+ const gestor=Number(select.value);if(!gestor)return setState('Selecione um gestor aprovado.');
  // A solicitação usa a sessão autenticada e as permissões já verificadas pela API.
  // Não abrir confirmação adicional para computadores previamente autorizados.
- send.disabled=true;setState('Enviando solicitação ao agente...');
- try{await sendRemoteAssistanceRequest(agent)}catch(e){setState('Erro: '+e.message);send.disabled=false;if(remoteConflict(e.message)&&autoDialog){autoError.textContent=e.message;forceStop.hidden=false;autoDialog.showModal()}}
+ send.disabled=true;setState('Enviando solicitação ao gestor...');
+ try{await sendRemoteAssistanceRequest(gestor)}catch(e){setState('Erro: '+e.message);send.disabled=false;if(remoteConflict(e.message)&&autoDialog){autoError.textContent=e.message;forceStop.hidden=false;autoDialog.showModal()}}
 });
 if(autoForm){
  autoForm.addEventListener('submit',async(e)=>{
-  e.preventDefault();const agent=Number(select.value);if(!agent)return;
+  e.preventDefault();const gestor=Number(select.value);if(!gestor)return;
   autoSubmit.disabled=true;autoError.textContent='';
   try{
-   await sendRemoteAssistanceRequest(agent);
+   await sendRemoteAssistanceRequest(gestor);
    autoDialog.close();
   }catch(err){autoError.textContent=err.message;forceStop.hidden=!remoteConflict(err.message)}
   finally{autoSubmit.disabled=false}
@@ -865,20 +764,7 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
 })();
 </script>
 
-<dialog id="arc-agent-update-confirm" class="arc-agent-update-confirm arc-service-dialog" aria-labelledby="arc-agent-update-title">
-<div class="arc-agent-update-card">
- <div class="arc-update-modal-header"><div><strong id="arc-agent-update-title">Atualização do agente</strong> <small data-update-modal-version>Nova versão —</small></div><button class="arc-update-modal-close" type="button" data-update-cancel aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></div>
- <div class="arc-agent-update-copy"><small data-update-agent-name>Agente selecionado</small><p data-update-agent-details></p><p data-update-status class="arc-update-state" role="status">Selecione um agente para consultar a versão.</p><div data-update-release class="arc-update-release-details" role="region" aria-label="Notas da versão" tabindex="0"></div></div>
- <div class="arc-agent-update-actions arc-service-actions" role="group" aria-label="Instalação e atualização do agente">
- <?php if(($teamRole??'')==='owner'): ?>
- <a class="button secondary" data-update-install href="<?=arc_h(arc_workspace_base_url().'api/download-agent.php?network='.(int)$networkId)?>" title="Baixar o instalador Windows para executar no computador de destino"><i class="fa fa-download" aria-hidden="true"></i> Instalar agente</a>
- <?php else: ?>
- <button type="button" class="button secondary" disabled title="Somente o proprietário da rede pode gerar instaladores"><i class="fa fa-download" aria-hidden="true"></i> Instalar agente</button>
- <?php endif; ?>
- <button type="button" class="button" data-update-confirm><i class="fa fa-refresh" aria-hidden="true"></i> Atualizar</button>
- <button type="button" class="button secondary" data-update-force-confirm><i class="fa fa-cloud-download" aria-hidden="true"></i> Forçar atualização</button>
- </div>
-</div></dialog>
+<?php require __DIR__.'/_gestor_update_dialog.php'; ?>
 <dialog id="arc-network-confirm" class="arc-network-confirm" aria-labelledby="arc-network-confirm-title">
 <div class="arc-confirm-head"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i><h2 id="arc-network-confirm-title">Confirmar operação</h2></div>
 <p data-confirm-text>Deseja continuar?</p><div class="arc-confirm-actions"><button type="button" class="button secondary" data-confirm-cancel>Cancelar</button><button type="button" class="button danger" data-confirm-proceed>Confirmar</button></div>
@@ -886,7 +772,7 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
 <script>
 (function(){
  const modal=document.getElementById('arc-network-manager');if(!modal)return;
- const preferredPanel=<?= json_encode((string)($arcManagerInitialTab ?? 'agents'), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+ const preferredPanel=<?= json_encode((string)($arcManagerInitialTab ?? 'gestores'), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
  const inline=true; // Painel administrativo permanente; não é um diálogo.
  const tabs=[...modal.querySelectorAll('[data-manager-tab]')];
  const panels=[...modal.querySelectorAll('[data-manager-panel]')];
@@ -896,7 +782,7 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
   const body=modal.querySelector('.arc-manager-body');if(body)body.scrollTop=0;
  }
  choose(preferredPanel);
- function open(key){choose(key||'agents')}
+ function open(key){choose(key||'gestores')}
  document.addEventListener('click',function(e){
   const tab=e.target.closest('[data-manager-tab]');if(tab){e.preventDefault();choose(tab.dataset.managerTab)}
  });
@@ -906,7 +792,7 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
   const r=dialog.getBoundingClientRect();
   if(e.clientX<r.left || e.clientX>r.right || e.clientY<r.top || e.clientY>r.bottom || (dialog===modal && !e.target.closest('.arc-network-manager-shell')))dialog.close();
  }
- [...(inline?[]:[modal]),document.getElementById('arc-network-confirm'),modal.querySelector('#arc-agent-detail-modal'),modal.querySelector('#arc-team-editor'),modal.querySelector('#arc-headless-confirm'),document.getElementById('arc-remote-auto-modal'),document.getElementById('arc-remote-assistance-modal')].filter(Boolean).forEach(d=>d.addEventListener('click',e=>backdropClick(d,e)));
+ [...(inline?[]:[modal]),document.getElementById('arc-network-confirm'),modal.querySelector('#arc-gestor-detail-modal'),modal.querySelector('#arc-team-editor'),modal.querySelector('#arc-headless-confirm'),document.getElementById('arc-remote-auto-modal'),document.getElementById('arc-remote-assistance-modal')].filter(Boolean).forEach(d=>d.addEventListener('click',e=>backdropClick(d,e)));
 
  // The original forms submit to their own PHP actions; use a styled confirmation dialog.
  const confirm=document.getElementById('arc-network-confirm');let pending=null;
@@ -919,13 +805,13 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
   section.querySelectorAll('tbody tr[data-search-text]').forEach(row=>{const hit=(row.dataset.searchText||'').includes(needle);row.hidden=!hit;if(hit)visible++});
   const empty=section.querySelector('[data-manager-empty]');if(empty)empty.hidden=visible!==0;
  }));
- const agentDetail=modal.querySelector('#arc-agent-detail-modal');
- modal.querySelectorAll('[data-agent-details]').forEach(row=>{
-  const show=()=>{const source=document.getElementById(row.dataset.agentDetails);if(!source||!agentDetail)return;agentDetail.querySelector('[data-detail-content]').replaceChildren(source.cloneNode(true));agentDetail.querySelector('[data-detail-content] > div').hidden=false;agentDetail.showModal()};
+ const gestorDetail=modal.querySelector('#arc-gestor-detail-modal');
+ modal.querySelectorAll('[data-gestor-details]').forEach(row=>{
+  const show=()=>{const source=document.getElementById(row.dataset.gestorDetails);if(!source||!gestorDetail)return;gestorDetail.querySelector('[data-detail-content]').replaceChildren(source.cloneNode(true));gestorDetail.querySelector('[data-detail-content] > div').hidden=false;gestorDetail.showModal()};
   row.addEventListener('click',e=>{if(!e.target.closest('button,a,form,input,select'))show()});
   row.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===row){e.preventDefault();show()}});
  });
- agentDetail?.querySelector('[data-detail-close]')?.addEventListener('click',()=>agentDetail.close());
+ gestorDetail?.querySelector('[data-detail-close]')?.addEventListener('click',()=>gestorDetail.close());
  const teamEditor=modal.querySelector('#arc-team-editor');
  const editTeam=(email,role)=>{if(!teamEditor)return;teamEditor.querySelector('[name=member_email]').value=email||'';teamEditor.querySelector('[name=member_email]').readOnly=!!email;teamEditor.querySelector('[name=member_role]').value=role||'viewer';teamEditor.querySelector('#arc-team-editor-title').textContent=email?'Editar perfil':'Adicionar integrante';teamEditor.showModal()};
  modal.querySelector('[data-team-add]')?.addEventListener('click',()=>editTeam('','viewer'));
@@ -933,12 +819,12 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
  modal.querySelectorAll('[data-team-close]').forEach(btn=>btn.addEventListener('click',()=>teamEditor?.close()));
  const headless=modal.querySelector('#arc-headless-confirm');
  modal.querySelectorAll('.arc-headless-toggle-btn').forEach(btn=>btn.addEventListener('click',()=>{
-  headless.querySelector('#arc-headless-confirm-agent-id').value=btn.dataset.headlessAgentId;
-  headless.querySelector('#arc-headless-confirm-text').textContent=(btn.dataset.headlessCurrent==='1'?'Desativar':'Ativar')+' acesso sem confirmação local para '+btn.dataset.headlessAgentName+'?';headless.showModal();
+  headless.querySelector('#arc-headless-confirm-gestor-id').value=btn.dataset.headlessGestorId;
+  headless.querySelector('#arc-headless-confirm-text').textContent=(btn.dataset.headlessCurrent==='1'?'Desativar':'Ativar')+' acesso sem confirmação local para '+btn.dataset.headlessGestorName+'?';headless.showModal();
  }));
  modal.querySelector('#arc-headless-confirm-cancel')?.addEventListener('click',()=>headless?.close());
- if(inline)choose('agents');
- const hash=(location.hash||'').toLowerCase();if(hash==='#team'||hash==='#users')open('team');else if(hash==='#agents'||hash==='#installations')open('agents');else if(hash==='#settings'||hash==='#preferences')open('settings');else if(hash==='#cadastro')open('data');
+ if(inline)choose('gestores');
+ const hash=(location.hash||'').toLowerCase();if(hash==='#team'||hash==='#users')open('team');else if(hash==='#gestores'||hash==='#installations')open('gestores');else if(hash==='#settings'||hash==='#preferences')open('settings');else if(hash==='#cadastro')open('data');
 })();
 </script>
 
@@ -1060,7 +946,7 @@ dialog.addEventListener('cancel',e=>{e.preventDefault();if(visualFullscreen){exi
 .arc-remote-auto-modal input { width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 8px; border: 1px solid rgb(49, 92, 125); background: var(--surface); color: var(--text); font-size: 14px; }
 #arc-remote-auto-error { display: block; min-height: 16px; color: var(--text); font-size: 12px; margin-top: 6px; }
 .arc-remote-auto-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
-#arc-agent-update-confirm::backdrop { background: rgba(0, 0, 0, 0.55) !important; backdrop-filter: blur(3px) !important; }
+#arc-gestor-update-confirm::backdrop { background: rgba(0, 0, 0, 0.55) !important; backdrop-filter: blur(3px) !important; }
 .arc-remote-sr-title { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0px !important; margin: -1px !important; overflow: hidden !important; clip: rect(0px, 0px, 0px, 0px) !important; white-space: nowrap !important; border: 0px !important; }
 .arc-remote-screen-head { padding: 4px 8px !important; min-height: 35px !important; gap: 3px !important; }
 .arc-remote-screen-head .arc-remote-screen-tools { overflow-x: auto; justify-content: flex-start !important; flex: 1 1 auto !important; min-width: 0px !important; }

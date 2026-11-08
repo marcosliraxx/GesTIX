@@ -2,6 +2,7 @@
 /* Caminho: pages/painel.php */
 declare(strict_types=1);
 require dirname(__DIR__).'/includes/bootstrap.php';
+require_once dirname(__DIR__).'/includes/network-inventory.php';
 $pdo=arc_db();
 arc_ensure_user_schema($pdo);
 $admin=arc_is_admin();
@@ -23,8 +24,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         unset($_SESSION['arc_user_id'],$_SESSION['arc_user_email'],$_SESSION['arc_admin_id'],$_SESSION['arc_admin_email'],$_SESSION['arc_current_network_id'],$_SESSION['arc_network_monitor_sessions'],$_SESSION['arc_monitor_session'],$_SESSION['arc_csrf']);
         session_regenerate_id(true);
         $go('index.php');
+    } elseif ($action === 'network_select' && arc_is_admin()) {
+        $id=(int)($_POST['network_id']??0);
+        if (!arc_select_network($pdo,$id)) $arcError='Rede não encontrada ou indisponível.';
+        else {
+            arc_audit($pdo,'admin_network_selected','Administrador #'.(int)arc_admin_id().' abriu rede #'.$id);
+            $go('redes/painel.php?network='.$id);
+        }
     } elseif (!arc_is_user()) {
-        $arcError='É necessário entrar com uma conta de usuário para gerenciar redes.';
+        $arcError='Administradores podem consultar redes; criação, exclusão e arquivamento exigem uma conta proprietária.';
     } elseif ($action === 'network_create') {
         $name = trim((string)($_POST['network_name'] ?? ''));
 
@@ -140,11 +148,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     }
 }
 
-/* Redes e estado calculados pelos agentes aprovados vistos nos últimos 12s. */
+/* Redes e estado calculados pelos gestores aprovados vistos nos últimos 45s. */
 $loadPanelNetworks = static function(PDO $pdo, bool $admin, ?int $uid): array {
-    $sql='SELECT n.id,n.name,n.is_active,COUNT(a.id) AS agent_total, '
-        .'COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL 12 SECOND) THEN 1 ELSE 0 END),0) AS agent_online, UNIX_TIMESTAMP(MAX(a.last_seen_at)) AS last_seen_ts '
-        .'FROM '.arc_table('managed_networks').' n LEFT JOIN '.arc_table('network_agents').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\'';
+    $sql='SELECT n.id,n.name,n.is_active,COUNT(a.id) AS gestor_total, '
+        .'COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL '.arc_inventory_presence_seconds().' SECOND) THEN 1 ELSE 0 END),0) AS gestor_online, UNIX_TIMESTAMP(MAX(a.last_seen_at)) AS last_seen_ts '
+        .'FROM '.arc_table('managed_networks').' n LEFT JOIN '.arc_table('network_gestores').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\'';
     $args=[];
     if (!$admin) { $sql.=' WHERE n.account_id=?';$args[]=(int)$uid; }
     $sql.=' GROUP BY n.id,n.name,n.is_active ORDER BY n.is_active DESC,n.name,n.id';
@@ -152,12 +160,12 @@ $loadPanelNetworks = static function(PDO $pdo, bool $admin, ?int $uid): array {
     $rows=$q->fetchAll(PDO::FETCH_ASSOC);
     // Redes compartilhadas aparecem no mesmo inventário da conta, sem conceder titularidade.
     if (!$admin && $uid) {
-        $sharedSql='SELECT n.id,n.name,n.is_active,m.role,COUNT(a.id) AS agent_total, '
-            .'COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL 12 SECOND) THEN 1 ELSE 0 END),0) AS agent_online, '
+        $sharedSql='SELECT n.id,n.name,n.is_active,m.role,COUNT(a.id) AS gestor_total, '
+            .'COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL '.arc_inventory_presence_seconds().' SECOND) THEN 1 ELSE 0 END),0) AS gestor_online, '
             .'UNIX_TIMESTAMP(MAX(a.last_seen_at)) AS last_seen_ts '
             .'FROM '.arc_table('network_team_members').' m '
             .'JOIN '.arc_table('managed_networks').' n ON n.id=m.network_id AND n.account_id=m.account_id '
-            .'LEFT JOIN '.arc_table('network_agents').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\' '
+            .'LEFT JOIN '.arc_table('network_gestores').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\' '
             .'WHERE m.member_user_id=? AND m.enabled=1 AND n.is_active=1 AND n.account_id<>? '
             .'GROUP BY n.id,n.name,n.is_active,m.role ORDER BY n.name,n.id';
         $sharedStmt=$pdo->prepare($sharedSql);
@@ -168,9 +176,9 @@ $loadPanelNetworks = static function(PDO $pdo, bool $admin, ?int $uid): array {
         }
     }
     foreach($rows as &$r){
-        $count=(int)$r['agent_total'];$online=(int)$r['agent_online'];
-        $r['agent_state']=$count===0?'none':($online===0?'offline':($online===$count?'online':'partial'));
-        $r['has_online_agent']=$online>0?1:0;
+        $count=(int)$r['gestor_total'];$online=(int)$r['gestor_online'];
+        $r['gestor_state']=$count===0?'none':($online===0?'offline':($online===$count?'online':'partial'));
+        $r['has_online_gestor']=$online>0?1:0;
     }
     unset($r);
     return $rows;
@@ -221,9 +229,9 @@ if (($_GET['ajax'] ?? '') === 'offline_overview') {
     try {
         $rows=[];$onlineCount=0;
         foreach ($loadPanelNetworks($pdo,$admin,$uid) as $net) {
-            $isOnline=(int)$net['is_active']===1 && (int)$net['has_online_agent']===1;
+            $isOnline=(int)$net['is_active']===1 && (int)$net['has_online_gestor']===1;
             if ($isOnline) { $onlineCount++; continue; }
-            $rows[]=['name'=>(string)$net['name'],'last_seen'=>(int)($net['last_seen_ts']??0),'inactive'=>(int)$net['is_active']!==1,'no_agent'=>(int)$net['agent_total']===0];
+            $rows[]=['name'=>(string)$net['name'],'last_seen'=>(int)($net['last_seen_ts']??0),'inactive'=>(int)$net['is_active']!==1,'no_gestor'=>(int)$net['gestor_total']===0];
         }
         arc_json(['ok'=>true,'online'=>$onlineCount,'total'=>$onlineCount+count($rows),'offline'=>$rows,'now'=>time()]);
     } catch(Throwable $e) { error_log('Resumo de redes offline: '.$e->getMessage()); arc_json(['ok'=>false,'error'=>'Não foi possível consultar as redes.'],503); }
@@ -232,7 +240,7 @@ if (($_GET['ajax'] ?? '') === 'network_status') {
     try {
         $states=[];
         foreach($loadPanelNetworks($pdo,$admin,$uid) as $network) {
-            $states[(string)$network['id']]=['online'=>(int)$network['has_online_agent']===1,'state'=>$network['agent_state'],'total'=>(int)$network['agent_total'],'online_count'=>(int)$network['agent_online']];
+            $states[(string)$network['id']]=['online'=>(int)$network['has_online_gestor']===1,'state'=>$network['gestor_state'],'total'=>(int)$network['gestor_total'],'online_count'=>(int)$network['gestor_online']];
         }
         arc_json(['ok'=>true,'networks'=>$states]);
     } catch(Throwable $e) {
@@ -243,7 +251,7 @@ if (($_GET['ajax'] ?? '') === 'network_status') {
 $panelNetworks=[];$panelNetworksFailed=false;
 try { $panelNetworks=$loadPanelNetworks($pdo,$admin,$uid); }
 catch(Throwable $e) { $panelNetworksFailed=true;error_log('Painel redes: '.$e->getMessage()); }
-$panelOnline=count(array_filter($panelNetworks,static fn(array $n):bool=>(int)$n['is_active']===1 && (int)$n['has_online_agent']===1));
+$panelOnline=count(array_filter($panelNetworks,static fn(array $n):bool=>(int)$n['is_active']===1 && (int)$n['has_online_gestor']===1));
 $panelOffline=count($panelNetworks)-$panelOnline;
 $ARCPageBodyClass='arc-panel-page';
 $ARCMode='app';$ARCPageTitle='Painel';$ARCActiveNav='overview';$ARCHeaderActions='';
@@ -349,8 +357,8 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 .arc-panel-card-icon svg{width:20px;height:20px}
 .arc-panel-status-dot{width:8px;height:8px;border-radius:50%;background:var(--surface-alt);box-shadow:0 0 0 4px #94a3b811}
 [data-online="1"] .arc-panel-status-dot{background:#159774;box-shadow:0 0 0 4px #15977412}
-[data-agent-state="partial"] .arc-panel-status-dot{background:#c68a20;box-shadow:0 0 0 4px #c68a2012}
-[data-agent-state="offline"] .arc-panel-status-dot{background:#ce5965;box-shadow:0 0 0 4px #ce596512}
+[data-gestor-state="partial"] .arc-panel-status-dot{background:#c68a20;box-shadow:0 0 0 4px #c68a2012}
+[data-gestor-state="offline"] .arc-panel-status-dot{background:#ce5965;box-shadow:0 0 0 4px #ce596512}
 .arc-panel-network-name{display:-webkit-box;box-sizing:border-box;width:100%;max-width:100%;min-width:0;white-space:normal;overflow:hidden;text-overflow:ellipsis;text-align:left;font-size:12px;font-weight:700;letter-spacing:-.015em;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3;padding:0;flex:none;margin-top:4px;overflow-wrap:anywhere}
 .arc-panel-network-state{position:static;width:auto;height:auto;overflow:hidden;clip-path:none;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--muted);flex:none}
 .arc-panel-card-action{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:auto;padding-top:8px;font-size:10px;color:var(--primary);border-top:1px solid var(--border);flex:none}.arc-panel-card-action>span{font-size:16px;line-height:1}
@@ -451,8 +459,8 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 <header class="arc-panel-heading"><span class="arc-panel-sync" id="arc-panel-sync"><span></span> Atualização automática</span></header>
 <div class="arc-panel-topbar"><div class="arc-panel-summary" role="group" aria-label="Filtrar redes por situação">
 <button type="button" class="arc-panel-metric" data-panel-filter="all" title="Todas as redes" aria-pressed="true"><span class="arc-metric-icon"><i class="fa fa-sitemap" aria-hidden="true"></i></span><span><small>Redes registradas</small><strong id="arc-panel-total"><?=count($panelNetworks)?></strong></span><span class="arc-metric-caption">Todos os ambientes</span></button>
-<button type="button" class="arc-panel-metric on" data-panel-filter="online" title="Redes conectadas" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-signal" aria-hidden="true"></i></span><span><small>Conectadas</small><strong id="arc-panel-online"><?=$panelOnline?></strong></span><span class="arc-metric-caption">Agentes em comunicação</span></button>
-<button type="button" class="arc-panel-metric off" data-panel-filter="attention" title="Redes sem conexão" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-bell-o" aria-hidden="true"></i></span><span><small>Sem conexão</small><strong id="arc-panel-offline"><?=$panelOffline?></strong></span><span class="arc-metric-caption">Offline ou sem agente</span></button>
+<button type="button" class="arc-panel-metric on" data-panel-filter="online" title="Redes conectadas" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-signal" aria-hidden="true"></i></span><span><small>Conectadas</small><strong id="arc-panel-online"><?=$panelOnline?></strong></span><span class="arc-metric-caption">Gestores em comunicação</span></button>
+<button type="button" class="arc-panel-metric off" data-panel-filter="attention" title="Redes sem conexão" aria-pressed="false"><span class="arc-metric-icon"><i class="fa fa-bell-o" aria-hidden="true"></i></span><span><small>Sem conexão</small><strong id="arc-panel-offline"><?=$panelOffline?></strong></span><span class="arc-metric-caption">Offline ou sem gestor</span></button>
 </div>
 <div class="arc-panel-commandbar" role="search" aria-label="Buscar redes">
 <label class="arc-panel-search" for="arc-panel-search"><i class="fa fa-search" aria-hidden="true"></i><input id="arc-panel-search" type="search" placeholder="Buscar pelo nome da rede" autocomplete="off" aria-label="Buscar redes"></label>
@@ -464,8 +472,8 @@ require dirname(__DIR__).'/includes/header.php';require dirname(__DIR__).'/inclu
 <?php if($panelNetworksFailed):?><div class="arc-panel-empty" role="alert"><h3>Não foi possível carregar as redes</h3><p>Verifique sua conexão e atualize a página.</p><a class="button" href="pages/painel.php" aria-label="Tentar novamente" title="Tentar novamente"><i class="fa fa-arrow-right" aria-hidden="true"></i><span class="arc-action-label">Tentar novamente</span></a></div>
 <?php else: ?>
 <div class="arc-panel-network-rail" id="arc-panel-grid" role="region" aria-label="Redes registradas">
-<?php foreach($panelNetworks as $network):$on=(int)$network['is_active']===1 && (int)$network['has_online_agent']===1;$state=['online'=>'Todos online','partial'=>'Parte dos agentes offline','offline'=>'Agentes offline','none'=>'Sem agentes'][$network['agent_state']]; if((int)$network['is_active']!==1)$state='Rede arquivada'; ?>
-<a class="arc-panel-network-link" data-panel-network="<?=(int)$network['id']?>" data-shared="<?=!empty($network['shared'])?'1':'0'?>" data-agent-state="<?=arc_h($network['agent_state'])?>" data-online="<?=$on?'1':'0'?>" data-active="<?=(int)$network['is_active']===1?'1':'0'?>" href="<?=arc_h(arc_workspace_base_url()).'redes/painel.php?network='.(int)$network['id']?>" title="<?=arc_h((string)$network['name'].' — '.$state)?>" aria-label="<?=arc_h((string)$network['name'].' — '.$state)?>" data-name="<?=arc_h((string)$network['name'])?>">
+<?php foreach($panelNetworks as $network):$on=(int)$network['is_active']===1 && (int)$network['has_online_gestor']===1;$state=['online'=>'Todos online','partial'=>'Parte dos gestores offline','offline'=>'Gestores offline','none'=>'Sem gestores'][$network['gestor_state']]; if((int)$network['is_active']!==1)$state='Rede arquivada'; ?>
+<a class="arc-panel-network-link" data-panel-network="<?=(int)$network['id']?>" data-shared="<?=!empty($network['shared'])?'1':'0'?>" data-gestor-state="<?=arc_h($network['gestor_state'])?>" data-online="<?=$on?'1':'0'?>" data-active="<?=(int)$network['is_active']===1?'1':'0'?>" href="<?=arc_h(arc_workspace_base_url()).'redes/painel.php?network='.(int)$network['id']?>" title="<?=arc_h((string)$network['name'].' — '.$state)?>" aria-label="<?=arc_h((string)$network['name'].' — '.$state)?>" data-name="<?=arc_h((string)$network['name'])?>">
 <span class="arc-panel-card-top"><span class="arc-panel-card-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="5" y="5" width="22" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 20v6m-5 0h10M10 11h5m-5 4h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="arc-panel-status-dot" aria-hidden="true"></span></span>
 <span class="arc-panel-network-name"><?=arc_h((string)$network['name'])?><?php if(!empty($network['shared'])): ?> <small class="arc-panel-shared">Compartilhada · <?=arc_h(['administrator'=>'Administrador','operator'=>'Operador','viewer'=>'Visualizador'][(string)($network['role']??'viewer')]??'Visualizador')?></small><?php endif; ?></span>
 </a>

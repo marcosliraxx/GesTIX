@@ -20,17 +20,25 @@ function arc_navigation_items(PDO $pdo,string $placement,?int $networkId=null): 
     $where=$placement==='mobile'?'mobile_footer=1':'placement=?';$params=$placement==='mobile'?[]:[$placement];
     if($placement!=='mobile'){$where.=' AND context=?';$params[]=$networkId?'network':'global';}
     $q=$pdo->prepare('SELECT * FROM '.arc_table('navigation_items').' WHERE enabled=1 AND '.$where.' ORDER BY sort_order,id');$q->execute($params);
-    $role=arc_v15_user_role($pdo);$group=null;$result=[];
+    $role=arc_v15_user_role($pdo);$group=null;$result=[];$visibleRoutes=[];
     foreach($q as $item){
-        if(!in_array($role,explode(',',$item['access_roles']),true))continue;
+        if(!in_array($role,explode(',',$item['access_roles']),true) && !(arc_is_admin() && (string)$item['context']==='network'))continue;
         $target=trim((string)$item['target_url']);
         if(!arc_navigation_target($target)||str_starts_with($target,'admin/')&&!arc_is_admin())continue;
-        if($item['group_id']){if($group===null)$group=arc_v16_user_group($pdo,(int)(arc_user_id()??0));if((int)$group!==(int)$item['group_id'])continue;}
+        if($item['group_id'] && !arc_is_admin()){if($group===null)$group=arc_v16_user_group($pdo,(int)(arc_user_id()??0));if((int)$group!==(int)$item['group_id'])continue;}
         if($item['context']==='network'){
             if(!$networkId)continue;
-            if($item['agent_permission']&&!in_array($item['agent_permission'],arc_v16_allowed_tabs($pdo,(int)(arc_user_id()??0)),true))continue;
+            if(!arc_is_admin() && $item['gestor_permission']&&!in_array($item['gestor_permission'],arc_v16_allowed_tabs($pdo,(int)(arc_user_id()??0)),true))continue;
             $target.=(str_contains($target,'?')?'&':'?').'network='.$networkId;
-            if(!empty($_GET['agent']))$target.='&agent='.(int)$_GET['agent'];
+            if(!empty($_GET['gestor']))$target.='&gestor='.(int)$_GET['gestor'];
+        }
+        // Uma rota visível por superfície/contexto para o perfil atual.
+        // Não altera registros nem privilégios no banco.
+        if ($target!=='') {
+            $routeKey=strtolower(trim(str_replace('\\','/',$target)));
+            // A URL de rede já inclui network/gestor; mantemos sua identidade.
+            if (isset($visibleRoutes[$routeKey])) continue;
+            $visibleRoutes[$routeKey]=true;
         }
         $item['id']=(int)$item['id'];$item['parent_id']=(int)($item['parent_id']??0);$item['url']=$target;$item['key']=$item['route_key']?:'menu_file_'.$item['id'];
         $item['device_class']=arc_navigation_device_class((string)$item['devices']);$result[]=$item;
@@ -64,7 +72,7 @@ function arc_navigation_catalog(): array {
         'redes' => [],
     ];
     $names = [
-        'admin/agentwin.php'=>'Agentes', 'admin/clean.php'=>'Clean (admin)',
+        'admin/gestorwin.php'=>'Gestores', 'admin/clean.php'=>'Clean (admin)',
         'admin/versao.php'=>'Versões', 'admin/usuarios.php'=>'Administradores',
         'pages/assinatura.php'=>'Planos', 'pages/atendimentos.php'=>'Suporte',
         'pages/cobrancas.php'=>'Cobranças', 'pages/atividades.php'=>'Atividades',
@@ -103,45 +111,157 @@ function arc_navigation_catalog(): array {
     return $catalog;
 }
 
-/** Relatório não altera preferências nem reativa itens desativados pelo administrador. */
-function arc_navigation_audit(PDO $pdo): array {
-    $records=$pdo->query('SELECT id,label,target_url,enabled,placement,context,access_roles FROM '.arc_table('navigation_items').' ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
-    $mapped=[];$invalid=[];
-    foreach ($records as $row) {
-        $destination=(string)($row['target_url']??'');
-        $path=(string)parse_url($destination,PHP_URL_PATH);
-        if ($path!=='' && preg_match('~^(?:admin|pages|redes)/[a-z][a-z0-9_-]*\.php$~iD',$path)) {
-            $mapped[$path][]=$row;
-            if (!arc_navigation_target($destination)) $invalid[]=$row;
-            if (str_starts_with($path,'admin/') && (string)$row['access_roles']!=='admin') $invalid[]=$row;
-            if (str_starts_with($path,'redes/') && (string)$row['context']!=='network' && $path!=='redes/relatorios.php') $invalid[]=$row;
+/**
+ * Diagnóstico de permissões sem alterar menus ou privilégios automaticamente.
+ * Apenas guardas administrativos explícitos são considerados provas de exclusividade;
+ * outras restrições dinâmicas (por rede, grupo ou titularidade) exigem revisão humana.
+ */
+function arc_navigation_route_admin_only(string $path): bool {
+    if (str_starts_with($path, 'admin/')) return true;
+    if (!preg_match('~^(?:pages|redes)/[a-z][a-z0-9_-]*\.php$~iD', $path)) return false;
+    $file = dirname(__DIR__) . '/' . $path;
+    if (!is_file($file) || filesize($file) === 0 || filesize($file) > 500000) return false;
+    $source = file_get_contents($file);
+    if (!is_string($source)) return false;
+    // Reconhece apenas bloqueios diretos de toda a página, e não verificações
+    // de administrador em botões, widgets ou trechos opcionais.
+    $prefix = substr($source, 0, 2400);
+    return (bool)preg_match('~\barc_require_admin\s*\(\s*\)~', $prefix)
+        || (bool)preg_match('~\bif\s*\(\s*!\s*arc_is_admin\s*\(\s*\)\s*\)\s*\{[^}]{0,500}\b(?:exit|die)\s*\(~s', $prefix);
+}
+
+/** Padrões de ícones para rotas cadastradas. Nunca cria menus. */
+function arc_navigation_icon_defaults(): array {
+    return [
+        'pages/painel.php'=>'fa-th-large', 'pages/perfil.php'=>'fa-user-circle-o',
+        'pages/preferencias.php'=>'fa-sliders', 'pages/atividades.php'=>'fa-history',
+        'pages/atendimentos.php'=>'fa-life-ring', 'pages/assinatura.php'=>'fa-credit-card',
+        'pages/cobrancas.php'=>'fa-money', 'pages/comercial.php'=>'fa-line-chart',
+        'pages/usuarios.php'=>'fa-users', 'pages/permissoes.php'=>'fa-lock',
+        'admin/menus.php'=>'fa-list-alt', 'admin/usuarios.php'=>'fa-user-secret',
+        'admin/permissoes.php'=>'fa-lock', 'admin/configuracoes.php'=>'fa-cogs',
+        'admin/gestorwin.php'=>'fa-cubes', 'admin/versao.php'=>'fa-code-fork',
+        'admin/clientes.php'=>'fa-users', 'admin/comercial.php'=>'fa-credit-card',
+        'admin/clean.php'=>'fa-magic',
+        'redes/painel.php'=>'fa-th-large', 'redes/servidor.php'=>'fa-server',
+        'redes/velocidade.php'=>'fa-tachometer', 'redes/dispositivos.php'=>'fa-desktop',
+        'redes/mapa.php'=>'fa-sitemap', 'redes/suporte.php'=>'fa-life-ring',
+        'redes/usuarios.php'=>'fa-users', 'redes/permissoes.php'=>'fa-lock',
+        'redes/preferencias.php'=>'fa-sliders', 'redes/programas.php'=>'fa-cubes',
+        'redes/backup.php'=>'fa-cloud-upload', 'redes/clean.php'=>'fa-magic',
+        'redes/remoto.php'=>'fa-eye', 'redes/arquivos.php'=>'fa-folder-open',
+        'redes/chamados.php'=>'fa-ticket', 'redes/agenda.php'=>'fa-calendar',
+        'redes/cadastros.php'=>'fa-address-book', 'redes/liberacao.php'=>'fa-unlock-alt',
+        'redes/relatorios.php'=>'fa-bar-chart',
+    ];
+}
+/** Atualiza somente ícones genéricos, vazios ou não existentes no catálogo instalado. */
+function arc_navigation_sync_icons(PDO $pdo, array $availableIcons): int {
+    $defaults=arc_navigation_icon_defaults();$generic=['','fa-file-o','fa-desktop','fa-circle','fa-circle-o','circle'];
+    $rows=$pdo->query('SELECT id,target_url,icon FROM '.arc_table('navigation_items'))->fetchAll(PDO::FETCH_ASSOC);
+    $update=$pdo->prepare('UPDATE '.arc_table('navigation_items').' SET icon=? WHERE id=?');$count=0;
+    $pdo->beginTransaction();
+    try {
+        foreach($rows as $row){
+            $path=strtolower((string)parse_url((string)$row['target_url'],PHP_URL_PATH));
+            $target=$defaults[$path]??null;
+            if(!$target||!in_array(substr($target,3),$availableIcons,true))continue;
+            $current=(string)$row['icon'];
+            if($current===$target||(!in_array($current,$generic,true)&&in_array(preg_replace('/^fa-/','',$current),$availableIcons,true)))continue;
+            $update->execute([$target,(int)$row['id']]);$count+=$update->rowCount();
         }
-    }
-    $missing=[];$inactive=[];
-    foreach (arc_navigation_catalog() as $target=>$spec) {
-        if (empty($mapped[$target])) $missing[]=$spec;
-        elseif (!array_filter($mapped[$target],static fn(array $item):bool=>(int)$item['enabled']===1)) $inactive[]=$spec;
-    }
-    return ['missing'=>$missing,'inactive'=>$inactive,'invalid'=>$invalid,'total'=>count($records)];
+        $pdo->commit();
+    } catch(Throwable $e) {$pdo->rollBack();throw $e;}
+    return $count;
+}
+/** Menus com mesmo destino em um mesmo local podem se sobrepor por perfil e dispositivo. */
+function arc_navigation_overlap(array $previous,array $current): array {
+    if ((string)$previous['placement']!==(string)$current['placement'] || (string)$previous['context']!==(string)$current['context'])return [];
+    $a=strtolower(trim(str_replace('\\','/',(string)($previous['target_url']??''))));
+    $b=strtolower(trim(str_replace('\\','/',(string)($current['target_url']??''))));
+    if ($a===''||$a!==$b) return [];
+    // Grupos diferentes só são mutuamente exclusivos quando ambos estão definidos.
+    $ga=(int)($previous['group_id']??0);$gb=(int)($current['group_id']??0);
+    if ($ga>0&&$gb>0&&$ga!==$gb)return [];
+    $split=static function(string $value):array {
+        return array_values(array_unique(array_filter(array_map('trim',explode(',',strtolower($value))))));
+    };
+    $roles=array_values(array_intersect($split((string)$previous['access_roles']),$split((string)$current['access_roles'])));
+    // Administradores globais enxergam rotas de rede mesmo quando o cadastro
+    // atribui perfis operacionais diferentes; isto também é uma sobreposição.
+    if ((string)$previous['context']==='network' && !in_array('admin',$roles,true)) $roles[]='admin';
+    $devices=array_values(array_intersect($split((string)$previous['devices']),$split((string)$current['devices'])));
+    return ($roles&&$devices)?['roles'=>$roles,'devices'=>$devices]:[];
 }
 
 /**
- * Sincronização explícita: cadastra apenas páginas sem nenhum registro de menu.
- * Itens previamente desativados permanecem desativados (respeito ao administrador).
- * Novas páginas ficam visíveis somente sob as permissões do seu contexto.
+ * Auditoria de navegação somente leitura. "invalid" significa configuração
+ * divergente, não prova de acesso indevido: o controle efetivo continua no backend.
  */
-function arc_navigation_discover(PDO $pdo): array {
-    $table=arc_table('navigation_items');
-    $exists=$pdo->prepare('SELECT id FROM '.$table.' WHERE target_url=? LIMIT 1');
-    $insert=$pdo->prepare("INSERT INTO ".$table." (label,route_key,placement,context,target_url,icon,access_roles,sort_order,enabled,agent_permission,devices) VALUES (?,'',?,?,?,?,?,?,1,?,'desktop,tablet,mobile')");
-    $added=0;
-    foreach (arc_navigation_catalog() as $spec) {
-        $exists->execute([$spec['target']]);
-        if ($exists->fetchColumn()) continue;
-        $name=substr($spec['target'],0,strpos($spec['target'],'/'));
-        $icon=$name==='admin'?'fa-cog':($name==='redes'?'fa-desktop':'fa-file-o');
-        $insert->execute([$spec['label'],$spec['placement'],$spec['context'],$spec['target'],$icon,$spec['roles'],900+$added,$spec['permission']]);
-        $added++;
+function arc_navigation_audit(PDO $pdo): array {
+    $records=$pdo->query('SELECT id,label,target_url,enabled,placement,context,access_roles,gestor_permission,group_id,parent_id,devices FROM '.arc_table('navigation_items').' ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+    $mapped=[];$invalid=[];$orphans=[];$inactive=[];$prior=[];$duplicates=[];
+    $catalog=arc_navigation_catalog();
+    $knownIds=array_fill_keys(array_map(static fn(array $r):int=>(int)$r['id'],$records),true);
+    foreach ($records as $row) {
+        $destination=trim((string)($row['target_url']??''));
+        $path=(string)parse_url($destination,PHP_URL_PATH);
+        $id=(int)$row['id'];$enabled=(int)$row['enabled']===1;
+        if (!$enabled) $inactive[]=['id'=>$id,'label'=>$row['label'],'target'=>$destination,'placement'=>$row['placement']];
+        // Detecta sobreposição real (não exige conjuntos idênticos de perfis).
+        // Registramos o par por ID para que a decisão de consolidar seja consciente.
+        if ($enabled && $destination!=='') {
+            foreach($prior as $before){
+                $overlap=arc_navigation_overlap($before,$row);
+                if(!$overlap)continue;
+                $dup=$row;$dup['target']=$destination;
+                $dup['canonical_id']=(int)$before['id'];
+                $dup['canonical_label']=(string)$before['label'];
+                $dup['overlap_roles']=$overlap['roles'];
+                $dup['overlap_devices']=$overlap['devices'];
+                $dup['safe_disable']=((int)($before['parent_id']??0)===(int)($row['parent_id']??0))
+                    && ((int)($before['group_id']??0)===(int)($row['group_id']??0))
+                    && ((string)($before['gestor_permission']??'')===(string)($row['gestor_permission']??''))
+                    && !array_diff(explode(',',strtolower((string)$row['access_roles'])),explode(',',strtolower((string)$before['access_roles'])))
+                    && !array_diff(explode(',',strtolower((string)$row['devices'])),explode(',',strtolower((string)$before['devices'])));
+                $duplicates[]=$dup;
+            }
+            $prior[]=$row;
+        }
+        $issues=[];
+        $roles=array_values(array_unique(array_filter(array_map('trim',explode(',',(string)($row['access_roles']??''))))));
+        foreach ($roles as $role) if (!in_array($role,['admin','manager','user','viewer'],true)) $issues[]='Perfil desconhecido: '.$role;
+        if (!$roles) $issues[]='Nenhum perfil autorizado';
+        $parent=(int)($row['parent_id']??0);
+        if ($parent>0 && !isset($knownIds[$parent])) $issues[]='Menu superior inexistente';
+        if ($parent===$id) $issues[]='Menu não pode ser seu próprio superior';
+        if ($path!=='' && preg_match('~^(?:admin|pages|redes)/[a-z][a-z0-9_-]*\.php$~iD',$path)) {
+            $mapped[$path][]=$row;
+            if (!arc_navigation_target($destination)) {
+                $row['target']=$destination;
+                $orphans[]=$row;
+            } else {
+                if (arc_navigation_route_admin_only($path) && array_diff($roles,['admin'])) $issues[]='Página exclusiva de administrador vinculada a outros perfis';
+                if (str_starts_with($path,'redes/') && (string)$row['context']!=='network' && $path!=='redes/relatorios.php') $issues[]='Página de rede fora do contexto de rede';
+                if (str_starts_with($path,'redes/') && empty($row['gestor_permission'])) $issues[]='Menu de rede sem permissão de aba especificada';
+                if (isset($catalog[$path]) && $catalog[$path]['context']==='global' && (string)$row['context']!=='global') $issues[]='Página global cadastrada no contexto de rede';
+            }
+        } elseif ($destination!=='' && !arc_navigation_target($destination)) {
+            $issues[]='Endereço do menu inválido';
+        }
+        if ($issues) {
+            $row['target']=$destination;
+            $row['issues']=array_values(array_unique($issues));
+            $invalid[]=$row;
+        }
     }
-    return [$added,0,0];
+    // Arquivos PHP não são menus. Só registros do banco participam da conferência.
+    $missing=[];
+    return [
+        'missing'=>$missing,'orphans'=>$orphans,'inactive'=>$inactive,'duplicates'=>$duplicates,
+        'invalid'=>$invalid,
+        'alerts'=>count($missing)+count($orphans)+count($duplicates)+count($invalid),
+        'total'=>count($records),
+    ];
 }
+

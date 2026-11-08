@@ -1,13 +1,13 @@
 <?php
 // Caminho: redes/liberacao.php
-/** Tela de instalação/liberação de agentes da rede com grade pesquisável e ordenação por coluna. */
+/** Tela de instalação/liberação de gestores da rede com grade pesquisável e ordenação por coluna. */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 $pdo = arc_db();
 arc_ensure_user_schema($pdo);
 header('Cache-Control: private, no-store, max-age=0');
 
-if (!arc_is_user()) {
+if (!arc_is_user() && !arc_is_admin()) {
     header('Location: ' . arc_workspace_base_url() . 'index.php', true, 303);
     exit;
 }
@@ -19,9 +19,9 @@ if (!$access) {
     exit('Rede não autorizada.');
 }
 
-if ($access['role']!=='owner') { $rights=arc_network_profile_rights($pdo,$networkId,(int)arc_user_id());if($rights!==null&&!in_array('liberacao',$rights,true)){http_response_code(403);exit('Seu perfil não permite abrir Liberações.');} }
+if (!in_array($access['role'], ['owner', 'system_admin'], true)) { $rights=arc_network_profile_rights($pdo,$networkId,(int)arc_user_id());if($rights!==null&&!in_array('liberacao',$rights,true)){http_response_code(403);exit('Seu perfil não permite abrir Liberações.');} }
 $account = (int)$access['account_id'];
-$isOwner = ($access['role'] === 'owner');
+$isOwner = in_array($access['role'], ['owner', 'system_admin'], true);
 $isNetworkOwner = $isOwner;
 $q = $pdo->prepare('SELECT id,name,site_code,logo_file,monitoring_enabled,is_active FROM ' . arc_table('managed_networks') . ' WHERE id=? AND account_id=? LIMIT 1');
 $q->execute([$networkId, $account]);
@@ -37,7 +37,7 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$isOwner) {
         http_response_code(403);
-        exit('Somente o proprietário da rede pode liberar agentes.');
+        exit('Somente o proprietário da rede pode liberar gestores.');
     }
     arc_verify_csrf();
     $action = (string)($_POST['action'] ?? '');
@@ -46,11 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id=(int)($_POST['request_id']??0);
         try {
             $pdo->beginTransaction();
-            $q=$pdo->prepare('SELECT * FROM '.arc_table('agent_rebind_requests')." WHERE id=? AND account_id=? AND network_id=? AND status='pending' FOR UPDATE");
+            $q=$pdo->prepare('SELECT * FROM '.arc_table('gestor_rebind_requests')." WHERE id=? AND account_id=? AND network_id=? AND status='pending' FOR UPDATE");
             $q->execute([$id,$account,$networkId]);$candidate=$q->fetch(PDO::FETCH_ASSOC);
             if (!$candidate) throw new RuntimeException('Solicitação de vinculação não encontrada.');
             if ($action==='rebind_approve') {
-                $q=$pdo->prepare('SELECT id,account_id,network_id,status FROM '.arc_table('network_agents').' WHERE fingerprint=? FOR UPDATE');
+                $q=$pdo->prepare('SELECT id,account_id,network_id,status FROM '.arc_table('network_gestores').' WHERE fingerprint=? FOR UPDATE');
                 $q->execute([(string)$candidate['fingerprint']]);$existing=$q->fetch(PDO::FETCH_ASSOC);
                 if ($existing && (int)$existing['account_id']!==$account) {
                     throw new RuntimeException('O computador já pertence a outra conta.');
@@ -59,27 +59,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // histórico (bloqueado/transferido) e um novo cadastro aprovado é criado nesta rede.
                 if ($existing && (int)$existing['network_id']!==$networkId) {
                     $historic=hash('sha256','historico:'.(string)$candidate['fingerprint'].':'.$existing['id']);
-                    $q=$pdo->prepare('UPDATE '.arc_table('network_agents')." SET fingerprint=?,status='blocked',ui_locked=0,uninstall_requested=0,notes=? WHERE id=?");
+                    $q=$pdo->prepare('UPDATE '.arc_table('network_gestores')." SET fingerprint=?,status='blocked',ui_locked=0,uninstall_requested=0,notes=? WHERE id=?");
                     $q->execute([$historic,mb_substr('TRANSFERIDO|'.date('Y-m-d H:i:s').'|Novo local: '.(string)$candidate['site_code'],0,500),(int)$existing['id']]);
                     // As chaves da rede anterior deixam de valer para este computador.
-                    $q=$pdo->prepare('UPDATE '.arc_table('agent_download_keys').' SET fingerprint=? WHERE fingerprint=? AND network_id=? AND account_id=?');
+                    $q=$pdo->prepare('UPDATE '.arc_table('gestor_download_keys').' SET fingerprint=? WHERE fingerprint=? AND network_id=? AND account_id=?');
                     $q->execute([$historic,(string)$candidate['fingerprint'],(int)$existing['network_id'],$account]);
                     $existing=false;
                 }
                 if (!$existing) {
-                    arc_billing_enforce($pdo,$account,'agents');
-                    $q=$pdo->prepare('INSERT INTO '.arc_table('network_agents')." (fingerprint,account_id,network_id,site_code,machine_name,platform,status,approved_at) VALUES (?,?,?,?,?,'Windows','approved',NOW())");
+                    arc_billing_enforce($pdo,$account,'gestores');
+                    $q=$pdo->prepare('INSERT INTO '.arc_table('network_gestores')." (fingerprint,account_id,network_id,site_code,machine_name,platform,status,approved_at) VALUES (?,?,?,?,?,'Windows','approved',NOW())");
                     $q->execute([(string)$candidate['fingerprint'],$account,$networkId,(string)$candidate['site_code'],(string)$candidate['machine_name']]);
                 } else {
-                    if ((string)$existing['status']!=='approved')arc_billing_enforce($pdo,$account,'agents');
-                    $q=$pdo->prepare('UPDATE '.arc_table('network_agents')." SET status='approved',uninstall_requested=0,ui_locked=0,notes='',approved_at=NOW(),machine_name=?,site_code=? WHERE id=?");
+                    if ((string)$existing['status']!=='approved')arc_billing_enforce($pdo,$account,'gestores');
+                    $q=$pdo->prepare('UPDATE '.arc_table('network_gestores')." SET status='approved',uninstall_requested=0,ui_locked=0,notes='',approved_at=NOW(),machine_name=?,site_code=? WHERE id=?");
                     $q->execute([(string)$candidate['machine_name'],(string)$candidate['site_code'],(int)$existing['id']]);
                 }
                 // Rotação da chave revogável apenas após a aprovação expressa do gestor.
-                $q=$pdo->prepare('DELETE FROM '.arc_table('agent_download_keys').' WHERE fingerprint=? AND network_id=? AND account_id=? AND token_hash<>?');
+                $q=$pdo->prepare('DELETE FROM '.arc_table('gestor_download_keys').' WHERE fingerprint=? AND network_id=? AND account_id=? AND token_hash<>?');
                 $q->execute([(string)$candidate['fingerprint'],$networkId,$account,(string)$candidate['token_hash']]);
                 // A chave pode já existir (pacote baixado pelo painel e usado no pedido automático do instalador).
-                $q=$pdo->prepare('SELECT id,fingerprint,network_id,account_id FROM '.arc_table('agent_download_keys').' WHERE token_hash=? LIMIT 1 FOR UPDATE');
+                $q=$pdo->prepare('SELECT id,fingerprint,network_id,account_id FROM '.arc_table('gestor_download_keys').' WHERE token_hash=? LIMIT 1 FOR UPDATE');
                 $q->execute([(string)$candidate['token_hash']]);$keyRow=$q->fetch(PDO::FETCH_ASSOC);
                 if ($keyRow) {
                     $keyFp=strtolower(trim((string)($keyRow['fingerprint']??'')));
@@ -87,17 +87,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ($keyFp!=='' && !hash_equals($keyFp,(string)$candidate['fingerprint']))) {
                         throw new RuntimeException('Esta solicitação já foi utilizada.');
                     }
-                    $q=$pdo->prepare('UPDATE '.arc_table('agent_download_keys').' SET fingerprint=?,used_at=COALESCE(used_at,NOW()) WHERE id=?');
+                    $q=$pdo->prepare('UPDATE '.arc_table('gestor_download_keys').' SET fingerprint=?,used_at=COALESCE(used_at,NOW()) WHERE id=?');
                     $q->execute([(string)$candidate['fingerprint'],(int)$keyRow['id']]);
                 } else {
-                    $q=$pdo->prepare('INSERT INTO '.arc_table('agent_download_keys').' (token_hash,account_id,network_id,site_code,fingerprint,used_at) VALUES (?,?,?,?,?,NOW())');
+                    $q=$pdo->prepare('INSERT INTO '.arc_table('gestor_download_keys').' (token_hash,account_id,network_id,site_code,fingerprint,used_at) VALUES (?,?,?,?,?,NOW())');
                     $q->execute([(string)$candidate['token_hash'],$account,$networkId,(string)$candidate['site_code'],(string)$candidate['fingerprint']]);
                 }
             }
-            $q=$pdo->prepare('UPDATE '.arc_table('agent_rebind_requests').' SET status=?,reviewed_at=NOW() WHERE id=?');
+            $q=$pdo->prepare('UPDATE '.arc_table('gestor_rebind_requests').' SET status=?,reviewed_at=NOW() WHERE id=?');
             $q->execute([$action==='rebind_approve'?'approved':'rejected',$id]);
             $pdo->commit();
-            arc_user_audit($pdo,$action==='rebind_approve'?'agent_rebind_approved':'agent_rebind_rejected','Recuperação de credencial: '.(string)$candidate['machine_name'].' ('.(string)$candidate['site_code'].')');
+            arc_user_audit($pdo,$action==='rebind_approve'?'gestor_rebind_approved':'gestor_rebind_rejected','Recuperação de credencial: '.(string)$candidate['machine_name'].' ('.(string)$candidate['site_code'].')');
             header('Location: '.arc_workspace_base_url().'redes/liberacao.php?network='.$networkId,true,303);exit;
         } catch (Throwable $e) {
             if ($pdo->inTransaction())$pdo->rollBack();
@@ -112,97 +112,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if (in_array($action, ['agent_reject','agent_lock_toggle','agent_headless_toggle','agent_uninstall_toggle'], true)) {
-        $id = (int)($_POST['agent_id'] ?? 0);
-        $q = $pdo->prepare('SELECT id,machine_name,status,headless_mode,ui_locked,uninstall_requested,notes FROM ' . arc_table('network_agents') . ' WHERE id=? AND network_id=? AND account_id=? LIMIT 1');
+    if (in_array($action, ['gestor_reject','gestor_lock_toggle','gestor_headless_toggle','gestor_uninstall_toggle'], true)) {
+        $id = (int)($_POST['gestor_id'] ?? 0);
+        $q = $pdo->prepare('SELECT id,machine_name,status,headless_mode,ui_locked,uninstall_requested,notes FROM ' . arc_table('network_gestores') . ' WHERE id=? AND network_id=? AND account_id=? LIMIT 1');
         $q->execute([$id,$networkId,$account]);
         $item=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$item) { $error='Agente não encontrado nesta rede.'; }
+        if (!$item) { $error='Gestor não encontrado nesta rede.'; }
         else {
             $oldStatus=(string)$item['status'];
             $alreadyRemoved=str_starts_with((string)($item['notes']??''),'DESINSTALADO|');
             $uninstallPending=(int)$item['uninstall_requested']===1;
-            $valid=($action==='agent_reject' && $oldStatus==='pending')
-                || ($action==='agent_lock_toggle' && $oldStatus==='approved' && !$uninstallPending)
-                || ($action==='agent_headless_toggle' && $oldStatus==='approved')
-                || ($action==='agent_uninstall_toggle' && !$alreadyRemoved && ($uninstallPending || $oldStatus==='approved'));
+            $valid=($action==='gestor_reject' && $oldStatus==='pending')
+                || ($action==='gestor_lock_toggle' && $oldStatus==='approved' && !$uninstallPending)
+                || ($action==='gestor_headless_toggle' && $oldStatus==='approved')
+                || ($action==='gestor_uninstall_toggle' && !$alreadyRemoved && ($uninstallPending || $oldStatus==='approved'));
             if (!$valid) {
-                $error='Esta ação não está disponível para o estado atual do agente.';
-            } elseif ($action === 'agent_headless_toggle') {
+                $error='Esta ação não está disponível para o estado atual do gestor.';
+            } elseif ($action === 'gestor_headless_toggle') {
                 $next=(int)$item['headless_mode']===1?0:1;
-                $q=$pdo->prepare('UPDATE '.arc_table('network_agents').' SET headless_mode=? WHERE id=? AND network_id=? AND account_id=?');
+                $q=$pdo->prepare('UPDATE '.arc_table('network_gestores').' SET headless_mode=? WHERE id=? AND network_id=? AND account_id=?');
                 $q->execute([$next,$id,$networkId,$account]);
-                arc_user_audit($pdo,$next?'network_agent_headless_enabled':'network_agent_headless_disabled','Modo sem monitor modificado para o agente '.$id);
-            } elseif ($action === 'agent_lock_toggle') {
-                // Bloquear não derruba o agente: ele segue ativo e monitorando; só a tela local passa a exigir login.
+                arc_user_audit($pdo,$next?'network_gestor_headless_enabled':'network_gestor_headless_disabled','Modo sem monitor modificado para o gestor '.$id);
+            } elseif ($action === 'gestor_lock_toggle') {
+                // Bloquear não derruba o gestor: ele segue ativo e monitorando; só a tela local passa a exigir login.
                 $next=(int)$item['ui_locked']===1?0:1;
-                $q=$pdo->prepare('UPDATE '.arc_table('network_agents').' SET ui_locked=? WHERE id=? AND network_id=? AND account_id=? AND status=\'approved\'');
+                $q=$pdo->prepare('UPDATE '.arc_table('network_gestores').' SET ui_locked=? WHERE id=? AND network_id=? AND account_id=? AND status=\'approved\'');
                 $q->execute([$next,$id,$networkId,$account]);
-                arc_user_audit($pdo,$next?'network_agent_locked':'network_agent_unlocked','Tela do agente '.($next?'protegida por login':'liberada sem login').': agente '.$id);
-            } elseif ($action === 'agent_uninstall_toggle') {
+                arc_user_audit($pdo,$next?'network_gestor_locked':'network_gestor_unlocked','Tela do gestor '.($next?'protegida por login':'liberada sem login').': gestor '.$id);
+            } elseif ($action === 'gestor_uninstall_toggle') {
                 $next=$uninstallPending?0:1;
-                $q=$pdo->prepare('UPDATE '.arc_table('network_agents').' SET uninstall_requested=?,ui_locked=0 WHERE id=? AND network_id=? AND account_id=?');
+                $q=$pdo->prepare('UPDATE '.arc_table('network_gestores').' SET uninstall_requested=?,ui_locked=0 WHERE id=? AND network_id=? AND account_id=?');
                 $q->execute([$next,$id,$networkId,$account]);
-                arc_user_audit($pdo,$next?'network_agent_uninstall_requested':'network_agent_uninstall_cancelled','Desinstalação '.($next?'solicitada':'cancelada').' para o agente '.$id);
+                arc_user_audit($pdo,$next?'network_gestor_uninstall_requested':'network_gestor_uninstall_cancelled','Desinstalação '.($next?'solicitada':'cancelada').' para o gestor '.$id);
             } else {
-                $q=$pdo->prepare('UPDATE '.arc_table('network_agents').' SET status=\'rejected\' WHERE id=? AND network_id=? AND account_id=?');
+                $q=$pdo->prepare('UPDATE '.arc_table('network_gestores').' SET status=\'rejected\' WHERE id=? AND network_id=? AND account_id=?');
                 $q->execute([$id,$networkId,$account]);
-                arc_user_audit($pdo,'network_agent_rejected','Estado alterado para rejected no agente '.$id);
+                arc_user_audit($pdo,'network_gestor_rejected','Estado alterado para rejected no gestor '.$id);
             }
             header('Location: '.arc_workspace_base_url().'redes/liberacao.php?network='.$networkId,true,303);exit;
         }
     }
-    if ($action === 'agent_approve') {
-        $id = (int)($_POST['agent_id'] ?? 0);
+    if ($action === 'gestor_approve') {
+        $id = (int)($_POST['gestor_id'] ?? 0);
         try {
             $pdo->beginTransaction();
             $lock = $pdo->prepare('SELECT id FROM ' . arc_table('user_accounts') . ' WHERE id=? FOR UPDATE');
             $lock->execute([$account]);
-            $get = $pdo->prepare('SELECT id,machine_name,status,notes FROM ' . arc_table('network_agents') . ' WHERE id=? AND account_id=? AND network_id=? FOR UPDATE');
+            $get = $pdo->prepare('SELECT id,machine_name,status,notes FROM ' . arc_table('network_gestores') . ' WHERE id=? AND account_id=? AND network_id=? FOR UPDATE');
             $get->execute([$id, $account, $networkId]);
             $candidate = $get->fetch(PDO::FETCH_ASSOC);
             if (!$candidate || !in_array((string)$candidate['status'], ['pending', 'blocked'], true) || str_starts_with((string)($candidate['notes'] ?? ''),'DESINSTALADO|')) {
-                throw new RuntimeException('O agente não está disponível para liberação.');
+                throw new RuntimeException('O gestor não está disponível para liberação.');
             }
-            arc_billing_enforce($pdo, $account, 'agents');
-            $approve = $pdo->prepare("UPDATE " . arc_table('network_agents') . " SET status='approved',ui_locked=0,approved_at=NOW() WHERE id=? AND account_id=? AND network_id=? AND status IN ('pending','blocked')");
+            arc_billing_enforce($pdo, $account, 'gestores');
+            $approve = $pdo->prepare("UPDATE " . arc_table('network_gestores') . " SET status='approved',ui_locked=0,approved_at=NOW() WHERE id=? AND account_id=? AND network_id=? AND status IN ('pending','blocked')");
             $approve->execute([$id, $account, $networkId]);
             if ($approve->rowCount() !== 1) {
                 throw new RuntimeException('Não foi possível confirmar a liberação.');
             }
             $pdo->commit();
-            arc_user_audit($pdo, 'network_agent_approved', 'Agente liberado: ' . (string)$candidate['machine_name'] . ' (Rede ID ' . $networkId . ')');
+            arc_user_audit($pdo, 'network_gestor_approved', 'Gestor liberado: ' . (string)$candidate['machine_name'] . ' (Rede ID ' . $networkId . ')');
             header('Location: ' . arc_workspace_base_url() . 'redes/liberacao.php?network=' . $networkId, true, 303);
             exit;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            $error = $e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível liberar o agente.';
+            $error = $e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível liberar o gestor.';
         }
     }
 }
 
-$getAgents = $pdo->prepare('SELECT id,fingerprint,machine_name,platform,local_ip,agent_version,status,first_seen_at,last_seen_at,approved_at,machine_details,headless_mode,ui_locked,uninstall_requested,notes FROM ' . arc_table('network_agents') . ' WHERE network_id=? AND account_id=? ORDER BY first_seen_at DESC,id DESC');
-$getAgents->execute([$networkId, $account]);
-$agents = $getAgents->fetchAll(PDO::FETCH_ASSOC);
-$rebindStmt=$pdo->prepare('SELECT id,machine_name,fingerprint,requested_at,status FROM '.arc_table('agent_rebind_requests')." WHERE network_id=? AND account_id=? AND status='pending' ORDER BY requested_at DESC");
+$getGestores = $pdo->prepare('SELECT id,fingerprint,machine_name,platform,local_ip,gestor_version,status,first_seen_at,last_seen_at,approved_at,machine_details,headless_mode,ui_locked,uninstall_requested,notes FROM ' . arc_table('network_gestores') . ' WHERE network_id=? AND account_id=? ORDER BY first_seen_at DESC,id DESC');
+$getGestores->execute([$networkId, $account]);
+$gestores = $getGestores->fetchAll(PDO::FETCH_ASSOC);
+$rebindStmt=$pdo->prepare('SELECT id,machine_name,fingerprint,requested_at,status FROM '.arc_table('gestor_rebind_requests')." WHERE network_id=? AND account_id=? AND status='pending' ORDER BY requested_at DESC");
 $rebindStmt->execute([$networkId,$account]);
 $rebindRequests=$rebindStmt->fetchAll(PDO::FETCH_ASSOC);
 // Solicitações de recuperação entram na própria grade. O cadastro existente é
 // aproveitado quando há fingerprint correspondente, evitando linhas duplicadas.
 $rebindByFingerprint=[];
 $existingFingerprints=[];
-foreach ($agents as $agent) {
-    $existingFingerprints[(string)$agent['fingerprint']]=true;
+foreach ($gestores as $gestor) {
+    $existingFingerprints[(string)$gestor['fingerprint']]=true;
 }
 foreach ($rebindRequests as $request) {
     $fingerprint=(string)$request['fingerprint'];
     $rebindByFingerprint[$fingerprint]=$request;
     if (!isset($existingFingerprints[$fingerprint])) {
-        $agents[]=[
+        $gestores[]=[
             'id'=>0,'fingerprint'=>$fingerprint,'machine_name'=>(string)$request['machine_name'],
-            'platform'=>'Windows','local_ip'=>'','agent_version'=>'',
+            'platform'=>'Windows','local_ip'=>'','gestor_version'=>'',
             'status'=>'pending','first_seen_at'=>(string)$request['requested_at'],
             'last_seen_at'=>null,'approved_at'=>null,'machine_details'=>null,
             'headless_mode'=>0,'ui_locked'=>0,'uninstall_requested'=>0,'notes'=>''
@@ -211,10 +211,10 @@ foreach ($rebindRequests as $request) {
 }
 
 
-$agentsSignature = hash('sha256', json_encode(array_map(static fn(array $a): array => [(int)$a['id'], (string)$a['status'], str_starts_with((string)($a['notes'] ?? ''), 'DESINSTALADO|'), (int)$a['ui_locked'], (int)$a['uninstall_requested']], $agents)));
-$agentsSignature = hash('sha256', $agentsSignature . json_encode(array_map(static fn(array $r): array => [(int)$r['id'],(string)$r['status']],$rebindRequests)));
-$approved = array_values(array_filter($agents, static fn(array $a): bool => (string)$a['status'] === 'approved' && !isset($rebindByFingerprint[(string)$a['fingerprint']])));
-$pending = array_values(array_filter($agents, static fn(array $a): bool => in_array((string)$a['status'], ['pending', 'blocked', 'rejected'], true)));
+$gestoresSignature = hash('sha256', json_encode(array_map(static fn(array $a): array => [(int)$a['id'], (string)$a['status'], str_starts_with((string)($a['notes'] ?? ''), 'DESINSTALADO|'), (int)$a['ui_locked'], (int)$a['uninstall_requested']], $gestores)));
+$gestoresSignature = hash('sha256', $gestoresSignature . json_encode(array_map(static fn(array $r): array => [(int)$r['id'],(string)$r['status']],$rebindRequests)));
+$approved = array_values(array_filter($gestores, static fn(array $a): bool => (string)$a['status'] === 'approved' && !isset($rebindByFingerprint[(string)$a['fingerprint']])));
+$pending = array_values(array_filter($gestores, static fn(array $a): bool => in_array((string)$a['status'], ['pending', 'blocked', 'rejected'], true)));
 $stage = $approved ? 'approved' : (($pending || $rebindRequests) ? 'pending' : 'install');
 
 if (($_GET['status'] ?? '') === '1') {
@@ -223,7 +223,7 @@ if (($_GET['status'] ?? '') === '1') {
     echo json_encode([
         'ok' => true,
         'stage' => $stage,
-        'signature' => $agentsSignature,
+        'signature' => $gestoresSignature,
         'pending' => array_map(static fn(array $a): array => [
             'id' => (int)$a['id'],
             'name' => (string)$a['machine_name'],
@@ -239,17 +239,17 @@ $statusMap = [
     'blocked' => ['label' => 'Acesso bloqueado', 'class' => 'is-blocked'],
     'rejected' => ['label' => 'Aguardando nova liberação', 'class' => 'is-rejected'],
     'approved' => ['label' => 'Liberado', 'class' => 'is-approved'],
-    'uninstalled' => ['label' => 'AGENTE DESINSTALADO', 'class' => 'is-uninstalled'],
+    'uninstalled' => ['label' => 'GESTOR DESINSTALADO', 'class' => 'is-uninstalled'],
     'locked' => ['label' => 'Bloqueado (exige login)', 'class' => 'is-locked'],
     'uninstalling' => ['label' => 'Desinstalação pendente', 'class' => 'is-uninstalling'],
 ];
 
 $rows = [];
-foreach ($agents as $agent) {
+foreach ($gestores as $gestor) {
     $details = [];
-    if (!empty($agent['machine_details'])) {
+    if (!empty($gestor['machine_details'])) {
         try {
-            $decoded = json_decode((string)$agent['machine_details'], true, 512, JSON_THROW_ON_ERROR);
+            $decoded = json_decode((string)$gestor['machine_details'], true, 512, JSON_THROW_ON_ERROR);
             if (is_array($decoded)) {
                 $details = $decoded;
             }
@@ -257,45 +257,45 @@ foreach ($agents as $agent) {
             $details = [];
         }
     }
-    $machine = trim((string)($agent['machine_name'] ?? '')) !== '' ? (string)$agent['machine_name'] : 'Computador detectado';
-    $platform = trim((string)($details['os_caption'] ?? $details['os_name'] ?? $agent['platform'] ?? ''));
+    $machine = trim((string)($gestor['machine_name'] ?? '')) !== '' ? (string)$gestor['machine_name'] : 'Computador detectado';
+    $platform = trim((string)($details['os_caption'] ?? $details['os_name'] ?? $gestor['platform'] ?? ''));
     if ($platform === '') {
         $platform = 'Windows';
     }
-    $version = trim((string)($agent['agent_version'] ?? '')) !== '' ? (string)$agent['agent_version'] : '—';
-    $localIp = trim((string)($agent['local_ip'] ?? ''));
-    $isRemoved = str_starts_with((string)($agent['notes'] ?? ''), 'DESINSTALADO|');
-    $isUninstalling = !$isRemoved && (int)($agent['uninstall_requested'] ?? 0) === 1;
-    $isLocked = !$isRemoved && !$isUninstalling && (string)$agent['status'] === 'approved' && (int)($agent['ui_locked'] ?? 0) === 1;
-    $effective = $isRemoved ? 'uninstalled' : ($isUninstalling ? 'uninstalling' : ($isLocked ? 'locked' : (string)$agent['status']));
-    $rebindRequest=$rebindByFingerprint[(string)$agent['fingerprint']] ?? null;
+    $version = trim((string)($gestor['gestor_version'] ?? '')) !== '' ? (string)$gestor['gestor_version'] : '—';
+    $localIp = trim((string)($gestor['local_ip'] ?? ''));
+    $isRemoved = str_starts_with((string)($gestor['notes'] ?? ''), 'DESINSTALADO|');
+    $isUninstalling = !$isRemoved && (int)($gestor['uninstall_requested'] ?? 0) === 1;
+    $isLocked = !$isRemoved && !$isUninstalling && (string)$gestor['status'] === 'approved' && (int)($gestor['ui_locked'] ?? 0) === 1;
+    $effective = $isRemoved ? 'uninstalled' : ($isUninstalling ? 'uninstalling' : ($isLocked ? 'locked' : (string)$gestor['status']));
+    $rebindRequest=$rebindByFingerprint[(string)$gestor['fingerprint']] ?? null;
     if ($rebindRequest!==null) $effective='rebind_pending';
     $rows[] = [
-        'id' => (int)$agent['id'],
+        'id' => (int)$gestor['id'],
         'rebind_id' => $rebindRequest!==null ? (int)$rebindRequest['id'] : 0,
         'machine' => $machine,
         'status' => $effective,
         'details' => $details,
-        'notes' => (string)($agent['notes'] ?? ''),
+        'notes' => (string)($gestor['notes'] ?? ''),
         'status_label' => $statusMap[$effective]['label'] ?? 'Pendente',
         'status_class' => $statusMap[$effective]['class'] ?? 'is-pending',
         'platform' => $platform,
         'version' => $version,
-        'installed' => arc_when($agent['first_seen_at'] ?? null),
-        'installed_ts' => $agent['first_seen_at'] ? (int)(strtotime((string)$agent['first_seen_at']) ?: 0) : 0,
-        'last_seen' => arc_when($agent['last_seen_at'] ?? null),
-        'last_seen_ts' => $agent['last_seen_at'] ? (int)(strtotime((string)$agent['last_seen_at']) ?: 0) : 0,
+        'installed' => arc_when($gestor['first_seen_at'] ?? null),
+        'installed_ts' => $gestor['first_seen_at'] ? (int)(strtotime((string)$gestor['first_seen_at']) ?: 0) : 0,
+        'last_seen' => arc_when($gestor['last_seen_at'] ?? null),
+        'last_seen_ts' => $gestor['last_seen_at'] ? (int)(strtotime((string)$gestor['last_seen_at']) ?: 0) : 0,
         'local_ip' => $localIp !== '' ? $localIp : '—',
         'uninstalled' => $isRemoved,
         'uninstalling' => $isUninstalling,
         'locked' => $isLocked,
-        'raw_status' => (string)$agent['status'],
-        'headless' => (int)($agent['headless_mode']??0) === 1,
+        'raw_status' => (string)$gestor['status'],
+        'headless' => (int)($gestor['headless_mode']??0) === 1,
     ];
 }
 
 $networkLogoUrl = !empty($network['logo_file']) ? arc_workspace_base_url() . 'api/network-logo.php?network=' . $networkId : '';
-$download = arc_workspace_base_url() . 'api/download-agent.php?network=' . $networkId;
+$download = arc_workspace_base_url() . 'api/download-gestor.php?network=' . $networkId;
 $poll = arc_workspace_base_url() . 'redes/liberacao.php?network=' . $networkId . '&status=1';
 $pendingCount = count($rows);
 $basePath = arc_workspace_base_url();
@@ -305,11 +305,11 @@ $searchHint = 'Buscar computador, sistema, IP ou versão';
 $arcSectionFile = 'liberacao';
 $ARCPageBodyClass = 'arc-page-redes';
 $teamRole = (string)$access['role'];
-$networkAgents = $agents;
-$selectedAgentId = 0;
-foreach ($agents as $candidate) {
+$networkGestores = $gestores;
+$selectedGestorId = 0;
+foreach ($gestores as $candidate) {
     if ((string)$candidate['status'] === 'approved') {
-        $selectedAgentId = (int)$candidate['id'];
+        $selectedGestorId = (int)$candidate['id'];
         break;
     }
 }
@@ -328,13 +328,13 @@ require __DIR__ . '/_topo_config.php';
                     <?php endif; ?>
                 </span>
                 <div class="arc-release-network-copy">
-                    <small>Liberação do Agente Windows</small>
+                    <small>Liberação do Gestor Windows</small>
                     <strong><?= arc_h((string)$network['name']) ?></strong>
                 </div>
             </div>
 
             <div class="arc-release-toolbar-actions">
-                <label class="arc-release-search" aria-label="Buscar agente">
+                <label class="arc-release-search" aria-label="Buscar gestor">
                     <i class="fa fa-search" aria-hidden="true"></i>
                     <input id="releaseSearch" type="search" placeholder="<?= arc_h($searchHint) ?>">
                 </label>
@@ -353,7 +353,7 @@ require __DIR__ . '/_topo_config.php';
                 </label>
 
                 <?php if ((int)$network['monitoring_enabled'] === 1): ?>
-                    <a class="arc-release-download" href="<?= arc_h($download) ?>" title="Baixar o instalador (.exe dentro de um ZIP). Extraia e execute o instalador; ele pede permissão de administrador."><i class="fa fa-download"></i><span>Baixar agente (ZIP)</span></a>
+                    <a class="arc-release-download" href="<?= arc_h($download) ?>" title="Baixar o instalador (.exe dentro de um ZIP). Extraia e execute o instalador; ele pede permissão de administrador."><i class="fa fa-download"></i><span>Baixar gestor (ZIP)</span></a>
                     <button class="arc-release-download arc-release-cmd" type="button" id="releaseCmdOpen" title="Instala sem o aviso &quot;O Windows protegeu o computador&quot; (SmartScreen): copie um comando e cole no PowerShell do computador."><i class="fa fa-terminal"></i><span>Instalar sem aviso</span></button>
                 <?php elseif ($isOwner): ?>
                     <form method="post" class="arc-release-inline-form">
@@ -399,7 +399,7 @@ require __DIR__ . '/_topo_config.php';
                                 data-search="<?= arc_h(mb_strtolower(trim($row['machine'] . ' ' . $row['platform'] . ' ' . $row['version'] . ' ' . $row['local_ip']), 'UTF-8')) ?>"
                             >
                                 <td>
-                                    <div class="arc-agent-cell-main">
+                                    <div class="arc-gestor-cell-main">
                                         <strong><?= arc_h($row['machine']) ?></strong>
                                         <small><?= arc_h($row['local_ip']) ?></small>
                                     </div>
@@ -408,14 +408,14 @@ require __DIR__ . '/_topo_config.php';
                                 <td><?= arc_h($row['version']) ?></td>
                                 <td><?= arc_h($row['installed']) ?></td>
                                 <td><?= arc_h($row['last_seen']) ?></td>
-                                <td><span class="arc-agent-status <?= arc_h($row['status_class']) ?>"><?= arc_h($row['status_label']) ?></span></td>
+                                <td><span class="arc-gestor-status <?= arc_h($row['status_class']) ?>"><?= arc_h($row['status_label']) ?></span></td>
                                 <td class="is-actions">
                                     <?php if ($isOwner): ?>
                                     <?php
-                                    $btnForm = static function (string $op, int $agentId, int $netId, string $csrfToken, string $icon, string $tip, string $label, string $confirmText = '', string $cls = ''): string {
+                                    $btnForm = static function (string $op, int $gestorId, int $netId, string $csrfToken, string $icon, string $tip, string $label, string $confirmText = '', string $cls = ''): string {
                                         return '<form method="post" class="arc-release-action-form"' . ($confirmText !== '' ? ' data-confirm="' . arc_h($confirmText) . '"' : '') . '>'
                                             . '<input type="hidden" name="network" value="' . $netId . '"><input type="hidden" name="_csrf" value="' . arc_h($csrfToken) . '">'
-                                            . '<input type="hidden" name="action" value="' . arc_h($op) . '"><input type="hidden" name="agent_id" value="' . $agentId . '">'
+                                            . '<input type="hidden" name="action" value="' . arc_h($op) . '"><input type="hidden" name="gestor_id" value="' . $gestorId . '">'
                                             . '<button type="submit" class="arc-release-icon-btn ' . arc_h($cls) . '" title="' . arc_h($tip) . '" aria-label="' . arc_h($tip . ' — ' . $label) . '"><i class="fa ' . arc_h($icon) . '"></i></button></form>';
                                     };
                                     $rid = (int)$row['id'];
@@ -434,26 +434,26 @@ require __DIR__ . '/_topo_config.php';
                                                 <button type="submit" class="arc-release-icon-btn is-danger" title="Rejeitar nova vinculação" aria-label="Rejeitar nova vinculação — <?= arc_h($row['machine']) ?>"><i class="fa fa-times-circle"></i></button>
                                             </form>
                                         <?php elseif ($row['raw_status'] === 'pending'): ?>
-                                            <?= $btnForm('agent_approve', $rid, $networkId, $csrf, 'fa-check-circle', 'Liberar agente', $row['machine']) ?>
-                                            <?= $btnForm('agent_reject', $rid, $networkId, $csrf, 'fa-times-circle', 'Rejeitar autorização', $row['machine'], 'Rejeitar este computador?', 'is-danger') ?>
+                                            <?= $btnForm('gestor_approve', $rid, $networkId, $csrf, 'fa-check-circle', 'Liberar gestor', $row['machine']) ?>
+                                            <?= $btnForm('gestor_reject', $rid, $networkId, $csrf, 'fa-times-circle', 'Rejeitar autorização', $row['machine'], 'Rejeitar este computador?', 'is-danger') ?>
                                         <?php endif; ?>
 
                                         <?php if ($isApprovedRow && !$row['uninstalling']): ?>
                                             <?php if ($row['locked']): ?>
-                                                <?= $btnForm('agent_lock_toggle', $rid, $networkId, $csrf, 'fa-lock', 'Bloqueado — clique para desbloquear (liberar a tela sem login)', $row['machine'], 'Liberar a tela do agente neste computador sem pedir usuário e senha?', 'is-locked') ?>
+                                                <?= $btnForm('gestor_lock_toggle', $rid, $networkId, $csrf, 'fa-lock', 'Bloqueado — clique para desbloquear (liberar a tela sem login)', $row['machine'], 'Liberar a tela do gestor neste computador sem pedir usuário e senha?', 'is-locked') ?>
                                             <?php else: ?>
-                                                <?= $btnForm('agent_lock_toggle', $rid, $networkId, $csrf, 'fa-unlock-alt', 'Desbloqueado — clique para bloquear (exigir login para abrir a tela)', $row['machine'], 'O agente continuará em execução, mas para abrir a tela do agente será exigido usuário e senha. Bloquear agora?') ?>
+                                                <?= $btnForm('gestor_lock_toggle', $rid, $networkId, $csrf, 'fa-unlock-alt', 'Desbloqueado — clique para bloquear (exigir login para abrir a tela)', $row['machine'], 'O gestor continuará em execução, mas para abrir a tela do gestor será exigido usuário e senha. Bloquear agora?') ?>
                                             <?php endif; ?>
-                                            <?= $btnForm('agent_headless_toggle', $rid, $networkId, $csrf, 'fa-television', ($row['headless'] ? 'Desativar' : 'Ativar') . ' modo sem monitor', $row['machine'], 'Alterar o modo sem monitor deste computador? Essa opção modifica as exigências de confirmação do acesso remoto.', $row['headless'] ? 'is-selected' : '') ?>
+                                            <?= $btnForm('gestor_headless_toggle', $rid, $networkId, $csrf, 'fa-television', ($row['headless'] ? 'Desativar' : 'Ativar') . ' modo sem monitor', $row['machine'], 'Alterar o modo sem monitor deste computador? Essa opção modifica as exigências de confirmação do acesso remoto.', $row['headless'] ? 'is-selected' : '') ?>
                                         <?php endif; ?>
 
                                         <?php if ($row['uninstalling']): ?>
-                                            <?= $btnForm('agent_uninstall_toggle', $rid, $networkId, $csrf, 'fa-hourglass-half', 'Desinstalação pendente — clique para cancelar', $row['machine'], 'Cancelar a desinstalação pendente deste agente?', 'is-uninstalling') ?>
+                                            <?= $btnForm('gestor_uninstall_toggle', $rid, $networkId, $csrf, 'fa-hourglass-half', 'Desinstalação pendente — clique para cancelar', $row['machine'], 'Cancelar a desinstalação pendente deste gestor?', 'is-uninstalling') ?>
                                         <?php elseif ($isApprovedRow): ?>
-                                            <?= $btnForm('agent_uninstall_toggle', $rid, $networkId, $csrf, 'fa-trash', 'Desinstalar agente deste computador', $row['machine'], 'Desinstalar o agente deste computador? O agente será removido da máquina (inclusive os dados locais) assim que ela estiver online. Esta ação não pode ser desfeita pela plataforma.', 'is-danger') ?>
+                                            <?= $btnForm('gestor_uninstall_toggle', $rid, $networkId, $csrf, 'fa-trash', 'Desinstalar gestor deste computador', $row['machine'], 'Desinstalar o gestor deste computador? O gestor será removido da máquina (inclusive os dados locais) assim que ela estiver online. Esta ação não pode ser desfeita pela plataforma.', 'is-danger') ?>
                                         <?php endif; ?>
                                     </div>
-                                    <?php else: ?><span class="arc-agent-awaiting">Aguardando proprietário</span><?php endif; ?>
+                                    <?php else: ?><span class="arc-gestor-awaiting">Aguardando proprietário</span><?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -462,8 +462,8 @@ require __DIR__ . '/_topo_config.php';
                             <td colspan="7">
                                 <div class="arc-release-empty">
                                     <i class="fa fa-desktop"></i>
-                                    <strong>Nenhum agente cadastrado nesta rede.</strong>
-                                    <span>Se instalou o agente, verifique na tela de instalação se o cadastro foi aceito pela plataforma. Caso haja erro, baixe um novo instalador desta rede e confira o código do local.</span>
+                                    <strong>Nenhum gestor cadastrado nesta rede.</strong>
+                                    <span>Se instalou o gestor, verifique na tela de instalação se o cadastro foi aceito pela plataforma. Caso haja erro, baixe um novo instalador desta rede e confira o código do local.</span>
                                 </div>
                             </td>
                         </tr>
@@ -503,9 +503,9 @@ require __DIR__ . '/_topo_config.php';
 .arc-release-grid-scroll{overflow:auto;min-height:0;flex:1}
 .arc-release-grid{width:100%;border-collapse:separate;border-spacing:0;min-width:980px}.arc-release-grid th,.arc-release-grid td{padding:14px 12px;border-bottom:1px solid rgba(90,149,188,.16);text-align:left;font-size:12px;color:#d6ebf8;background:transparent;vertical-align:middle}.arc-release-grid th{position:sticky;top:0;background:#162d47;z-index:2;padding-top:12px;padding-bottom:12px}.arc-release-grid tbody tr:hover td{background:rgba(255,255,255,.015)}
 .arc-sort{border:0;background:none;padding:0;display:inline-flex;align-items:center;gap:7px;color:#b7d6ea;font:700 12px/1.2 Segoe UI,Arial,sans-serif;cursor:pointer}.arc-sort i{opacity:.72}.arc-sort[data-dir="asc"] i:before{content:"\f0de"}.arc-sort[data-dir="desc"] i:before{content:"\f0dd"}
-.arc-agent-cell-main{display:grid;gap:4px}.arc-agent-cell-main strong{font-size:13px;color:#fff}.arc-agent-cell-main small{font-size:11px;color:#8eb8ce}
-.arc-agent-status{display:inline-flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap}.arc-agent-status.is-pending{background:#3d3421;color:#ffd978;border-color:#735f25}.arc-agent-status.is-blocked{background:#442732;color:#ffb2b8;border-color:#7f404d}.arc-agent-status.is-rejected{background:#3a2744;color:#e2b8ff;border-color:#6a4481}.arc-agent-status.is-uninstalled{background:#253342;color:#9dc9d7;border-color:#4e7484}.arc-agent-status.is-approved{background:#203a2b;color:#98f5b5;border-color:#38774f}.arc-agent-status.is-locked{background:#442732;color:#ffb2b8;border-color:#7f404d}.arc-agent-status.is-uninstalling{background:#3d3421;color:#ffd978;border-color:#735f25}
-.arc-agent-action-form{display:flex;justify-content:flex-end}.arc-agent-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 12px;border-radius:9px;border:1px solid #30bdea;background:#129fd3;color:#fff;font:700 12px/1 Segoe UI,Arial,sans-serif;cursor:pointer;white-space:nowrap}.arc-agent-action:hover{background:#0fb4eb}.arc-agent-awaiting{font-size:11px;color:#89adc4;white-space:nowrap}
+.arc-gestor-cell-main{display:grid;gap:4px}.arc-gestor-cell-main strong{font-size:13px;color:#fff}.arc-gestor-cell-main small{font-size:11px;color:#8eb8ce}
+.arc-gestor-status{display:inline-flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap}.arc-gestor-status.is-pending{background:#3d3421;color:#ffd978;border-color:#735f25}.arc-gestor-status.is-blocked{background:#442732;color:#ffb2b8;border-color:#7f404d}.arc-gestor-status.is-rejected{background:#3a2744;color:#e2b8ff;border-color:#6a4481}.arc-gestor-status.is-uninstalled{background:#253342;color:#9dc9d7;border-color:#4e7484}.arc-gestor-status.is-approved{background:#203a2b;color:#98f5b5;border-color:#38774f}.arc-gestor-status.is-locked{background:#442732;color:#ffb2b8;border-color:#7f404d}.arc-gestor-status.is-uninstalling{background:#3d3421;color:#ffd978;border-color:#735f25}
+.arc-gestor-action-form{display:flex;justify-content:flex-end}.arc-gestor-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 12px;border-radius:9px;border:1px solid #30bdea;background:#129fd3;color:#fff;font:700 12px/1 Segoe UI,Arial,sans-serif;cursor:pointer;white-space:nowrap}.arc-gestor-action:hover{background:#0fb4eb}.arc-gestor-awaiting{font-size:11px;color:#89adc4;white-space:nowrap}
 .arc-release-grid .is-actions{text-align:right}.arc-release-empty-row td{padding:34px 20px!important;border-bottom:0!important}.arc-release-empty{display:grid;justify-items:center;gap:8px;color:#9fc3d8;text-align:center}.arc-release-empty i{font-size:26px;color:#55c8f4}.arc-release-empty strong{font-size:14px;color:#fff}.arc-release-empty span{max-width:580px;font-size:12px;line-height:1.6}
 @media (max-width:1200px){.arc-release-network-copy strong{max-width:min(44vw,420px);font-size:22px}}
 @media (max-width:900px){.arc-release-page{padding:0}.arc-release-toolbar{padding:14px}.arc-release-toolbar-actions{width:100%;margin-left:0}.arc-release-search{min-width:0;flex:1 1 100%}.arc-release-filter{flex:1 1 180px;min-width:160px}.arc-release-download{flex:1 1 220px}.arc-release-network-copy strong{max-width:100%;white-space:normal;font-size:20px}.arc-release-summary{padding:14px}.arc-release-grid-toolbar{padding:12px 14px}}
@@ -532,19 +532,19 @@ require __DIR__ . '/_topo_config.php';
 .arc-release-icon-btn{width:29px;height:29px;border:1px solid var(--border,#31516c);border-radius:6px;display:inline-grid;place-items:center;background:var(--surface,#102238);color:var(--text,#e9f3ff);cursor:pointer;font-size:12px}
 .arc-release-icon-btn:hover:not(:disabled){border-color:#45bdec;background:#15405c}.arc-release-icon-btn.is-danger{color:#ffb1b1}.arc-release-icon-btn.is-selected{color:#6ce1ae}.arc-release-icon-btn.is-locked{color:#fff;background:#a6334a;border-color:#d4617a}.arc-release-icon-btn.is-uninstalling{color:#ffd978;border-color:#735f25}.arc-release-icon-btn:disabled{opacity:.35;cursor:not-allowed}
 .arc-release-grid tbody tr{cursor:pointer}.arc-release-grid tbody tr:focus-visible{outline:2px solid #40c7ff;outline-offset:-2px}
-@media(max-width:750px){.arc-release-page{padding:7px 7px 8px}.arc-release-toolbar{padding:6px;gap:5px;min-height:39px}.arc-release-network{display:none}.arc-release-toolbar-actions{margin:0;gap:5px;width:100%}.arc-release-search{min-width:0;flex:1}.arc-release-filter{flex:0 0 39px;width:39px;padding:0 9px;overflow:hidden}.arc-release-filter select{width:100%;font-size:0;appearance:none}.arc-release-filter select option{font-size:12px}.arc-release-download{width:39px;min-width:39px;padding:0;justify-content:center}.arc-release-download span{display:none}.arc-release-grid{min-width:0;table-layout:fixed}.arc-release-grid th,.arc-release-grid td{padding:9px 6px}.arc-release-grid th:nth-child(2),.arc-release-grid td:nth-child(2),.arc-release-grid th:nth-child(3),.arc-release-grid td:nth-child(3),.arc-release-grid th:nth-child(4),.arc-release-grid td:nth-child(4),.arc-release-grid th:nth-child(5),.arc-release-grid td:nth-child(5){display:none}.arc-release-grid th:first-child{width:auto}.arc-release-grid th:nth-child(6){width:100px}.arc-release-grid th:last-child{width:120px}.arc-agent-cell-main{min-width:0}.arc-agent-cell-main strong{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.arc-agent-status{font-size:0;padding:6px}.arc-agent-status::before{content:'●';font-size:12px}.arc-release-grid .is-actions{width:120px}.arc-release-icon-btn{width:25px;height:26px;font-size:11px}.arc-release-row-actions{gap:2px}}
+@media(max-width:750px){.arc-release-page{padding:7px 7px 8px}.arc-release-toolbar{padding:6px;gap:5px;min-height:39px}.arc-release-network{display:none}.arc-release-toolbar-actions{margin:0;gap:5px;width:100%}.arc-release-search{min-width:0;flex:1}.arc-release-filter{flex:0 0 39px;width:39px;padding:0 9px;overflow:hidden}.arc-release-filter select{width:100%;font-size:0;appearance:none}.arc-release-filter select option{font-size:12px}.arc-release-download{width:39px;min-width:39px;padding:0;justify-content:center}.arc-release-download span{display:none}.arc-release-grid{min-width:0;table-layout:fixed}.arc-release-grid th,.arc-release-grid td{padding:9px 6px}.arc-release-grid th:nth-child(2),.arc-release-grid td:nth-child(2),.arc-release-grid th:nth-child(3),.arc-release-grid td:nth-child(3),.arc-release-grid th:nth-child(4),.arc-release-grid td:nth-child(4),.arc-release-grid th:nth-child(5),.arc-release-grid td:nth-child(5){display:none}.arc-release-grid th:first-child{width:auto}.arc-release-grid th:nth-child(6){width:100px}.arc-release-grid th:last-child{width:120px}.arc-gestor-cell-main{min-width:0}.arc-gestor-cell-main strong{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.arc-gestor-status{font-size:0;padding:6px}.arc-gestor-status::before{content:'●';font-size:12px}.arc-release-grid .is-actions{width:120px}.arc-release-icon-btn{width:25px;height:26px;font-size:11px}.arc-release-row-actions{gap:2px}}
 
-.arc-agent-modal{width:min(760px,94vw);max-height:88dvh;overflow:auto;background:#14283e;color:#ecf6ff;border:1px solid #376382;border-radius:14px;padding:0;box-shadow:0 25px 75px #000a}
-.arc-agent-modal::backdrop{background:#020b17cf}.arc-modal-head{display:flex;align-items:center;gap:12px;padding:16px 18px;background:#102238;border-bottom:1px solid #33536c}.arc-modal-head h3{margin:0;font-size:17px}.arc-modal-close{margin-left:auto;border:1px solid #42647c;background:#1a3751;color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
+.arc-gestor-modal{width:min(760px,94vw);max-height:88dvh;overflow:auto;background:#14283e;color:#ecf6ff;border:1px solid #376382;border-radius:14px;padding:0;box-shadow:0 25px 75px #000a}
+.arc-gestor-modal::backdrop{background:#020b17cf}.arc-modal-head{display:flex;align-items:center;gap:12px;padding:16px 18px;background:#102238;border-bottom:1px solid #33536c}.arc-modal-head h3{margin:0;font-size:17px}.arc-modal-close{margin-left:auto;border:1px solid #42647c;background:#1a3751;color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
 .arc-modal-content{padding:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.arc-modal-info{min-width:0;padding:12px;border:1px solid #2d4b63;border-radius:9px;background:#102339}.arc-modal-info small{display:block;color:#8bb3ca;margin-bottom:5px}.arc-modal-info strong{word-break:break-word;font-size:13px}.arc-modal-wide{grid-column:1/-1}@media(max-width:600px){.arc-modal-content{grid-template-columns:1fr}.arc-modal-wide{grid-column:auto}}
 </style>
-<dialog id="arcAgentDetailModal" class="arc-agent-modal" aria-labelledby="arcAgentModalTitle"><div class="arc-modal-head"><i class="fa fa-desktop"></i><h3 id="arcAgentModalTitle">Detalhes do computador</h3><button type="button" class="arc-modal-close" id="arcAgentModalClose" aria-label="Fechar detalhes"><i class="fa fa-times"></i></button></div><div class="arc-modal-content" id="arcAgentModalBody"></div></dialog>
+<dialog id="arcGestorDetailModal" class="arc-gestor-modal" aria-labelledby="arcGestorModalTitle"><div class="arc-modal-head"><i class="fa fa-desktop"></i><h3 id="arcGestorModalTitle">Detalhes do computador</h3><button type="button" class="arc-modal-close" id="arcGestorModalClose" aria-label="Fechar detalhes"><i class="fa fa-times"></i></button></div><div class="arc-modal-content" id="arcGestorModalBody"></div></dialog>
 <div class="arc-cmd-modal" id="releaseCmdModal" aria-hidden="true">
     <div class="arc-cmd-box" role="dialog" aria-modal="true" aria-labelledby="releaseCmdTitle">
         <h3 id="releaseCmdTitle">Instalar sem o aviso do Windows</h3>
         <p>O aviso "O Windows protegeu o computador" aparece apenas em arquivos <strong>baixados pelo navegador</strong>. Este comando baixa o instalador direto pelo PowerShell, então o arquivo não recebe essa marca e a tela não aparece. Não precisa de certificado.</p>
         <ol>
-            <li>No computador que receberá o agente, abra o <strong>PowerShell</strong> (menu Iniciar &rarr; digite PowerShell).</li>
+            <li>No computador que receberá o gestor, abra o <strong>PowerShell</strong> (menu Iniciar &rarr; digite PowerShell).</li>
             <li>Cole o comando abaixo e pressione Enter.</li>
             <li>Confirme o aviso de administrador (UAC) quando o Windows pedir.</li>
         </ol>
@@ -559,7 +559,7 @@ require __DIR__ . '/_topo_config.php';
     'use strict';
     const modal=document.getElementById('releaseCmdModal'),text=document.getElementById('releaseCmdText'),msg=document.getElementById('releaseCmdMsg'),copy=document.getElementById('releaseCmdCopy'),open=document.getElementById('releaseCmdOpen');
     if(!modal||!open)return;
-    const url=<?= json_encode(arc_workspace_base_url() . 'api/download-agent.php?mode=command') ?>,network=<?= (int)$networkId ?>,csrf=<?= json_encode($csrf) ?>;
+    const url=<?= json_encode(arc_workspace_base_url() . 'api/download-gestor.php?mode=command') ?>,network=<?= (int)$networkId ?>,csrf=<?= json_encode($csrf) ?>;
     const say=(t,ok)=>{msg.textContent=t||'';msg.className='arc-cmd-msg'+(ok?' ok':'')};
     async function generate(){
         text.value='';copy.disabled=true;say('Gerando comando...',true);
@@ -587,7 +587,7 @@ require __DIR__ . '/_topo_config.php';
     'use strict';
     const endpoint = <?= json_encode($poll) ?>;
     const approvedUrl = <?= json_encode(arc_workspace_base_url() . 'redes/painel.php?network=' . $networkId) ?>;
-    let signature = <?= json_encode($agentsSignature) ?>;
+    let signature = <?= json_encode($gestoresSignature) ?>;
     let current = <?= json_encode($stage) ?>;
     let busy = false;
 
@@ -628,7 +628,7 @@ require __DIR__ . '/_topo_config.php';
             empty = document.createElement('tr');
             empty.className = 'arc-release-empty-row';
             empty.id = 'releaseEmptyRow';
-            empty.innerHTML = '<td colspan="7"><div class="arc-release-empty"><i class="fa fa-search"></i><strong>Nenhum agente encontrado.</strong><span>Ajuste a busca ou o filtro para localizar outro agente.</span></div></td>';
+            empty.innerHTML = '<td colspan="7"><div class="arc-release-empty"><i class="fa fa-search"></i><strong>Nenhum gestor encontrado.</strong><span>Ajuste a busca ou o filtro para localizar outro gestor.</span></div></td>';
             tbody.appendChild(empty);
         }
         empty.style.display = visibleCount ? 'none' : '';
@@ -667,8 +667,8 @@ require __DIR__ . '/_topo_config.php';
     searchInput.addEventListener('input', renderRows);
     filterSelect.addEventListener('change', renderRows);
     renderRows();
-    const modal = document.getElementById('arcAgentDetailModal');
-    const modalBody = document.getElementById('arcAgentModalBody');
+    const modal = document.getElementById('arcGestorDetailModal');
+    const modalBody = document.getElementById('arcGestorModalBody');
     const safe = v => String(v ?? '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const field = (name, value, wide=false) => `<div class="arc-modal-info${wide?' arc-modal-wide':''}"><small>${safe(name)}</small><strong>${safe(value)}</strong></div>`;
     tbody.addEventListener('click', e => {
@@ -676,14 +676,14 @@ require __DIR__ . '/_topo_config.php';
         const tr = e.target.closest('tr[data-row]'); if(!tr) return;
         let data; try {data = JSON.parse(tr.dataset.details);} catch(e){return;}
         const detail=data.details && typeof data.details === 'object' ? data.details : {};
-        document.getElementById('arcAgentModalTitle').textContent = data.machine || 'Detalhes do computador';
-        let html = field('Status',data.status_label)+field('Versão do agente',data.version)+field('Sistema operacional',data.platform,true)+field('IP local',data.local_ip)+field('Instalado em',data.installed)+field('Último acesso',data.last_seen)+field('Código do agente',data.id);
+        document.getElementById('arcGestorModalTitle').textContent = data.machine || 'Detalhes do computador';
+        let html = field('Status',data.status_label)+field('Versão do gestor',data.version)+field('Sistema operacional',data.platform,true)+field('IP local',data.local_ip)+field('Instalado em',data.installed)+field('Último acesso',data.last_seen)+field('Código do gestor',data.id);
         for(const [k,v] of Object.entries(detail)){if(v===null || typeof v==='object') continue;html+=field(k,v);}
         if(data.notes) html+=field('Observações do registro',data.notes,true);
         modalBody.innerHTML=html;
         if(typeof modal.showModal === 'function') modal.showModal(); else modal.setAttribute('open','');
     });
-    document.getElementById('arcAgentModalClose').addEventListener('click',()=>modal.close());
+    document.getElementById('arcGestorModalClose').addEventListener('click',()=>modal.close());
     modal.addEventListener('click',e=>{if(e.target===modal)modal.close()});
     document.querySelectorAll('form[data-confirm]').forEach(form=>form.addEventListener('submit',ev=>{if(!confirm(form.dataset.confirm||'Confirmar esta ação?'))ev.preventDefault()}));
 
@@ -709,4 +709,5 @@ require __DIR__ . '/_topo_config.php';
 })();
 </script>
 </div></div></main>
+<?php if(!empty($networkId)) require __DIR__.'/_gestor_update_dialog.php'; ?>
 <?php require dirname(__DIR__) . '/includes/footer.php';

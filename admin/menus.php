@@ -3,22 +3,91 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/includes/bootstrap.php';
 require dirname(__DIR__).'/includes/icones.php';
-$pdo=arc_db(); arc_ensure_user_schema($pdo);arc_navigation_schema($pdo);
+$pdo=arc_db(); arc_ensure_user_schema($pdo);
 if(!arc_is_admin()){http_response_code(403);exit('Acesso reservado ao administrador.');}
-arc_navigation_schema($pdo);arc_v16_group_schema($pdo);
+arc_v16_group_schema($pdo);
 $groups=$pdo->query('SELECT id,name FROM '.arc_table('permission_groups').' ORDER BY name')->fetchAll();
 $routes=arc_navigation_routes();
 $placements=['sidebar'=>'Barra lateral','header'=>'Header principal','user'=>'Dropdown do usuário','footer'=>'Rodapé','more'=>'Mais (celular)'];
 $roles=['admin'=>'Administrador','manager'=>'Gestor','user'=>'Usuário','viewer'=>'Visualizador'];
-function arc_menu_sync_existing(PDO $pdo): array {return arc_navigation_discover($pdo);}
 $message=(string)($_SESSION['arc_menu_bulk_result']??'');unset($_SESSION['arc_menu_bulk_result']);
 if($_SERVER['REQUEST_METHOD']==='POST'){
  if(!hash_equals(arc_csrf_token(),(string)($_POST['_csrf']??''))){http_response_code(403);exit('Sessão expirada.');}
  try{
   $action=(string)($_POST['action']??'');
-  if($action==='sync_files'){
-   [$created,$updated,$disabled]=arc_menu_sync_existing($pdo);
-   $_SESSION['arc_menu_bulk_result']=sprintf('Auditoria concluída: %d páginas novas vinculadas aos menus. Itens anteriormente desativados permaneceram desativados.',$created);
+   if($action==='fix_audit_item'){
+   $id=(int)($_POST['id']??0);
+   $kind=(string)($_POST['kind']??'');
+   if($id<1||!in_array($kind,['invalid'],true))throw new RuntimeException('Correção inválida.');
+   $audit=arc_navigation_audit($pdo);
+   $candidates=$audit[$kind]??[];
+   $issue=null;
+   foreach($candidates as $candidate)if((int)$candidate['id']===$id){$issue=$candidate;break;}
+   if($issue===null)throw new RuntimeException('Esta pendência já foi corrigida ou não está mais disponível.');
+   $table=arc_table('navigation_items');
+   {
+    $q=$pdo->prepare('SELECT id,target_url,access_roles,context,gestor_permission,parent_id FROM '.$table.' WHERE id=?');
+    $q->execute([$id]);$item=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$item)throw new RuntimeException('Menu não encontrado.');
+    $path=(string)parse_url((string)$item['target_url'],PHP_URL_PATH);
+    $catalog=arc_navigation_catalog();$updates=[];
+    $roles=array_values(array_unique(array_filter(array_map('trim',explode(',',(string)$item['access_roles'])))));
+    $validRoles=['admin','manager','user','viewer'];
+    $safeRoles=array_values(array_intersect($validRoles,$roles));
+    // Restringir privilégios é seguro; nunca acrescentar perfis por inferência.
+    if($path!==''&&arc_navigation_route_admin_only($path)&&arc_navigation_target((string)$item['target_url'])){
+     if($roles!==['admin'])$updates['access_roles']='admin';
+    }elseif($safeRoles&&$safeRoles!==$roles){$updates['access_roles']=implode(',',$safeRoles);}
+    if($path!==''&&arc_navigation_target((string)$item['target_url'])){
+     if(str_starts_with($path,'redes/')&&$path!=='redes/relatorios.php'&&(string)$item['context']!=='network')$updates['context']='network';
+     if(isset($catalog[$path])&&$catalog[$path]['context']==='global'&&(string)$item['context']!=='global')$updates['context']='global';
+     if(str_starts_with($path,'redes/')&&empty($item['gestor_permission'])&&isset($catalog[$path]['permission'])&&is_string($catalog[$path]['permission'])&&$catalog[$path]['permission']!=='')$updates['gestor_permission']=$catalog[$path]['permission'];
+    }
+    $parent=(int)($item['parent_id']??0);
+    if($parent===$id)$updates['parent_id']=null;
+    elseif($parent>0){$check=$pdo->prepare('SELECT id FROM '.$table.' WHERE id=?');$check->execute([$parent]);if(!$check->fetchColumn())$updates['parent_id']=null;}
+    if(!$updates)throw new RuntimeException('Este alerta exige revisão manual: não há correção automática segura.');
+    $allowed=['access_roles','context','gestor_permission','parent_id'];
+    $set=[];$values=[];
+    foreach($updates as $column=>$value){if(!in_array($column,$allowed,true))throw new LogicException('Campo inválido.');$set[]=$column.'=?';$values[]=$value;}
+    $values[]=$id;
+    $pdo->beginTransaction();
+    try{$pdo->prepare('UPDATE '.$table.' SET '.implode(',',$set).' WHERE id=?')->execute($values);$pdo->commit();}
+    catch(Throwable $e){$pdo->rollBack();throw $e;}
+    $_SESSION['arc_menu_bulk_result']='Correções seguras aplicadas ao menu. Verifique se restaram alertas que exigem revisão manual.';
+   }
+  } elseif($action==='restrict_admin_menu'){
+   $id=(int)($_POST['id']??0);
+   if($id<1)throw new RuntimeException('Menu inválido.');
+   $q=$pdo->prepare('SELECT target_url,access_roles FROM '.arc_table('navigation_items').' WHERE id=?');
+   $q->execute([$id]);$item=$q->fetch(PDO::FETCH_ASSOC);
+   if(!$item)throw new RuntimeException('Menu inexistente.');
+   $target=(string)$item['target_url'];$path=(string)parse_url($target,PHP_URL_PATH);
+   if(!arc_navigation_target($target)||!arc_navigation_route_admin_only($path))throw new RuntimeException('Restrição automática não aplicável a esta rota.');
+   $pdo->prepare('UPDATE '.arc_table('navigation_items').' SET access_roles=? WHERE id=?')->execute(['admin',$id]);
+   $_SESSION['arc_menu_bulk_result']='A visibilidade do menu foi restringida ao administrador. A autorização real continua sendo validada pelo backend.';
+  } elseif($action==='disable_duplicate'){
+   $id=(int)($_POST['id']??0);
+   if($id<1)throw new RuntimeException('Menu inválido.');
+   $duplicates=arc_navigation_audit($pdo)['duplicates'];
+   $duplicate=null;foreach($duplicates as $d)if((int)$d['id']===$id){$duplicate=$d;break;}
+   if($duplicate===null||empty($duplicate['safe_disable']))throw new RuntimeException('Sobreposição parcial: ajuste os perfis manualmente para não remover acessos necessários.');
+   $children=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('navigation_items').' WHERE parent_id=? AND enabled=1');$children->execute([$id]);
+   if((int)$children->fetchColumn()>0)throw new RuntimeException('Este menu possui submenus ativos; mova-os antes de desativar.');
+   $pdo->prepare('UPDATE '.arc_table('navigation_items').' SET enabled=0 WHERE id=? AND enabled=1')->execute([$id]);
+   $_SESSION['arc_menu_bulk_result']='Menu duplicado desativado. O registro original e os dados foram preservados.';
+  } elseif($action==='delete_orphans'){
+   $orphanIds=array_values(array_map('intval',array_column(arc_navigation_audit($pdo)['orphans'],'id')));
+   if(!$orphanIds)throw new RuntimeException('Nenhum menu sem arquivo foi encontrado.');
+   $marks=implode(',',array_fill(0,count($orphanIds),'?'));
+   $pdo->beginTransaction();
+   try{
+    $pdo->prepare('INSERT INTO '.arc_table('settings').' (setting_key,setting_value,value_type) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)')->execute(['navigation_initialized','1','text']);
+    $pdo->prepare('UPDATE '.arc_table('navigation_items').' SET parent_id=NULL WHERE parent_id IN ('.$marks.')')->execute($orphanIds);
+    $stmt=$pdo->prepare('DELETE FROM '.arc_table('navigation_items').' WHERE id IN ('.$marks.')');$stmt->execute($orphanIds);
+    $pdo->commit();
+   }catch(Throwable $e){$pdo->rollBack();throw $e;}
+   $_SESSION['arc_menu_bulk_result']=sprintf('%d menu(s) sem arquivo removido(s).',$stmt->rowCount());
   } elseif($action==='reorder'){
    $ids=array_map('intval',(array)($_POST['ordered_ids']??[]));
    $ids=array_values(array_unique(array_filter($ids,static fn($v)=>$v>0)));
@@ -95,6 +164,19 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
    if(str_starts_with($target,'admin/')&&$selected!==['admin'])throw new RuntimeException('Páginas administrativas são exclusivas do perfil administrador.');
    if($dock&&(count($selectedPlaces)>1||$context!=='global'||$target===''||!in_array('mobile',$devices,true)))throw new RuntimeException('O rodapé móvel exige destino, contexto global, celular e uma posição por registro.');
    if($primary&&(!$dock||!$enabled))throw new RuntimeException('O menu principal deve estar ativo no rodapé móvel.');
+   // Impede que a edição ou criação reproduza a mesma página para o mesmo perfil.
+   if($enabled && $target!==''){
+    $current=['target_url'=>$target,'placement'=>$place,'context'=>$context,'group_id'=>$group?:null,'access_roles'=>implode(',',$selected),'devices'=>implode(',',$devices)];
+    $existing=$pdo->query('SELECT id,target_url,placement,context,group_id,access_roles,devices FROM '.arc_table('navigation_items').' WHERE enabled=1')->fetchAll(PDO::FETCH_ASSOC);
+    foreach($selectedPlaces as $testPlace){
+     $current['placement']=$testPlace;
+     foreach($existing as $before){
+      if((int)$before['id']===$id)continue;
+      $overlap=arc_navigation_overlap($before,$current);
+      if($overlap)throw new RuntimeException('Menu já visível para os perfis '.implode(', ',$overlap['roles']).' nesta posição (registro #'.(int)$before['id'].'). Ajuste o cadastro existente.');
+     }
+    }
+   }
    $pdo->beginTransaction();
    $pdo->query("SELECT setting_key FROM ".arc_table('settings')." WHERE setting_key='navigation_3_7_initialized' FOR UPDATE");
    if($primary)$pdo->exec('UPDATE '.arc_table('navigation_items').' SET mobile_primary=0 WHERE mobile_primary=1');
@@ -165,6 +247,12 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
 #menu-table tr.menu-child td:nth-child(4):before{content:"";position:absolute;left:calc(-10px + (var(--menu-depth, 1) - 1)*22px);top:0;bottom:50%;width:12px;border-left:2px solid #9cc8da;border-bottom:2px solid #9cc8da;border-bottom-left-radius:6px}
 #menu-table tr.menu-root td:nth-child(4)>strong{color:var(--muted)}
 .menu-toolbar{display:flex;align-items:center!important;gap:8px!important;flex-wrap:wrap}
+.menu-alert-btn{min-height:32px;padding:5px 10px;color:#fff!important;background:#dc2626!important;border-color:#dc2626!important;animation:menu-alert-blink 1.1s ease-in-out infinite}.menu-alert-btn:hover{filter:brightness(1.1)}
+@keyframes menu-alert-blink{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.6);opacity:1}50%{box-shadow:0 0 0 7px rgba(220,38,38,0);opacity:.6}}
+@media(prefers-reduced-motion:reduce){.menu-alert-btn{animation:none}}
+#menu-alert-dialog{width:min(640px,96vw);max-height:90dvh;padding:0;border-radius:14px;overflow:hidden}#menu-alert-dialog .dialog-header h2{font-size:15px;display:flex;align-items:center;gap:8px}#menu-alert-dialog .dialog-header i{color:#dc2626}
+.menu-alert-body{padding:12px 18px 16px;overflow:auto;max-height:calc(90dvh - 58px);display:grid;gap:14px}.menu-alert-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}.menu-alert-head h3{margin:0;font-size:13px}
+.menu-alert-body ul{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:9px;max-height:240px;overflow:auto}.menu-alert-body li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px}.menu-alert-body li:last-child{border-bottom:0}.menu-alert-body li>span:first-child{display:flex;flex-direction:column;min-width:0}.menu-alert-body code{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}.menu-alert-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.menu-alert-actions form,.menu-alert-body li>form{margin:0}.menu-alert-body .button{min-height:30px;padding:5px 9px;font-size:11px}
 .menu-toolbar .search-field{flex:1 1 220px;min-width:180px;max-width:none;margin:0}
 .menu-toolbar .search-field input{height:34px;min-height:34px;font-size:12px}
 .menu-toolbar .menu-kpis{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;margin:0;flex:0 0 auto}
@@ -195,6 +283,14 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
 @media(max-width:900px){.menu-toolbar .menu-kpis{order:2;width:100%;justify-content:flex-start}.menu-toolbar .search-field{flex:1 1 100%}}@media(max-width:700px){.menu-toolbar{align-items:stretch}.menu-bulk-actions{width:100%}.arc-menu-table-scroll{max-height:60dvh}}
 @media(max-width:600px){#menu-dialog .dialog-body{grid-template-columns:1fr}#menu-dialog{max-height:95dvh}}
 </style>
+<style>
+/* Caminho: admin/menus.php | Estilos locais de auditoria de menus. */
+.menu-alert-count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;border-radius:10px;background:rgba(255,255,255,.22);padding:1px 5px;font-weight:700;font-size:11px}
+.menu-audit-caption{color:var(--muted,#64748b);font-size:12px;margin:3px 0 8px}
+.menu-audit-issue{display:block;color:#b45309;font-size:11px;margin-top:4px;line-height:1.4}
+.menu-alert-body li>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
+.menu-alert-body li .menu-alert-actions{flex-shrink:0}
+</style>
 <main class="app-main"><div class="main container">
 
 <?php if(isset($_GET['saved'])):?><p class="alert" role="status">Alterações salvas.</p><?php endif;?>
@@ -210,27 +306,9 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
       <button type="submit" class="button" id="menu-bulk-apply" disabled aria-label="Aplicar" title="Aplicar"><i class="fa fa-check" aria-hidden="true"></i><span class="arc-action-label">Aplicar</span></button>
     </form>
 
-    <form method="post" action="<?=arc_h(arc_workspace_base_url())?>admin/menus.php" title="Cadastrar páginas encontradas no código, respeitando menus desativados e permissões">
-      <input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>">
-      <input type="hidden" name="action" value="sync_files">
-      <button type="submit" class="button"><i class="fa fa-refresh" aria-hidden="true"></i> Sincronizar páginas (<?=count($arcMenuAudit['missing'])?>)</button>
-    </form>
+    <?php if($arcMenuAudit['alerts']>0):?><button type="button" class="button menu-alert-btn" id="menu-alert-open" aria-haspopup="dialog" aria-label="Conferência de menus: <?=(int)$arcMenuAudit['alerts']?> pendência(s)" title="<?=(int)$arcMenuAudit['alerts']?> itens para conferência"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> <span class="menu-alert-count"><?=(int)$arcMenuAudit['alerts']?></span></button><?php endif;?>
     <button type="button" class="button primary" id="menu-new"><i class="fa fa-plus" aria-hidden="true"></i> Criar novo</button>
   </div>
-  <details style="margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:10px">
-    <summary style="cursor:pointer;font-weight:700">Conferência das páginas: <?=count($arcMenuAudit['missing'])?> sem menu, <?=count($arcMenuAudit['inactive'])?> desativadas, <?=count($arcMenuAudit['invalid'])?> destinos para revisão</summary>
-    <p class="help-text">A sincronização cadastra páginas sem menu na área correta (administração, usuário ou rede). Não reativa itens desligados manualmente e não inclui rotinas internas, autenticação ou instaladores.</p>
-    <?php foreach (['missing'=>'Páginas não cadastradas','inactive'=>'Menus desativados','invalid'=>'Destinos incorretos ou permissões para revisar'] as $type=>$heading): ?>
-      <h3 style="font-size:13px;margin:12px 0 6px"><?=mh($heading)?></h3>
-      <?php if (!$arcMenuAudit[$type]): ?><p class="help-text">Nenhum item.</p><?php else: ?>
-        <ul style="max-height:185px;overflow:auto;margin:0 0 10px;padding-left:20px">
-          <?php foreach ($arcMenuAudit[$type] as $record): ?>
-            <li><code><?=mh((string)($record['target']??$record['target_url']??''))?></code> — <?=mh((string)($record['label']??''))?></li>
-          <?php endforeach; ?>
-        </ul>
-      <?php endif; ?>
-    <?php endforeach; ?>
-  </details>
   <div class="table-wrap arc-menu-table-scroll"><table class="arc-responsive-table data-table" id="menu-table"><thead><tr>
     <th title="Arrastar para ordenar">Ordem</th><th class="menu-select-cell"><input type="checkbox" id="menu-select-all" aria-label="Selecionar todos os menus visíveis"></th>
     <th><button type="button" class="table-sort" data-sort="icon">Ícone <i class="fa fa-sort"></i></button></th>
@@ -255,6 +333,37 @@ $ARCMode='app';$ARCPageTitle='Menus e submenus';$ARCActiveNav='menus';$ARCHeader
     </tr>
   <?php endforeach;?></tbody></table><p id="menu-empty" class="empty-state" hidden>Nenhum menu corresponde à busca.</p></div>
 </section></div></main>
+<?php if($arcMenuAudit['alerts']>0):?>
+<dialog id="menu-alert-dialog" class="form-dialog" aria-labelledby="menu-alert-title"><div class="dialog-header"><h2 id="menu-alert-title"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> Conferência de menus</h2><button class="button ghost" type="button" data-close-alert aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></div>
+<div class="menu-alert-body">
+<?php if($arcMenuAudit['orphans']):?>
+<section><div class="menu-alert-head"><h3>Menus sem arquivo (<?=count($arcMenuAudit['orphans'])?>)</h3>
+<form method="post" action="<?=arc_h(arc_workspace_base_url())?>admin/menus.php" onsubmit="return confirm('Excluir todos os menus com destino não localizado? Rotas dinâmicas podem ser válidas.')"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="delete_orphans"><button type="submit" class="button danger" title="Excluir todos os menus listados"><i class="fa fa-trash" aria-hidden="true"></i> Excluir</button></form></div>
+<ul><?php foreach($arcMenuAudit['orphans'] as $record):?><li><span><strong><?=mh((string)$record['label'])?></strong><code><?=mh((string)$record['target'])?></code></span>
+<span class="menu-alert-actions"><button type="button" class="button" data-edit-menu="<?=(int)$record['id']?>" title="Editar destino" aria-label="Editar <?=mh((string)$record['label'])?>"><i class="fa fa-pencil" aria-hidden="true"></i> Editar</button>
+<form method="post" action="<?=arc_h(arc_workspace_base_url())?>admin/menus.php" onsubmit="return confirm('Excluir este menu?')"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?=(int)$record['id']?>"><button type="submit" class="button danger" title="Excluir menu" aria-label="Excluir <?=mh((string)$record['label'])?>"><i class="fa fa-trash" aria-hidden="true"></i> Excluir</button></form></span></li><?php endforeach;?></ul></section>
+<?php endif;?>
+<?php if($arcMenuAudit['duplicates']):?>
+<section><div class="menu-alert-head"><h3>Menus duplicados (<?=count($arcMenuAudit['duplicates'])?>)</h3></div>
+<p class="menu-audit-caption">Menus ativos com destino e posição iguais, visíveis para pelo menos um mesmo perfil e dispositivo. Menus desativados são ignorados; sobreposições parciais exigem revisão.</p>
+<ul><?php foreach($arcMenuAudit['duplicates'] as $record):?><li><span><strong><?=mh((string)$record['label'])?></strong><code><?=mh((string)$record['target'])?></code><small class="menu-audit-issue">Coincide com #<?=(int)$record['canonical_id']?> (<?=mh((string)$record['canonical_label'])?>). Perfis: <?=mh(implode(', ',(array)$record['overlap_roles']))?> · Dispositivos: <?=mh(implode(', ',(array)$record['overlap_devices']))?>.</small></span>
+<span class="menu-alert-actions"><button type="button" class="button" data-edit-menu="<?=(int)$record['id']?>" title="Abrir edição do duplicado"><i class="fa fa-pencil" aria-hidden="true"></i> Editar</button>
+<?php if(!empty($record['safe_disable'])):?>
+<form method="post" action="<?=arc_h(arc_workspace_base_url())?>admin/menus.php" onsubmit="return confirm('Desativar o registro redundante? O menu original permanece e os dados serão preservados.')"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="disable_duplicate"><input type="hidden" name="id" value="<?=(int)$record['id']?>"><button type="submit" class="button primary"><i class="fa fa-ban" aria-hidden="true"></i> Desativar</button></form>
+<?php endif;?></span></li><?php endforeach;?></ul></section>
+<?php endif;?>
+<?php if($arcMenuAudit['invalid']):?>
+<section><div class="menu-alert-head"><h3>Permissões e configurações para revisar (<?=count($arcMenuAudit['invalid'])?>)</h3></div>
+<p class="menu-audit-caption">Divergências de configuração detectadas. O aviso não comprova acesso indevido: confirme as regras efetivas de cada página antes de alterar perfis.</p>
+<ul><?php foreach($arcMenuAudit['invalid'] as $record):?><li><span><strong><?=mh((string)$record['label'])?></strong><code><?=mh((string)$record['target'])?></code>
+<?php foreach($record['issues'] as $issue):?><small class="menu-audit-issue"><?=mh((string)$issue)?></small><?php endforeach;?></span>
+<span class="menu-alert-actions"><button type="button" class="button" data-edit-menu="<?=(int)$record['id']?>" aria-label="Revisar permissões de <?=mh((string)$record['label'])?>"><i class="fa fa-pencil" aria-hidden="true"></i> Editar</button>
+<?php if(arc_navigation_route_admin_only((string)parse_url((string)$record['target'],PHP_URL_PATH)) && array_diff(array_filter(array_map('trim',explode(',',(string)$record['access_roles']))),['admin'])):?>
+<form method="post" action="<?=arc_h(arc_workspace_base_url())?>admin/menus.php" onsubmit="return confirm('Restringir a visibilidade deste menu ao perfil administrador?')"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="restrict_admin_menu"><input type="hidden" name="id" value="<?=(int)$record['id']?>"><button type="submit" class="button" title="Restringir aos administradores"><i class="fa fa-lock" aria-hidden="true"></i> Restringir</button></form>
+<?php endif;?><form method="post" action="<?=arc_h(arc_workspace_base_url())?>admin/menus.php" onsubmit="return confirm('Aplicar apenas as correções automáticas seguras para este menu? Outras pendências continuarão disponíveis para revisão.')"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="fix_audit_item"><input type="hidden" name="kind" value="invalid"><input type="hidden" name="id" value="<?=(int)$record['id']?>"><button type="submit" class="button primary" title="Aplicar correções verificadas"><i class="fa fa-check" aria-hidden="true"></i> Ajustar</button></form></span></li><?php endforeach;?></ul></section>
+<?php endif;?>
+</div></dialog>
+<?php endif;?>
 <dialog id="menu-dialog" class="form-dialog" aria-labelledby="form-title"><div class="dialog-header"><h2 id="form-title">Novo menu</h2><button class="button ghost" type="button" data-close-menu aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></div>
 <form method="post" id="menu-form" action="<?=arc_h(arc_workspace_base_url())?>admin/menus.php"><input type="hidden" name="_csrf" value="<?=mh(arc_csrf_token())?>"><input type="hidden" name="action" value="save"><input type="hidden" name="id" id="menu-id" value="0">
 <div class="dialog-body form-grid">
@@ -332,7 +441,6 @@ const iconDialog=document.getElementById('arc-icons-dialog');
 iconDialog.addEventListener('close',syncIconPreview);
 document.getElementById('arc-icons-grid').addEventListener('click',e=>{const choice=e.target.closest('[data-icon]');if(choice){iconInput.value=choice.dataset.icon;syncIconPreview();}},true);
 document.getElementById('menu-new').addEventListener('click',()=>openMenu());document.querySelectorAll('.edit').forEach(b=>b.addEventListener('click',()=>openMenu(JSON.parse(b.dataset.record))));document.querySelectorAll('[data-close-menu]').forEach(b=>b.addEventListener('click',()=>dialog.close()));dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});document.getElementById('menu-placements').addEventListener('change',filterParents);form.addEventListener('submit',e=>{if(!form.querySelector('input[name="placements[]"]:checked')){e.preventDefault();alert('Selecione ao menos uma posição.');}});
-function filter(){updateTree();}search.addEventListener('input',filter);
 const bulkForm=document.getElementById('menu-bulk-form'),selectAll=document.getElementById('menu-select-all'),bulkButton=document.getElementById('menu-bulk-apply'),bulkOperation=document.getElementById('menu-bulk-operation'),count=document.getElementById('menu-selected-count');
 function selectedRows(){return [...table.querySelectorAll('tbody .menu-row-select:checked')];}
 function syncSelection(){const selected=selectedRows();bulkForm.hidden=selected.length<2;count.textContent=selected.length+' selecionado'+(selected.length===1?'':'s');bulkButton.disabled=selected.length<2||!bulkOperation.value;const visible=[...table.querySelectorAll('tbody tr:not([hidden]) .menu-row-select')];selectAll.checked=visible.length>0&&visible.every(c=>c.checked);selectAll.indeterminate=visible.some(c=>c.checked)&&!selectAll.checked;}
@@ -340,6 +448,8 @@ selectAll.addEventListener('change',()=>{table.querySelectorAll('tbody tr:not([h
 table.addEventListener('change',e=>{if(e.target.classList.contains('menu-row-select'))syncSelection();});bulkOperation.addEventListener('change',syncSelection);
 bulkForm.addEventListener('submit',e=>{bulkForm.querySelectorAll('input[data-bulk-id]').forEach(el=>el.remove());selectedRows().forEach(cb=>{const hidden=document.createElement('input');hidden.type='hidden';hidden.name='ids[]';hidden.value=cb.value;hidden.dataset.bulkId='1';bulkForm.appendChild(hidden);});if(selectedRows().length<2){e.preventDefault();return;}if(bulkOperation.value==='delete'&&!confirm('Excluir definitivamente os '+selectedRows().length+' menus selecionados?'))e.preventDefault();});
 search.addEventListener('input',syncSelection);syncSelection();
+const alertDialog=document.getElementById('menu-alert-dialog');
+if(alertDialog){document.getElementById('menu-alert-open').addEventListener('click',()=>alertDialog.showModal());alertDialog.querySelectorAll('[data-close-alert]').forEach(b=>b.addEventListener('click',()=>alertDialog.close()));alertDialog.addEventListener('click',e=>{if(e.target===alertDialog)alertDialog.close();});alertDialog.querySelectorAll('[data-edit-menu]').forEach(b=>b.addEventListener('click',()=>{const edit=table.querySelector('tr[data-id="'+b.dataset.editMenu+'"] .edit');if(edit){alertDialog.close();edit.click();}}));}
 
 // Expansão hierárquica: não elimina filhos do DOM nem altera permissões.
 const collapsed=new Set([...table.tBodies[0].querySelectorAll('[data-expand]')].map(b=>Number(b.dataset.expand)));

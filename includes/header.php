@@ -114,6 +114,7 @@ foreach ($arcCssPaths as $arcCssRelative) {
 $vars=[]; /* A paleta central substitui as cores locais herdadas. */
 foreach($vars as $key=>$var){$v=$arcThemeSettings[$key]??'';if(preg_match('/^#[0-9a-fA-F]{6}$/',$v))echo $var.':'.arc_h($v).';';}
 $radius=$arcThemeSettings['platform_border_radius']??'';if($radius!==''&&ctype_digit($radius))echo '--arc-card-radius:'.min(28,(int)$radius).'px;';
+$font=['segoe'=>'"Segoe UI",Arial,sans-serif','inter'=>'Inter,"Segoe UI",Arial,sans-serif','arial'=>'Arial,Helvetica,sans-serif'][$arcThemeSettings['platform_font_family']??'system']??'';if($font!=='')echo '--font:'.$font.';';
 ?>" data-platform-theme="<?=arc_h(($arcThemeSettings['platform_theme_mode'] ?? '') ?: 'auto')?>">
 <script>window.ARC_PREFS = <?= arc_escape_json($arcPrefs ?: new stdClass()) ?>;</script>
 
@@ -139,12 +140,19 @@ if ($arcFlashText !== ''): ?>
             .'JOIN '.arc_table('managed_networks').' n ON n.id=m.network_id AND n.account_id=m.account_id '
             .'WHERE m.member_user_id=? AND m.enabled=1 AND n.is_active=1 AND n.account_id<>? '
             .'ORDER BY name,id';
-        $arcNetworkSelectorStmt = arc_db()->prepare($arcNetworkSelectorSql);
-        $arcNetworkSelectorStmt->execute([(int)arc_user_id(),(int)arc_user_id(),(int)arc_user_id()]);
+        if (arc_is_admin()) {
+            // Administrador global autenticado: listar todas as redes ativas.
+            $arcNetworkSelectorSql = 'SELECT id,name,site_code,logo_file,0 AS shared FROM '.arc_table('managed_networks').' WHERE is_active=1 ORDER BY name,id';
+            $arcNetworkSelectorStmt = arc_db()->prepare($arcNetworkSelectorSql);
+            $arcNetworkSelectorStmt->execute();
+        } else {
+            $arcNetworkSelectorStmt = arc_db()->prepare($arcNetworkSelectorSql);
+            $arcNetworkSelectorStmt->execute([(int)arc_user_id(),(int)arc_user_id(),(int)arc_user_id()]);
+        }
         $arcHeaderNetworks = $arcNetworkSelectorStmt->fetchAll(PDO::FETCH_ASSOC);
-        /* Mesmo critério de presença do painel: agente aprovado visto nos últimos 12 segundos. */
-        $arcStatusSql = 'SELECT n.id, COUNT(a.id) AS agent_total, COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL 12 SECOND) THEN 1 ELSE 0 END),0) AS agent_online '
-            .'FROM '.arc_table('managed_networks').' n LEFT JOIN '.arc_table('network_agents').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\' '
+        /* Mesmo critério de presença do painel: gestor aprovado visto nos últimos 12 segundos. */
+        $arcStatusSql = 'SELECT n.id, COUNT(a.id) AS gestor_total, COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL 12 SECOND) THEN 1 ELSE 0 END),0) AS gestor_online '
+            .'FROM '.arc_table('managed_networks').' n LEFT JOIN '.arc_table('network_gestores').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\' '
             .'WHERE n.id IN ('.implode(',', array_fill(0,count($arcHeaderNetworks),'?')).') GROUP BY n.id';
         if ($arcHeaderNetworks) {
             $arcStatusStmt=arc_db()->prepare($arcStatusSql);
@@ -153,7 +161,7 @@ if ($arcFlashText !== ''): ?>
             foreach($arcStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $arcStateRow) $arcStatuses[(int)$arcStateRow['id']]=$arcStateRow;
             foreach($arcHeaderNetworks as &$arcSwitchEntry){
                 $arcCounts=$arcStatuses[(int)$arcSwitchEntry['id']]??[];
-                $arcSwitchEntry['is_online']=(int)($arcCounts['agent_online']??0)>0;
+                $arcSwitchEntry['is_online']=(int)($arcCounts['gestor_online']??0)>0;
             }
             unset($arcSwitchEntry);
         }
@@ -166,19 +174,19 @@ if ($arcFlashText !== ''): ?>
         $arcSelectedNetworkId = $arcNetworkHeader ? (int)$networkId : 0;
         $arcActiveNetOnline=false;
         foreach($arcHeaderNetworks as $arcSwitchEntry) if ((int)$arcSwitchEntry['id']===(int)$arcSelectedNetworkId) { $arcActiveNetOnline=!empty($arcSwitchEntry['is_online']); break; }
-        $arcCurrentAgentVersion = '--';
-        if (isset($networkAgents) && is_array($networkAgents)) {
-            foreach ($networkAgents as $arcHeaderAgent) {
-                if ((int)($arcHeaderAgent['id'] ?? 0) === (int)($selectedAgentId ?? 0)) {
-                    $arcCurrentAgentVersion = (string)($arcHeaderAgent['agent_version'] ?? '--');
+        $arcCurrentGestorVersion = '--';
+        if (isset($networkGestores) && is_array($networkGestores)) {
+            foreach ($networkGestores as $arcHeaderGestor) {
+                if ((int)($arcHeaderGestor['id'] ?? 0) === (int)($selectedGestorId ?? 0)) {
+                    $arcCurrentGestorVersion = (string)($arcHeaderGestor['gestor_version'] ?? '--');
                     break;
                 }
             }
-            if ($arcCurrentAgentVersion === '--' && !empty($networkAgents)) {
-                $arcCurrentAgentVersion = (string)($networkAgents[0]['agent_version'] ?? '--');
+            if ($arcCurrentGestorVersion === '--' && !empty($networkGestores)) {
+                $arcCurrentGestorVersion = (string)($networkGestores[0]['gestor_version'] ?? '--');
             }
         }
-        $arcCurrentAgentVersion = trim($arcCurrentAgentVersion) ?: '--';
+        $arcCurrentGestorVersion = trim($arcCurrentGestorVersion) ?: '--';
         ?>
         <?php if ($arcNetworkHeader): ?>
         <button type="button" class="arc-network-switch-trigger" id="arc-network-switch-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="arc-network-switch-menu" title="Selecionar outra rede">
@@ -187,7 +195,7 @@ if ($arcFlashText !== ''): ?>
                 <img src="<?=arc_h(arc_workspace_base_url().'api/network-logo.php?network='.(int)$networkId)?>" alt="Logo da rede ativa" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><i class="fa fa-sitemap" hidden aria-hidden="true"></i>
                 <?php else: ?><i class="fa fa-sitemap" aria-hidden="true"></i><?php endif; ?>
             </span>
-            <span class="arc-header-network-info"><strong title="<?=arc_h((string)$network['name'])?>"><?=arc_h((string)$network['name'])?></strong><small><span class="arc-header-network-code"><?=arc_h((string)($network['site_code']??''))?></span><span id="arc-agent-version-info" class="arc-header-network-version" title="Versão instalada do agente">v. <?=arc_h($arcCurrentAgentVersion)?></span></small></span>
+            <span class="arc-header-network-info"><strong title="<?=arc_h((string)$network['name'])?>"><?=arc_h((string)$network['name'])?></strong><small><span class="arc-header-network-code"><?=arc_h((string)($network['site_code']??''))?></span><span id="arc-gestor-version-info" class="arc-header-network-version" title="Versão instalada do gestor">v. <?=arc_h($arcCurrentGestorVersion)?></span></small></span>
             <i class="fa fa-chevron-down arc-network-switch-chevron" aria-hidden="true"></i>
         </button>
         <?php else: ?>
@@ -235,7 +243,7 @@ if ($arcFlashText !== ''): ?>
     <div class="header-actions"><button type="button" data-mobile-more class="arc-tablet-more" aria-label="Mais opções"><i class="fa fa-ellipsis-h" aria-hidden="true"></i></button>
 
         <?php if (!$arcNetworkHeader && function_exists('arc_is_user') && (arc_is_user() || arc_is_admin())): ?>
-        <button type="button" id="arc-network-global-overview" class="arc-net-status-badge arc-network-alert-trigger" data-agent-state="<?= arc_h(isset($panelNetworks) && count($panelNetworks) ? (($panelOffline ?? 0) === 0 ? 'online' : (($panelOffline / count($panelNetworks)) > 0.30 ? 'offline' : 'partial')) : 'none') ?>" data-health="<?= arc_h(isset($panelNetworks) && count($panelNetworks) ? (($panelOffline ?? 0) === 0 ? 'healthy' : (($panelOffline / count($panelNetworks)) > 0.30 ? 'critical' : 'warning')) : 'unknown') ?>" aria-label="Consultar situação das redes" title="Consultar situação das redes" aria-haspopup="dialog" aria-controls="arc-network-alert-dialog"><i class="fa fa-desktop" aria-hidden="true"></i></button>
+        <button type="button" id="arc-network-global-overview" class="arc-net-status-badge arc-network-alert-trigger" data-gestor-state="<?= arc_h(isset($panelNetworks) && count($panelNetworks) ? (($panelOffline ?? 0) === 0 ? 'online' : (($panelOffline / count($panelNetworks)) > 0.30 ? 'offline' : 'partial')) : 'none') ?>" data-health="<?= arc_h(isset($panelNetworks) && count($panelNetworks) ? (($panelOffline ?? 0) === 0 ? 'healthy' : (($panelOffline / count($panelNetworks)) > 0.30 ? 'critical' : 'warning')) : 'unknown') ?>" aria-label="Consultar situação das redes" title="Consultar situação das redes" aria-haspopup="dialog" aria-controls="arc-network-alert-dialog"><i class="fa fa-desktop" aria-hidden="true"></i></button>
         <?php endif; ?>
         <nav class="arc-header-nav" aria-label="Menu principal"><?php foreach(arc_navigation_items($pdo,'header') as $arcTopLink): ?><a class="<?=arc_h($arcTopLink['device_class'])?>" href="<?=arc_h($arcTopLink['url'])?>"><span class="arc-db-icon" data-icon="<?=arc_h($arcTopLink['icon'])?>" aria-hidden="true"><i class="fa fa-circle-o" aria-hidden="true"></i></span><?=arc_h($arcTopLink['label'])?></a><?php endforeach;?></nav>
         <?= $ARCHeaderActions ?>
@@ -267,15 +275,15 @@ if ($arcFlashText !== ''): ?>
                 $arcHeaderNotices = $arcHN->fetchAll() ?: [];
                 }
             } catch (Throwable $e) { $arcHeaderNotices = []; }
-            /* Alertas reais dos agentes da rede atual, integrados ao sino padrão. */
+            /* Alertas reais dos gestores da rede atual, integrados ao sino padrão. */
             if (!empty($remoteEvents) && is_array($remoteEvents) && isset($networkId)) {
                 $arcAlertTitles = [
                     'gateway_unreachable'=>['Roteador não respondeu','O computador não conseguiu falar com o roteador. Confira a conexão.'],
                     'high_latency'=>['Internet lenta','A rede demorou mais que o normal para responder.'],
                     'packet_loss'=>['Conexão instável','Algumas tentativas de conexão falharam.'],
                     'high_packet_loss'=>['Conexão instável','Algumas tentativas de conexão falharam.'],
-                    'agent_offline'=>['Computador desconectado','O computador parou de enviar informações.'],
-                    'agent_online'=>['Computador conectado','O computador voltou a se comunicar com a plataforma.'],
+                    'gestor_offline'=>['Computador desconectado','O computador parou de enviar informações.'],
+                    'gestor_online'=>['Computador conectado','O computador voltou a se comunicar com a plataforma.'],
                     'connection_restored'=>['Conexão normalizada','A conexão voltou a funcionar.']
                 ];
                 foreach (array_slice($remoteEvents, 0, 75) as $arcEvent) {
@@ -283,7 +291,7 @@ if ($arcFlashText !== ''): ?>
                     $arcData = json_decode((string)($arcEvent['payload_json'] ?? ''), true);
                     if (!is_array($arcData)) $arcData = [];
                     $arcKind = strtolower((string)($arcData['kind'] ?? $arcData['type'] ?? $arcData['event'] ?? ''));
-                    [$arcTitle, $arcDesc] = $arcAlertTitles[$arcKind] ?? ['Aviso da rede','O agente enviou um aviso. Verifique o computador.'];
+                    [$arcTitle, $arcDesc] = $arcAlertTitles[$arcKind] ?? ['Aviso da rede','O gestor enviou um aviso. Verifique o computador.'];
                     $arcMachine = trim((string)($arcEvent['machine_name'] ?? ''));
                     $arcWhen = (string)($arcEvent['captured_at'] ?? '');
                     $arcHeaderNotices[] = [
@@ -300,27 +308,27 @@ if ($arcFlashText !== ''): ?>
             $arcHeaderProfile = arc_is_admin() ? 'Administrador' : (arc_is_user() ? 'Usuário / Gestor' : 'Visitante');
             ?>
 <?php if ($arcNetworkHeader): ?>
-<form class="arc-redes-header-controls" id="arc-agent-form" method="get" action="" aria-label="Controle do agente">
+<form class="arc-redes-header-controls" id="arc-gestor-form" method="get" action="" aria-label="Controle do gestor">
   <input type="hidden" name="network" value="<?= (int)$networkId ?>">
   <div class="arc-redes-header-left">
    <?php
-    $arcAgentOnline=false;
-    foreach($networkAgents as $a){if((int)$a['id']===$selectedAgentId){$arcAgentOnline=($a['status']??'')==='approved' && !empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-12;break;}}
+    $arcGestorOnline=false;
+    foreach($networkGestores as $a){if((int)$a['id']===$selectedGestorId){$arcGestorOnline=($a['status']??'')==='approved' && !empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-12;break;}}
    ?>
-   <div class="arc-agent-selector-group">
-   <label class="arc-agent-select-wrap <?= $arcAgentOnline?'is-online':'is-offline' ?>" for="arc-agent-target" title="Escolher agente Windows">
-    <span id="arc-connection-status" class="arc-agent-state <?= $arcAgentOnline?'is-online':'is-offline' ?>" role="status" title="<?= $arcAgentOnline?'Agente online':'Agente offline' ?>" aria-label="<?= $arcAgentOnline?'Agente online':'Agente offline' ?>"></span>
-    <select id="arc-agent-target" name="agent" aria-label="Selecionar agente Windows">
-     <option value="">Selecionar agente</option>
-     <?php foreach($networkAgents as $a): if(($a['status']??'')!=='approved')continue;
+   <div class="arc-gestor-selector-group">
+   <label class="arc-gestor-select-wrap <?= $arcGestorOnline?'is-online':'is-offline' ?>" for="arc-gestor-target" title="Escolher gestor Windows">
+    <span id="arc-connection-status" class="arc-gestor-state <?= $arcGestorOnline?'is-online':'is-offline' ?>" role="status" title="<?= $arcGestorOnline?'Gestor online':'Gestor offline' ?>" aria-label="<?= $arcGestorOnline?'Gestor online':'Gestor offline' ?>"></span>
+    <select id="arc-gestor-target" name="gestor" aria-label="Selecionar gestor Windows">
+     <option value="">Selecionar gestor</option>
+     <?php foreach($networkGestores as $a): if(($a['status']??'')!=='approved')continue;
       $arcOptionOnline=!empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-12;
      ?>
-      <option value="<?= (int)$a['id'] ?>" class="<?= $arcOptionOnline?'arc-option-online':'arc-option-offline' ?>" data-headless="<?= (int)($a['headless_mode']??0)===1?'1':'0' ?>" <?= $selectedAgentId===(int)$a['id']?'selected':'' ?>><?= arc_h((string)($a['machine_name']??'Agente')) ?></option>
+      <option value="<?= (int)$a['id'] ?>" class="<?= $arcOptionOnline?'arc-option-online':'arc-option-offline' ?>" data-headless="<?= (int)($a['headless_mode']??0)===1?'1':'0' ?>" <?= $selectedGestorId===(int)$a['id']?'selected':'' ?>><?= arc_h((string)($a['machine_name']??'Gestor')) ?></option>
      <?php endforeach; ?>
     </select>
    </label>
-   <button type="button" id="arc-header-agent-update" class="arc-header-update-icon" title="Agente Windows: instalar ou atualizar" aria-label="Abrir informações e atualização do agente Windows" aria-haspopup="dialog" aria-controls="arc-agent-update-confirm" data-update-available="0"><i class="fa fa-windows" aria-hidden="true"></i></button>
-   <button type="button" class="arc-net-status-badge" id="arc-network-global-state" data-network-status-id="<?= (int)$networkId ?>" data-agent-state="none" title="Atualizar situação do agente" aria-label="Atualizar situação do agente"><i class="fa fa-desktop" aria-hidden="true"></i></button>
+   <button type="button" id="arc-header-gestor-update" class="arc-header-update-icon" title="Gestor Windows: instalar ou atualizar" aria-label="Abrir informações e atualização do gestor Windows" aria-haspopup="dialog" aria-controls="arc-gestor-update-confirm" data-update-available="0"><i class="fa fa-windows" aria-hidden="true"></i></button>
+   <button type="button" class="arc-net-status-badge" id="arc-network-global-state" data-network-status-id="<?= (int)$networkId ?>" data-gestor-state="none" title="Atualizar situação do gestor" aria-label="Atualizar situação do gestor"><i class="fa fa-desktop" aria-hidden="true"></i></button>
    </div>
   </div>
 

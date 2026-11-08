@@ -14,7 +14,7 @@
   /* Uma chamada ao servidor; erros de rede e 5xx são repetidos, regras de negócio não. */
   async function call(config, action, body, extra, signal) {
     const url = new URL('api/support.php', new URL(config.base, location.href));
-    url.search = new URLSearchParams({action, user: config.user, network: config.network, agent: config.agent, token: config.token, ...extra});
+    url.search = new URLSearchParams({action, user: config.user, network: config.network, gestor: config.gestor, token: config.token, ...extra});
     for (let attempt = 0; ; attempt++) {
       try {
         const response = await fetch(url, {method: 'POST', credentials: 'same-origin', cache: 'no-store', signal,

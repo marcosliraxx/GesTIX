@@ -6,24 +6,24 @@ declare(strict_types=1);
 function arc_billing_seed_plans(PDO $pdo): void {
     if ((int)$pdo->query('SELECT COUNT(*) FROM '.arc_table('billing_plans'))->fetchColumn()) return;
     foreach ([['Essencial',5990,3,15,2],['Profissional',14990,15,75,5],['Empresa',39990,50,250,15]] as $plan) {
-        $pdo->prepare('INSERT IGNORE INTO '.arc_table('billing_plans').' (name,price_cents,networks_limit,agents_limit,seats_limit) SELECT ?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM '.arc_table('billing_plans').' WHERE name=?)')->execute([...$plan,$plan[0]]);
+        $pdo->prepare('INSERT IGNORE INTO '.arc_table('billing_plans').' (name,price_cents,networks_limit,gestores_limit,seats_limit) SELECT ?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM '.arc_table('billing_plans').' WHERE name=?)')->execute([...$plan,$plan[0]]);
     }
 }
 function arc_money(int $cents): string { return 'R$ '.number_format($cents/100,2,',','.'); }
 function arc_billing_setting(PDO $pdo,string $key,string $default=''): string { return arc_platform_setting($pdo,'platform_billing_'.$key,$default); }
 function arc_billing_subscription(PDO $pdo,int $account): ?array {
-    $q=$pdo->prepare('SELECT s.*,p.name,p.price_cents,p.networks_limit,p.agents_limit,p.seats_limit FROM '.arc_table('billing_subscriptions').' s JOIN '.arc_table('billing_plans').' p ON p.id=s.plan_id WHERE s.account_id=?');$q->execute([$account]);return $q->fetch()?:null;
+    $q=$pdo->prepare('SELECT s.*,p.name,p.price_cents,p.networks_limit,p.gestores_limit,p.seats_limit FROM '.arc_table('billing_subscriptions').' s JOIN '.arc_table('billing_plans').' p ON p.id=s.plan_id WHERE s.account_id=?');$q->execute([$account]);return $q->fetch()?:null;
 }
 function arc_billing_policy(PDO $pdo,int $account): array {
     $sub=arc_billing_subscription($pdo,$account);
     if ($sub) return $sub+['active'=>in_array($sub['status'],['active','past_due'],true)&&strtotime((string)$sub['period_end'])>=time()];
     $launch=arc_billing_setting($pdo,'launch_at');
     $q=$pdo->prepare('SELECT created_at FROM '.arc_table('user_accounts').' WHERE id=?');$q->execute([$account]);$created=(string)$q->fetchColumn();
-    if ($launch!=='' && $created!=='' && strtotime($created)>=strtotime($launch)) return ['name'=>'Avaliação de 14 dias','active'=>strtotime($created)+14*86400>=time(),'networks_limit'=>1,'agents_limit'=>3,'seats_limit'=>1];
-    return ['name'=>'Conta existente preservada','active'=>true,'networks_limit'=>0,'agents_limit'=>0,'seats_limit'=>0];
+    if ($launch!=='' && $created!=='' && strtotime($created)>=strtotime($launch)) return ['name'=>'Avaliação de 14 dias','active'=>strtotime($created)+14*86400>=time(),'networks_limit'=>1,'gestores_limit'=>3,'seats_limit'=>1];
+    return ['name'=>'Conta existente preservada','active'=>true,'networks_limit'=>0,'gestores_limit'=>0,'seats_limit'=>0];
 }
 function arc_billing_usage(PDO $pdo,int $account): array {
-    $queries=['networks'=>'SELECT COUNT(*) FROM '.arc_table('managed_networks').' WHERE account_id=? AND is_active=1','agents'=>"SELECT COUNT(*) FROM ".arc_table('network_agents')." WHERE account_id=? AND status='approved'",'seats'=>'SELECT COUNT(DISTINCT member_user_id) FROM '.arc_table('network_team_members').' WHERE account_id=? AND enabled=1'];$out=[];
+    $queries=['networks'=>'SELECT COUNT(*) FROM '.arc_table('managed_networks').' WHERE account_id=? AND is_active=1','gestores'=>"SELECT COUNT(*) FROM ".arc_table('network_gestores')." WHERE account_id=? AND status='approved'",'seats'=>'SELECT COUNT(DISTINCT member_user_id) FROM '.arc_table('network_team_members').' WHERE account_id=? AND enabled=1'];$out=[];
     foreach($queries as $k=>$sql){$q=$pdo->prepare($sql);$q->execute([$account]);$out[$k]=(int)$q->fetchColumn();}return $out;
 }
 function arc_billing_assert_active(PDO $pdo,int $account): void {

@@ -6,10 +6,10 @@ declare(strict_types=1);
 function arc_storage_catalog(): array {
  return [
   'browser'=>['label'=>'Historico do explorador de arquivos','table'=>'file_browser_requests','date'=>'created_at','days'=>7,'cap'=>25],
-  'metrics'=>['label'=>'Historico de metricas de servidor','table'=>'agent_telemetry','date'=>'captured_at','days'=>2,'cap'=>15],
-  'telemetry'=>['label'=>'Telemetria bruta','table'=>'agent_telemetry','date'=>'captured_at','days'=>14,'cap'=>30],
-  'commands'=>['label'=>'Comandos finalizados','table'=>'agent_commands','date'=>'created_at','days'=>45,'cap'=>30],
-  'terminal'=>['label'=>'Saidas antigas do terminal','table'=>'agent_terminal_jobs','date'=>'updated_at','days'=>14,'cap'=>15],
+  'metrics'=>['label'=>'Historico de metricas de servidor','table'=>'gestor_telemetry','date'=>'captured_at','days'=>2,'cap'=>15],
+  'telemetry'=>['label'=>'Telemetria bruta','table'=>'gestor_telemetry','date'=>'captured_at','days'=>14,'cap'=>30],
+  'commands'=>['label'=>'Comandos finalizados','table'=>'gestor_commands','date'=>'created_at','days'=>45,'cap'=>30],
+  'terminal'=>['label'=>'Saidas antigas do terminal','table'=>'gestor_terminal_jobs','date'=>'updated_at','days'=>14,'cap'=>15],
   'schedule'=>['label'=>'Execucoes de agendamentos','table'=>'support_schedule_runs','date'=>'created_at','days'=>60,'cap'=>20],
   'transfer'=>['label'=>'Metadados de transferencias encerradas','table'=>'support_file_transfers','date'=>'updated_at','days'=>30,'cap'=>20],
  ];
@@ -84,10 +84,10 @@ function arc_storage_run(PDO $pdo,bool $execute=false,bool $force=false): array 
   if($key==='metrics')$extra=" AND t.event_type='server_metrics'";
   if($key==='telemetry')$extra=" AND t.event_type IN ('speed_progress','telemetry','dashboard','network_scan')";
   if($key==='browser')$extra=" AND t.status NOT IN ('pending','running','processing','queued')";
-  if($key==='terminal')$extra=' AND EXISTS (SELECT 1 FROM '.arc_table('agent_commands')." c WHERE c.id=t.command_id AND c.status IN ('completed','failed','expired') AND c.created_at < ? )";
+  if($key==='terminal')$extra=' AND EXISTS (SELECT 1 FROM '.arc_table('gestor_commands')." c WHERE c.id=t.command_id AND c.status IN ('completed','failed','expired') AND c.created_at < ? )";
   if($key==='commands'){
    $extra=" AND t.status IN ('completed','failed','expired')";
-   foreach(['file_browser_requests','support_file_transfers','agent_terminal_jobs','support_schedule_runs','support_command_requests','support_remote_sessions'] as $related){
+   foreach(['file_browser_requests','support_file_transfers','gestor_terminal_jobs','support_schedule_runs','support_command_requests','support_remote_sessions'] as $related){
     $n=arc_prefix().$related;if(!isset($inventory[$n]))continue;
     $extra.=' AND NOT EXISTS (SELECT 1 FROM '.arc_table($related).' r WHERE r.command_id=t.id)';
    }
@@ -129,9 +129,9 @@ function arc_storage_run(PDO $pdo,bool $execute=false,bool $force=false): array 
   // Arquivos de sessoes remotas com ate 2 h podem ainda estar em uso, independentemente da politica.
   $older=time()-max(7200,$policy['file_days']*86400);
   foreach(arc_storage_old_files($older,$policy['max_files']) as $file){
-   // Agentes ainda em execucao podem renovar arquivos: nao tocar em sessoes vivas.
-   if(preg_match('~/(?:screen|meta|view|viewer|input|input-queue|control|unlock|stop)-([0-9]+)(?:\.|$)~',$file['path'],$m)) {
-     $s=$pdo->prepare('SELECT status,created_at FROM '.arc_table('agent_commands').' WHERE id=? LIMIT 1');
+   // Gestores ainda em execucao podem renovar arquivos: nao tocar em sessoes vivas.
+   if(preg_match('~/(?:screen|alive|meta|view|viewer|input|input-queue|control|unlock|stop)-([0-9]+)(?:\.|$)~',$file['path'],$m)) {
+     $s=$pdo->prepare('SELECT status,created_at FROM '.arc_table('gestor_commands').' WHERE id=? LIMIT 1');
      $s->execute([(int)$m[1]]);$command=$s->fetch(PDO::FETCH_ASSOC);
      // Sessao em execucao so e protegida enquanto ainda esta dentro da vida maxima.
      if(is_array($command) && in_array($command['status'],['pending','running'],true)

@@ -1,0 +1,12 @@
+// Caminho: gestores/servidor/Arcoll.WinUI3/Services/PenteFino/ScanOrchestrator.cs
+using System.Diagnostics;
+namespace Arcoll.WinUI3.Services.PenteFino;
+public sealed class ScanOrchestrator(ResultsStore store,IEnumerable<IChecker>? checkers=null)
+{
+    public static readonly string[] ModuleIds=["privacy","clean","startup","registry","updates"];
+    private readonly IChecker[] _checkers=checkers?.ToArray()??[new FileChecker("privacy","Privacidade"),new FileChecker("clean","Faxina"),new RegistryChecker("startup","Inicialização"),new RegistryChecker("registry","Registro"),new UpdatesChecker()];
+    public async Task<ScanReport> ScanAsync(ScanOptions options,PathPolicy policy,IProgress<ProgressState>? progress,CancellationToken ct){if(options.Mode is not("quick" or "detailed")||options.Modules.Length==0||options.Modules.Any(x=>!ModuleIds.Contains(x)))throw new InvalidDataException("Modo ou módulos inválidos.");var watch=Stopwatch.StartNew();var id=Guid.NewGuid().ToString("N");var cancelled=false;var settings=store.LoadSettings();store.Audit("scan-start",new{id,options.Mode,options.Modules,settingsHash=ResultsStore.Hash(System.Text.Json.JsonSerializer.Serialize(settings))});
+        var tasks=_checkers.Where(x=>options.Modules.Contains(x.Id)).Select(checker=>Task.Run(async()=>{progress?.Report(new(checker.Id,"running",0,"Examinando; somente leitura"));try{var result=await checker.ScanAsync(new(options,store,policy,progress),ct);result=result with{Items=result.Items.Where(x=>!settings.Ignored.Contains(x.Id)).ToList()};progress?.Report(new(checker.Id,"done",100,result.Items.Count+" itens"));return result;}catch(OperationCanceledException){progress?.Report(new(checker.Id,"cancelled",0,"Interrompido"));return new CheckResult(checker.Id,checker.Title,[],["Análise interrompida. Nenhuma correção foi aplicada."],false);}catch(Exception error){progress?.Report(new(checker.Id,"failed",0,error.Message));return new CheckResult(checker.Id,checker.Title,[],[error.Message],false);}},CancellationToken.None)).ToArray();
+        var modules=await Task.WhenAll(tasks);cancelled=ct.IsCancellationRequested;watch.Stop();var report=new ScanReport("pentefino.scan.v1",id,DateTimeOffset.UtcNow,options.Mode,modules.ToList(),cancelled,watch.Elapsed.TotalSeconds);store.Save(report);store.Audit("scan-finished",new{id,cancelled,seconds=watch.Elapsed.TotalSeconds,modules=modules.Select(x=>new{x.Id,x.Complete,count=x.Items.Count})});return report;
+    }
+}

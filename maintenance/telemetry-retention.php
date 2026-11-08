@@ -9,7 +9,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(403); exit('CLI only'); }
 require_once dirname(__DIR__).'/includes/bootstrap.php';
 $execute = in_array('--execute', $argv, true);
 $pdo = arc_db();
-$table = arc_table('agent_telemetry');
+$table = arc_table('gestor_telemetry');
 // Retenção de dados brutos. Preserva configurações, usuários, inventário atual,
 // resultados de testes, alertas, comandos e logs de auditoria.
 $policies = [

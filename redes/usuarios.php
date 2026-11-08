@@ -9,7 +9,7 @@ $historyQuery=$pdo->prepare('SELECT event_type,details,created_at FROM '.arc_tab
 $users=array_merge([['member_user_id'=>(int)$networkOwner['id'],'display_name'=>$networkOwner['display_name'],'email'=>$networkOwner['email'],'avatar_url'=>$networkOwner['avatar_url']??'','role'=>'owner','enabled'=>1]],$networkTeamMembers);
 $roleNames=['owner'=>'Gestor','administrator'=>'Administrador','operator'=>'Operador','viewer'=>'Visualizador'];
 $roleRights=[
- 'owner'=>['Gestão integral da rede','Gerenciar integrantes e perfis','Alterar cadastro e preferências','Aprovar ou bloquear agentes'],
+ 'owner'=>['Gestão integral da rede','Gerenciar integrantes e perfis','Alterar cadastro e preferências','Aprovar ou bloquear gestores'],
  'administrator'=>['Acessar recursos administrativos autorizados','Visualizar equipamentos e dados da rede'],
  'operator'=>['Consultar equipamentos e operar recursos permitidos'],
  'viewer'=>['Consultar informações disponíveis da rede'],

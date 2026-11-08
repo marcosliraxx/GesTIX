@@ -6,13 +6,13 @@ function arc_app_version(): string {
     $value=trim((string)@file_get_contents(dirname(__DIR__).'/VERSION'));
     if(!preg_match('/^\d+\.\d+\.\d+$/D',$value))throw new RuntimeException('VERSION ausente ou inválido. Conclua a atualização da plataforma.');return $value;
 }
-/** O cliente Python legado (3.x/4.x) ja executa agent_update pelo canal autenticado.
+/** O cliente Python legado (3.x/4.x) ja executa gestor_update pelo canal autenticado.
  * A atualizacao do Python atua apenas como ponte verificada para instalar WinUI 3;
- * nenhuma reinstalacao manual e exigida enquanto o agente anterior estiver conectado
+ * nenhuma reinstalacao manual e exigida enquanto o gestor anterior estiver conectado
  * e tiver suporte ao comando. Versoes nao identificaveis exigem diagnostico, nunca
  * liberacao silenciosa de comandos sem autenticacao.
  */
-function arc_agent_upgrade_policy(string $installed, string $published): array {
+function arc_gestor_upgrade_policy(string $installed, string $published): array {
     $valid = static fn(string $v): bool => (bool)preg_match('/^\d+\.\d+\.\d+$/D', $v);
     $known = $valid($installed);
     $migration = $known && $valid($published) && version_compare($published, '5.0.0', '>=')
@@ -22,12 +22,44 @@ function arc_agent_upgrade_policy(string $installed, string $published): array {
         'can_remote_update' => $known,
         'migrate_native' => $migration,
         'message' => !$known
-            ? 'A versao deste agente nao foi identificada. Verifique se esta conectado e responde a comandos antes de atualizar.'
-            : ($migration ? 'Migracao remota do agente antigo para WinUI 3. O Windows deve permitir a instalacao das dependencias nativas.' : ''),
+            ? 'A versao deste gestor nao foi identificada. Verifique se esta conectado e responde a comandos antes de atualizar.'
+            : ($migration ? 'Migracao remota do gestor antigo para WinUI 3. O Windows deve permitir a instalacao das dependencias nativas.' : ''),
     ];
 }
+/** Manifesto da release precompilada publicada (gestores/releases/<arch>/current/release.json), ou null. */
+function arc_gestor_release_manifest(string $arch): ?array {
+    static $cache=[];
+    if(array_key_exists($arch,$cache))return $cache[$arch];
+    $manifest=null;
+    if(in_array($arch,['win-x64','win-arm64'],true)){
+        $file=dirname(__DIR__).'/gestores/releases/'.$arch.'/current/release.json';
+        if(is_file($file)&&is_readable($file)&&(int)@filesize($file)<=350000){
+            $data=json_decode((string)@file_get_contents($file),true);
+            if(is_array($data)&&($data['arch']??null)===$arch&&preg_match('/^\d+\.\d+\.\d+$/D',(string)($data['version']??''))
+                &&isset($data['files'])&&is_array($data['files'])&&isset($data['files']['Arcoll.WinUI3.exe']))$manifest=$data;
+        }
+    }
+    return $cache[$arch]=$manifest;
+}
+/** 'precompiled' quando há binários publicados; 'source' quando o gestor ainda precisa compilar no computador. */
+function arc_gestor_release_mode(): string {
+    return (arc_gestor_release_manifest('win-x64')||arc_gestor_release_manifest('win-arm64'))?'precompiled':'source';
+}
+/** Versão que os gestores devem ter. Com release precompilada, é a versão dos binários publicados
+ *  (não muda a cada ajuste de PHP/CSS da plataforma); sem ela, acompanha a versão da plataforma. */
+function arc_gestor_target_version(): string {
+    $best=null;
+    foreach(['win-x64','win-arm64'] as $arch){
+        $m=arc_gestor_release_manifest($arch);
+        if($m&&($best===null||version_compare((string)$m['version'],$best,'>')))$best=(string)$m['version'];
+    }
+    return $best??arc_app_version();
+}
 function arc_release_skip(string $path): bool {
-    return (str_starts_with(basename($path),'.')&&basename($path)!=='.htaccess')||preg_match('~(?:^|/)(?:storage|uploads|backups|secrets|_sql|__pycache__|tests|scripts|docs|pacotes)(?:/|$)~',$path)||in_array(basename($path),['config.php','agent-config.json','agent.json','error_log','_manifest.json','VERSION'],true)||preg_match('/\.(?:log|pyc|zip|env|pem|key|pfx|tmp|updating)$/i',$path);
+    // Binários precompilados do gestor ficam fora do inventário: são grandes e têm versão própria (release.json).
+    $normalized=str_replace('\\','/',$path);
+    if($normalized==='gestores/releases'||str_starts_with($normalized,'gestores/releases/'))return true;
+    return (str_starts_with(basename($path),'.')&&basename($path)!=='.htaccess')||preg_match('~(?:^|/)(?:storage|uploads|backups|secrets|_sql|__pycache__|tests|scripts|docs|pacotes)(?:/|$)~',$path)||in_array(basename($path),['config.php','gestor-config.json','gestor.json','error_log','_manifest.json','VERSION'],true)||preg_match('/\.(?:log|pyc|zip|env|pem|key|pfx|tmp|updating)$/i',$path);
 }
 /** Percorre o inventário da plataforma uma única vez. $onFile recebe (caminho relativo, caminho absoluto); $onDir, o relativo de cada pasta. */
 function arc_release_walk(string $root,callable $onFile,?callable $onDir=null): void {
@@ -108,7 +140,13 @@ function arc_release_sync(PDO $pdo,bool $force=false,?string $manualVersion=null
     }catch(Throwable $e){if($force)throw $e;error_log('Publicação automática: '.$e->getMessage());}finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function arc_release_require_published(): void {
+    static $verified=false;
+    if($verified)return;
     $row=arc_db()->query('SELECT version,fingerprint FROM '.arc_table('platform_release_state').' WHERE id=1')->fetch();
+    // Caminho rápido: se nenhum arquivo mudou desde a última publicação (caminho, tamanho e data),
+    // não recalcula o SHA-256 de toda a plataforma a cada consulta do modal/atualização.
+    $scan=json_decode((string)@file_get_contents(__DIR__.'/storage/releases/scan.json'),true);
+    if($row&&$row['version']===arc_app_version()&&is_array($scan)&&($scan['signature']??'')!==''&&hash_equals((string)$scan['signature'],arc_release_stat_signature())){$verified=true;return;}
     $hash=hash('sha256',json_encode(arc_release_code_manifest(),JSON_UNESCAPED_SLASHES));
     if(!$row||$row['version']!==arc_app_version()||!hash_equals($row['fingerprint'],$hash)){
         // Atualização remota: sincroniza o release antes de servir bytes autenticados.
@@ -117,20 +155,21 @@ function arc_release_require_published(): void {
         $row=arc_db()->query('SELECT version,fingerprint FROM '.arc_table('platform_release_state').' WHERE id=1')->fetch();
         $hash=hash('sha256',json_encode(arc_release_code_manifest(),JSON_UNESCAPED_SLASHES));
         if(!$row||$row['version']!==arc_app_version()||!hash_equals((string)$row['fingerprint'],$hash))
-            throw new RuntimeException('Não foi possível publicar a atualização do agente. Verifique as permissões da pasta raiz e os logs da plataforma.');
+            throw new RuntimeException('Não foi possível publicar a atualização do gestor. Verifique as permissões da pasta raiz e os logs da plataforma.');
     }
+    $verified=true;
 }
 function arc_release_metadata_source(): string {
     arc_release_require_published();$version=arc_app_version();$q=arc_db()->prepare('SELECT notes,fingerprint FROM '.arc_table('platform_release_history').' WHERE version=?');$q->execute([$version]);$row=$q->fetch()?:[];
-    return "# Caminho: agentes/windows/arcoll_release.py\n# Metadados da instalação, gerados da versão central publicada.\nVERSION = ".json_encode($version)."\nBUILD = ".json_encode($row['fingerprint']??'')."\nNOTES = ".json_encode($row['notes']??'',JSON_UNESCAPED_SLASHES)."\n";
+    return "# Caminho: gestores/windows/arcoll_release.py\n# Metadados da instalação, gerados da versão central publicada.\nVERSION = ".json_encode($version)."\nBUILD = ".json_encode($row['fingerprint']??'')."\nNOTES = ".json_encode($row['notes']??'',JSON_UNESCAPED_SLASHES)."\n";
 }
 
 /** Complete managed installer sources, including future resource directories. Never includes enrollment secrets. */
-function arc_agent_installer_sources(): array {
-    $root=dirname(__DIR__).'/agentes/windows';$files=arc_agent_release_sources();
+function arc_gestor_installer_sources(): array {
+    $root=dirname(__DIR__).'/gestores/windows';$files=arc_gestor_release_sources();
     $walk=function(string $directory)use(&$walk,&$files,$root):void{
         foreach(new DirectoryIterator($directory) as $entry){if($entry->isDot()||$entry->isLink())continue;$name=$entry->getFilename();$relative=str_replace('\\','/',substr($entry->getPathname(),strlen($root)+1));
-            if(in_array(strtolower($name),['__pycache__','backup','.dados','instalar_arcoll.py','arcoll_session.py','agent-config.json','agent.json','appearance.json'],true)||str_starts_with($name,'.')||preg_match('/\.(?:log|pyc|env|updating)$/i',$name))continue;
+            if(in_array(strtolower($name),['__pycache__','backup','.dados','instalar_arcoll.py','arcoll_session.py','gestor-config.json','gestor.json','appearance.json'],true)||str_starts_with($name,'.')||preg_match('/\.(?:log|pyc|env|updating)$/i',$name))continue;
             if(!preg_match('~^[A-Za-z0-9_./ -]+$~D',$relative)||str_contains($relative,'..'))throw new RuntimeException('Nome de recurso incompatível com o instalador.');
             if($entry->isDir()){$walk($entry->getPathname());continue;}
             if(!preg_match('/\.(?:py|ps1|bat|cmd|json|ico|png|jpg|jpeg|svg|txt|ttf|woff2?|dll|exe|pyd|dat)$/i',$name))continue;
@@ -138,12 +177,12 @@ function arc_agent_installer_sources(): array {
             if($entry->getSize()>33554432)throw new RuntimeException('Recurso do instalador excede 32 MB.');
             if(!isset($files[$relative]))$files[$relative]=file_get_contents($entry->getPathname());
         }
-    };$walk($root);$files['VERSION']=arc_app_version()."\n";$files['favicon.ico']=arc_support_icon(arc_db(),'agent');
+    };$walk($root);$files['VERSION']=arc_app_version()."\n";$files['favicon.ico']=arc_support_icon(arc_db(),'gestor');
     foreach($files as $name=>&$data)if(str_ends_with(strtolower($name),'.ps1')&&!str_starts_with($data,"\xEF\xBB\xBF"))$data="\xEF\xBB\xBF".$data;unset($data);
     ksort($files,SORT_STRING);if(count($files)>2000||array_sum(array_map('strlen',$files))>134217728)throw new RuntimeException('Instalador excede o limite.');return $files;
 }
-function arc_agent_installer_package(): array {
-    $version=arc_app_version();$sources=arc_agent_installer_sources();$temp=tempnam(sys_get_temp_dir(),'arc-installer-');if($temp===false)throw new RuntimeException('Instalador indisponível.');$zip=new ZipArchive();
+function arc_gestor_installer_package(): array {
+    $version=arc_app_version();$sources=arc_gestor_installer_sources();$temp=tempnam(sys_get_temp_dir(),'arc-installer-');if($temp===false)throw new RuntimeException('Instalador indisponível.');$zip=new ZipArchive();
     try{
         if($zip->open($temp,ZipArchive::OVERWRITE)!==true)throw new RuntimeException('Não foi possível gerar o instalador.');$manifest=[];
         foreach($sources as $name=>$bytes){$zip->addFromString($name,$bytes);$manifest[]=['path'=>$name,'sha256'=>hash('sha256',$bytes),'size'=>strlen($bytes)];}

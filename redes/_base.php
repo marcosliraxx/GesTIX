@@ -21,7 +21,7 @@ $go = static function (string $url = 'pages/painel.php'): never {
     exit;
 };
 
-if (!arc_is_user()) {
+if (!arc_is_user() && !arc_is_admin()) {
     $_SESSION['arc_flash'] = 'Entre na sua conta para acessar as redes.';
     $go('../index.php');
 }
@@ -39,7 +39,10 @@ if (!$access) {
 }
 $account = $access['account_id'];
 $teamRole = $access['role'];
-$isNetworkOwner = $teamRole === 'owner';
+$isSystemAdmin = $teamRole === 'system_admin';
+$isNetworkOwner = in_array($teamRole, ['owner', 'system_admin'], true);
+// Administradores do sistema podem consultar redes; operações exclusivas
+// do proprietário continuam vinculadas à identidade da conta titular.
 $load = $pdo->prepare('SELECT * FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? LIMIT 1');
 $load->execute([$networkId, $account]);
 $network = $load->fetch(PDO::FETCH_ASSOC);
@@ -47,9 +50,9 @@ if (!$network) $go('pages/painel.php');
 $csrf    = arc_csrf_token();
 
 /* BLOCO 01 — GATE NATIVO DE ATIVAÇÃO DA REDE.
-   Bloqueio no servidor: nenhuma aba da gestão é renderizada sem agente aprovado.
+   Bloqueio no servidor: nenhuma aba da gestão é renderizada sem gestor aprovado.
    A página de liberação tem fluxo próprio e autorização vinculada à conta/rede. */
-$arcGate = $pdo->prepare('SELECT COUNT(*) FROM '.arc_table('network_agents')." WHERE network_id=? AND account_id=? AND status='approved'");
+$arcGate = $pdo->prepare('SELECT COUNT(*) FROM '.arc_table('network_gestores')." WHERE network_id=? AND account_id=? AND status='approved'");
 $arcGate->execute([$networkId,(int)$account]);
 if (!(int)$arcGate->fetchColumn() && !in_array(($arcSectionFile ?? ''), ['cadastros','usuarios','preferencias','permissoes'], true)) {
     header('Location: '.arc_workspace_base_url().'redes/liberacao.php?network='.$networkId, true, 303);
@@ -58,7 +61,7 @@ if (!(int)$arcGate->fetchColumn() && !in_array(($arcSectionFile ?? ''), ['cadast
 
 
 /* Perfis customizados nunca podem ampliar o nível básico; restringem as páginas disponíveis. */
-if (!$isNetworkOwner && isset($arcSectionFile)) {
+if (!$isNetworkOwner && !$isSystemAdmin && isset($arcSectionFile)) {
     $allowedCustom=arc_network_profile_rights($pdo,$networkId,(int)arc_user_id());
     if ($allowedCustom!==null && !in_array($arcSectionFile,$allowedCustom,true) && !(in_array($arcSectionFile,['remoto','arquivos','chamados','agenda'],true)&&in_array('suporte',$allowedCustom,true))) {
         http_response_code(403);exit('Seu perfil não permite acessar esta página da rede.');
@@ -77,69 +80,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action,['ticket_create',
     if ($token === '' || !hash_equals($csrf, $token)) {
         $arcError = 'Sessão expirada. Atualize a página e tente novamente.';
 
-    } elseif (in_array($action, ['agent_approve','agent_reject','agent_block','agent_delete'], true)) {
-        $agentId = (int)($_POST['agent_id'] ?? 0);
-        $agentLookup = $pdo->prepare('SELECT id,machine_name,status,notes FROM ' . arc_table('network_agents') . ' WHERE id=? AND network_id=? AND account_id=? LIMIT 1');
-        $agentLookup->execute([$agentId,$networkId,$account]);
-        $managedAgent = $agentLookup->fetch();
-        if (!$managedAgent) {
-            $arcError = 'Agente não encontrado nesta rede.';
-        } elseif ($action === 'agent_delete') {
-            $pdo->prepare('DELETE FROM ' . arc_table('network_agents') . ' WHERE id=? AND network_id=? AND account_id=?')->execute([$agentId,$networkId,$account]);
-            arc_user_audit($pdo,'network_agent_deleted','Agente removido: '.(string)$managedAgent['machine_name'].' (Rede ID '.$networkId.')');
-            $_SESSION['arc_flash'] = 'Agente removido. Se o mesmo computador tentar se cadastrar novamente, precisará de nova aprovação.';
-            $go('redes/servidor.php?network='.$networkId.'#agents');
-        } elseif ($action==='agent_approve' && (str_starts_with((string)($managedAgent['notes']??''),'DESINSTALADO|') || (string)($managedAgent['notes']??'')==='Instalação revogada pelo gestor')) {
-            $_SESSION['arc_flash']='O agente foi desinstalado. Instale novamente para solicitar uma nova liberação.';
+    } elseif (in_array($action, ['gestor_approve','gestor_reject','gestor_block','gestor_delete'], true)) {
+        $gestorId = (int)($_POST['gestor_id'] ?? 0);
+        $gestorLookup = $pdo->prepare('SELECT id,machine_name,status,notes FROM ' . arc_table('network_gestores') . ' WHERE id=? AND network_id=? AND account_id=? LIMIT 1');
+        $gestorLookup->execute([$gestorId,$networkId,$account]);
+        $managedGestor = $gestorLookup->fetch();
+        if (!$managedGestor) {
+            $arcError = 'Gestor não encontrado nesta rede.';
+        } elseif ($action === 'gestor_delete') {
+            $pdo->prepare('DELETE FROM ' . arc_table('network_gestores') . ' WHERE id=? AND network_id=? AND account_id=?')->execute([$gestorId,$networkId,$account]);
+            arc_user_audit($pdo,'network_gestor_deleted','Gestor removido: '.(string)$managedGestor['machine_name'].' (Rede ID '.$networkId.')');
+            $_SESSION['arc_flash'] = 'Gestor removido. Se o mesmo computador tentar se cadastrar novamente, precisará de nova aprovação.';
+            $go('redes/servidor.php?network='.$networkId.'#gestores');
+        } elseif ($action==='gestor_approve' && (str_starts_with((string)($managedGestor['notes']??''),'DESINSTALADO|') || (string)($managedGestor['notes']??'')==='Instalação revogada pelo gestor')) {
+            $_SESSION['arc_flash']='O gestor foi desinstalado. Instale novamente para solicitar uma nova liberação.';
             $go('redes/liberacao.php?network='.$networkId);
         } else {
-            if ($action==='agent_block') {
-                // Bloquear = exigir login na tela do agente. O agente segue ativo e o status continua "approved".
-                $pdo->prepare('UPDATE '.arc_table('network_agents').' SET ui_locked=1 WHERE id=? AND network_id=? AND account_id=? AND status=\'approved\'')->execute([$agentId,$networkId,$account]);
-                arc_user_audit($pdo,'network_agent_locked','Tela do agente protegida por login: '.(string)$managedAgent['machine_name'].' (Rede ID '.$networkId.')');
-                $_SESSION['arc_flash']='Agente bloqueado: a tela só abre com usuário e senha.';
-                $go('redes/servidor.php?network='.$networkId.'#agents');
+            if ($action==='gestor_block') {
+                // Bloquear = exigir login na tela do gestor. O gestor segue ativo e o status continua "approved".
+                $pdo->prepare('UPDATE '.arc_table('network_gestores').' SET ui_locked=1 WHERE id=? AND network_id=? AND account_id=? AND status=\'approved\'')->execute([$gestorId,$networkId,$account]);
+                arc_user_audit($pdo,'network_gestor_locked','Tela do gestor protegida por login: '.(string)$managedGestor['machine_name'].' (Rede ID '.$networkId.')');
+                $_SESSION['arc_flash']='Gestor bloqueado: a tela só abre com usuário e senha.';
+                $go('redes/servidor.php?network='.$networkId.'#gestores');
             }
-            $newStatus = match($action) {'agent_approve'=>'approved','agent_reject'=>'rejected'};
+            $newStatus = match($action) {'gestor_approve'=>'approved','gestor_reject'=>'rejected'};
             $pdo->beginTransaction();
             try{
                 $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');$q->execute([$account]);
-                $q=$pdo->prepare('SELECT status FROM '.arc_table('network_agents').' WHERE id=? AND account_id=? FOR UPDATE');$q->execute([$agentId,$account]);
-                if($newStatus==='approved'&&$q->fetchColumn()!=='approved')arc_billing_enforce($pdo,$account,'agents');
-            $pdo->prepare('UPDATE ' . arc_table('network_agents') . ' SET status=?,ui_locked=CASE WHEN ?=\'approved\' THEN 0 ELSE ui_locked END,approved_at=CASE WHEN ?=\'approved\' THEN CURRENT_TIMESTAMP ELSE approved_at END WHERE id=? AND network_id=? AND account_id=?')
-                ->execute([$newStatus,$newStatus,$newStatus,$agentId,$networkId,$account]);
+                $q=$pdo->prepare('SELECT status FROM '.arc_table('network_gestores').' WHERE id=? AND account_id=? FOR UPDATE');$q->execute([$gestorId,$account]);
+                if($newStatus==='approved'&&$q->fetchColumn()!=='approved')arc_billing_enforce($pdo,$account,'gestores');
+            $pdo->prepare('UPDATE ' . arc_table('network_gestores') . ' SET status=?,ui_locked=CASE WHEN ?=\'approved\' THEN 0 ELSE ui_locked END,approved_at=CASE WHEN ?=\'approved\' THEN CURRENT_TIMESTAMP ELSE approved_at END WHERE id=? AND network_id=? AND account_id=?')
+                ->execute([$newStatus,$newStatus,$newStatus,$gestorId,$networkId,$account]);
                 $pdo->commit();
-            }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();$_SESSION['arc_flash']=$e instanceof RuntimeException?$e->getMessage():'Não foi possível alterar o agente.';$go('redes/servidor.php?network='.$networkId);}
-            arc_user_audit($pdo,'network_agent_'.$newStatus,'Agente '.$newStatus.': '.(string)$managedAgent['machine_name'].' (Rede ID '.$networkId.')');
-            $_SESSION['arc_flash'] = match($newStatus){'approved'=>'Agente aprovado e autorizado.','rejected'=>'Cadastro do agente rejeitado.'};
-            $go('redes/servidor.php?network='.$networkId.'#agents');
+            }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();$_SESSION['arc_flash']=$e instanceof RuntimeException?$e->getMessage():'Não foi possível alterar o gestor.';$go('redes/servidor.php?network='.$networkId);}
+            arc_user_audit($pdo,'network_gestor_'.$newStatus,'Gestor '.$newStatus.': '.(string)$managedGestor['machine_name'].' (Rede ID '.$networkId.')');
+            $_SESSION['arc_flash'] = match($newStatus){'approved'=>'Gestor aprovado e autorizado.','rejected'=>'Cadastro do gestor rejeitado.'};
+            $go('redes/servidor.php?network='.$networkId.'#gestores');
         }
 
-    } elseif ($action === 'agent_headless_toggle') {
-        $agentId = (int)($_POST['agent_id'] ?? 0);
-        $agentLookup = $pdo->prepare('SELECT id,machine_name,headless_mode FROM ' . arc_table('network_agents') . ' WHERE id=? AND network_id=? AND account_id=? LIMIT 1');
-        $agentLookup->execute([$agentId,$networkId,$account]);
-        $managedAgent = $agentLookup->fetch();
-        if (!$managedAgent) {
-            $arcError = 'Agente não encontrado nesta rede.';
+    } elseif ($action === 'gestor_headless_toggle') {
+        $gestorId = (int)($_POST['gestor_id'] ?? 0);
+        $gestorLookup = $pdo->prepare('SELECT id,machine_name,headless_mode FROM ' . arc_table('network_gestores') . ' WHERE id=? AND network_id=? AND account_id=? LIMIT 1');
+        $gestorLookup->execute([$gestorId,$networkId,$account]);
+        $managedGestor = $gestorLookup->fetch();
+        if (!$managedGestor) {
+            $arcError = 'Gestor não encontrado nesta rede.';
         } else {
-            $newHeadless = (int)$managedAgent['headless_mode'] === 1 ? 0 : 1;
-            $pdo->prepare('UPDATE ' . arc_table('network_agents') . ' SET headless_mode=? WHERE id=? AND network_id=? AND account_id=?')
-                ->execute([$newHeadless,$agentId,$networkId,$account]);
-            arc_user_audit($pdo, $newHeadless ? 'network_agent_headless_enabled' : 'network_agent_headless_disabled',
-                ($newHeadless ? 'Acesso remoto automático ativado' : 'Acesso remoto automático desativado').' para o agente '.(string)$managedAgent['machine_name'].' (Rede ID '.$networkId.')');
+            $newHeadless = (int)$managedGestor['headless_mode'] === 1 ? 0 : 1;
+            $pdo->prepare('UPDATE ' . arc_table('network_gestores') . ' SET headless_mode=? WHERE id=? AND network_id=? AND account_id=?')
+                ->execute([$newHeadless,$gestorId,$networkId,$account]);
+            arc_user_audit($pdo, $newHeadless ? 'network_gestor_headless_enabled' : 'network_gestor_headless_disabled',
+                ($newHeadless ? 'Acesso remoto automático ativado' : 'Acesso remoto automático desativado').' para o gestor '.(string)$managedGestor['machine_name'].' (Rede ID '.$networkId.')');
             $_SESSION['arc_flash'] = $newHeadless
-                ? 'Agente marcado como servidor sem monitor/teclado/mouse. O acesso remoto não vai mais esperar confirmação na tela do Windows (que nunca apareceria), e fica sempre registrado na auditoria.'
-                : 'Agente voltou a exigir a confirmação local de acesso remoto na tela do Windows.';
+                ? 'Gestor marcado como servidor sem monitor/teclado/mouse. O acesso remoto não vai mais esperar confirmação na tela do Windows (que nunca apareceria), e fica sempre registrado na auditoria.'
+                : 'Gestor voltou a exigir a confirmação local de acesso remoto na tela do Windows.';
         }
-        $go('redes/servidor.php?network='.$networkId.'#agents');
+        $go('redes/servidor.php?network='.$networkId.'#gestores');
 
     } elseif ($action === 'network_monitoring_toggle') {
         $newMonitoring = (int)($network['monitoring_enabled'] ?? 0) === 1 ? 0 : 1;
         $pdo->prepare('UPDATE ' . arc_table('managed_networks') . ' SET monitoring_enabled=? WHERE id=? AND account_id=? AND is_active=1')
             ->execute([$newMonitoring, $networkId, $account]);
         arc_user_audit($pdo, $newMonitoring ? 'network_monitoring_enabled' : 'network_monitoring_disabled', ($newMonitoring ? 'Monitoramento ativado' : 'Monitoramento desativado') . ' na rede ID ' . $networkId);
-        $_SESSION['arc_flash'] = $newMonitoring ? 'Monitoramento ativado. Os agentes desta rede poderão se comunicar.' : 'Monitoramento desativado. Os agentes desta rede serão bloqueados até a reativação.';
+        $_SESSION['arc_flash'] = $newMonitoring ? 'Monitoramento ativado. Os gestores desta rede poderão se comunicar.' : 'Monitoramento desativado. Os gestores desta rede serão bloqueados até a reativação.';
         $go('redes/servidor.php?network=' . $networkId . '#settings');
 
     } elseif ($action === 'network_update') {
@@ -343,21 +346,21 @@ $inst = $pdo->prepare(
 );
 $inst->execute([$networkId, $account]);
 $installations = $inst->fetchAll();
-$agentQuery = $pdo->prepare('SELECT * FROM ' . arc_table('network_agents') . ' WHERE network_id=? AND account_id=? ORDER BY CASE status WHEN \'pending\' THEN 0 WHEN \'approved\' THEN 1 WHEN \'blocked\' THEN 2 ELSE 3 END, last_seen_at DESC');
-$agentQuery->execute([$networkId,$account]);
-$networkAgents = $agentQuery->fetchAll();
-$selectedAgentId = (int)($_GET['agent'] ?? 0);
-$approvedAgentIds = array_map('intval', array_column(array_filter($networkAgents, static fn($a) => ($a['status'] ?? '') === 'approved'), 'id'));
-if (!in_array($selectedAgentId, $approvedAgentIds, true)) $selectedAgentId = $approvedAgentIds[0] ?? 0;
+$gestorQuery = $pdo->prepare('SELECT * FROM ' . arc_table('network_gestores') . ' WHERE network_id=? AND account_id=? ORDER BY CASE status WHEN \'pending\' THEN 0 WHEN \'approved\' THEN 1 WHEN \'blocked\' THEN 2 ELSE 3 END, last_seen_at DESC');
+$gestorQuery->execute([$networkId,$account]);
+$networkGestores = $gestorQuery->fetchAll();
+$selectedGestorId = (int)($_GET['gestor'] ?? 0);
+$approvedGestorIds = array_map('intval', array_column(array_filter($networkGestores, static fn($a) => ($a['status'] ?? '') === 'approved'), 'id'));
+if (!in_array($selectedGestorId, $approvedGestorIds, true)) $selectedGestorId = $approvedGestorIds[0] ?? 0;
 $remoteEvents = [];
 try {
-    $remoteStmt = $pdo->prepare('SELECT t.event_type,t.payload_json,t.captured_at,a.machine_name FROM ' . arc_table('agent_telemetry') . ' t JOIN ' . arc_table('network_agents') . ' a ON a.id=t.agent_id AND a.network_id=t.network_id WHERE t.network_id=? AND t.account_id=? AND t.agent_id=? AND t.event_type<>\'server_metrics\' ORDER BY t.id DESC LIMIT 150');
-    $remoteStmt->execute([$networkId,$account,$selectedAgentId]);
+    $remoteStmt = $pdo->prepare('SELECT t.event_type,t.payload_json,t.captured_at,a.machine_name FROM ' . arc_table('gestor_telemetry') . ' t JOIN ' . arc_table('network_gestores') . ' a ON a.id=t.gestor_id AND a.network_id=t.network_id WHERE t.network_id=? AND t.account_id=? AND t.gestor_id=? AND t.event_type<>\'server_metrics\' ORDER BY t.id DESC LIMIT 150');
+    $remoteStmt->execute([$networkId,$account,$selectedGestorId]);
     $remoteEvents = $remoteStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) { error_log('Arcoll remote dashboard: '.$e->getMessage()); }
 $remoteByType=[];
 foreach ($remoteEvents as $event) { $remoteByType[(string)$event['event_type']][]=$event; }
-$pendingAgentCount = count(array_filter($networkAgents, static fn($a) => (string)$a['status'] === 'pending'));
+$pendingGestorCount = count(array_filter($networkGestores, static fn($a) => (string)$a['status'] === 'pending'));
 $offlineDeviceCount = count(array_filter($devices, static fn($d) => empty($d['last_seen_ms']) || (int)floor((int)$d['last_seen_ms'] / 1000) < time() - 90));
 $recentInstallationCount = count(array_filter($installations, static function ($i) { $t = strtotime((string)($i['installed_at'] ?? '')); return $t !== false && $t >= time() - 86400; }));
 $networkPrefs = ['monitor_refresh'=>'30','alert_latency'=>'150','alert_low_speed'=>'0','email_alerts'=>'1'];

@@ -69,26 +69,26 @@
 .arc-manager-panel .network-danger-actions{display:flex;gap:6px;flex-wrap:wrap}
 .arc-manager-footer{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 15px;border-top:1px solid var(--border);background:var(--surface-alt);color:var(--muted);font-size:11px}
 .arc-redes-header-controls{display:flex;align-items:center;gap:7px;min-width:0;flex:1 1 auto;justify-content:flex-end;margin:0}
-.arc-agent-select-wrap select{background:transparent;color:var(--text);border:0;outline:none;min-width:0;width:100%;font-size:12px;cursor:pointer;height:100%}
-.arc-agent-select-wrap select option{background:var(--surface-alt);color:var(--text)}
-.arc-agent-state{display:grid;place-items:center;flex:0 0 30px;width:30px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--surface-alt);font-size:13px}.arc-agent-state.is-online i{animation:arcAgentPulse 2.4s ease-in-out infinite}
-.arc-agent-state.is-offline{color:#f18586}.arc-agent-running{display:grid;place-items:center;flex:0 0 30px;width:30px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--surface-alt);font-size:13px;color:var(--primary)}.arc-agent-running.is-running{color:#f9c463}
+.arc-gestor-select-wrap select{background:transparent;color:var(--text);border:0;outline:none;min-width:0;width:100%;font-size:12px;cursor:pointer;height:100%}
+.arc-gestor-select-wrap select option{background:var(--surface-alt);color:var(--text)}
+.arc-gestor-state{display:grid;place-items:center;flex:0 0 30px;width:30px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--surface-alt);font-size:13px}.arc-gestor-state.is-online i{animation:arcGestorPulse 2.4s ease-in-out infinite}
+.arc-gestor-state.is-offline{color:#f18586}.arc-gestor-running{display:grid;place-items:center;flex:0 0 30px;width:30px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--surface-alt);font-size:13px;color:var(--primary)}.arc-gestor-running.is-running{color:#f9c463}
 
 .arc-redes-header-controls .is-refreshing i{animation:arcSpin .6s linear infinite}
-@keyframes arcAgentPulse{50%{opacity:.4;filter:drop-shadow(0 0 5px #4ee3a5)}}@keyframes arcSpin{to{transform:rotate(360deg)}}
+@keyframes arcGestorPulse{50%{opacity:.4;filter:drop-shadow(0 0 5px #4ee3a5)}}@keyframes arcSpin{to{transform:rotate(360deg)}}
 .arc-command-log.arc-toast-show{opacity:1;transform:translateX(0);animation:arcToastEnter .22s ease-out}
 .arc-command-log[data-kind=error]{border-color:#d36771;background:var(--surface-alt)}.arc-command-log[data-kind=success]{border-color:#36a78c;background:var(--surface-alt)}
 .arc-command-log[hidden]{display:none!important}
 @keyframes arcToastEnter{from{opacity:0;transform:translateX(35px)}to{opacity:1;transform:translateX(0)}}
 
 .arc-redes-header-left{display:flex;align-items:center;gap:7px;min-width:0;flex:1 1 auto}.arc-redes-header-right{display:flex;align-items:center;gap:7px;min-width:0;flex:0 0 auto;margin-left:auto}
-.arc-redes-header-controls .arc-agent-select-wrap.is-online{border-color:#338b72}
-.arc-redes-header-controls .arc-agent-select-wrap.is-offline{border-color:var(--border)}
-.arc-redes-header-controls .arc-agent-state.is-offline{color:var(--muted)}
-.arc-redes-header-controls .arc-agent-running{height:34px}
+.arc-redes-header-controls .arc-gestor-select-wrap.is-online{border-color:#338b72}
+.arc-redes-header-controls .arc-gestor-select-wrap.is-offline{border-color:var(--border)}
+.arc-redes-header-controls .arc-gestor-state.is-offline{color:var(--muted)}
+.arc-redes-header-controls .arc-gestor-running{height:34px}
 .arc-redes-header-controls .arc-identity-icon{height:34px;width:34px;flex:0 0 34px}
-.arc-redes-header-controls .arc-agent-select-wrap option.arc-option-online{color:#58db9b}
-.arc-redes-header-controls .arc-agent-select-wrap option.arc-option-offline{color:var(--muted)}
+.arc-redes-header-controls .arc-gestor-select-wrap option.arc-option-online{color:#58db9b}
+.arc-redes-header-controls .arc-gestor-select-wrap option.arc-option-offline{color:var(--muted)}
 .arc-alert-count[hidden]{display:none!important}
 .asc-ops{--ops-bg:var(--surface);--ops-panel:var(--surface-alt);--ops-border:var(--border);--ops-text:var(--text);--ops-muted:var(--muted);--ops-accent:var(--primary);color:var(--ops-text);background:var(--ops-bg);border:1px solid var(--ops-border);border-radius:8px;padding:16px;min-height:320px;font-family:Segoe UI,Arial,sans-serif}
 .asc-ops *{box-sizing:border-box}
@@ -120,7 +120,7 @@
 .asc-ops-node{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;background:var(--surface-alt);border:1px solid #315c81;border-radius:6px;padding:12px;min-width:120px;max-width:220px}
 .asc-ops-node i{font-size:22px;color:var(--primary)}.asc-ops-node strong{font-size:12px;overflow-wrap:anywhere}.asc-ops-node small{font-size:10px;color:var(--ops-muted)}
 .asc-ops-node.root{margin:0 auto 20px;background:var(--surface-alt)}.asc-ops-nodes{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-.asc-monitor *{box-sizing:border-box}.asc-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.asc-kicker{color:var(--asc-cyan);font-size:10px;font-weight:700;letter-spacing:1.1px}.asc-heading h1{font-size:23px;line-height:1.25;color:var(--asc-fg);margin:5px 0}.asc-heading p{font-size:12px;color:var(--asc-muted);margin:0}.asc-agent-state{font-size:12px;color:#ffca78;border:1px solid var(--border);border-radius:6px;;white-space:nowrap}.asc-agent-state.online{color:#6ee7b7;border-color:var(--border)}
+.asc-monitor *{box-sizing:border-box}.asc-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.asc-kicker{color:var(--asc-cyan);font-size:10px;font-weight:700;letter-spacing:1.1px}.asc-heading h1{font-size:23px;line-height:1.25;color:var(--asc-fg);margin:5px 0}.asc-heading p{font-size:12px;color:var(--asc-muted);margin:0}.asc-gestor-state{font-size:12px;color:#ffca78;border:1px solid var(--border);border-radius:6px;;white-space:nowrap}.asc-gestor-state.online{color:#6ee7b7;border-color:var(--border)}
 .asc-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.asc-metric{background:var(--asc-panel);border:1px solid var(--asc-line);border-radius:5px;padding:13px 15px;display:grid;gap:5px;min-width:0;transition:transform .2s,border-color .2s}.asc-metric:hover{transform:translateY(-2px);border-color:var(--asc-cyan)}.asc-metric span{font-size:12px;color:var(--asc-muted)}.asc-metric small{font-size:12px;color:var(--asc-muted)}.asc-metric strong{font-size:25px;line-height:1.2;color:var(--asc-cyan);overflow-wrap:anywhere}
 .asc-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.asc-live{font-size:11px;font-weight:700;background:var(--surface-alt);color:#58dfaa;padding:10px 12px;border-radius:4px;margin-right:6px}.asc-live.paused{color:#ffca78;background:var(--surface-alt)}.asc-live i{font-size:9px;margin-right:5px}.asc-monitor .asc-btn{appearance:none;display:inline-flex;align-items:center;gap:6px;text-decoration:none!important;font-size:12px;font-weight:600;line-height:1.25;color:var(--asc-fg)!important;background:var(--surface-alt);border:1px solid var(--border);border-radius:4px;padding:9px 12px;cursor:pointer;transition:background .18s,transform .18s}.asc-monitor .asc-btn:hover{background:var(--surface-alt);transform:translateY(-1px)}.asc-monitor .asc-primary{background:#16a9e1;color:var(--text)!important;border-color:#16a9e1}
 .asc-chart-panel{background:var(--asc-panel);border:1px solid var(--asc-line);border-radius:5px;padding:12px 14px;min-width:0}.asc-chart-title{font-size:14px;font-weight:700;display:flex;justify-content:space-between;gap:12px}.asc-chart-title small{font-size:11px;font-weight:400;color:var(--asc-muted)}.asc-chart-wrap{height:270px;position:relative;margin-top:10px}.asc-chart-wrap svg{display:block;width:100%;height:100%}.asc-tooltip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid #38bdf8;border-radius:4px;padding:6px 9px;color:var(--text);font-size:11px;z-index:3;white-space:nowrap}.asc-chart-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--asc-muted)}.asc-console{background:var(--surface-alt);border:1px solid var(--border);border-radius:5px;padding:10px 12px;min-height:82px;max-height:120px;overflow:auto;white-space:pre-wrap;color:var(--text);font:11px/1.5 Consolas,monospace}
@@ -143,8 +143,8 @@
 .arc-manager-panel .card form{min-width:0}
 .arc-manager-panel .card :where(button,.button){transition:background .15s ease,border-color .15s ease}
 .arc-manager-panel .card :where(button,.button):hover{filter:brightness(1.09)}
-.arc-manager-panel .arc-agent-page-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-.arc-redes-page .arc-agent-page-actions .button{padding:7px 11px;border-radius:5px}
+.arc-manager-panel .arc-gestor-page-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.arc-redes-page .arc-gestor-page-actions .button{padding:7px 11px;border-radius:5px}
 .arc-redes-menu-link:focus-visible{outline:2px solid #51cafa;outline-offset:2px}
 .asc-monitor{--ops-bg:var(--surface);--ops-panel:var(--surface-alt);--ops-border:var(--border);--ops-text:var(--text);--ops-muted:var(--muted);--ops-accent:var(--primary);color:var(--asc-fg);background:var(--asc-bg);border:1px solid var(--border);border-radius:8px;padding:12px;min-height:0;font-family:Segoe UI,Arial,sans-serif;--asc-bg:#071426;--asc-panel:#101f35;--asc-line:#263d5b;--asc-fg:#e9f3ff;--asc-muted:#9bb0c9;--asc-cyan:#20baf2;display:grid;gap:10px;min-width:0}
 .asc-monitor-summary{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:nowrap}
@@ -209,15 +209,15 @@
 .arc-inventory-map button.arc-map-hub:disabled{cursor:wait;opacity:.7}
 .arc-inventory-map .arc-map-hub-action{display:inline-flex;gap:6px;align-items:center;margin-top:4px;color:var(--primary);font-size:11px;font-weight:600}
 .arc-inventory-map .arc-map-hub-action i{font-size:11px}
-.arc-redes-header-controls .arc-agent-select-wrap{flex:0 1 325px;width:clamp(155px,28vw,325px);max-width:325px;height:34px;min-width:115px;gap:7px;padding-inline:10px}
-.arc-redes-header-controls .arc-agent-picker-icon{font-size:15px;color:var(--muted);flex-shrink:0}
-.arc-redes-header-controls .arc-agent-state{border:0;background:none;flex:0 0 12px;width:12px;height:auto;font-size:10px;display:none!important}
-.arc-redes-header-controls .arc-agent-select-wrap select{font-weight:700;background:transparent!important;min-width:0}
-.arc-redes-header-controls .arc-agent-select-wrap.is-online select{color:var(--text)}
-.arc-redes-header-controls .arc-agent-select-wrap.is-offline select{color:var(--muted)!important}
-.arc-redes-header-controls .arc-agent-select-wrap select option{background:var(--surface-alt);color:var(--text)}
-.arc-redes-header-controls .arc-agent-select-wrap select option.arc-option-online{color:#42d58d}
-.arc-redes-header-controls .arc-agent-select-wrap select option.arc-option-offline{color:var(--muted)}
+.arc-redes-header-controls .arc-gestor-select-wrap{flex:0 1 325px;width:clamp(155px,28vw,325px);max-width:325px;height:34px;min-width:115px;gap:7px;padding-inline:10px}
+.arc-redes-header-controls .arc-gestor-picker-icon{font-size:15px;color:var(--muted);flex-shrink:0}
+.arc-redes-header-controls .arc-gestor-state{border:0;background:none;flex:0 0 12px;width:12px;height:auto;font-size:10px;display:none!important}
+.arc-redes-header-controls .arc-gestor-select-wrap select{font-weight:700;background:transparent!important;min-width:0}
+.arc-redes-header-controls .arc-gestor-select-wrap.is-online select{color:var(--text)}
+.arc-redes-header-controls .arc-gestor-select-wrap.is-offline select{color:var(--muted)!important}
+.arc-redes-header-controls .arc-gestor-select-wrap select option{background:var(--surface-alt);color:var(--text)}
+.arc-redes-header-controls .arc-gestor-select-wrap select option.arc-option-online{color:#42d58d}
+.arc-redes-header-controls .arc-gestor-select-wrap select option.arc-option-offline{color:var(--muted)}
 .arc-report-dialog{border:1px solid var(--border);background:var(--surface-alt);color:var(--text);border-radius:14px;padding:0;width:min(560px,95vw);max-height:92dvh;box-shadow:0 24px 70px #0008}
 .arc-report-dialog::backdrop{background:#030b15c7}
 .arc-report-dialog .arc-report-head{padding:17px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px}
@@ -434,9 +434,9 @@
 .arc-identity-icon:hover{background:var(--surface-alt);color:var(--text);border-color:var(--primary);transform:translateY(-2px) scale(1.06);box-shadow:var(--m-glow)}
 .arc-identity-icon:active{transform:scale(.94)}
 .arc-identity-icon.is-refreshing i{animation:arcSpin .7s linear infinite}
-.arc-agent-select-wrap{display:flex;align-items:center;gap:7px;background:var(--surface-alt);border:1px solid var(--border);border-radius:12px!important;padding:0 9px;min-width:110px;max-width:265px;flex:1 1 200px;height:36px;color:var(--primary);transition:box-shadow .3s,border-color .3s}
-.arc-agent-select-wrap.is-online{box-shadow:0 0 0 1px rgba(59,232,168,.35),0 0 24px -6px rgba(59,232,168,.55)}
-.arc-agent-state.is-online{color:#4ee3a5;animation:mBeat 2.2s ease-in-out infinite}
+.arc-gestor-select-wrap{display:flex;align-items:center;gap:7px;background:var(--surface-alt);border:1px solid var(--border);border-radius:12px!important;padding:0 9px;min-width:110px;max-width:265px;flex:1 1 200px;height:36px;color:var(--primary);transition:box-shadow .3s,border-color .3s}
+.arc-gestor-select-wrap.is-online{box-shadow:0 0 0 1px rgba(59,232,168,.35),0 0 24px -6px rgba(59,232,168,.55)}
+.arc-gestor-state.is-online{color:#4ee3a5;animation:mBeat 2.2s ease-in-out infinite}
 @keyframes mBeat{0%,100%{box-shadow:0 0 0 0 rgba(59,232,168,.55)}50%{box-shadow:0 0 0 7px rgba(59,232,168,0)}}
 .arc-redes-menu{flex:0 0 auto;display:flex;align-items:stretch;gap:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;border-bottom:1px solid var(--border);scroll-padding-inline:8px;overscroll-behavior-x:contain;scroll-snap-type:x proximity;touch-action:pan-x}
 .arc-redes-menu-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1 0 84px;min-height:54px;padding:6px 10px;color:var(--muted);text-decoration:none;font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid transparent;scroll-snap-align:nearest;position:relative}
@@ -575,7 +575,7 @@
 .arc-device-fact-card strong {display:block;font-size:12px;line-height:1.3;overflow-wrap:anywhere}
 .arc-device-name-row {display:flex;align-items:center;gap:6px;min-width:0}
 .arc-device-name-row strong {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.arc-device-agent-icon {font-size:12px;flex-shrink:0;color:#5ce3b4;background:var(--surface-alt);padding:4px;border-radius:5px}
+.arc-device-gestor-icon {font-size:12px;flex-shrink:0;color:#5ce3b4;background:var(--surface-alt);padding:4px;border-radius:5px}
 @media(min-width:701px){.arc-manager-panel .form-field>label:has(textarea){grid-column:1/-1}}
 @media(max-width:850px){.asc-monitor-summary{flex-wrap:wrap}.asc-monitor-summary .asc-metrics{flex:1 1 100%}}
 @media(max-width:800px){.asc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-heading{align-items:flex-start;flex-direction:column}.asc-chart-wrap{height:220px}}
@@ -584,26 +584,26 @@
 .arc-inventory-tablewrap{border:0;background:transparent;overflow-x:hidden;overflow-y:auto}.arc-inventory-table,.arc-inventory-table tbody{display:block;min-width:0;width:100%;max-width:100%}.arc-inventory-table thead{display:none}.arc-inventory-table tbody tr{display:grid;grid-template-columns:24px minmax(0,1fr) 68px;grid-template-rows:auto auto;column-gap:5px;min-height:58px;padding:8px 5px;margin-bottom:5px;border:1px solid var(--border);border-radius:9px;background:var(--surface-alt)}
 .arc-inventory-table td[data-device-field]{display:none;min-width:0;border:0;padding:0!important;white-space:normal;overflow:hidden}.arc-inventory-table td[data-device-field=select]{display:grid;grid-column:1;grid-row:1 / 3;align-items:center}.arc-inventory-table td[data-device-field=name]{display:block;grid-column:2;grid-row:1}.arc-inventory-table td[data-device-field=ip]{display:block;grid-column:2;grid-row:2;padding-left:34px!important;color:var(--muted)}.arc-inventory-table td[data-device-field=status]{display:grid;grid-column:3;grid-row:1 / 3;align-items:center;justify-items:center}.arc-inventory-table .arc-device-badge{font-size:9px;padding:4px 5px;white-space:nowrap}.arc-inventory-table .arc-device-ident{min-width:0;gap:7px}.arc-inventory-table .arc-device-ident>div{min-width:0}.arc-inventory-table .arc-device-name-row strong{font-size:12px}.arc-inventory-table .arc-device-ident small{display:none}.arc-device-dialog{max-height:calc(100dvh - 16px)}.arc-device-modalhead{padding:9px}.arc-device-modalhead h2{font-size:15px}.arc-device-modalhead small{display:none}.arc-device-modalbody{padding:9px}.arc-device-modalfoot{gap:6px;flex-wrap:wrap}.arc-device-formgrid input:not([type=checkbox]),.arc-device-formgrid select{font-size:16px;min-height:40px}.arc-device-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.arc-device-summary{gap:7px}.arc-device-summary>div{min-width:0}.arc-device-summary small{overflow-wrap:anywhere}.arc-inventory-toolbar .arc-inventory-search input {font-size:16px}.arc-inventory .arc-inventory-toolbar {flex-wrap:nowrap;padding:4px;gap:5px}.arc-bulkbar {gap:5px}.arc-bulkbar select,.arc-bulkbar input {font-size:16px;min-width:0;flex:1 1 110px;max-width:none}.arc-bulkbar button {height:36px}.arc-inventory-empty-start {min-height:140px;padding:16px}.arc-inventory-startbox strong {font-size:15px}.arc-inventory-startbox small {font-size:12px}
 }
-@media(max-width:760px){.arc-redes-page .arc-redes-identidade{max-width:28%;min-width:85px}.arc-redes-identity-bar .arc-redes-identidade strong{font-size:11px}.arc-agent-select-wrap{flex-basis:100px}.arc-redes-header-controls{gap:4px}.arc-agent-state{flex-basis:24px;width:24px}.arc-agent-running{flex-basis:24px;width:24px}.arc-redes-header-controls .arc-identity-icon{width:30px;height:32px;flex-basis:30px}}
+@media(max-width:760px){.arc-redes-page .arc-redes-identidade{max-width:28%;min-width:85px}.arc-redes-identity-bar .arc-redes-identidade strong{font-size:11px}.arc-gestor-select-wrap{flex-basis:100px}.arc-redes-header-controls{gap:4px}.arc-gestor-state{flex-basis:24px;width:24px}.arc-gestor-running{flex-basis:24px;width:24px}.arc-redes-header-controls .arc-identity-icon{width:30px;height:32px;flex-basis:30px}}
 @media(max-width:700px){.arc-redes-conteudo{padding:9px}.arc-network-manager{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.arc-manager-body{padding:9px}.arc-manager-panel .card{padding:11px}.arc-manager-panel .form-field{grid-template-columns:1fr}.arc-manager-panel .form-field>label.span2{grid-column:auto}.arc-manager-footer span{display:none}.asc-ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-ops-event{grid-template-columns:1fr 1fr}.asc-ops-event small{display:none}.asc-ops{padding:10px}.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{padding:5px}.arc-redes-page .asc-monitor{padding:5px}.asc-monitor-summary{flex-wrap:wrap}.arc-redes-page .asc-monitor .asc-chart-wrap{min-height:0!important}#arc-network-manager{width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important}#arc-network-manager .arc-manager-body{max-height:calc(100dvh - 190px)}.arc-device-facts {grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.arc-redes-menu{padding:3px 4px}.arc-redes-menu-link{flex:0 0 50px;min-height:40px;padding:2px;font-size:9px}}
 @media(max-width:650px){.arc-report-dialog .arc-report-form{grid-template-columns:1fr}.arc-report-preview-dialog .arc-report-body{padding:4px}.arc-report-sheet{padding:12px;font-size:9px}.arc-report-sheet .rkpis{gap:4px}.arc-network-brand-editor{grid-template-columns:80px minmax(0,1fr)}.arc-network-logo-pick{height:80px}}
-@media(max-width:600px){.arc-redes-header-left{gap:4px}.arc-redes-header-right{gap:4px}.arc-redes-header-controls .arc-agent-select-wrap{flex:1 1 auto;width:auto;min-width:85px;padding:0 5px}.arc-redes-header-controls .arc-agent-select-wrap>i{display:none}.arc-redes-header-controls .arc-agent-state{display:grid}.arc-redes-header-controls .arc-agent-running{flex:0 0 28px;width:28px}.arc-redes-header-controls .arc-identity-icon{width:30px;flex-basis:30px}.arc-cmd-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.arc-cmd-card{min-height:145px;padding:12px}.arc-cmd-icon{width:42px;height:42px;flex-basis:42px;font-size:20px}.arc-cmd-toolbar{flex-wrap:wrap}
+@media(max-width:600px){.arc-redes-header-left{gap:4px}.arc-redes-header-right{gap:4px}.arc-redes-header-controls .arc-gestor-select-wrap{flex:1 1 auto;width:auto;min-width:85px;padding:0 5px}.arc-redes-header-controls .arc-gestor-select-wrap>i{display:none}.arc-redes-header-controls .arc-gestor-state{display:grid}.arc-redes-header-controls .arc-gestor-running{flex:0 0 28px;width:28px}.arc-redes-header-controls .arc-identity-icon{width:30px;flex-basis:30px}.arc-cmd-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.arc-cmd-card{min-height:145px;padding:12px}.arc-cmd-icon{width:42px;height:42px;flex-basis:42px;font-size:20px}.arc-cmd-toolbar{flex-wrap:wrap}
  .arc-commands-page .arc-cmd-grid{grid-template-columns:repeat(auto-fill,minmax(95px,108px));gap:7px}
  .arc-commands-page .arc-cmd-card{min-height:0;padding:8px 5px}
  .arc-commands-page .arc-cmd-toolbar{flex-wrap:wrap}}
 @media(max-width:550px){.arc-device-formgrid{grid-template-columns:1fr}.arc-device-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.arc-device-modalfoot{flex-wrap:wrap}}
-@media(max-width:480px){.arc-redes-identity-bar .arc-redes-identidade{min-width:65px}.arc-agent-select-wrap>i{display:none}.arc-redes-header-controls .arc-identity-icon{flex-basis:28px;width:28px}
+@media(max-width:480px){.arc-redes-identity-bar .arc-redes-identidade{min-width:65px}.arc-gestor-select-wrap>i{display:none}.arc-redes-header-controls .arc-identity-icon{flex-basis:28px;width:28px}
   .arc-network-brand{width:30px;height:30px;flex-basis:30px}
   .arc-redes-identity-bar{gap:5px;padding-inline:6px}
   .arc-redes-identity-actions{gap:3px}
-  .arc-agent-select-wrap{min-width:75px;padding:0 4px;max-width:145px}
+  .arc-gestor-select-wrap{min-width:75px;padding:0 4px;max-width:145px}
   .arc-ops-head h1{font-size:18px}
   .asc-heading h1{font-size:18px}.asc-monitor-summary .asc-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.asc-monitor-summary .asc-metric{padding:7px}.asc-monitor-summary .asc-metric strong{font-size:13px}}@media(max-width:450px){.asc-monitor{padding:12px}.asc-metrics{gap:7px}.asc-metric{padding:10px}.asc-metric strong{font-size:19px}.asc-actions .asc-btn{flex:1;justify-content:center}.arc-speed-results{gap:4px;width:100%}.arc-speed-result{padding:7px 3px}.arc-speed-result strong{font-size:18px}.arc-speed-result span{font-size:10px}}
 @media(max-height:650px){.arc-speed-view{gap:8px}.arc-speed-start{width:135px;height:135px;font-size:23px}.arc-speed-result{padding:6px}.arc-speed-result strong{font-size:20px}}
-@media(prefers-reduced-motion:reduce){.arc-redes-header-controls .is-refreshing i{animation:none}.arc-command-log.arc-toast-show{animation:none}.arc-network-manager[open]{animation:none!important;transition:none!important}.arc-agent-state.is-online i{animation:none!important;transition:none!important}.arc-agent-running i{animation:none!important;transition:none!important}.arc-command-log{animation:none!important;transition:none!important}.arc-commands-page .arc-cmd-card{transition:none}
+@media(prefers-reduced-motion:reduce){.arc-redes-header-controls .is-refreshing i{animation:none}.arc-command-log.arc-toast-show{animation:none}.arc-network-manager[open]{animation:none!important;transition:none!important}.arc-gestor-state.is-online i{animation:none!important;transition:none!important}.arc-gestor-running i{animation:none!important;transition:none!important}.arc-command-log{animation:none!important;transition:none!important}.arc-commands-page .arc-cmd-card{transition:none}
   .arc-redes-identity-bar::after{animation:none!important}
-  .arc-agent-state.is-online{animation:none!important}
+  .arc-gestor-state.is-online{animation:none!important}
   [data-reveal]{opacity:1;transform:none;transition:none}
   .arc-redes-page *{animation:none!important;transition:none!important;transition-duration:.01ms!important}}
 @media print{.arc-redes-menu{display:none!important}.arc-redes-toolbar{display:none!important}.asc-ops-actions{display:none!important}.asc-ops{color:#111;background:#fff;border:0}.asc-ops-panel{background:#fff;color:#111}html{background:#fff!important}body{background:#fff!important}body *{visibility:hidden!important}#arc-report-preview *{visibility:visible!important}#arc-report-preview{visibility:visible!important;display:block!important;position:static!important;inset:auto!important;overflow:visible!important;border:0!important;max-width:none!important;max-height:none!important;width:100%!important;background:white!important;box-shadow:none!important}#arc-report-preview .arc-report-head{display:none!important}#arc-report-preview .arc-report-actions{display:none!important}#arc-report-preview .arc-report-body{display:block!important;max-height:none!important;overflow:visible!important;background:white!important;padding:0!important}#arc-report-preview .arc-report-sheet{width:210mm!important;min-height:297mm!important;max-width:none!important;box-shadow:none!important;margin:0!important;padding:15mm 14mm!important}#arc-report-preview table tr{break-inside:avoid}.arc-report-netmap{-webkit-print-color-adjust:exact;print-color-adjust:exact}.arc-report-netnodes{grid-template-columns:repeat(4,minmax(0,1fr))}.arc-fab{display:none!important}.arc-palette{display:none!important}}
@@ -634,8 +634,8 @@
 #arc-network-manager .arc-manage-table td:last-child{overflow:visible;width:250px;min-width:250px;max-width:none}
 #arc-network-manager .arc-manage-actions{display:flex;justify-content:flex-end;gap:4px;align-items:center;white-space:nowrap;flex-wrap:nowrap;min-width:0;width:100%}
 #arc-network-manager .arc-manage-actions form{margin:0;flex:0 0 auto}
-#arc-network-manager .arc-agent-row{cursor:pointer}
-#arc-network-manager .arc-agent-row:hover td,#arc-network-manager .arc-agent-row:focus-visible td{background:rgba(55,157,206,.10)}
+#arc-network-manager .arc-gestor-row{cursor:pointer}
+#arc-network-manager .arc-gestor-row:hover td,#arc-network-manager .arc-gestor-row:focus-visible td{background:rgba(55,157,206,.10)}
 #arc-network-manager .arc-name{font-weight:700;overflow:hidden;text-overflow:ellipsis}
 #arc-network-manager .arc-ellipsis{display:block;overflow:hidden;text-overflow:ellipsis}
 #arc-network-manager .arc-status-dot{display:inline-block;height:6px;width:6px;background:#d0a453;border-radius:50%;margin-left:5px}
@@ -664,13 +664,13 @@
 /* Indicador compacto de situação: ação de atualização. */
 #arc-network-global-state{cursor:pointer;min-width:31px;justify-content:center}#arc-network-global-state.is-refreshing .fa{animation:arc-status-spin .75s linear infinite}@keyframes arc-status-spin{to{transform:rotate(360deg)}}
 
-/* Seletor de agentes: o indicador atualiza a situação no lugar do ícone antigo. */
-.arc-redes-header-controls .arc-agent-selector-group{display:flex;align-items:center;flex:0 1 325px;width:clamp(155px,28vw,325px);min-width:95px;max-width:325px;height:34px;border:1px solid var(--border);background:var(--surface-alt);border-radius:12px;overflow:hidden}
-.arc-redes-header-controls .arc-agent-selector-group:has(.is-online){border-color:#338b72}
-.arc-redes-header-controls .arc-agent-selector-group .arc-net-status-badge{flex:0 0 34px;min-width:34px;height:100%;padding:0;border:0;border-left:1px solid var(--border);border-radius:0;background:transparent;cursor:pointer}
-.arc-redes-header-controls .arc-agent-selector-group .arc-agent-select-wrap{flex:1 1 auto;width:auto;min-width:0;max-width:none;height:100%;margin:0;padding:0 7px;border:0;border-radius:0!important;box-shadow:none!important;background:transparent}
-.arc-redes-header-controls .arc-agent-selector-group .arc-net-status-badge:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
-@media(max-width:600px){.arc-redes-header-controls .arc-agent-selector-group{flex:1 1 auto;width:auto;min-width:95px}}
+/* Seletor de gestores: o indicador atualiza a situação no lugar do ícone antigo. */
+.arc-redes-header-controls .arc-gestor-selector-group{display:flex;align-items:center;flex:0 1 325px;width:clamp(155px,28vw,325px);min-width:95px;max-width:325px;height:34px;border:1px solid var(--border);background:var(--surface-alt);border-radius:12px;overflow:hidden}
+.arc-redes-header-controls .arc-gestor-selector-group:has(.is-online){border-color:#338b72}
+.arc-redes-header-controls .arc-gestor-selector-group .arc-net-status-badge{flex:0 0 34px;min-width:34px;height:100%;padding:0;border:0;border-left:1px solid var(--border);border-radius:0;background:transparent;cursor:pointer}
+.arc-redes-header-controls .arc-gestor-selector-group .arc-gestor-select-wrap{flex:1 1 auto;width:auto;min-width:0;max-width:none;height:100%;margin:0;padding:0 7px;border:0;border-radius:0!important;box-shadow:none!important;background:transparent}
+.arc-redes-header-controls .arc-gestor-selector-group .arc-net-status-badge:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+@media(max-width:600px){.arc-redes-header-controls .arc-gestor-selector-group{flex:1 1 auto;width:auto;min-width:95px}}
 .arc-support-page{width:100%;max-width:none;flex:1;min-height:0;padding:8px;overflow:hidden;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
 .arc-tools-page{container:arc-support-area / size;gap:6px}
 /* Suporte: navegação vertical e uma única área de trabalho responsiva. */
@@ -705,17 +705,17 @@
 .app-header .arc-redes-header-controls{display:flex;align-items:center;gap:5px;flex:0 0 auto;min-width:0;width:auto;justify-content:flex-end;margin:0}
 .app-header .arc-redes-header-left{flex:0 0 auto;min-width:0}
 .app-header .arc-redes-header-right{flex:0 0 auto}
-.app-header .arc-agent-selector-group{display:flex;align-items:center;gap:0;flex:0 0 auto;min-width:0;max-width:168px;width:168px}
-.app-header .arc-agent-select-wrap{display:flex;align-items:center;min-width:0;max-width:none;flex:1 1 auto;overflow:hidden}
-.app-header #arc-agent-target{max-width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.app-header .arc-gestor-selector-group{display:flex;align-items:center;gap:0;flex:0 0 auto;min-width:0;max-width:168px;width:168px}
+.app-header .arc-gestor-select-wrap{display:flex;align-items:center;min-width:0;max-width:none;flex:1 1 auto;overflow:hidden}
+.app-header #arc-gestor-target{max-width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 .app-header .arc-redes-header-controls .arc-identity-icon{width:33px;height:33px;flex:0 0 33px}
 .app-header .arc-redes-header-controls .arc-net-status-badge{flex:0 0 33px;height:33px}
-.app-header .arc-redes-header-controls .arc-agent-state{width:24px;height:28px;flex:0 0 24px}
+.app-header .arc-redes-header-controls .arc-gestor-state{width:24px;height:28px;flex:0 0 24px}
 .app-header:has(.arc-redes-header-controls) .arc-header-nav{max-width:18vw}
 @media(max-width:1100px){.app-header:has(.arc-redes-header-controls) .arc-header-nav{display:none}.app-header:has(.arc-redes-header-controls) .arc-header-network{max-width:190px}}
-@media(max-width:760px){.app-header:has(.arc-redes-header-controls) .arc-header-network{display:none}.app-header .arc-redes-header-controls{gap:4px}.app-header .arc-redes-header-right{gap:3px}.app-header #arc-agent-version-info{display:none}.app-header .arc-agent-selector-group{min-width:70px}.app-header .arc-agent-select-wrap{min-width:0;max-width:100%}.app-header .header-actions:has(.arc-redes-header-controls){gap:4px}.app-header .arc-redes-header-controls .arc-identity-icon{width:30px;flex-basis:30px}}
+@media(max-width:760px){.app-header:has(.arc-redes-header-controls) .arc-header-network{display:none}.app-header .arc-redes-header-controls{gap:4px}.app-header .arc-redes-header-right{gap:3px}.app-header #arc-gestor-version-info{display:none}.app-header .arc-gestor-selector-group{min-width:70px}.app-header .arc-gestor-select-wrap{min-width:0;max-width:100%}.app-header .header-actions:has(.arc-redes-header-controls){gap:4px}.app-header .arc-redes-header-controls .arc-identity-icon{width:30px;flex-basis:30px}}
 
-.arc-agent-version{font-size:11px;color:var(--muted);white-space:nowrap}
+.arc-gestor-version{font-size:11px;color:var(--muted);white-space:nowrap}
 
 /* Lista nativa de suporte, com detalhes e formulários em diálogos. */
 .arc-redes-page:has(.arc-support-page) .arc-redes-conteudo{display:flex;flex-direction:column;overflow:hidden;min-height:0;}
@@ -724,7 +724,7 @@
 
 .arc-files-dialog{width:min(600px,calc(100vw - 24px))}.arc-files-dialog #file-list{max-height:40dvh;overflow:auto}.arc-files-dialog #file-list>article>div{min-width:0;flex:1}.arc-support-stage>.arc-files-dialog #file-list>article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}.arc-files-dialog #file-list strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-files-dialog input[type=file]{width:100%;max-width:100%;box-sizing:border-box;font-family:inherit}.arc-files-dialog #file-feedback{min-height:20px}
 
-.arc-update-release-details{padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt)}.arc-update-release-details p{margin:4px 0;font-size:12px}.arc-agent-update-copy h2{font-size:18px}.arc-agent-update-actions{margin-top:12px}
+.arc-update-release-details{padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt)}.arc-update-release-details p{margin:4px 0;font-size:12px}.arc-gestor-update-copy h2{font-size:18px}.arc-gestor-update-actions{margin-top:12px}
 
 .arc-schedules-dialog{width:min(680px,calc(100vw - 24px))}.arc-schedule-weekdays{display:flex;flex-wrap:wrap;gap:8px}.arc-schedule-weekdays label,.arc-schedule-consent{display:flex;align-items:center;gap:5px}.arc-schedules-dialog [hidden]{display:none}.arc-schedules-dialog #schedule-list,.arc-schedules-dialog #schedule-runs{max-height:32dvh;overflow:auto}.arc-schedules-dialog .arc-service-list>article>div{min-width:0;flex:1}.arc-support-stage>.arc-schedules-dialog .arc-service-list>article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}.arc-schedules-dialog small{display:block;font-size:12px;color:var(--muted)}
 
@@ -929,19 +929,19 @@
 #arc-file-preview-content>pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.5 monospace;max-height:64dvh;overflow:auto}
 @media(max-width:700px){.arc-explorer-menu{width:min(330px,calc(100vw - 24px))}.arc-explorer-preview{width:calc(100vw - 18px)}.arc-explorer-menu input,.arc-explorer-preview input{font-size:16px}}
 
-/* Estado de agente desinstalado: ações seguras e alinhadas. */
-#arc-network-manager .arc-agent-uninstalled{font-size:11px;color:var(--muted);white-space:nowrap}
+/* Estado de gestor desinstalado: ações seguras e alinhadas. */
+#arc-network-manager .arc-gestor-uninstalled{font-size:11px;color:var(--muted);white-space:nowrap}
 @media(max-width:700px){#arc-network-manager .arc-manage-table td:last-child{width:100%;min-width:0;max-width:100%}}
 
 /* v3.3.1 | Gestão de redes: seletor imediatamente antes do botão de configuração/painel. */
-.app-header .header-actions:has(#arc-agent-form){justify-content:flex-end}
-.app-header #arc-agent-form{flex:0 0 auto!important;width:168px!important;max-width:168px;margin:0!important;justify-content:flex-end!important}
-.app-header #arc-agent-form .arc-redes-header-left{flex:0 0 auto;width:100%}
-.app-header #arc-agent-form .arc-agent-selector-group{flex:0 0 auto;width:100%;max-width:100%;min-width:0}
-.app-header #arc-agent-form .arc-agent-select-wrap{order:1;flex:1 1 auto;min-width:0;max-width:none}
-.app-header #arc-agent-form #arc-network-global-state{order:2;flex:0 0 34px;border-left:1px solid var(--border);border-right:0}
-.app-header .header-actions:has(#arc-agent-form)>.arc-header-nav{margin-right:auto}
-@media(max-width:760px){.app-header #arc-agent-form{width:114px!important;max-width:114px}.app-header #arc-agent-form #arc-network-global-state{flex-basis:28px;min-width:28px}}
+.app-header .header-actions:has(#arc-gestor-form){justify-content:flex-end}
+.app-header #arc-gestor-form{flex:0 0 auto!important;width:168px!important;max-width:168px;margin:0!important;justify-content:flex-end!important}
+.app-header #arc-gestor-form .arc-redes-header-left{flex:0 0 auto;width:100%}
+.app-header #arc-gestor-form .arc-gestor-selector-group{flex:0 0 auto;width:100%;max-width:100%;min-width:0}
+.app-header #arc-gestor-form .arc-gestor-select-wrap{order:1;flex:1 1 auto;min-width:0;max-width:none}
+.app-header #arc-gestor-form #arc-network-global-state{order:2;flex:0 0 34px;border-left:1px solid var(--border);border-right:0}
+.app-header .header-actions:has(#arc-gestor-form)>.arc-header-nav{margin-right:auto}
+@media(max-width:760px){.app-header #arc-gestor-form{width:114px!important;max-width:114px}.app-header #arc-gestor-form #arc-network-global-state{flex-basis:28px;min-width:28px}}
 
 /* v2026.11.03 — Seletor de redes no header; cabeçalho e rodapé fixos, lista independente. */
 .app-header .arc-network-switch-wrap{position:relative;flex:0 1 300px!important;width:300px;max-width:300px;min-width:0;overflow:visible;z-index:110}
@@ -986,34 +986,34 @@
 .arc-page-redes #modal-register{z-index:10000}
 .arc-page-redes #modal-register .modal{width:min(760px,calc(100vw - 22px));max-height:calc(100dvh - 24px)}
 
-/* Caminho: assets/css/redes.css — aviso de versão do agente no header. */
-.app-header #arc-agent-form .arc-agent-selector-group{overflow:visible}
-/* Ícone do agente Windows sempre visível no header da rede, sem depender de atualização. */
-.app-header #arc-header-agent-update{display:grid!important;place-items:center;flex:0 0 32px;width:32px;height:32px;padding:0;border:0;border-left:1px solid var(--border);border-radius:0;background:transparent;color:var(--primary);cursor:pointer}
-.app-header #arc-header-agent-update:hover,.app-header #arc-header-agent-update:focus-visible{background:rgba(242,196,78,.14);outline-offset:-2px}
- .app-header #arc-header-agent-update i{font-size:17px}
-.app-header #arc-header-agent-update.arc-update-available{color:#f4c453;background:rgba(242,196,78,.08)}
-.app-header #arc-header-agent-update.arc-update-available i{animation:arcWindowsUpdateBlink 1.25s ease-in-out infinite}
+/* Caminho: assets/css/redes.css — aviso de versão do gestor no header. */
+.app-header #arc-gestor-form .arc-gestor-selector-group{overflow:visible}
+/* Ícone do gestor Windows sempre visível no header da rede, sem depender de atualização. */
+.app-header #arc-header-gestor-update{display:grid!important;place-items:center;flex:0 0 32px;width:32px;height:32px;padding:0;border:0;border-left:1px solid var(--border);border-radius:0;background:transparent;color:var(--primary);cursor:pointer}
+.app-header #arc-header-gestor-update:hover,.app-header #arc-header-gestor-update:focus-visible{background:rgba(242,196,78,.14);outline-offset:-2px}
+ .app-header #arc-header-gestor-update i{font-size:17px}
+.app-header #arc-header-gestor-update.arc-update-available{color:#f4c453;background:rgba(242,196,78,.08)}
+.app-header #arc-header-gestor-update.arc-update-available i{animation:arcWindowsUpdateBlink 1.25s ease-in-out infinite}
 @keyframes arcWindowsUpdateBlink{0%,100%{opacity:1;filter:drop-shadow(0 0 0 transparent)}50%{opacity:.25;filter:drop-shadow(0 0 8px #f6d169)}}
-@media(prefers-reduced-motion:reduce){.app-header #arc-header-agent-update.arc-update-available i{animation:none;filter:none}}
+@media(prefers-reduced-motion:reduce){.app-header #arc-header-gestor-update.arc-update-available i{animation:none;filter:none}}
 
-#arc-agent-update-confirm.arc-agent-update-confirm{width:min(95vw,450px)!important;max-height:min(85dvh,540px)!important;overflow:hidden!important}
-#arc-agent-update-confirm .arc-agent-update-card{display:flex!important;flex-direction:column;min-height:0;max-height:min(85dvh,540px);padding:0!important}
-#arc-agent-update-confirm .arc-update-modal-header{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #35516b;flex:0 0 auto}
-#arc-agent-update-confirm .arc-update-modal-header strong{font-size:13px;line-height:1.35}
-#arc-agent-update-confirm .arc-update-modal-header small{font-size:11px;color:#97cbea}
-#arc-agent-update-confirm .arc-update-modal-close{width:25px;height:25px;border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px}
-#arc-agent-update-confirm .arc-agent-update-copy{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:12px 14px!important}
-#arc-agent-update-confirm .arc-agent-update-copy [data-update-release]{max-height:none!important;min-height:70px;flex:1 1 auto;overflow-y:auto!important;white-space:pre-wrap;padding:10px!important;line-height:1.6!important;overscroll-behavior:contain}
-#arc-agent-update-confirm .arc-agent-update-copy [data-update-agent-details]{font-size:11px!important}
-#arc-agent-update-confirm .arc-agent-update-actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px!important;margin:0!important;padding:10px 12px!important;border-top:1px solid var(--border);flex:0 0 auto}
-#arc-agent-update-confirm .arc-agent-update-actions>.button{box-sizing:border-box;min-width:0;min-height:42px;display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 4px;text-align:center;white-space:normal;line-height:1.2;font-size:11px;text-decoration:none}
-#arc-agent-update-confirm .arc-agent-update-actions>.button:disabled{opacity:.45;cursor:not-allowed}
-#arc-agent-update-confirm .arc-update-state{padding:8px 10px;border-radius:8px;background:var(--surface-alt);font-size:12px;line-height:1.5}
-@media(max-width:370px){#arc-agent-update-confirm .arc-agent-update-actions>.button{font-size:10px;padding:6px 2px}#arc-agent-update-confirm .arc-agent-update-actions>.button i{display:none}}
-@media(max-width:760px){.app-header #arc-agent-form{width:145px!important;max-width:145px}.app-header #arc-header-agent-update{flex-basis:28px;width:28px}}
+#arc-gestor-update-confirm.arc-gestor-update-confirm{width:min(95vw,450px)!important;max-height:min(85dvh,540px)!important;overflow:hidden!important}
+#arc-gestor-update-confirm .arc-gestor-update-card{display:flex!important;flex-direction:column;min-height:0;max-height:min(85dvh,540px);padding:0!important}
+#arc-gestor-update-confirm .arc-update-modal-header{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #35516b;flex:0 0 auto}
+#arc-gestor-update-confirm .arc-update-modal-header strong{font-size:13px;line-height:1.35}
+#arc-gestor-update-confirm .arc-update-modal-header small{font-size:11px;color:#97cbea}
+#arc-gestor-update-confirm .arc-update-modal-close{width:25px;height:25px;border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px}
+#arc-gestor-update-confirm .arc-gestor-update-copy{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:12px 14px!important}
+#arc-gestor-update-confirm .arc-gestor-update-copy [data-update-release]{max-height:none!important;min-height:70px;flex:1 1 auto;overflow-y:auto!important;white-space:pre-wrap;padding:10px!important;line-height:1.6!important;overscroll-behavior:contain}
+#arc-gestor-update-confirm .arc-gestor-update-copy [data-update-gestor-details]{font-size:11px!important}
+#arc-gestor-update-confirm .arc-gestor-update-actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px!important;margin:0!important;padding:10px 12px!important;border-top:1px solid var(--border);flex:0 0 auto}
+#arc-gestor-update-confirm .arc-gestor-update-actions>.button{box-sizing:border-box;min-width:0;min-height:42px;display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 4px;text-align:center;white-space:normal;line-height:1.2;font-size:11px;text-decoration:none}
+#arc-gestor-update-confirm .arc-gestor-update-actions>.button:disabled{opacity:.45;cursor:not-allowed}
+#arc-gestor-update-confirm .arc-update-state{padding:8px 10px;border-radius:8px;background:var(--surface-alt);font-size:12px;line-height:1.5}
+@media(max-width:370px){#arc-gestor-update-confirm .arc-gestor-update-actions>.button{font-size:10px;padding:6px 2px}#arc-gestor-update-confirm .arc-gestor-update-actions>.button i{display:none}}
+@media(max-width:760px){.app-header #arc-gestor-form{width:145px!important;max-width:145px}.app-header #arc-header-gestor-update{flex-basis:28px;width:28px}}
 
-#arc-agent-update-confirm::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
+#arc-gestor-update-confirm::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
 
 /* Caminho: assets/css/redes.css — harmonização da gestão de redes com o tema administrativo.
    Apenas superfícies neutras, campos e tipografia; estados operacionais mantêm suas cores. */

@@ -24,7 +24,8 @@ function arc_login_attempt_begin(PDO $pdo, string $identifier): ?int
     }
     try {
         $limit = max(3, min(30, (int)arc_platform_setting($pdo, 'platform_login_max_attempts', '5')));
-        $attempts = $pdo->prepare('SELECT COUNT(*) FROM ' . $table . ' WHERE ip_hash=? AND attempted_at >= (CURRENT_TIMESTAMP - INTERVAL 15 MINUTE)');
+        $window = max(5, min(240, (int)arc_platform_setting($pdo, 'platform_login_window_minutes', '15')));
+        $attempts = $pdo->prepare('SELECT COUNT(*) FROM ' . $table . ' WHERE ip_hash=? AND attempted_at >= (CURRENT_TIMESTAMP - INTERVAL ' . $window . ' MINUTE)');
         $attempts->execute([$ipHash]);
         if ((int)$attempts->fetchColumn() >= $limit) {
             return null;
