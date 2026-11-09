@@ -218,7 +218,7 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
     }
     protected Task<bool> RunToolAsync(string action,params (string Key,object? Value)[] args)
     {
-        var body=new Dictionary<string,object?>{{"tool",Kind},{"action",action}};foreach(var (key,value) in args)body[key]=value;return RunAsync("tool",body);
+        var body=new Dictionary<string,object?>{{"tool",Kind},{"action",action},{"recovery_copies",false}};foreach(var (key,value) in args)body[key]=value;return RunAsync("tool",body);
     }
     protected async Task ApplySelectedAsync(string action,string message,int max,params (string Key,object? Value)[] extra)
     {

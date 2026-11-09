@@ -1,7 +1,7 @@
 <!-- Caminho: gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/index.html -->
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"><title>Pente-Fino</title><link rel="stylesheet" href="styles.css"></head><body>
 <main id="app">
- <header class="top"><div class="brand"><span class="eyebrow">CUIDADO DO COMPUTADOR</span><h1>Pente-Fino</h1></div><div class="top-actions"><span id="report-time"></span><button id="history" class="icon-button" title="Backups e restauração" aria-label="Backups e restauração">↶</button><button id="config" class="icon-button" title="Preferências da análise" aria-label="Preferências da análise">⚙</button></div></header>
+ <header class="top"><div class="brand"><span class="eyebrow">CUIDADO DO COMPUTADOR</span><h1>Pente-Fino</h1></div><div class="top-actions"><span id="report-time"></span><button id="history" class="icon-button" title="Recuperações anteriores" aria-label="Recuperações anteriores">↶</button><button id="config" class="icon-button" title="Preferências da análise" aria-label="Preferências da análise">⚙</button></div></header>
  <div id="notice" role="status" aria-live="polite" hidden></div>
  <div class="layout">
   <section id="summary" class="summary" aria-label="Resultado resumido da análise" hidden>
@@ -23,11 +23,11 @@
    <div class="operation-copy"><strong id="stage" role="status" aria-live="polite">Uma análise, uma visão clara.</strong><span id="step">Escolha as áreas e clique no círculo.</span><small id="elapsed"></small></div>
    <div id="actions" class="actions" hidden><button id="correct" type="button" class="action primary"><span aria-hidden="true">✓</span> Corrigir seleção</button><button id="new-scan" type="button" class="action secondary">Nova análise</button><div id="review-actions" class="review-actions"></div></div>
    <button id="cancel" type="button" class="stop-button" hidden>Parar com segurança</button>
-   <p id="action-hint">A análise é somente leitura. Correções exigem confirmação e backup.</p>
+   <p id="action-hint">A análise é somente leitura. Correções exigem confirmação.</p>
   </aside>
  </div>
 </main>
 <dialog id="details"><header><h2 id="details-title">Resumo da análise</h2><button type="button" data-close aria-label="Fechar">×</button></header><div id="details-body" class="dialog-body"></div><footer><button type="button" data-close>Fechar</button></footer></dialog>
 <dialog id="settings"><header><h2>Preferências da análise</h2><button type="button" data-close aria-label="Fechar">×</button></header><div class="dialog-body"><p>As áreas são escolhidas abaixo do círculo. Estas preferências preservam suas exclusões e domínios confiáveis.</p><label>Pastas excluídas — uma por linha<textarea id="exclusions" rows="4" spellcheck="false" placeholder="C:\Dados\Preservar"></textarea></label><label>Domínios de cookies confiáveis — um por linha<textarea id="trusted" rows="3" spellcheck="false" placeholder="empresa.com.br"></textarea></label><p id="settings-feedback" role="status"></p></div><footer><button id="save-settings" type="button" class="primary">Salvar preferências</button></footer></dialog>
-<dialog id="backups"><header><h2>Backups e restauração</h2><button type="button" data-close aria-label="Fechar">×</button></header><div id="backups-body" class="dialog-body"></div><footer><button type="button" data-close>Fechar</button></footer></dialog>
+<dialog id="backups"><header><h2>Recuperações anteriores</h2><button type="button" data-close aria-label="Fechar">×</button></header><div id="backups-body" class="dialog-body"></div><footer><button type="button" data-close>Fechar</button></footer></dialog>
 <script src="app.js"></script></body></html>

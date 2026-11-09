@@ -992,11 +992,12 @@ def _prune_backups(keep=20):
         shutil.rmtree(old, ignore_errors=True)
 
 
-def _fix_registry(issues, selected_ids, progress):
+def _fix_registry(issues, selected_ids, progress, recovery_copies=True):
     """Exporta cada chave afetada (.reg) e só então remove. Sem backup válido, o item não é alterado."""
     stamp = time.strftime('%Y%m%d-%H%M%S')
     folder = _backup_root() / stamp
-    folder.mkdir(parents=True, exist_ok=True)
+    if recovery_copies:
+        folder.mkdir(parents=True, exist_ok=True)
     exported, fixed, failed = {}, 0, 0
     chosen = [i for i in issues if i['id'] in selected_ids]
     for number, issue in enumerate(chosen, 1):
@@ -1004,10 +1005,10 @@ def _fix_registry(issues, selected_ids, progress):
             progress('Corrigindo registro %d/%d' % (number, len(chosen)))
         ident = (issue['hive'], issue['key'])
         try:
-            if ident not in exported:
+            if recovery_copies and ident not in exported:
                 destination = folder / ('%04d.reg' % (len(exported) + 1))
                 exported[ident] = destination if _export_key(issue['hive'], issue['key'], destination) else None
-            if exported[ident] is None:
+            if recovery_copies and exported[ident] is None:
                 failed += 1
                 continue
             if issue['value'] is None:
@@ -1018,10 +1019,13 @@ def _fix_registry(issues, selected_ids, progress):
             fixed += 1
         except OSError:
             failed += 1
-    if not any(exported.values()):
-        shutil.rmtree(folder, ignore_errors=True)
+    if not recovery_copies:
         stamp = None
-    _prune_backups()
+    else:
+        if not any(exported.values()):
+            shutil.rmtree(folder, ignore_errors=True)
+            stamp = None
+        _prune_backups()
     return {'fixed': fixed, 'failed': failed, 'backup': stamp}
 
 
@@ -1054,7 +1058,7 @@ def _tool_registry(payload, progress):
         ids = payload.get('ids')
         if not isinstance(ids, list) or not ids or len(ids) > MAX_REGISTRY_ISSUES or any(not isinstance(i, str) for i in ids):
             raise ValueError('Seleção de registro inválida.')
-        report.update(_fix_registry(issues, set(ids), progress))
+        report.update(_fix_registry(issues, set(ids), progress, payload.get("recovery_copies") is not False))
         issues = _scan_registry(selected)   # estado resultante
     counts = {}
     for item in issues:
@@ -1250,7 +1254,7 @@ def _startup_catalog():
     return result
 
 
-def _apply_startup(items, operations):
+def _apply_startup(items, operations, recovery_copies=True):
     by_id = {i['id']: i for i in items}
     done, failed = 0, 0
     folder = _backup_root() / ('startup-' + time.strftime('%Y%m%d-%H%M%S'))
@@ -1266,13 +1270,17 @@ def _apply_startup(items, operations):
                 name = item['name'] if kind == 'run' else item['_entry']
                 if action == 'delete':
                     if kind == 'run':
-                        folder.mkdir(parents=True, exist_ok=True)
-                        if not _export_key(item['_hive'], item['_key'], folder / ('%s.reg' % _item_id(item['_hive'], item['_key']))):
+                        if recovery_copies:
+                            folder.mkdir(parents=True, exist_ok=True)
+                        if recovery_copies and not _export_key(item['_hive'], item['_key'], folder / ('%s.reg' % _item_id(item['_hive'], item['_key']))):
                             raise OSError('backup')
                         with _reg_open(item['_hive'], item['_key'], write=True) as key:
                             winreg.DeleteValue(key, name)
-                    elif not _recycle(item['_file']):
-                        raise OSError('recycle')
+                    elif recovery_copies:
+                        if not _recycle(item['_file']):
+                            raise OSError('recycle')
+                    else:
+                        Path(item['_file']).unlink()
                 else:
                     _set_approved(item['_hive'], item['_sub'], name, action == 'enable')
             elif kind == 'task':
@@ -1287,9 +1295,10 @@ def _apply_startup(items, operations):
                     raise OSError('service')
             elif kind == 'context':
                 if action == 'delete':
-                    folder.mkdir(parents=True, exist_ok=True)
+                    if recovery_copies:
+                        folder.mkdir(parents=True, exist_ok=True)
                     path = 'SOFTWARE\\Classes\\%s\\shellex\\ContextMenuHandlers\\%s' % (item['_location'], item['_name'])
-                    if not _export_key('HKLM', path, folder / ('%s.reg' % item['id'])):
+                    if recovery_copies and not _export_key('HKLM', path, folder / ('%s.reg' % item['id'])):
                         raise OSError('backup')
                     _delete_key_tree('HKLM', path)
                 else:
@@ -1323,7 +1332,7 @@ def _tool_startup(payload, progress):
         if not isinstance(operations, list) or not operations or len(operations) > 100:
             raise ValueError('Operações de inicialização inválidas.')
         _step(progress, 50, 'Aplicando alterações...')
-        report.update(_apply_startup(items, operations))
+        report.update(_apply_startup(items, operations, payload.get("recovery_copies") is not False))
         items = _startup_catalog()
     report['items'] = _public_startup(items)
     return report

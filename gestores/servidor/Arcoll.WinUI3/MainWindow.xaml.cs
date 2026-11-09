@@ -24,7 +24,7 @@ public sealed partial class MainWindow : Window
     private readonly TrayService _tray = new();
     private AuthState _trayLast = AuthState.Checking;
     private readonly ServerPage _serverPage;
-    
+
     private readonly DashboardPage _dashboardPage;
     private readonly PenteFinoPage _penteFinoPage;
     private readonly BackupCenterPage _backupPage;
@@ -95,7 +95,7 @@ public sealed partial class MainWindow : Window
         var lastBand = group.Items.Max(i => i.Band);
         var own = group.Items.Where(i => GroupKeyOf(i.Key) == group.Key);
         var incoming = Groups.Where(g => g.Key != group.Key).SelectMany(g => g.Items).Where(i => GroupKeyOf(i.Key) == group.Key).Select(i => i with { Band = lastBand });
-        return own.Concat(incoming);
+        return own.Concat(incoming).Where(i=>!PenteFinoPage.IntegratedKeys.Contains(i.Key));
     }
     // Categoria some quando todos os seus submenus estão favoritados (volta ao desfavoritar algum). Início nunca some.
     private void UpdateCategoryVisibility()
@@ -162,7 +162,9 @@ public sealed partial class MainWindow : Window
         _tools.Add("options", new MaintenanceSettingsPage(_runtime, ConfirmAsync)); _tools.Add("uninstall", new UninstallPage(_runtime, ConfirmAsync));
         _tools.Add("updater", new SoftwareUpdatesPage(_runtime, ConfirmAsync)); _tools.Add("drivers", new DriversPage(_runtime, ConfirmAsync));
         _tools.Add("disk", new DiskPage(_runtime, ConfirmAsync)); _tools.Add("duplicates", new DuplicatesPage(_runtime, ConfirmAsync));
-        _tools.Add("cloud", new CloudCleanupPage(_runtime, ConfirmAsync)); 
+        _tools.Add("cloud", new CloudCleanupPage(_runtime, ConfirmAsync));
+        _penteFinoPage.ConfigureTools(key=>key=="windows_update"?_windowsUpdatePage:_tools[key]);
+        _penteFinoPage.ToolChanged+=()=>{if(_section=="health"){ApplyTheme(_themes.Current);FinishPageLoading();}};
         _supportPage = new(_runtime, ShowRemoteCodeAsync, () => SelectSection("tickets")); _ticketsPage = new(_runtime);
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "system.ico");
         if (File.Exists(icon)) try { AppWindow.SetIcon(icon); } catch (Exception ex) { RuntimeLog.Write("Ícone da janela: " + ex.Message); }
@@ -378,6 +380,7 @@ public sealed partial class MainWindow : Window
     }
     private void SelectSectionCore(string section)
     {
+        if(PenteFinoPage.IntegratedKeys.Contains(section)){var target=section;SelectSectionCore("health");_penteFinoPage.OpenTool(target);return;}
         if(section=="monitor")section="server";
         if (!Groups.Any(g => g.Items.Any(i => i.Key == section))) section = "panel";
         var group = ResolveGroup(section);
