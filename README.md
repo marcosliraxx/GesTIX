@@ -1,3 +1,9 @@
+# Entrega atual · Análise geral e identificação de rede
+
+[Baixar ZIP incremental para a raiz do cPanel](pacotes/ANALISE_GERAL_REDE_EXTRAIR_NA_RAIZ.zip). Configuração em quinze seções, limpeza integrada, estimativa de análise, carregamento global retirado do Pente-Fino e identificação complementar de dispositivos usando os provedores configurados. Atualize o gestor após extrair. Controle automático de versões preservado. [Detalhes e validação](documentacao/ANALISE_GERAL_REDE.md).
+
+---
+
 # Entrega atual · Pente-Fino integrado
 
 [Baixar ZIP incremental pronto para extrair na raiz do cPanel](pacotes/PENTE_FINO_CENTRAL_EXTRAIR_NA_RAIZ.zip). Base: anexo de 09/11 às 13:36. Menu lateral interno, ferramentas integradas, círculo ampliado e confirmação com ponto de restauração opcional. Controle automático de versões preservado. [Instalação e validação](documentacao/PENTE_FINO_CENTRAL.md).
