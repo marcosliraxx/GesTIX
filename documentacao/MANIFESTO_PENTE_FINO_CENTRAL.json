@@ -1,0 +1,55 @@
+{
+  "base_backup": "bkp_app.digital.log.br_20261109_133658_829330.zip",
+  "base_commit": "0685b89",
+  "code_commit": "19a17dcdffd44b8049cc8379e8bb3b1fa6e9692b",
+  "version_files_changed": false,
+  "package": "PENTE_FINO_CENTRAL_EXTRAIR_NA_RAIZ.zip",
+  "sha256": "f4d3dcdf09794fe7e60e23d41f5d12b20f601c278e9258b23b89e0da16a7addd",
+  "windows_validation": "https://github.com/marcosliraxx/GesTI/actions/runs/42658549416",
+  "files": [
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/app.js",
+      "sha256": "9abad1d92c971de9c009c3f6fc9221a52bd95b86bc110adbe480444ff38932c1"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/index.html",
+      "sha256": "ff4d8d9da9808e1af4c7667ee428004378b756313653b2d10dc3075e588436cb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/styles.css",
+      "sha256": "e1d29f37273d0ea4162913a54a5fa419389417351b7181add874f28e4b07a081"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Controls/PageLoadingView.cs",
+      "sha256": "eb1ab8ccf18d86b3fc2b8509d3e54e48c3b833a4771da84d4704b9b3e2112ca9"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Workspace.cs",
+      "sha256": "6b55bb5ca2ff6e7ba01fa8a280d14982b8ee0607f02cc63fc7aae21ef075d2f9"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.xaml.cs",
+      "sha256": "51da48e50a80ee508eb30698adc639fe49b3aa5c0904b91568065917c9ea20b7"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/MaintenancePage.cs",
+      "sha256": "34093560af9f4fd80482fbf01f78ac6840ce1d2a94c09bc5bba47c784a47963d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/PenteFinoPage.cs",
+      "sha256": "5e823eabe38aa8897943711c2e849729eda512b11b80aa0dd0ab5fa87031d593"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/RegistryPage.cs",
+      "sha256": "2c9d10cc8e331e1c683a3a80651f8d271c8afed50796c5b7576366f87ad6ec49"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/FixEngine.cs",
+      "sha256": "3ed68cb555e52ac96e0b913a4869a3cd621b8d257a9e1c588281eecad6e0b360"
+    },
+    {
+      "path": "gestores/windows/arcoll_clean.py",
+      "sha256": "821a2088cd2fff878317d5a6828b12ac078d0d394aadb76361361e1c3e88c9c0"
+    }
+  ]
+}
