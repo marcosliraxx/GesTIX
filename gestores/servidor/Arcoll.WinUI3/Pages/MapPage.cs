@@ -8,8 +8,11 @@ using Microsoft.UI.Xaml.Shapes;
 namespace Arcoll.WinUI3.Pages;
 
 /// <summary>Aba Mapa: topologia da rede como em redes/mapa.php — rede (hub) no topo, ramos por grupo, equipamentos online/offline e legenda.</summary>
-public sealed class MapPage : UserControl
+public sealed class MapPage : UserControl, IPageDataSource
 {
+    public PageDataLoad DataLoad{get;}=new("Consultando a topologia da rede",true);
+    public Task CollectDataAsync()=>LoadAsync();
+
     private readonly GestorRuntime _runtime;
     private readonly Action<string> _notify;
     private Palette _p = new();
@@ -23,7 +26,7 @@ public sealed class MapPage : UserControl
     {
         _runtime = runtime; _notify = notify; Content = _scroll;
         _timer.Tick += async (_, _) => await LoadAsync();
-        Loaded += async (_, _) => { try { _timer.Start(); await LoadAsync(); } catch (Exception ex) { RuntimeLog.Write("Mapa/Loaded: " + ex); _timer.Stop(); } };
+        Loaded += async (_, _) => { try { _timer.Start(); await LoadAsync(); } catch (Exception ex) {DataLoad.Fail("Não foi possível carregar: "+ex.Message); RuntimeLog.Write("Mapa/Loaded: " + ex); _timer.Stop(); } };
         Unloaded += (_, _) => _timer.Stop();
         Render();
     }
@@ -32,9 +35,9 @@ public sealed class MapPage : UserControl
 
     private async Task LoadAsync()
     {
-        if (_busy || !_runtime.Allowed) return; _busy = true;
-        try { using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(20)); _all = await InventoryService.LoadAsync(_runtime.Platform, cancel.Token); _loaded = true; Render(); }
-        catch (Exception ex) { _message = "Não foi possível consultar o inventário: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); Render(); }
+        if (_busy || !_runtime.Allowed) return; _busy = true;DataLoad.Begin("Consultando a topologia da rede",preserveData:true);
+        try { using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(20)); _all = await InventoryService.LoadAsync(_runtime.Platform, cancel.Token); _loaded = true;DataLoad.Complete(); Render(); }
+        catch (Exception ex) {DataLoad.Fail("Não foi possível carregar: "+ex.Message); _message = "Não foi possível consultar o inventário: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); Render(); }
         finally { _busy = false; }
     }
 

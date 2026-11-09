@@ -9,8 +9,11 @@ using Microsoft.UI.Xaml.Media.Imaging;
 namespace Arcoll.WinUI3.Pages;
 
 /// <summary>Mesmo catálogo, agrupamento e lote manual da plataforma. Desinstalação possui página independente.</summary>
-public sealed class ProgramsPage : UserControl
+public sealed class ProgramsPage : UserControl, IPageDataSource
 {
+    public PageDataLoad DataLoad{get;}=new("Carregando catálogo de programas",true);
+    public Task CollectDataAsync()=>RefreshAsync();
+
     private readonly GestorRuntime _runtime;
     private readonly Func<string,string,string,Task<bool>> _confirm;
     private readonly Grid _root = new() { RowSpacing = 6 };
@@ -87,16 +90,16 @@ public sealed class ProgramsPage : UserControl
     public void ApplyPalette(Palette p) { _p = p; Render(); }
     public async Task RefreshAsync()
     {
-        if (_busy) return; using var notice = OperationProgress.Begin("Carregar catálogo de programas"); _busy = true; Render();
+        if (_busy) return; using var notice = OperationProgress.Begin("Carregar catálogo de programas"); _busy = true;DataLoad.Begin("Carregando catálogo local de programas",preserveData:true); Render();
         try
         {
             _catalog = ProgramService.Catalog();
             var selected = _category.SelectedItem?.ToString(); _category.Items.Clear(); _category.Items.Add("Todas as categorias");
             foreach (var group in _catalog.Select(x => x.Category).Distinct()) _category.Items.Add(group);
             _category.SelectedItem = selected is not null && _category.Items.Contains(selected) ? selected : "Todas as categorias";
-            _loaded = true; notice.Succeed("Consulta local concluída");
+            _loaded = true;DataLoad.Complete(); notice.Succeed("Consulta local concluída");
         }
-        catch (Exception ex) { notice.Fail(ex.Message); _status.Text = "Não foi possível carregar: " + ex.Message; }
+        catch (Exception ex) { notice.Fail(ex.Message);DataLoad.Fail(ex.Message); _status.Text = "Não foi possível carregar: " + ex.Message; }
         finally { _busy = false; Render(); }
     }
     private async Task PublishInventoryAsync()

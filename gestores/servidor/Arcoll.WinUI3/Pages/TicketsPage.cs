@@ -4,8 +4,11 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 namespace Arcoll.WinUI3.Pages;
 /// <summary>Chamados vinculados somente a este computador, pela identidade aprovada do gestor.</summary>
-public sealed class TicketsPage : UserControl
+public sealed class TicketsPage : UserControl, IPageDataSource
 {
+    public PageDataLoad DataLoad{get;}=new("Consultando chamados",true);
+    public Task CollectDataAsync()=>LoadAsync();
+
     private readonly GestorRuntime _runtime;
     private readonly Grid _root = new() { RowSpacing = 10, Padding = new Thickness(14, 10, 14, 12) };
     private readonly StackPanel _rows = new() { Spacing = 8 };
@@ -41,7 +44,7 @@ public sealed class TicketsPage : UserControl
     }
     private async Task LoadAsync()
     {
-        if (_busy || !_runtime.Allowed) return; _busy = true;
+        if (_busy || !_runtime.Allowed) return; _busy = true;DataLoad.Begin("Consultando chamados",preserveData:true);
         using var operation = OperationProgress.Begin("Consultar chamados");
         try
         {
@@ -58,9 +61,9 @@ public sealed class TicketsPage : UserControl
                 _rows.Children.Add(Ui.Card(panel, _p));
             }
             _status.Text = _rows.Children.Count == 0 ? "Nenhum chamado vinculado a este computador." : _rows.Children.Count + " chamados.";
-            operation.Succeed("Chamados consultados");
+            operation.Succeed("Chamados consultados");DataLoad.Complete();
         }
-        catch (Exception ex) { _status.Text = ex.Message; operation.Fail(ex.Message); }
+        catch (Exception ex) { _status.Text = ex.Message; operation.Fail(ex.Message);DataLoad.Fail(ex.Message); }
         finally { _busy = false; }
     }
     private async Task CreateAsync()

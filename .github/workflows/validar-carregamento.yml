@@ -1,4 +1,4 @@
-name: Validar carregamento de dados 5.0.389
+name: Validar carregamento de dados 5.0.390
 on:
   workflow_dispatch:
 permissions:
@@ -15,7 +15,7 @@ jobs:
       - name: Validar estado de coleta e contraste
         run: dotnet run --project tests/PageLoading/PageLoading.csproj -c Release
       - name: Compilar gestor Windows
-        run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.389 --self-contained true
+        run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.390 --self-contained true
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 10

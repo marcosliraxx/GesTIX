@@ -6,7 +6,7 @@ public sealed class SoftwareUpdatesPage : MaintenancePage
     public SoftwareUpdatesPage(GestorRuntime runtime,Func<string,string,string,Task<bool>> confirm):base(runtime,confirm,"updater","Atualizações de aplicativos","Consulte versões instaladas e disponíveis pelo WinGet. Escolha explicitamente os pacotes; nenhuma atualização começa ao abrir a página."){}
     protected override void Build()
     {
-        Actions(Action("Procurar atualizações",()=>RunToolAsync("list")),Action("Atualizar selecionados",()=>ApplySelectedAsync("apply","Instalar as atualizações selecionadas pelos instaladores oficiais do WinGet?",30),Rows(Report,"items").Length>0));
+        Actions(CollectAction("Procurar atualizações",()=>RunToolAsync("list")),Action("Atualizar selecionados",()=>ApplySelectedAsync("apply","Instalar as atualizações selecionadas pelos instaladores oficiais do WinGet?",30),Rows(Report,"items").Length>0));
         var items=Rows(Report,"items");
         Metrics(("Atualizações",items.Length.ToString(),"Pacotes WinGet encontrados"),
             ("Selecionados",Selected.Count.ToString(),"Limite de 30 por operação"),
