@@ -1,3 +1,9 @@
+# Base correta · atualização 5.0.390
+
+Esta entrega usa o backup correto `bkp_app.digital.log.br_20261109_130823_740443.zip`. [Baixe somente os arquivos alterados](pacotes/CARREGAMENTO_TEMAS_5.0.390_EXTRAIR_NA_RAIZ.zip), extraia na raiz do cPanel e atualize o gestor para 5.0.390. Ela substitui o pacote de carregamento 5.0.389 enviado antes da correção do anexo. [Detalhes](documentacao/CARREGAMENTO_5.0.390.md).
+
+---
+
 # Atualização atual · 5.0.389
 
 [ZIP incremental: carregamento e temas](pacotes/CARREGAMENTO_TEMAS_5.0.389_EXTRAIR_NA_RAIZ.zip). O círculo acompanha o tema administrativo e aguarda a coleta real; na Internet ele inicia o teste. Extraia na raiz do cPanel e atualize o gestor Windows. [Detalhes e validação](documentacao/CARREGAMENTO_5.0.389.md).
