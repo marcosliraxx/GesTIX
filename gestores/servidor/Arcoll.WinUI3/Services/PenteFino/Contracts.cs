@@ -14,6 +14,6 @@ public sealed record Settings(string Mode,string[] Modules,string[] Exclusions,s
 public sealed record AnalysisPreferences(string[] Categories,string[] RegistryChecks,string[] StartupKinds,int PeriodDays,bool SoftwareUpdates,bool WindowsUpdates);
 public sealed record UndoRecord(string Id,string Session,string Kind,string Target,string Backup,string BeforeHash,string AfterHash,string BeforeValue,string ValueKind,string State,DateTimeOffset At,string Message="");
 public sealed record ActionResult(string Id,bool Ok,string Message);
-public sealed record FixReport(string Session,DateTimeOffset At,List<ActionResult> Results,bool Cancelled);
+public sealed record FixReport(string Session,DateTimeOffset At,List<ActionResult> Results,bool Cancelled,bool CountsPartial=false);
 public interface IChecker { string Id{get;} string Title{get;} Task<CheckResult> ScanAsync(ScanContext context,CancellationToken ct); }
 public sealed record ScanContext(ScanOptions Options,ResultsStore Store,PathPolicy Policy,IProgress<ProgressState>? Progress);
