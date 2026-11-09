@@ -27,6 +27,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save --prefix /tmp/ti-browser playwright@1.55.0
+      - name: Validar ferramentas integradas sem copias
+        run: python3 tests/python/test_pentefino_recovery.py
       - name: Exercitar interface e moldura nativa
         env:
           NODE_PATH: /tmp/ti-browser/node_modules

@@ -28,13 +28,18 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
   _center.ColumnDefinitions.Add(new(){Width=new GridLength(156)});_center.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});
   var railScroll=new ScrollViewer{Content=_rail,VerticalScrollBarVisibility=ScrollBarVisibility.Hidden,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};_center.Children.Add(railScroll);Grid.SetColumn(_area,1);_center.Children.Add(_area);_area.Content=_web;Content=_center;
   void Heading(string text){var heading=new TextBlock{Text=text,FontSize=9,Margin=new Thickness(8,12,0,5),CharacterSpacing=90,Opacity=.7};_railHeadings.Add(heading);_rail.Children.Add(heading);}
-  void Link(string key,string title){var b=new Button{Content=title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Left,Padding=new Thickness(9,8,6,8),BorderThickness=new Thickness(0),CornerRadius=new CornerRadius(4)};b.Click+=(_,_)=>OpenTool(key);_railButtons[key]=b;_rail.Children.Add(b);}
-  Heading("PENTE-FINO");Link("analysis","◉  Análise geral");
+  void Link(string key,string title){
+   var glyph=key switch{"analysis"=>Symbol.Filter,"clean"=>Symbol.Delete,"registry"=>Symbol.Repair,"startup"=>Symbol.Play,"performance"=>Symbol.View,"restore"=>Symbol.Undo,"security"=>Symbol.Important,"uninstall"=>Symbol.Remove,"updater"=>Symbol.Refresh,"drivers"=>Symbol.AllApps,"windows_update"=>Symbol.Download,"disk"=>Symbol.Folder,"duplicates"=>Symbol.Copy,_=>Symbol.World};
+   var label=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};label.Children.Add(new SymbolIcon(glyph){Width=16,Height=16});label.Children.Add(new TextBlock{Text=title,FontSize=11,VerticalAlignment=VerticalAlignment.Center});
+   var b=new Button{Content=label,HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Left,Padding=new Thickness(8,9,5,9),BorderThickness=new Thickness(0),CornerRadius=new CornerRadius(0)};b.Click+=(_,_)=>OpenTool(key);_railButtons[key]=b;_rail.Children.Add(b);
+  }
+
+  Heading("PENTE-FINO");Link("analysis","Análise geral");
   foreach(var group in new[]{("SISTEMA",new[]{("clean","Limpeza"),("registry","Registro"),("startup","Inicialização"),("performance","Desempenho"),("restore","Restauração"),("security","Segurança")}), ("APLICATIVOS",new[]{("uninstall","Desinstalar"),("updater","Atualizações"),("drivers","Drivers"),("windows_update","Windows Update")}), ("ARMAZENAMENTO",new[]{("disk","Discos"),("duplicates","Duplicados"),("cloud","Sincronizados")})}){Heading(group.Item1);foreach(var item in group.Item2){_integrated[item.Item1]=(item.Item2,resolve(item.Item1));Link(item.Item1,item.Item2);}}
   SizeChanged+=(_,e)=>_center.ColumnDefinitions[0].Width=new GridLength(e.NewSize.Width<700?128:156);PaintRail();
  }
  public void OpenTool(string key){if(_busy){_notice="Aguarde a operação atual ou interrompa antes de trocar de ferramenta.";Publish();return;}if(key=="analysis"){_activeTool=null;_area.Content=_web;}else if(_integrated.TryGetValue(key,out var tool)){_activeTool=tool.Page;_area.Content=tool.Page;}else return;PaintRail();ToolChanged?.Invoke();}
- private void PaintRail(){_center.Background=_palette.Surface;_rail.Background=_palette.Alt;foreach(var heading in _railHeadings)heading.Foreground=_palette.Muted;foreach(var item in _railButtons){var active=item.Key=="analysis"?_activeTool is null:_integrated.TryGetValue(item.Key,out var t)&&ReferenceEquals(t.Page,_activeTool);item.Value.Foreground=_palette.Text;item.Value.Background=active?_palette.Line:_palette.Alt;}}
+ private void PaintRail(){_center.Background=_palette.Surface;_rail.Background=_palette.Alt;foreach(var heading in _railHeadings)heading.Foreground=_palette.Muted;foreach(var item in _railButtons){var active=item.Key=="analysis"?_activeTool is null:_integrated.TryGetValue(item.Key,out var t)&&ReferenceEquals(t.Page,_activeTool);item.Value.Foreground=_palette.Text;item.Value.BorderBrush=_palette.Accent;item.Value.BorderThickness=new Thickness(active?2:0,0,0,0);item.Value.Background=active?_palette.Line:_palette.Alt;}}
 
 
     private const string Origin="https://pentefino.tidigital.local/";
