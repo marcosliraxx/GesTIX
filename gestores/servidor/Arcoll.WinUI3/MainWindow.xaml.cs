@@ -59,13 +59,67 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, string> _lastSection = new();
     private readonly List<Border> _separators = new();
     private readonly Dictionary<string, Button> _stars = new();
-    // O primeiro item de cada categoria é o acesso principal e não pode ser favoritado.
-    private static readonly HashSet<string> PrimaryMenuKeys = new(Groups.Select(g => g.Items[0].Key), StringComparer.Ordinal);
+    // Somente o Painel (fixo na categoria Início) não pode ser favoritado nem movido; todos os demais submenus podem.
+    private const string FixedMenuKey = "panel";
     private readonly HashSet<string> _favorites = LoadFavorites();
+    // Submenus movidos pelo usuário para outra categoria (chave do submenu → chave da categoria).
+    private readonly Dictionary<string, string> _layout = LoadLayout();
+    private string? _dragKey;
+    private static string LayoutFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TI-Digital", "menu-layout.json");
+    private static Dictionary<string, string> LoadLayout()
+    {
+        try
+        {
+            if (File.Exists(LayoutFile))
+            {
+                var saved = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(LayoutFile)) ?? new();
+                return saved.Where(x => x.Key != FixedMenuKey && Groups.Any(g => g.Key != "home" && g.Key == x.Value) && Groups.Any(g => g.Items.Any(i => i.Key == x.Key)))
+                    .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
+        return new(StringComparer.Ordinal);
+    }
+    private void SaveLayout()
+    {
+        try { Directory.CreateDirectory(Path.GetDirectoryName(LayoutFile)!); File.WriteAllText(LayoutFile, JsonSerializer.Serialize(_layout)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { RuntimeLog.Write("Layout do menu: " + ex.Message); }
+    }
+    // Categoria atual de um submenu: a escolhida pelo usuário ao arrastar ou, se não houver, a de origem.
+    private string GroupKeyOf(string key) => _layout.TryGetValue(key, out var moved)
+        ? moved
+        : Groups.FirstOrDefault(g => g.Items.Any(i => i.Key == key))?.Key ?? "home";
+    // Itens da categoria já considerando os que foram movidos para dentro/fora dela (movidos entram na última faixa).
+    private IEnumerable<MenuItem> ItemsOf(MenuGroup group)
+    {
+        var lastBand = group.Items.Max(i => i.Band);
+        var own = group.Items.Where(i => GroupKeyOf(i.Key) == group.Key);
+        var incoming = Groups.Where(g => g.Key != group.Key).SelectMany(g => g.Items).Where(i => GroupKeyOf(i.Key) == group.Key).Select(i => i with { Band = lastBand });
+        return own.Concat(incoming);
+    }
+    // Categoria some quando todos os seus submenus estão favoritados (volta ao desfavoritar algum). Início nunca some.
+    private void UpdateCategoryVisibility()
+    {
+        foreach (var group in Groups)
+        {
+            if (!_tabs.TryGetValue(group.Key, out var tab)) continue;
+            var items = ItemsOf(group).ToArray();
+            tab.Visibility = group.Key == "home" || items.Length == 0 || items.Any(i => !_favorites.Contains(i.Key)) ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+    private string FirstSectionOf(MenuGroup group) => group.Key == "home" ? FixedMenuKey : ItemsOf(group).FirstOrDefault(i => !_favorites.Contains(i.Key))?.Key ?? "";
+    private void MoveMenuItem(string key, string targetGroup)
+    {
+        if (key == FixedMenuKey || GroupKeyOf(key) == targetGroup || targetGroup == "home") return;
+        var origin = Groups.FirstOrDefault(g => g.Items.Any(i => i.Key == key))?.Key;
+        if (origin == targetGroup) _layout.Remove(key); else _layout[key] = targetGroup;
+        SaveLayout();
+        RefreshRibbonAfterFavorite();
+    }
     private static string FavoritesFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TI-Digital", "menu-favorites.json");
     private static HashSet<string> LoadFavorites()
     {
-        try { if (File.Exists(FavoritesFile)) return new((JsonSerializer.Deserialize<string[]>(File.ReadAllText(FavoritesFile)) ?? Array.Empty<string>()).Where(key => !PrimaryMenuKeys.Contains(key) && Groups.Any(g => g.Items.Any(i => i.Key == key))), StringComparer.Ordinal); }
+        try { if (File.Exists(FavoritesFile)) return new((JsonSerializer.Deserialize<string[]>(File.ReadAllText(FavoritesFile)) ?? Array.Empty<string>()).Where(key => key != FixedMenuKey && Groups.Any(g => g.Items.Any(i => i.Key == key))), StringComparer.Ordinal); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
         return new();
     }
@@ -77,8 +131,11 @@ public sealed partial class MainWindow : Window
     // Favoritos vivem somente na categoria Início; fora dela o item deixa de aparecer no menu de origem.
     private MenuGroup ResolveGroup(string section) => _favorites.Contains(section)
         ? Groups[0]
-        : Groups.FirstOrDefault(g => g.Items.Any(i => i.Key == section)) ?? Groups[0];
-    private string LastSectionFor(MenuGroup group) => _lastSection.TryGetValue(group.Key, out var last) && ResolveGroup(last).Key == group.Key ? last : group.Items[0].Key;
+        : Groups.FirstOrDefault(g => g.Key == GroupKeyOf(section)) ?? Groups[0];
+    private string LastSectionFor(MenuGroup group) => _lastSection.TryGetValue(group.Key, out var last) && ResolveGroup(last).Key == group.Key ? last : FirstSectionOf(group);
+    // Categoria sem submenus visíveis (todos movidos): apenas mostra a faixa vazia, que continua aceitando itens arrastados.
+    private string? _emptyGroupShown;
+    private void ShowEmptyCategory(MenuGroup group) { _emptyGroupShown = group.Key; _group = group.Key; BuildRibbon(group); ApplyTheme(_themes.Current); }
     private string _group = "home";
     private GestorTheme? _appliedTheme;
     private AuthState? _paletteState;
@@ -160,7 +217,23 @@ public sealed partial class MainWindow : Window
             var tab = new Button { Tag = group.Key, Content = label, Style = (Style)RootGrid.Resources["RibbonTab"], Margin = new Thickness(0) };
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(tab, "category-" + group.Key);
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(tab, group.Label);
-            tab.Click += (_, _) => QueueSectionNavigation(LastSectionFor(group));
+            tab.Click += (_, _) => { var target = LastSectionFor(group); if (target.Length == 0) ShowEmptyCategory(group); else QueueSectionNavigation(target); };
+            // Soltar um submenu sobre a categoria move o submenu para ela.
+            tab.AllowDrop = group.Key != "home";
+            tab.DragOver += (_, e) =>
+            {
+                var accept = _dragKey is not null && group.Key != "home" && GroupKeyOf(_dragKey) != group.Key;
+                e.AcceptedOperation = accept ? DataPackageOperation.Move : DataPackageOperation.None;
+                if (accept) e.DragUIOverride.Caption = "Mover para " + group.Label;
+                e.Handled = true;
+            };
+            tab.DragEnter += (_, _) => { if (_dragKey is not null && group.Key != "home" && GroupKeyOf(_dragKey) != group.Key) SetNavigationHover(tab, true); };
+            tab.DragLeave += (_, _) => SetNavigationHover(tab, false);
+            tab.Drop += (_, e) =>
+            {
+                var key = _dragKey; _dragKey = null; SetNavigationHover(tab, false); e.Handled = true;
+                if (key is not null && !DispatcherQueue.TryEnqueue(() => MoveMenuItem(key, group.Key))) RuntimeLog.Write("Layout do menu: DispatcherQueue indisponível.");
+            };
             tab.PointerEntered += (_, _) => SetNavigationHover(tab, true); tab.PointerExited += (_, _) => SetNavigationHover(tab, false);
             _tabs.Add(group.Key, tab); CategoryTabs.Children.Add(tab);
         }
@@ -171,10 +244,10 @@ public sealed partial class MainWindow : Window
         // Botões em faixas (bandas) separadas por linha vertical; favoritos vêm primeiro dentro da própria faixa.
         // Favoritos pertencem exclusivamente à faixa Início: saem do menu de origem e não se duplicam.
         var items = group.Key == "home"
-            ? group.Items.Concat(Groups.Where(g => g.Key != "home").SelectMany(g => g.Items).Where(i => _favorites.Contains(i.Key)))
-            : group.Items.Where(i => !_favorites.Contains(i.Key));
-        // A entrada principal permanece sempre em primeiro lugar, mesmo com favoritos.
-        var primary = group.Items[0].Key;
+            ? group.Items.Concat(Groups.Where(g => g.Key != "home").SelectMany(g => ItemsOf(g)).Where(i => _favorites.Contains(i.Key)))
+            : ItemsOf(group).Where(i => !_favorites.Contains(i.Key));
+        // O Painel permanece sempre em primeiro lugar em Início, mesmo com favoritos.
+        var primary = group.Key == "home" ? FixedMenuKey : "";
         var ordered = items.DistinctBy(i => i.Key).Select((item, index) => (item, index))
             .OrderBy(x => x.item.Key == primary ? -1 : (group.Key == "home" ? 0 : x.item.Band))
             .ThenBy(x => x.index).Select(x => x.item).ToArray();
@@ -198,10 +271,12 @@ public sealed partial class MainWindow : Window
             button.PointerEntered += (_, _) => SetNavigationHover(button, true); button.PointerExited += (_, _) => SetNavigationHover(button, false);
             _menus.Add(item.Key, button);
             var cell = new Grid(); cell.Children.Add(button);
-            // Menus principais (primeiro item de cada categoria) não exibem estrela.
-            // Os demais podem ser fixados exclusivamente na categoria Início.
-            if (!PrimaryMenuKeys.Contains(item.Key))
+            // Todo submenu (exceto o Painel) pode ser arrastado para outra categoria e favoritado em Início.
+            if (item.Key != FixedMenuKey)
             {
+                button.CanDrag = true;
+                button.DragStarting += (_, e) => { _dragKey = item.Key; e.Data.SetText(item.Key); e.Data.RequestedOperation = DataPackageOperation.Move; };
+                button.DropCompleted += (_, _) => _dragKey = null;
                 var star = new Button { Tag = item.Key, Style = (Style)RootGrid.Resources["FlatButton"], Width = 22, Height = 22, Padding = new Thickness(0), CornerRadius = new CornerRadius(11), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 1, 0), Content = new FontIcon { FontSize = 11 } };
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(star, "Favoritar " + item.Label); ToolTipService.SetToolTip(star, "Favoritar");
                 star.Click += (_, _) =>
@@ -215,6 +290,7 @@ public sealed partial class MainWindow : Window
             }
             RibbonMenus.Children.Add(cell);
         }
+        UpdateCategoryVisibility();
         RibbonScroll.ChangeView(0, null, null, true);
     }
     private void RefreshRibbonAfterFavorite()
@@ -223,8 +299,8 @@ public sealed partial class MainWindow : Window
         {
             foreach (var entry in _lastSection.ToArray()) if (ResolveGroup(entry.Value).Key != entry.Key) _lastSection.Remove(entry.Key);
             // A área aberta continua visível; apenas a categoria que a contém muda (Início para favoritos, origem ao desfavoritar).
-            var current = ResolveGroup(_section);
-            _group = current.Key; _lastSection[current.Key] = _section;
+            var current = _emptyGroupShown is not null ? Groups.First(g => g.Key == _emptyGroupShown) : ResolveGroup(_section);
+            _group = current.Key; if (_emptyGroupShown is null) _lastSection[current.Key] = _section;
             BuildRibbon(current); ApplyTheme(_themes.Current);
             UpdateHybridHeading(); PublishHybridState();
         }
@@ -232,7 +308,7 @@ public sealed partial class MainWindow : Window
     }
     private void ApplyTheme(GestorTheme t)
     {
-        PaintPageLoading();var p = Palette.From(t); RootGrid.Background = p.Alt; RootGrid.RequestedTheme = p.Light ? ElementTheme.Light : ElementTheme.Dark;
+        var p = Palette.From(t); RootGrid.Background = p.Alt; RootGrid.RequestedTheme = p.Light ? ElementTheme.Light : ElementTheme.Dark;
         QuickBar.Background = RibbonBar.Background = StatusBorder.Background = p.Surface; CategoryBar.Background = p.Surface;
         QuickBar.BorderBrush = RibbonBar.BorderBrush = StatusBorder.BorderBrush = p.Line;
         var accent = ((SolidColorBrush)p.Accent).Color;
@@ -305,11 +381,12 @@ public sealed partial class MainWindow : Window
         if(section=="monitor")section="server";
         if (!Groups.Any(g => g.Items.Any(i => i.Key == section))) section = "panel";
         var group = ResolveGroup(section);
-        if (section == _section && _group == group.Key && (_menus.Count > 0) && (section=="panel"&&_hybridReady?HybridDashboard.Visibility==Visibility.Visible:CompactHost.Content is not null))
+        if (section == _section && _group == group.Key && (_menus.Count > 0) && (CompactHost.Content is not null || (_hybridReady && HybridDashboard.Visibility == Visibility.Visible)))
         {
             RuntimeLog.Write("Navegação: área já ativa: " + section);
             return;
         }
+        _emptyGroupShown = null;
         ShowPageLoading("Preparando " + section, 5);
         RuntimeLog.Write("Navegação: iniciando " + section);
         // Um favorito sempre abre dentro da faixa Início; os demais, na categoria de origem.

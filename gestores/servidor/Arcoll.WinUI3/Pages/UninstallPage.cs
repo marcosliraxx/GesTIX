@@ -8,7 +8,7 @@ public sealed class UninstallPage : MaintenancePage
     protected override void Build()
     {
         Choices(new[]{("all","Todos os aplicativos"),("available","Com desinstalador"),("silent","Com opção silenciosa"),("missing","Sem desinstalador registrado")},_filter,value=>_filter=value);
-        Actions(CollectAction("Atualizar inventário",async()=>{_installed=await Task.Run(WindowsInventory.Programs);StoreReport(new { programs=ProgramService.InventoryPayload(_installed) });Status(_installed.Count+" aplicativos inventariados.");await PublishAsync();Render();}));
+        Actions(Action("Atualizar inventário",async()=>{_installed=await Task.Run(WindowsInventory.Programs);StoreReport(new { programs=ProgramService.InventoryPayload(_installed) });Status(_installed.Count+" aplicativos inventariados.");await PublishAsync();Render();}));
         Metrics(("Instalados",_installed.Count.ToString(),"Inventário local de aplicativos"),
             ("Com desinstalador",_installed.Count(ProgramService.CanUninstall).ToString(),"Remoção registrada no Windows"),
             ("Sem desinstalador",_installed.Count(a=>!ProgramService.CanUninstall(a)).ToString(),"Requer revisão manual"));

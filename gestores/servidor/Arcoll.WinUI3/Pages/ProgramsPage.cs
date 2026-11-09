@@ -9,11 +9,8 @@ using Microsoft.UI.Xaml.Media.Imaging;
 namespace Arcoll.WinUI3.Pages;
 
 /// <summary>Mesmo catálogo, agrupamento e lote manual da plataforma. Desinstalação possui página independente.</summary>
-public sealed class ProgramsPage : UserControl, IPageDataSource
+public sealed class ProgramsPage : UserControl
 {
-    public PageDataLoad DataLoad{get;}=new("Carregando catálogo de programas",true);
-    public Task CollectDataAsync()=>RefreshAsync();
-
     private readonly GestorRuntime _runtime;
     private readonly Func<string,string,string,Task<bool>> _confirm;
     private readonly Grid _root = new() { RowSpacing = 6 };
@@ -47,7 +44,7 @@ public sealed class ProgramsPage : UserControl, IPageDataSource
         controls.Children.Add(_search); Grid.SetColumn(_category, 1); controls.Children.Add(_category);
         var action = _clear; Grid.SetColumn(action, 2); controls.Children.Add(action);
         Grid.SetRow(controls, 1); _root.Children.Add(controls); Grid.SetRow(_status, 2); _root.Children.Add(_status);
-        var list = new ScrollViewer { Content = _groups, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 4, 0) };
+        var list = new ScrollViewer { Content = _groups, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 4, 0) };
         Grid.SetRow(list, 3); _root.Children.Add(list);
         AutomationProperties.SetAutomationId(_search, "program-search"); AutomationProperties.SetAutomationId(_category, "program-category");
         AutomationProperties.SetAutomationId(list, "program-list"); AutomationProperties.SetAutomationId(_install, "program-install");
@@ -90,16 +87,16 @@ public sealed class ProgramsPage : UserControl, IPageDataSource
     public void ApplyPalette(Palette p) { _p = p; Render(); }
     public async Task RefreshAsync()
     {
-        if (_busy) return; using var notice = OperationProgress.Begin("Carregar catálogo de programas"); _busy = true;DataLoad.Begin("Carregando catálogo local de programas",preserveData:true); Render();
+        if (_busy) return; using var notice = OperationProgress.Begin("Carregar catálogo de programas"); _busy = true; Render();
         try
         {
             _catalog = ProgramService.Catalog();
             var selected = _category.SelectedItem?.ToString(); _category.Items.Clear(); _category.Items.Add("Todas as categorias");
             foreach (var group in _catalog.Select(x => x.Category).Distinct()) _category.Items.Add(group);
             _category.SelectedItem = selected is not null && _category.Items.Contains(selected) ? selected : "Todas as categorias";
-            _loaded = true;DataLoad.Complete(); notice.Succeed("Consulta local concluída");
+            _loaded = true; notice.Succeed("Consulta local concluída");
         }
-        catch (Exception ex) { notice.Fail(ex.Message);DataLoad.Fail(ex.Message); _status.Text = "Não foi possível carregar: " + ex.Message; }
+        catch (Exception ex) { notice.Fail(ex.Message); _status.Text = "Não foi possível carregar: " + ex.Message; }
         finally { _busy = false; Render(); }
     }
     private async Task PublishInventoryAsync()
@@ -193,7 +190,7 @@ public sealed class ProgramsPage : UserControl, IPageDataSource
         var rows = new StackPanel { Spacing = 10 }; var states = new List<TextBlock>();
         var progress = new ProgressBar { Minimum = 0, Maximum = apps.Length }; rows.Children.Add(progress);
         foreach (var app in apps) { var line = new TextBlock { Text = app.Name + " — Aguardando", TextWrapping = TextWrapping.Wrap }; states.Add(line); rows.Children.Add(line); }
-        var dialog = Ui.Dialog(XamlRoot, _p, "Instalação de programas", new ScrollViewer { Content = rows, MaxHeight = 420 }, "Cancelar operação", close: "Fechar", defaultButton: ContentDialogButton.Primary, note: "Acompanhe o andamento da instalação ou atualização dos programas selecionados.");
+        var dialog = Ui.Dialog(XamlRoot, _p, "Instalação de programas", new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, "Cancelar operação", close: "Fechar", defaultButton: ContentDialogButton.Primary, note: "Acompanhe o andamento da instalação ou atualização dos programas selecionados.");
         var finished = false;
         dialog.PrimaryButtonClick += (_, e) => { e.Cancel = true; _operation?.Cancel(); };
         dialog.CloseButtonClick += (_, e) => e.Cancel = !finished;

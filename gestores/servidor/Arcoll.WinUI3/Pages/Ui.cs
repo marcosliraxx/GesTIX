@@ -79,7 +79,7 @@ public static class Ui
     }
 
     public static ContentDialog MessageDialog(XamlRoot root, Palette p, string title, string message, string primary = "", string secondary = "", string close = "Fechar", ContentDialogButton defaultButton = ContentDialogButton.Close, string note = "")
-        => Dialog(root, p, title, new ScrollViewer { MaxHeight = 360, Content = Label(message, p.Text, 13, false, true) }, primary, secondary, close, defaultButton, note);
+        => Dialog(root, p, title, new ScrollViewer { MaxHeight = 360, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = Label(message, p.Text, 13, false, true) }, primary, secondary, close, defaultButton, note);
 
     public static string Size(double bytes)
     {

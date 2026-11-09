@@ -3,15 +3,13 @@ using System.Text;
 using Arcoll.WinUI3.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace Arcoll.WinUI3.Pages;
 
 /// <summary>Aba Dispositivos: mesma estrutura de redes/dispositivos.php (busca, filtros, ordenação, seleção em massa, tabela, exportação e identificação).</summary>
-public sealed class DevicesPage : UserControl, IPageDataSource
+public sealed class DevicesPage : UserControl
 {
-    public PageDataLoad DataLoad{get;}=new("Consultando inventário de dispositivos",true);
-    public Task CollectDataAsync()=>LoadAsync();
-
     private static readonly double[] Widths = { 38, 46, 230, 130, 150, 130, 130, 120, 130, 140 };
     private static readonly (string Key, string Title)[] Columns =
     {
@@ -64,14 +62,14 @@ public sealed class DevicesPage : UserControl, IPageDataSource
 
     private async Task LoadAsync()
     {
-        if (_busy || !_runtime.Allowed) return; _busy = true;DataLoad.Begin("Consultando inventário de dispositivos",preserveData:true);
+        if (_busy || !_runtime.Allowed) return; _busy = true;
         try
         {
             using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            _all = await InventoryService.LoadAsync(_runtime.Platform, cancel.Token); _loaded = true;DataLoad.Complete();
+            _all = await InventoryService.LoadAsync(_runtime.Platform, cancel.Token); _loaded = true;
             _selected.IntersectWith(_all.Select(d => d.Id)); Render();
         }
-        catch (Exception ex) {DataLoad.Fail("Não foi possível carregar: "+ex.Message); _feedback.Text = "Não foi possível consultar o inventário: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); _feedback.Foreground = _p.Warning; }
+        catch (Exception ex) { _feedback.Text = "Não foi possível consultar o inventário: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); _feedback.Foreground = _p.Warning; }
         finally { _busy = false; }
     }
 
@@ -156,7 +154,8 @@ public sealed class DevicesPage : UserControl, IPageDataSource
             table.Children.Add(host);
         }
         if (_loaded && rows.Count == 0) table.Children.Add(new Border { Padding = new Thickness(12), Child = Ui.Label("Nenhum dispositivo corresponde aos filtros selecionados.", _p.Muted, 12) });
-        _tableHost.Child = Ui.Card(new ScrollViewer { Content = table, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Auto }, _p, 6);
+        // A tabela diminui para caber na largura disponível (sem barra de rolagem horizontal).
+        _tableHost.Child = Ui.Card(new ScrollViewer { Content = new Viewbox { Child = table, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top }, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden }, _p, 6);
     }
 
     private static Grid RowGrid()

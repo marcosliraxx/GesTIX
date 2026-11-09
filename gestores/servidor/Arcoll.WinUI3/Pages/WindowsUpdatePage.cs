@@ -7,10 +7,8 @@ using Microsoft.UI.Xaml.Controls;
 namespace Arcoll.WinUI3.Pages;
 
 /// <summary>Página nativa de Windows Update. Usa COM do Windows, seleção real por GUID e revisão; não executa scripts.</summary>
-public sealed class WindowsUpdatePage : UserControl, IPageDataSource
+public sealed class WindowsUpdatePage : UserControl
 {
-    public PageDataLoad DataLoad{get;}=new("Clique para consultar as atualizações oficiais do Windows.");
-    public Task CollectDataAsync()=>ExecuteAsync("scan");
     private readonly GestorRuntime _runtime;
     private Palette _p = new();
     private readonly StackPanel _root = new() { Spacing = 12, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -112,7 +110,7 @@ public sealed class WindowsUpdatePage : UserControl, IPageDataSource
             var confirmation = Ui.MessageDialog(XamlRoot, _p, "Confirmar Windows Update", message, "Confirmar", close: "Cancelar", defaultButton: ContentDialogButton.Primary, note: "A execução usa os componentes oficiais do Windows e não reinicia automaticamente.");
             if (await confirmation.ShowAsync() != ContentDialogResult.Primary || !_runtime.Allowed) return;
         }
-        _working = true;if(mode=="scan")DataLoad.Begin("Consultando o serviço Windows Update"); _statusText = mode == "scan" ? "Consultando o serviço Windows Update..." : "Executando " + mode + "...";
+        _working = true; _statusText = mode == "scan" ? "Consultando o serviço Windows Update..." : "Executando " + mode + "...";
         Render();
         try
         {
@@ -120,9 +118,9 @@ public sealed class WindowsUpdatePage : UserControl, IPageDataSource
             var request = JsonSerializer.Serialize(new { mode, updates = values });
             using var timeout = new CancellationTokenSource(mode == "install" ? TimeSpan.FromHours(2) : TimeSpan.FromMinutes(15));
             var report = await WindowsUpdateService.RunAsync(request, timeout.Token);
-            PresentReport(report, mode);if(mode=="scan")DataLoad.Complete();
+            PresentReport(report, mode);
         }
-        catch (Exception ex) {if(mode=="scan")DataLoad.Fail("Falha ao consultar o Windows Update: "+ex.Message);_statusText = "Falha no Windows Update: " + ex.Message; }
+        catch (Exception ex) { _statusText = "Falha no Windows Update: " + ex.Message; }
         finally { _working = false; Render(); }
     }
 

@@ -206,7 +206,7 @@ public sealed partial class MainWindow
             };
             HybridDashboard.NavigationCompleted += (_, args) =>
             {
-                if (!args.IsSuccess) { _networkPageLoad.Fail("Não foi possível abrir o painel de dispositivos.");RuntimeLog.Write("Dashboard híbrido: navegação não concluída."); return; }
+                if (!args.IsSuccess) { RuntimeLog.Write("Dashboard híbrido: navegação não concluída."); return; }
                 _hybridReady = true;
                 SelectSection(_section);
                 PublishHybridState();
@@ -232,19 +232,18 @@ public sealed partial class MainWindow
     {
         if (_networkPanelBusy || !_hybridReady || _hybridClosed || _section != "panel") return;
         if (!_runtime.Allowed) { PublishHybridState(); return; }
-        _networkPanelBusy = true;_networkPageLoad.Begin("Consultando o inventário da rede",preserveData:true);
+        _networkPanelBusy = true;
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(18));
             var data = await WorkspaceService.GetAsync(_runtime, "dashboard", timeout.Token);
             if (!_runtime.Allowed) { PublishHybridState(); return; }
             if (!_hybridClosed && _hybridReady)
-                {HybridDashboard.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "network-data", requestId, payload = data }));
-                if(data.TryGetProperty("devices",out var devices)&&devices.ValueKind==JsonValueKind.Array){if(devices.GetArrayLength()>0||(data.TryGetProperty("updated",out var updated)&&updated.TryGetInt64(out var stamp)&&stamp>0))_networkPageLoad.Complete();else _networkPageLoad.Wait("Clique para descobrir e coletar os dispositivos da rede.");}else _networkPageLoad.Fail("O inventário recebido está incompleto. Tente novamente.");}
+                HybridDashboard.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "network-data", requestId, payload = data }));
         }
         catch (Exception ex)
         {
-            _networkPageLoad.Fail("Não foi possível consultar o inventário. Clique para tentar novamente.");RuntimeLog.Write("Painel de dispositivos: " + ErrorDiagnostic.Sanitize(ex.Message));
+            RuntimeLog.Write("Painel de dispositivos: " + ErrorDiagnostic.Sanitize(ex.Message));
             if (!_hybridClosed && _hybridReady)
                 try { HybridDashboard.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "network-error", requestId, message = "Não foi possível consultar o inventário. Verifique a conexão com a plataforma." })); }
                 catch (InvalidOperationException) { }
@@ -255,7 +254,7 @@ public sealed partial class MainWindow
     private void PublishHybridState()
     {
         if (!_hybridReady || HybridDashboard.CoreWebView2 is null) return;
-        var info = Groups.Select(g => new { id = g.Key, label = g.Label, items = g.Items.Select(i => new { id = i.Key, label = i.Label }) });
+        var info = Groups.Select(g => new { id = g.Key, label = g.Label, items = ItemsOf(g).Select(i => new { id = i.Key, label = i.Label }) });
         var message = new
         {
             type = "state", title = _runtime.SystemName, network = _runtime.NetworkName,

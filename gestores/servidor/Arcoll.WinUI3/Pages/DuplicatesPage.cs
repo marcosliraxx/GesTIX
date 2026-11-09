@@ -10,7 +10,7 @@ public sealed class DuplicatesPage : MaintenancePage
     {
         var origins=new List<(string,string)>{("users","Pastas pessoais dos perfis")};foreach(var drive in DriveInfo.GetDrives().Where(x=>x.DriveType==DriveType.Fixed))origins.Add((drive.Name.TrimEnd('\\'),"Unidade "+drive.Name));
         Choices(origins.ToArray(),_origin,value=>_origin=value);Choices(new[]{("100","A partir de 100 KB"),("1024","A partir de 1 MB"),("10240","A partir de 10 MB"),("102400","A partir de 100 MB")},_minimum,value=>_minimum=value);
-        Actions(CollectAction("Pesquisar duplicados",()=>RunToolAsync("scan",("roots",new[]{_origin}),("min_size_kb",int.Parse(_minimum)))),Action("Enviar selecionados à Lixeira",async()=>{
+        Actions(Action("Pesquisar duplicados",()=>RunToolAsync("scan",("roots",new[]{_origin}),("min_size_kb",int.Parse(_minimum)))),Action("Enviar selecionados à Lixeira",async()=>{
             foreach(var group in Rows(Report,"groups")){var files=Rows(group,"files");if(files.Length>0&&files.All(f=>Selected.Contains(Get(f,"id")))){Status("Mantenha pelo menos uma cópia em cada grupo.");return;}}
             await ApplySelectedAsync("delete","Enviar somente as cópias selecionadas à Lixeira?",500,("permanent",false));
         },Rows(Report,"groups").Length>0));

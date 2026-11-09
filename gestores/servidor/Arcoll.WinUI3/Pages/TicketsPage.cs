@@ -4,11 +4,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 namespace Arcoll.WinUI3.Pages;
 /// <summary>Chamados vinculados somente a este computador, pela identidade aprovada do gestor.</summary>
-public sealed class TicketsPage : UserControl, IPageDataSource
+public sealed class TicketsPage : UserControl
 {
-    public PageDataLoad DataLoad{get;}=new("Consultando chamados",true);
-    public Task CollectDataAsync()=>LoadAsync();
-
     private readonly GestorRuntime _runtime;
     private readonly Grid _root = new() { RowSpacing = 10, Padding = new Thickness(14, 10, 14, 12) };
     private readonly StackPanel _rows = new() { Spacing = 8 };
@@ -29,7 +26,7 @@ public sealed class TicketsPage : UserControl, IPageDataSource
         var create = new Button { Content = "Abrir chamado" }; create.Click += async (_, _) => { try { await CreateAsync(); } catch (Exception ex) { _status.Text = ex.Message; } }; actions.Children.Add(create);
         Grid.SetRow(actions, 1); _root.Children.Add(actions);
         Grid.SetRow(_status, 2); _root.Children.Add(_status);
-        var scroll = new ScrollViewer { Content = _rows, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        var scroll = new ScrollViewer { Content = _rows, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 5, 0) };
         Grid.SetRow(scroll, 3); _root.Children.Add(scroll);
         Loaded += async (_, _) => { try { await LoadAsync(); } catch (Exception ex) { RuntimeLog.Write("Chamados/Loaded: " + ex); } };
@@ -44,7 +41,7 @@ public sealed class TicketsPage : UserControl, IPageDataSource
     }
     private async Task LoadAsync()
     {
-        if (_busy || !_runtime.Allowed) return; _busy = true;DataLoad.Begin("Consultando chamados",preserveData:true);
+        if (_busy || !_runtime.Allowed) return; _busy = true;
         using var operation = OperationProgress.Begin("Consultar chamados");
         try
         {
@@ -61,9 +58,9 @@ public sealed class TicketsPage : UserControl, IPageDataSource
                 _rows.Children.Add(Ui.Card(panel, _p));
             }
             _status.Text = _rows.Children.Count == 0 ? "Nenhum chamado vinculado a este computador." : _rows.Children.Count + " chamados.";
-            operation.Succeed("Chamados consultados");DataLoad.Complete();
+            operation.Succeed("Chamados consultados");
         }
-        catch (Exception ex) { _status.Text = ex.Message; operation.Fail(ex.Message);DataLoad.Fail(ex.Message); }
+        catch (Exception ex) { _status.Text = ex.Message; operation.Fail(ex.Message); }
         finally { _busy = false; }
     }
     private async Task CreateAsync()

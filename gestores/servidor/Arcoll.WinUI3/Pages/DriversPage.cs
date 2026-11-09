@@ -8,7 +8,7 @@ public sealed class DriversPage : MaintenancePage
     protected override void Build()
     {
         Choices(new[]{("outdated","Atualizações disponíveis"),("current","Drivers instalados")},_tab,value=>_tab=value);
-        Actions(CollectAction("Verificar drivers",()=>RunToolAsync("scan")),Action("Instalar drivers selecionados",()=>ApplySelectedAsync("install","Instalar os drivers selecionados pelo Windows Update? Pode ser necessário reiniciar depois.",20),_tab=="outdated"&&Rows(Report,"outdated").Length>0));
+        Actions(Action("Verificar drivers",()=>RunToolAsync("scan")),Action("Instalar drivers selecionados",()=>ApplySelectedAsync("install","Instalar os drivers selecionados pelo Windows Update? Pode ser necessário reiniciar depois.",20),_tab=="outdated"&&Rows(Report,"outdated").Length>0));
         Metrics(("Drivers instalados",Rows(Report,"current").Length.ToString(),"Inventário local"),
             ("Atualizações",Rows(Report,"outdated").Length.ToString(),"Ofertas do Windows Update"),
             ("Selecionados",Selected.Count.ToString(),"Limite de 20 por instalação"));

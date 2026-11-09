@@ -30,7 +30,9 @@ public sealed partial class MainWindow
   foreach(var core in _compactCores.ToArray())_ = ApplyAreaScriptAsync(core,"window.__tiSetAreas?.("+json+");");
  }
  private static async Task ApplyAreaScriptAsync(Microsoft.Web.WebView2.Core.CoreWebView2 core,string script){try{await core.ExecuteScriptAsync(script);}catch(Exception error)when(error is InvalidOperationException or COMException){}}
- private string CurrentCompactScript()=>"window.__tiAreaPalette="+JsonSerializer.Serialize(AreaColors(),new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.CamelCase})+";\n"+_compactScript+"\n"+_workspaceScript;
+ // Páginas web embutidas: esconde qualquer barra de rolagem (a rolagem por roda/toque continua).
+ private const string HiddenScrollbarsScript="(function(){var css='*{scrollbar-width:none!important;-ms-overflow-style:none!important}*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}';function add(){if(document.getElementById('ti-no-scrollbars'))return;var s=document.createElement('style');s.id='ti-no-scrollbars';s.textContent=css;(document.head||document.documentElement).appendChild(s)}add();document.addEventListener('DOMContentLoaded',add)})();";
+ private string CurrentCompactScript()=>"window.__tiAreaPalette="+JsonSerializer.Serialize(AreaColors(),new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.CamelCase})+";\n"+HiddenScrollbarsScript+"\n"+_compactScript+"\n"+_workspaceScript;
  private void RefreshOsCaption()
  {
   try{using var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");var dark=Convert.ToInt32(key?.GetValue("AppsUseLightTheme",1))==0?1:0;if(dark==_osCaption)return;_osCaption=dark;

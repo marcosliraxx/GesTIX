@@ -22,7 +22,7 @@ public sealed class CleanPage : MaintenancePage
         Choices(new[]{("junk","Windows e arquivos temporários"),("browser","Navegadores e aplicativos")},_tab,value=>_tab=value);
         var ages=Rows(Catalog,"ages").Select(x=>x.GetInt32()).ToArray();if(ages.Length==0)ages=new[]{0,1,7,30};
         Choices(ages.Select(d=>(d.ToString(),d==0?"Qualquer idade":"Mais de "+d+" dia(s)")).ToArray(),_age.ToString(),value=>{_age=int.Parse(value);_signature="";});
-        Actions(CollectAction("Analisar seleção",async()=>{await LoadSettingsAsync();var payload=Payload();_signature="";if(await RunAsync("scan",payload))_signature=JsonSerializer.Serialize(payload);},_categories.Count>0),
+        Actions(Action("Analisar seleção",async()=>{await LoadSettingsAsync();var payload=Payload();_signature="";if(await RunAsync("scan",payload))_signature=JsonSerializer.Serialize(payload);},_categories.Count>0),
             Action("Limpar seleção analisada",async()=>{
                 await LoadSettingsAsync();var payload=Payload();if(_signature!=JsonSerializer.Serialize(payload)){Status("Seleção ou configurações alteradas. Analise novamente antes de limpar.");return;}
                 var labels=catalog.EnumerateObject().Where(x=>_categories.Contains(x.Name)).Select(x=>Get(x.Value,"group")+": "+Get(x.Value,"label"));

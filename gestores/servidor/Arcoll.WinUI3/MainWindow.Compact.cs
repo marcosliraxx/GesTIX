@@ -19,6 +19,7 @@ public sealed partial class MainWindow
     private readonly HashSet<UserControl> _compactPages=[];
     private readonly HashSet<CoreWebView2> _compactCores=[];
     private string? _compactScript;private string _workspaceScript="";
+    private readonly DispatcherTimer _scrollGuardTimer=new(){Interval=TimeSpan.FromMilliseconds(600)};private bool _scrollGuardDirty=true;
 
     private void CompactShell_Loaded(object sender,RoutedEventArgs args)
     {
@@ -29,6 +30,10 @@ public sealed partial class MainWindow
         var workspacePath=Path.Combine(AppContext.BaseDirectory,"Assets","hybrid","dashboard","standard-workspace.js");if(File.Exists(workspacePath))_workspaceScript=File.ReadAllText(workspacePath);
         CompactCategories();CompactNavigation();CompactFooter();
         _runtime.Changed+=CompactRuntimeChanged;
+        // Nenhuma barra de rolagem em nenhuma página: reaplica quando o layout muda (linhas novas, diálogos, listas).
+        RootGrid.LayoutUpdated+=(_,_)=>_scrollGuardDirty=true;
+        _scrollGuardTimer.Tick+=(_,_)=>{if(_compactClosed||!_scrollGuardDirty)return;_scrollGuardDirty=false;ScrollGuard.Apply(RootGrid);if(RootGrid.XamlRoot is not null)ScrollGuard.ApplyToPopups(RootGrid.XamlRoot);};
+        _scrollGuardTimer.Start();
         RootGrid.SizeChanged+=(_,_)=>CompactFooter();
         RibbonMenus.LayoutUpdated+=(_,_)=>CompactNavigation();
         PageHost.RegisterPropertyChangedCallback(ContentControl.ContentProperty,(_,_)=>CompactScheduleContent());
@@ -36,7 +41,7 @@ public sealed partial class MainWindow
         NetworkBadge.LayoutUpdated+=(_,_)=>CompactBadgeText();
         FooterText.RegisterPropertyChangedCallback(TextBlock.ForegroundProperty,(_,_)=>CompactFooterInk());
         NetworkTitle.RegisterPropertyChangedCallback(TextBlock.ForegroundProperty,(_,_)=>CompactFooterInk());
-        Closed+=(_,_)=>{_compactClosed=true;_runtime.Changed-=CompactRuntimeChanged;};
+        Closed+=(_,_)=>{_compactClosed=true;_scrollGuardTimer.Stop();_runtime.Changed-=CompactRuntimeChanged;};
         CompactBadgeText();CompactScheduleContent();
     }
     private void CompactScheduleContent()

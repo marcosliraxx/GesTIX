@@ -6,11 +6,8 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
 namespace Arcoll.WinUI3.Pages;
 /// <summary>Grade do Painel web: mesmo inventário consolidado e mesma regra de presença.</summary>
-public sealed class DashboardPage : UserControl, IPageDataSource
+public sealed class DashboardPage : UserControl
 {
-    public PageDataLoad DataLoad{get;}=new("Consultando dispositivos da rede",true);
-    public Task CollectDataAsync()=>LoadAsync();
-
     private readonly GestorRuntime _runtime;
     private readonly Grid _root=new(){RowSpacing=6};private readonly StackPanel _groups=new(){Spacing=8},_toolbar=new(){Orientation=Orientation.Horizontal,Spacing=4};
     private readonly ScrollViewer _scroll;private readonly TextBlock _status=new(){TextWrapping=TextWrapping.Wrap,FontSize=11};
@@ -19,7 +16,7 @@ public sealed class DashboardPage : UserControl, IPageDataSource
     public DashboardPage(GestorRuntime runtime)
     {
         _runtime=runtime;Content=_root;_root.RowDefinitions.Add(new(){Height=GridLength.Auto});_root.RowDefinitions.Add(new(){Height=new GridLength(1,GridUnitType.Star)});_root.RowDefinitions.Add(new(){Height=GridLength.Auto});
-        _root.Children.Add(new ScrollViewer{Content=_toolbar,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});_scroll=new(){Content=_groups,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Grid.SetRow(_scroll,1);_root.Children.Add(_scroll);Grid.SetRow(_status,2);_root.Children.Add(_status);
+        _root.Children.Add(new ScrollViewer{Content=_toolbar,HorizontalScrollBarVisibility=ScrollBarVisibility.Hidden,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});_scroll=new(){Content=_groups,VerticalScrollBarVisibility=ScrollBarVisibility.Hidden,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Grid.SetRow(_scroll,1);_root.Children.Add(_scroll);Grid.SetRow(_status,2);_root.Children.Add(_status);
         AutomationProperties.SetAutomationId(this,"network-dashboard");_timer.Tick+=async(_,_)=>await LoadAsync();Loaded+=async(_,_)=>{_timer.Start();await LoadAsync();};Unloaded+=(_,_)=>_timer.Stop();SizeChanged+=(_,_)=>Render();
     }
     public void ApplyPalette(Palette p){_p=p;Render();}
@@ -37,8 +34,8 @@ public sealed class DashboardPage : UserControl, IPageDataSource
     private Button Button(string name,Action action,bool selected=false){var b=new Button{Content=name,FontSize=12,MinHeight=28,Padding=new Thickness(7,3,7,3),Background=selected?_p.Accent:_p.Surface,Foreground=selected?ThemeService.Brush("#ffffff"):_p.Text};b.Click+=(_,_)=>action();return b;}
     private async Task LoadAsync()
     {
-        if(_busy||!_runtime.Allowed)return;_busy=true;DataLoad.Begin("Consultando dispositivos da rede",preserveData:true);
-        try{using var ct=new CancellationTokenSource(TimeSpan.FromSeconds(20));var result=await WorkspaceService.GetAsync(_runtime,"dashboard",ct.Token);_rows=result.GetProperty("devices").EnumerateArray().Select(x=>x.Clone()).ToArray();var updated=result.GetProperty("updated").GetInt64();_status.Text=updated>0?"Última atualização: "+DateTimeOffset.FromUnixTimeSeconds(updated).ToLocalTime().ToString("dd/MM HH:mm:ss"):"Nenhum inventário registrado";Render();DataLoad.Complete();}catch(Exception ex){DataLoad.Fail("Não foi possível consultar a rede: "+ex.Message);_status.Text="Não foi possível atualizar: "+ex.Message;}finally{_busy=false;}
+        if(_busy||!_runtime.Allowed)return;_busy=true;
+        try{using var ct=new CancellationTokenSource(TimeSpan.FromSeconds(20));var result=await WorkspaceService.GetAsync(_runtime,"dashboard",ct.Token);_rows=result.GetProperty("devices").EnumerateArray().Select(x=>x.Clone()).ToArray();var updated=result.GetProperty("updated").GetInt64();_status.Text=updated>0?"Última atualização: "+DateTimeOffset.FromUnixTimeSeconds(updated).ToLocalTime().ToString("dd/MM HH:mm:ss"):"Nenhum inventário registrado";Render();}catch(Exception ex){_status.Text="Não foi possível atualizar: "+ex.Message;}finally{_busy=false;}
     }
     private void Render()
     {
