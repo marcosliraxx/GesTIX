@@ -16,6 +16,8 @@ public sealed class SpeedPage : UserControl, IPageDataSource
     private static Last? _last; // mantém o último resultado ao trocar de aba
 
     public PageDataLoad DataLoad{get;}=new("Clique para medir a conexão deste computador.");
+    private CancellationTokenSource? _testCancellation;private bool _testCancelledByUser;
+    public bool CanCancelCollection=>true;public void CancelCollection(){_testCancelledByUser=true;_testCancellation?.Cancel();}
     public Task CollectDataAsync()=>StartAsync();
     private readonly GestorRuntime _runtime;
     private readonly WebView2 _web = new() { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
@@ -89,12 +91,12 @@ public sealed class SpeedPage : UserControl, IPageDataSource
     private async Task StartAsync()
     {
         if (_running || !_runtime.Allowed) return;
-        var loadOperation=DataLoad.Begin("Preparando a medição de Internet");_running = true; _progress = 0; _caption = "Preparando teste…"; _live = ""; Render();
+        _testCancelledByUser=false;var loadOperation=DataLoad.Begin("Preparando a medição de Internet");_running = true; _progress = 0; _caption = "Preparando teste…"; _live = ""; Render();
         try
         {
             var lastDraw = DateTime.MinValue;
             var progress = new Progress<(double Percent, string Message, double? Download)>(v => { if (v.Percent < 100 && DateTime.UtcNow - lastDraw < TimeSpan.FromMilliseconds(200)) return; lastDraw = DateTime.UtcNow; _progress = v.Percent;DataLoad.Report(v.Message,(int)v.Percent,loadOperation); _caption = v.Message; _live = v.Download is double d ? d.ToString("0.0") : _live; Render(); });
-            using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+            using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(180));_testCancellation=cancel;
             var result = await _runtime.InternetNowAsync(progress, cancel.Token);
             if(result.Speed.Download is null&&result.Speed.Upload is null&&result.Speed.LatencyMs is null)throw new IOException("O servidor de teste não retornou medições válidas. Verifique a conexão e tente novamente.");
             try { _mapInfo=await WorkspaceService.GetAsync(_runtime,"connection-map",cancel.Token);_destination=Part(Part(_mapInfo,"points"),"dest").ValueKind==JsonValueKind.Object?null:await ConnectionMap.GeocodeAsync(V(_mapInfo,"address"),cancel.Token); } catch(Exception ex) { _caption="Mapa: "+ex.Message; }
@@ -102,8 +104,8 @@ public sealed class SpeedPage : UserControl, IPageDataSource
             DataLoad.Report("Organizando o diagnóstico e o mapa da conexão",99,loadOperation);
             _caption = result.SyncWarning.Length > 0 ? result.SyncWarning : "Velocidade e conexão atualizadas na plataforma.";
         }
-        catch (Exception ex) { DataLoad.Fail("Não foi possível medir a conexão: "+(ex is OperationCanceledException?"tempo limite excedido":ex.Message),loadOperation);_caption = "Falha no teste: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); }
-        finally { _running = false; Render();if(DataLoad.Current.Phase!=DataLoadPhase.Failed){if(_ready||!ReferenceEquals(Content,_web))DataLoad.Complete("Diagnóstico de Internet disponível",loadOperation);else DataLoad.Report("Preparando a apresentação dos resultados",99,loadOperation);} }
+        catch (Exception ex) { DataLoad.Fail("Não foi possível medir a conexão: "+(ex is OperationCanceledException?(_testCancelledByUser?"coleta interrompida pelo usuário":"tempo limite excedido"):ex.Message),loadOperation);_caption = "Falha no teste: " + (ex is OperationCanceledException ? (_testCancelledByUser?"coleta interrompida pelo usuário":"tempo limite excedido") : ex.Message); }
+        finally { _testCancellation=null;_running = false; Render();if(DataLoad.Current.Phase!=DataLoadPhase.Failed){if(_ready||!ReferenceEquals(Content,_web))DataLoad.Complete("Diagnóstico de Internet disponível",loadOperation);else DataLoad.Report("Preparando a apresentação dos resultados",99,loadOperation);} }
     }
 
     private static string V(JsonElement e,string key)=>e.ValueKind==JsonValueKind.Object&&e.TryGetProperty(key,out var v)?v.ValueKind==JsonValueKind.Array?string.Join(", ",v.EnumerateArray().Select(x=>x.ToString())):v.ToString():"";

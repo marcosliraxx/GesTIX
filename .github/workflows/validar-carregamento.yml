@@ -29,4 +29,6 @@ jobs:
         env:
           NODE_PATH: /tmp/ti-browser/node_modules
           CHROME_PATH: /usr/bin/google-chrome
-        run: node tests/browser/pentefino.cjs
+        run: |
+          node tests/browser/pentefino.cjs
+          node tests/browser/data-loading.cjs

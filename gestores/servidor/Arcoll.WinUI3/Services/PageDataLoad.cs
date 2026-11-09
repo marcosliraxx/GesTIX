@@ -16,7 +16,7 @@ public sealed class PageDataLoad
  public void Wait(string message)=>Update(DataLoadPhase.Waiting,message,0,false,0);
  private void Update(DataLoadPhase phase,string stage,int? percent,bool? hasData,long operation){lock(_gate){if(operation!=0&&operation!=_current.Operation)return;if(phase==DataLoadPhase.Loading&&_current.Phase is DataLoadPhase.Ready or DataLoadPhase.Failed)return;_current=new(phase,stage,percent.HasValue?Math.Clamp(percent.Value,0,phase==DataLoadPhase.Ready?100:99):null,hasData??_current.HasData,_current.Operation);}Changed?.Invoke();}
 }
-public interface IPageDataSource { PageDataLoad DataLoad{get;} Task CollectDataAsync(); }
+public interface IPageDataSource { PageDataLoad DataLoad{get;} Task CollectDataAsync(); bool CanCancelCollection=>false; void CancelCollection(){} }
 /// <summary>Explicit foregrounds and contrast guards; the loading screen never inherits one color for every part.</summary>
 public sealed record LoadingColors(string Surface,string Text,string Muted,string Accent,string Track)
 {

@@ -14,6 +14,7 @@ namespace Arcoll.WinUI3.Pages;
 public abstract class MaintenancePage : UserControl, IPageDataSource
 {
     public PageDataLoad DataLoad{get;}=new("Clique para consultar os dados desta ferramenta.");
+    public bool CanCancelCollection=>true;public void CancelCollection()=>CancelOperations();
     private Func<Task>? _collect;private bool _collectEnabled;
     public async Task CollectDataAsync(){if(Busy||_dispatching||!Runtime.Allowed)return;Render();if(_collect is null||!_collectEnabled){DataLoad.Wait("Escolha as opções desta ferramenta antes de coletar.");return;}_dispatching=true;DataLoad.Begin("Consultando "+_heading.Text);try{await _collect();if(DataLoad.Current.Phase!=DataLoadPhase.Failed){if(Report.ValueKind==JsonValueKind.Object)DataLoad.Complete();else DataLoad.Fail(string.IsNullOrWhiteSpace(_status.Text)?"A consulta não retornou um relatório. Tente novamente.":_status.Text);}}catch(Exception error){Status(error.Message);DataLoad.Fail(error.Message);}finally{_dispatching=false;Render();}}
     protected Button CollectAction(string title,Func<Task> collect,bool enabled=true){_collect=collect;_collectEnabled=enabled;return Action(title,CollectDataAsync,enabled,collection:true);}
