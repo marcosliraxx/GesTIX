@@ -154,6 +154,59 @@ def local_adapter_mac(ip):
         return None
 
 
+def netbios_name(ip):
+    """Consulta de nome somente leitura, limitada à máquina IPv4 privada descoberta."""
+    try:
+        if not ipaddress.ip_address(ip).is_private:
+            return None
+        transaction = os.urandom(2)
+        raw = b'*' + b'\x00' * 15
+        encoded = bytes(v for byte in raw for v in (65 + (byte >> 4), 65 + (byte & 15)))
+        query = transaction + b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00' + b'\x20' + encoded + b'\x00\x00\x21\x00\x01'
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+            client.settimeout(0.35)
+            client.sendto(query, (ip, 137))
+            data, peer = client.recvfrom(4096)
+        if peer[0] != ip or data[:2] != transaction or len(data) < 57:
+            return None
+        # Standard node-status response echoes the question; skip DNS labels safely.
+        offset = 12
+        questions = int.from_bytes(data[4:6], 'big')
+        def skip_name(pos):
+            for _ in range(64):
+                if pos >= len(data):
+                    raise ValueError('name')
+                length = data[pos]
+                if length & 0xc0 == 0xc0:
+                    return pos + 2
+                pos += 1
+                if not length:
+                    return pos
+                pos += length
+            raise ValueError('name')
+        for _ in range(min(questions, 4)):
+            offset = skip_name(offset) + 4
+        offset = skip_name(offset)
+        if offset + 10 >= len(data) or int.from_bytes(data[offset:offset+2], 'big') != 0x21:
+            return None
+        offset += 10
+        count = data[offset]
+        offset += 1
+        for _ in range(min(count, 100)):
+            entry = data[offset:offset+18]
+            offset += 18
+            if len(entry) != 18:
+                break
+            flags = int.from_bytes(entry[16:18], 'big')
+            if entry[15] == 0 and not flags & 0x8000:
+                name = entry[:15].decode('ascii', 'ignore').strip()
+                if name and all(c.isalnum() or c in '-_.' for c in name):
+                    return name
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
 def reverse_name(ip):
     cached=NAME_CACHE.get(ip)
     if cached and time.monotonic()-cached[0]<300:return cached[1]
@@ -161,6 +214,7 @@ def reverse_name(ip):
     try:
         name=socket.gethostbyaddr(ip)[0].split(".")[0]
     except Exception:name=None
+    if not name:name=netbios_name(ip)
     if len(NAME_CACHE)>=512:NAME_CACHE.clear()
     NAME_CACHE[ip]=(time.monotonic(),name)
     return name

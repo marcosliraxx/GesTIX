@@ -289,10 +289,17 @@ def _policy_norm(path, pattern=False):
 class Policy:
     """Exclusões definidas pelo cliente + proteções fixas do gestor."""
 
-    def __init__(self, exclusions=None):
+    def __init__(self, exclusions=None, modified_since=0):
+        self.modified_since = modified_since
         self.exclusions = [_policy_norm(p, pattern=True) for p in (exclusions or []) if isinstance(p, str) and p.strip()][:50]
 
     def excluded(self, path):
+        if self.modified_since:
+            try:
+                if Path(path).is_file() and Path(path).stat().st_mtime < self.modified_since:
+                    return True
+            except OSError:
+                return True
         key = _policy_norm(path)
         return any(key == e or key.startswith(e + os.sep) or fnmatch.fnmatch(key, e) for e in self.exclusions)
 
@@ -691,7 +698,7 @@ def _scan_category(category, execute, cutoff, policy, custom, notify, progress):
     return _scan_targets(category, unique, execute, cutoff, policy, notify, prune=prune, temp_kind=category in ('user_temp', 'windows_temp'))
 
 
-def execute_clean(categories, execute=False, age_days=DEFAULT_AGE_DAYS, progress=None, exclusions=None, custom_folders=None):
+def execute_clean(categories, execute=False, age_days=DEFAULT_AGE_DAYS, progress=None, exclusions=None, custom_folders=None, period_days=0):
     """Analisa (execute=False) ou limpa (execute=True). `progress(texto)` recebe o andamento a cada poucos segundos."""
     if (not isinstance(categories, list) or not categories or len(categories) > len(CATEGORIES)
             or len(set(categories)) != len(categories) or any(x not in CATEGORIES for x in categories)):
@@ -699,7 +706,9 @@ def execute_clean(categories, execute=False, age_days=DEFAULT_AGE_DAYS, progress
     if not isinstance(age_days, int) or isinstance(age_days, bool) or age_days not in AGE_OPTIONS:
         raise ValueError('Prazo de limpeza inválido.')
     cutoff = time.time() - age_days * 86400
-    policy = Policy(exclusions)
+    if isinstance(period_days, bool) or period_days not in (0, 7, 15, 30, 180, 365):
+        raise ValueError('Período inválido.')
+    policy = Policy(exclusions, time.time() - period_days * 86400 if period_days else 0)
     custom = [p for p in (custom_folders or []) if isinstance(p, str)]
     verb = 'Limpando' if execute else 'Analisando'
     result = {'categories': {}, 'file_count': 0, 'bytes': 0, 'errors': 0, 'execute': bool(execute), 'age_days': age_days, 'truncated': False}

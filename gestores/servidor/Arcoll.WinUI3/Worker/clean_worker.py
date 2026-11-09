@@ -28,7 +28,7 @@ def run(request):
     mode = request['mode']
     if mode in ('scan', 'execute'):
         return clean.execute_clean(payload.get('categories'), mode == 'execute', payload.get('age_days', 7), progress,
-                                   payload.get('exclusions'), payload.get('custom_folders'))
+                                   payload.get('exclusions'), payload.get('custom_folders'), payload.get('period_days', 0))
     if mode == 'tool':
         return clean.execute_tool(payload, progress)
     from arcoll_cloud import CloudBackup

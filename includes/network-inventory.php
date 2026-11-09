@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/error-logging.php';
 
 
+require_once __DIR__.'/network-identification.php';
+
 function arc_inventory_table(): string {
     return '`' . arc_prefix() . 'network_device_inventory`';
 }
@@ -67,6 +69,7 @@ function arc_inventory_identity(array $device): array {
 function arc_inventory_sync(PDO $pdo, int $account, int $network, int $gestor, array $event): void {
     if (!isset($event['devices']) || !is_array($event['devices'])) return;
     arc_inventory_schema($pdo);
+    try{arc_identity_schema($pdo);}catch(Throwable $error){arc_log_error("Identificação de rede: ".$error->getMessage());}
     $ownTransaction = !$pdo->inTransaction();
     if ($ownTransaction) $pdo->beginTransaction();
     try {
@@ -152,6 +155,7 @@ function arc_inventory_apply(PDO $pdo, int $account, int $network, int $gestor, 
         if (!is_array($device)) continue;
         [$identity,$mac] = arc_inventory_identity($device);
         if ($identity === '') continue; // Sem MAC verificavel, nao registrar no inventario persistente.
+        try{$device=arc_identity_prepare($pdo,$account,$network,$device);}catch(Throwable $error){arc_log_error('Preparação da identificação: '.$error->getMessage());}
         $now = time();
         $first = (int) ($device['first_seen'] ?? $now);
         $last = (int) ($device['last_seen'] ?? (($device['status']??'')==='online'?$now:0));

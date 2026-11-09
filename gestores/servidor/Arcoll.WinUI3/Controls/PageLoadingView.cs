@@ -10,7 +10,7 @@ namespace Arcoll.WinUI3.Controls;
 /// <summary>Shared themed data gate. It emits a request; it never starts installation, cleanup or other writes.</summary>
 public sealed class PageLoadingView:Grid
 {
- private readonly Button _circle=new(){Width=256,Height=256,Padding=new Thickness(0),BorderThickness=new Thickness(0),CornerRadius=new CornerRadius(128),Background=new SolidColorBrush(Microsoft.UI.Colors.Transparent)};
+ private readonly Button _circle=new(){Width=256,Height=256,Padding=new Thickness(0),BorderThickness=new Thickness(0),CornerRadius=new CornerRadius(128),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Background=new SolidColorBrush(Microsoft.UI.Colors.Transparent)};
  private readonly ProgressRing _ring=new(){Width=250,Height=250,Minimum=0,Maximum=100,IsHitTestVisible=false};
  private readonly Ellipse _halo=new(){Width=286,Height=286,StrokeThickness=1,Opacity=.4,IsHitTestVisible=false};
  private readonly TextBlock _tag=new(){Text="COLETA DE DADOS",FontSize=9,CharacterSpacing=160,HorizontalAlignment=HorizontalAlignment.Center};

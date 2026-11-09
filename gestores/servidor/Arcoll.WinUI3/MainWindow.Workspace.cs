@@ -18,6 +18,7 @@ public sealed partial class MainWindow
  private void FinishPageLoading(){InitializePageDataGate();UnbindPageData();_pageOptionsExposed=false;_pageDataSource=(CompactHost.Content??PageHost.Content)as IPageDataSource;
   if(_section=="panel"&&_hybridReady){_pageDataLoad=_networkPageLoad;_pageCollect=CollectNetworkPageAsync;}else if(_pageDataSource is not null){_pageDataLoad=_pageDataSource.DataLoad;_pageCollect=_pageDataSource.CollectDataAsync;}
   if(_pageDataLoad is not null){var load=_pageDataLoad;var generation=_pageLoadGeneration;_pageDataHandler=()=>DispatcherQueue.TryEnqueue(()=>{if(generation!=_pageLoadGeneration||!ReferenceEquals(load,_pageDataLoad))return;if(load.Current.Phase==DataLoadPhase.Loading)_pageOptionsExposed=false;RenderPageLoading();});load.Changed+=_pageDataHandler;}
+  if(_section=="health"){UnbindPageData();PageLoader.Suspend();PageLoadingOverlay.Visibility=Visibility.Collapsed;return;}
   RenderPageLoading();TryAutomaticCollection();
  }
  private void TryAutomaticCollection(){if(_runtime.Allowed&&_pageDataLoad?.Current is {Phase:DataLoadPhase.Loading,Operation:0}&&_pageDataSource is not null){var source=_pageDataSource;DispatcherQueue.TryEnqueue(async()=>{if(ReferenceEquals(source,_pageDataSource)&&source.DataLoad.Current.Operation==0)await CollectCurrentPageAsync();});}}
