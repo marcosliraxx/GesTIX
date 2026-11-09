@@ -164,7 +164,7 @@ public sealed partial class MainWindow : Window
         _tools.Add("disk", new DiskPage(_runtime, ConfirmAsync)); _tools.Add("duplicates", new DuplicatesPage(_runtime, ConfirmAsync));
         _tools.Add("cloud", new CloudCleanupPage(_runtime, ConfirmAsync));
         _penteFinoPage.ConfigureTools(key=>key=="windows_update"?_windowsUpdatePage:_tools[key]);
-        _penteFinoPage.ToolChanged+=()=>{if(_section=="health"){ApplyTheme(_themes.Current);FinishPageLoading();}};
+        _penteFinoPage.ToolChanged+=()=>{if(_section=="health"){ApplyTheme(_themes.Current);CompactScheduleContent();FinishPageLoading();}};
         _supportPage = new(_runtime, ShowRemoteCodeAsync, () => SelectSection("tickets")); _ticketsPage = new(_runtime);
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "system.ico");
         if (File.Exists(icon)) try { AppWindow.SetIcon(icon); } catch (Exception ex) { RuntimeLog.Write("Ícone da janela: " + ex.Message); }

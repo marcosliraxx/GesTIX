@@ -19,6 +19,8 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
  public Task CollectDataAsync()=>_activeTool is IPageDataSource source?source.CollectDataAsync():InitializeAsync();
  public bool CanCancelCollection=>_activeTool is IPageDataSource source&&source.CanCancelCollection;
  public void CancelCollection(){if(_activeTool is IPageDataSource source)source.CancelCollection();}
+ public UserControl? ActiveTool=>_activeTool;
+ public string ActiveTitle=>_integrated.Values.FirstOrDefault(t=>ReferenceEquals(t.Page,_activeTool)).Title??"Pente-Fino";
  public bool HasToolOptions=>_activeTool is MaintenancePage;
  private UserControl? _activeTool;private readonly Grid _center=new();private readonly StackPanel _rail=new(){Spacing=3,Padding=new Thickness(7)};private readonly ContentControl _area=new(){HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch};
  private readonly Dictionary<string,(string Title,UserControl Page)> _integrated=[];private readonly Dictionary<string,Button> _railButtons=[];private readonly List<TextBlock> _railHeadings=[];
