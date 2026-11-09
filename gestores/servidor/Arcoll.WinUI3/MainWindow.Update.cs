@@ -28,7 +28,7 @@ public sealed partial class MainWindow
    var content=new StackPanel{Spacing=2};content.Children.Add(new FontIcon{Glyph=item.Item3,FontSize=20});content.Children.Add(new TextBlock{Text=item.Item2,FontSize=10.5});var menu=new Button{Content=content,Style=(Style)RootGrid.Resources["FlatButton"],Height=50,MinWidth=80,Padding=new Thickness(8,3,12,3)};menu.Click+=(_,_)=>ShowGestorUpdateArea(item.Item4);Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(menu,item.Item2);_menus[item.Item1]=menu;var cell=new Grid();cell.Children.Add(menu);RibbonMenus.Children.Add(cell);
   }
   HybridDashboard.Visibility=Visibility.Collapsed;PageScroll.Visibility=Visibility.Collapsed;PageHost.Content=null;CompactHost.Visibility=Visibility.Visible;CompactHost.Content=_gestorUpdatePage;HeroFrame.Visibility=Visibility.Collapsed;StatusBar.IsOpen=false;
-  _gestorUpdatePage.ApplyAreas(AreaColors());_gestorUpdatePage.Navigate(view);ApplyTheme(_themes.Current);_gestorUpdatePage.Publish();
+  _gestorUpdatePage.ApplyAreas(AreaColors());_gestorUpdatePage.Navigate(view);ApplyTheme(_themes.Current);_gestorUpdatePage.Publish();FinishPageLoading();
  }
  private Task<UpdateAvailability> CheckGestorUpdateAsync(){if(!_runtime.Allowed)throw new UnauthorizedAccessException("Conecte e autorize o gestor para verificar.");return UpdateCheckService.CheckAsync(_runtime.Platform,CancellationToken.None);}
  private async Task StartGestorUpdateAsync(bool force)

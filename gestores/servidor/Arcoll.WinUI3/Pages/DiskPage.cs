@@ -9,7 +9,7 @@ public sealed class DiskPage : MaintenancePage
     {
         var drives=DriveInfo.GetDrives().Where(d=>d.DriveType==DriveType.Fixed && d.IsReady).Select(d=>(d.Name.TrimEnd('\\'),"Unidade "+d.Name)).ToArray();
         if(!drives.Any(d=>d.Item1==_drive)&&drives.Length>0)_drive=drives[0].Item1;
-        Choices(drives,_drive,value=>_drive=value);Actions(Action("Analisar unidade selecionada",()=>RunToolAsync("scan",("drive",_drive)),drives.Length>0));
+        Choices(drives,_drive,value=>_drive=value);Actions(CollectAction("Analisar unidade selecionada",()=>RunToolAsync("scan",("drive",_drive)),drives.Length>0));
         if(Report.ValueKind!=System.Text.Json.JsonValueKind.Object)return;
         var total=Number(Report,"disk_total");var free=Number(Report,"disk_free");
         Metrics(("Capacidade",Ui.Size(total),"Unidade "+Get(Report,"drive")),

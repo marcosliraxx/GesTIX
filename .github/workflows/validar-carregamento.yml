@@ -1,0 +1,32 @@
+name: Validar carregamento de dados 5.0.389
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Validar estado de coleta e contraste
+        run: dotnet run --project tests/PageLoading/PageLoading.csproj -c Release
+      - name: Compilar gestor Windows
+        run: dotnet build gestores/servidor/Arcoll.WinUI3/Arcoll.WinUI3.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=5.0.389 --self-contained true
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --prefix /tmp/ti-browser playwright@1.55.0
+      - name: Conferir interfaces e padrao compartilhado
+        env:
+          NODE_PATH: /tmp/ti-browser/node_modules
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node tests/browser/pentefino.cjs

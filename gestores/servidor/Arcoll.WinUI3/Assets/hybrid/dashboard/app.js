@@ -74,6 +74,7 @@
   const sortButton = button('Ordenar por nome', 'list', () => { sort = sort === 'recent' ? 'name' : 'recent'; sortButton.title = sort === 'recent' ? 'Ordenar por nome' : 'Ordenar por mudanças recentes'; sortButton.setAttribute('aria-label', sortButton.title); sortButton.setAttribute('aria-pressed', String(sort === 'name')); render(); });
   const fitButton = button('Ajustar dispositivos ao espaço', 'fit', () => { fit = !fit; fitButton.setAttribute('aria-pressed', String(fit)); root.classList.toggle('np-fit', fit); layout(); });
   const refreshButton = button('Atualizar inventário', 'refresh', () => load());
+  window.addEventListener('ti-page-collect',()=>load());
   find('.np-actions').append(sortButton, fitButton, refreshButton);
   find('.np-search-icon').append(icon('search')); find('.np-activity-icon').append(icon('clock')); find('.np-close').append(icon('close'));
   find('.np-close').addEventListener('click', () => dialog.close());

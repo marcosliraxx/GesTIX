@@ -6,8 +6,11 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 namespace Arcoll.WinUI3.Pages;
 /// <summary>Explorador local de leitura. Nao transmite, exclui ou executa arquivos.</summary>
-public sealed class FilesPage : UserControl
+public sealed class FilesPage : UserControl, IPageDataSource
 {
+    public PageDataLoad DataLoad{get;}=new("Consultando discos e pastas",true);
+    public Task CollectDataAsync()=>LoadAsync(_path.Text);
+
     private readonly GestorRuntime _runtime;
     private readonly Grid _root = new() { RowSpacing = 8 }, _rows = new() { RowSpacing = 6 };
     private readonly TextBox _path = new() { PlaceholderText = "Caminho de uma pasta local" };
@@ -37,7 +40,7 @@ public sealed class FilesPage : UserControl
     public void ApplyPalette(Palette p) { _p = p; _status.Foreground = p.Muted; }
     private async Task LoadAsync(string path)
     {
-        if (_busy || !_runtime.Allowed) return; _busy = true;
+        if (_busy || !_runtime.Allowed) return; _busy = true;DataLoad.Begin("Consultando discos e pastas",preserveData:true);
         using var operation = OperationProgress.Begin("Consultar arquivos");
         try
         {
@@ -60,9 +63,9 @@ public sealed class FilesPage : UserControl
             var files=_rows.Children.Count-folders;
             _status.Text = folders + " pasta(s) · " + files + " arquivo(s). Leitura local, sem envio ou execução." +
                 (json.GetProperty("truncated").GetBoolean() ? " Listagem parcial: entre na pasta desejada para continuar." : "");
-            operation.Succeed("Pasta consultada");
+            operation.Succeed("Pasta consultada");DataLoad.Complete();
         }
-        catch (Exception ex) { _status.Text = ex.Message; operation.Fail(ex.Message); }
+        catch (Exception ex) { _status.Text = ex.Message; operation.Fail(ex.Message);DataLoad.Fail(ex.Message); }
         finally { _busy = false; }
     }
 }

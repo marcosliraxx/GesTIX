@@ -7,8 +7,11 @@ using Microsoft.UI.Xaml.Controls;
 namespace Arcoll.WinUI3.Pages;
 
 /// <summary>Aba Dispositivos: mesma estrutura de redes/dispositivos.php (busca, filtros, ordenação, seleção em massa, tabela, exportação e identificação).</summary>
-public sealed class DevicesPage : UserControl
+public sealed class DevicesPage : UserControl, IPageDataSource
 {
+    public PageDataLoad DataLoad{get;}=new("Consultando inventário de dispositivos",true);
+    public Task CollectDataAsync()=>LoadAsync();
+
     private static readonly double[] Widths = { 38, 46, 230, 130, 150, 130, 130, 120, 130, 140 };
     private static readonly (string Key, string Title)[] Columns =
     {
@@ -61,14 +64,14 @@ public sealed class DevicesPage : UserControl
 
     private async Task LoadAsync()
     {
-        if (_busy || !_runtime.Allowed) return; _busy = true;
+        if (_busy || !_runtime.Allowed) return; _busy = true;DataLoad.Begin("Consultando inventário de dispositivos",preserveData:true);
         try
         {
             using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            _all = await InventoryService.LoadAsync(_runtime.Platform, cancel.Token); _loaded = true;
+            _all = await InventoryService.LoadAsync(_runtime.Platform, cancel.Token); _loaded = true;DataLoad.Complete();
             _selected.IntersectWith(_all.Select(d => d.Id)); Render();
         }
-        catch (Exception ex) { _feedback.Text = "Não foi possível consultar o inventário: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); _feedback.Foreground = _p.Warning; }
+        catch (Exception ex) {DataLoad.Fail("Não foi possível carregar: "+ex.Message); _feedback.Text = "Não foi possível consultar o inventário: " + (ex is OperationCanceledException ? "tempo limite excedido" : ex.Message); _feedback.Foreground = _p.Warning; }
         finally { _busy = false; }
     }
 

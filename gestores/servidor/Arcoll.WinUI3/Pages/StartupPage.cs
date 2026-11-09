@@ -9,7 +9,7 @@ public sealed class StartupPage : MaintenancePage
     {
         Choices(new[]{("run","Windows e pastas"),("task","Tarefas agendadas"),("context","Menu de contexto"),("service","Serviços")},_kind,value=>_kind=value);
         Choices(new[]{("all","Todos os estados"),("enabled","Ativos"),("disabled","Desativados")},_state,value=>_state=value);
-        Actions(Action("Atualizar inventário",()=>RunToolAsync("list")),Action("Ativar selecionados",()=>Apply(true)),Action("Desativar selecionados",()=>Apply(false)));
+        Actions(CollectAction("Atualizar inventário",()=>RunToolAsync("list")),Action("Ativar selecionados",()=>Apply(true)),Action("Desativar selecionados",()=>Apply(false)));
         var rows=Rows(Report,"items");Text(rows.Length+" entradas inventariadas",true);
         foreach(var item in rows.Where(x=>(Get(x,"kind")==_kind||(_kind=="run"&&Get(x,"kind")=="folder"))&&(_state=="all"||Yes(x,"enabled")==(_state=="enabled"))).OrderBy(x=>Get(x,"name")))Select(item,Get(item,"name"),Get(item,"source")+" · "+(Yes(item,"enabled")?"Ativo":"Desativado")+" · "+Get(item,"command"));
     }

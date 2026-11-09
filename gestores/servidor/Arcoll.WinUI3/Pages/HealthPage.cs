@@ -13,7 +13,7 @@ public sealed class HealthPage : MaintenancePage
     protected override void Build()
     {
         RestoreSnapshot();if(_analysis.ValueKind!=JsonValueKind.Object&&Report.ValueKind==JsonValueKind.Object)_analysis=Yes(Report,"optimization")?Part(Report,"analysis"):Report;
-        Actions(PrimaryAction("Verificar saúde",async()=>{
+        Actions(PrimaryCollectAction("Verificar saúde",async()=>{
             await LoadSettingsAsync();_settingsSignature=JsonSerializer.Serialize(Settings);Selected.Clear();
             if(await RunAsync("tool",new(){{"tool","health"},{"action","scan"},{"space",Rows(Part(Catalog,"health"),"space").Select(x=>x.ToString()).ToArray()},{"privacy",Rows(Part(Catalog,"health"),"privacy").Select(x=>x.ToString()).ToArray()},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}}))_analysis=Report;else _settingsSignature="";
         }));

@@ -7,7 +7,7 @@ public sealed class CloudCleanupPage : MaintenancePage
     public CloudCleanupPage(GestorRuntime runtime,Func<string,string,string,Task<bool>> confirm):base(runtime,confirm,"cloud","Pastas sincronizadas","Analise arquivos locais de provedores de nuvem. Excluir uma cópia sincronizada pode removê-la também nos demais dispositivos."){}
     protected override void Build()
     {
-        Actions(Action("Analisar pastas sincronizadas",()=>RunToolAsync("scan")),Action("Enviar selecionados à Lixeira",()=>ApplySelectedAsync("delete","Enviar os arquivos selecionados à Lixeira? O provedor poderá sincronizar a exclusão para a nuvem e outros computadores.",300),Rows(Report,"items").Length>0));
+        Actions(CollectAction("Analisar pastas sincronizadas",()=>RunToolAsync("scan")),Action("Enviar selecionados à Lixeira",()=>ApplySelectedAsync("delete","Enviar os arquivos selecionados à Lixeira? O provedor poderá sincronizar a exclusão para a nuvem e outros computadores.",300),Rows(Report,"items").Length>0));
         var providers=new List<(string,string)>{("all","Todos os provedores")};foreach(var p in Rows(Report,"providers")){providers.Add((Get(p,"key"),Get(p,"name")));Text(Get(p,"name")+" · "+Get(p,"files")+" arquivos · "+Ui.Size(Number(p,"bytes")));}
         Choices(providers.DistinctBy(x=>x.Item1).ToArray(),_provider,value=>_provider=value);
         Choices(new[]{("all","Todas as categorias"),("junk","Temporários"),("duplicate","Duplicados"),("large","Arquivos grandes"),("old","Arquivos antigos")},_category,value=>_category=value);

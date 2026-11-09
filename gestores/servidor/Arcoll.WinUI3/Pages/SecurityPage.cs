@@ -16,7 +16,7 @@ public sealed class SecurityPage : MaintenancePage
     protected override void Build()
     {
         RestoreSnapshot();
-        Actions(Action("Verificar proteção", () => ExecuteLocalAsync(async ct =>
+        Actions(CollectAction("Verificar proteção", () => ExecuteLocalAsync(async ct =>
         {
             Status("Consultando o Windows Security...");
             var result = await SecurityInspectionService.InspectAsync(ct);

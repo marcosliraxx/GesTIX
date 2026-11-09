@@ -232,7 +232,7 @@ public sealed partial class MainWindow : Window
     }
     private void ApplyTheme(GestorTheme t)
     {
-        var p = Palette.From(t); RootGrid.Background = p.Alt; RootGrid.RequestedTheme = p.Light ? ElementTheme.Light : ElementTheme.Dark;
+        PaintPageLoading();var p = Palette.From(t); RootGrid.Background = p.Alt; RootGrid.RequestedTheme = p.Light ? ElementTheme.Light : ElementTheme.Dark;
         QuickBar.Background = RibbonBar.Background = StatusBorder.Background = p.Surface; CategoryBar.Background = p.Surface;
         QuickBar.BorderBrush = RibbonBar.BorderBrush = StatusBorder.BorderBrush = p.Line;
         var accent = ((SolidColorBrush)p.Accent).Color;
@@ -305,7 +305,7 @@ public sealed partial class MainWindow : Window
         if(section=="monitor")section="server";
         if (!Groups.Any(g => g.Items.Any(i => i.Key == section))) section = "panel";
         var group = ResolveGroup(section);
-        if (section == _section && _group == group.Key && (_menus.Count > 0) && (CompactHost.Content is not null || (_hybridReady && HybridDashboard.Visibility == Visibility.Visible)))
+        if (section == _section && _group == group.Key && (_menus.Count > 0) && (section=="panel"&&_hybridReady?HybridDashboard.Visibility==Visibility.Visible:CompactHost.Content is not null))
         {
             RuntimeLog.Write("Navegação: área já ativa: " + section);
             return;
