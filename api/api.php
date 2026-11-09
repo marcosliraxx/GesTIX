@@ -285,7 +285,9 @@ try {
         $online=!empty($machine['last_seen_at'])&&strtotime((string)$machine['last_seen_at'])>=time()-120;
         if($action==='network-clean-list'){
             $row=arc_clean_report_get($pdo,$gestorId,$network,$account,'clean');
-            arc_json(['ok'=>true,'report'=>$row['report']??null,'collected_at'=>$row['collected_at']??null,'online'=>$online,'headless'=>(int)$machine['headless_mode']===1,'history'=>arc_clean_history($pdo,$gestorId,$network,$account),'active'=>arc_network_active_operation($pdo,$gestorId,$network,$account,$names),'settings'=>arc_clean_settings_get($pdo,$gestorId,$network,$account),'index'=>arc_clean_report_index($pdo,$gestorId,$network,$account)]);
+            $active=arc_network_active_operation($pdo,$gestorId,$network,$account,$names);
+            if($active&&$active['command_name']==='clean_tool'){$details=$pdo->prepare('SELECT request_text FROM '.arc_table('gestor_terminal_jobs').' WHERE command_id=? AND gestor_id=? AND network_id=?');$details->execute([$active['command_id'],$gestorId,$network]);$request=json_decode((string)$details->fetchColumn(),true);if(($request['tool']??'')==='general')$active['general']=$request;}
+            arc_json(['ok'=>true,'report'=>$row['report']??null,'collected_at'=>$row['collected_at']??null,'online'=>$online,'headless'=>(int)$machine['headless_mode']===1,'history'=>arc_clean_history($pdo,$gestorId,$network,$account),'active'=>$active,'settings'=>arc_clean_settings_get($pdo,$gestorId,$network,$account),'index'=>arc_clean_report_index($pdo,$gestorId,$network,$account)]);
         }
         if($action==='network-clean-report'){
             $kind=(string)($body['kind']??'');
@@ -300,6 +302,7 @@ try {
             if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
             try{$settings=arc_clean_validate_settings($body);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
             arc_clean_settings_save($pdo,$gestorId,$network,$account,$settings);
+            if(array_key_exists('general_preferences',$body))arc_general_invalidate($pdo,$gestorId,$network,$account);
             arc_user_audit($pdo,'clean_settings','Configurações do Clean da máquina '.$gestorId.' ('.count($settings['exclusions']).' exclusões, '.count($settings['custom_folders']).' pastas)');
             arc_json(['ok'=>true,'settings'=>$settings]);
         }
@@ -394,6 +397,7 @@ try {
         if (!$post) arc_json(['ok'=>false,'error'=>'Método inválido'],405);
         $q=$pdo->prepare('UPDATE '.arc_table('gestor_commands')." SET status='failed',result_text='Cancelado pelo operador',completed_at=NOW() WHERE gestor_id=? AND network_id=? AND account_id=? AND status IN ('pending','running') AND $guard AND command_name NOT IN ('monitor_start','monitor_pause')");
         $q->execute([$gestorId,$network,$account]);
+        if($q->rowCount())arc_general_invalidate($pdo,$gestorId,$network,$account);
         if ($q->rowCount()) arc_user_audit($pdo,'operation_cancel_all',$q->rowCount().' operação(ões) canceladas no gestor '.$gestorId);
         arc_json(['ok'=>true,'cancelled'=>$q->rowCount()]);
     }
@@ -410,11 +414,12 @@ try {
         if (!in_array($access['role'],['owner','system_admin'],true) && $rights!==null && !array_intersect(['clean','programas'],$rights)) arc_json(['ok'=>false,'error'=>'Sem permissão'],403);
         $q=$pdo->prepare('UPDATE '.arc_table('gestor_commands')." SET status='failed',result_text='Cancelamento solicitado pelo operador',completed_at=NOW() WHERE (id=? OR ?=0) AND gestor_id=? AND network_id=? AND account_id=? AND command_name IN ('clean_scan','clean_execute','clean_tool','program_inventory','program_uninstall','program_install') AND status IN ('pending','running')");
         $q->execute([$id,$id,$gestorId,$network,(int)$access['account_id']]);
+        if($q->rowCount())arc_general_invalidate($pdo,$gestorId,$network,(int)$access['account_id']);
         if ($q->rowCount())arc_user_audit($pdo,'clean_cancel','Cancelamento solicitado para operação '.$id.' no gestor '.$gestorId);
         arc_json(['ok'=>true,'cancelled'=>$q->rowCount()>0]);
     }
     /* Canal de comandos: ações limitadas, gestor aprovado, token da instalação. */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['gestor-command-poll','gestor-command-ack','gestor-command-output','gestor-config','gestor-terminal-local-start','gestor-power-authorize','gestor-command-authorize','gestor-remote-authorize','gestor-file-transfer','gestor-file-browser-result','gestor-support-code','gestor-workspace','gestor-program-inventory','gestor-clean-result','gestor-clean-local-result','gestor-clean-local-settings','gestor-program-local-inventory','gestor-devices','gestor-device-save'],true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['gestor-command-poll','gestor-command-ack','gestor-command-output','gestor-config','gestor-terminal-local-start','gestor-power-authorize','gestor-command-authorize','gestor-remote-authorize','gestor-file-transfer','gestor-file-browser-result','gestor-support-code','gestor-workspace','gestor-program-inventory','gestor-clean-result','gestor-clean-local-result','gestor-general-status','gestor-clean-local-settings','gestor-program-local-inventory','gestor-devices','gestor-device-save'],true)) {
         $raw = file_get_contents('php://input');
         if ($action==='gestor-workspace' && (!is_string($raw)||strlen($raw)>131072)) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
         if ($action!=='gestor-workspace' && (!is_string($raw) || strlen($raw)>(in_array($action,['gestor-program-inventory','gestor-clean-result','gestor-clean-local-result','gestor-clean-local-settings','gestor-program-local-inventory'],true)?6000000:($action==='gestor-file-browser-result'?90000:($action==='gestor-command-poll'?32768:($action==='gestor-command-ack'?16384:8192)))))) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
@@ -422,6 +427,9 @@ try {
         if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
         try {$gestor=arc_gestor_authenticate($pdo,$body);} catch (RuntimeException $e) {if($e->getCode()===403)arc_json(['ok'=>false,'error'=>'Gestor sem autorização'],403);throw $e;}
         $gestorId=(int)$gestor['id'];
+        if($action==='gestor-general-status'){
+            $q=$pdo->prepare('SELECT status FROM '.arc_table('gestor_commands').' WHERE id=? AND gestor_id=? AND network_id=? AND account_id=? AND command_name=\'clean_tool\'');$q->execute([(int)($body['command_id']??0),$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id']]);$status=$q->fetchColumn();if(!$status)arc_json(['ok'=>false,'error'=>'Operação não encontrada'],404);arc_json(['ok'=>true,'status'=>$status]);
+        }
         if($action==='gestor-command-poll'&&in_array($body['desktop_state']??'', ['locked','unlocked'],true)){
             $users=[];foreach(array_slice(is_array($body['windows_users']??null)?$body['windows_users']:[],0,50) as $entry){
                 if(!is_array($entry))continue;$name=(string)($entry['username']??'');$label=(string)($entry['label']??'');
@@ -442,6 +450,7 @@ try {
                 /* O tipo vem do pedido gravado pela plataforma, nunca do corpo enviado pelo gestor. */
                 $requested=json_decode((string)$job['request_text'],true);
                 try{[$kind,$clean]=arc_clean_sanitize_tool_report((string)($requested['tool']??''),$report);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+                if($kind==='general')$clean['commandId']=$id;
                 arc_clean_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$kind,$clean);
             }else{
                 $clean=arc_clean_sanitize_report($report,$job['command_name']==='clean_execute');

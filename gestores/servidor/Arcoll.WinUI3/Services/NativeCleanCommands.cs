@@ -5,6 +5,7 @@ internal static class NativeCleanCommands
 {
     public static async Task<string> RunAsync(string name, JsonElement request, PlatformClient platform, long id, CancellationToken ct)
     {
+        if(name=="clean_tool"&&request.TryGetProperty("tool",out var tool)&&tool.GetString()=="general")return await GeneralRemoteCommands.RunAsync(request,platform,id,ct);
         var mode = name switch { "clean_scan" => "scan", "clean_execute" => "execute", "clean_tool" => "tool", _ => throw new NotSupportedException("Comando Clean inválido.") };
         var report = await CleanEngine.RunAsync(mode, request, platform.Config, null, ct);
         await platform.PostAsync("gestor-clean-result", platform.WithCredentials(("command_id", id), ("report", report)), ct, 40);

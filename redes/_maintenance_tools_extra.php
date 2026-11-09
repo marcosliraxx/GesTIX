@@ -1,5 +1,5 @@
 <?php /* Caminho: redes/_clean_ui_js_extra.php | Telas extras estilo CCleaner (Nuvem, Otimização, Inicialização com 4 abas, Driver Updater).
-   Incluído DENTRO do script de _clean_ui_js.php (mesmo escopo: h, ico, intro, ill, can, startTool, confirmBox, reports, settings...). Somente JavaScript. */ 
+   Incluído DENTRO do script de _maintenance_tools_js.php (mesmo escopo: h, ico, intro, ill, can, startTool, confirmBox, reports, settings...). Somente JavaScript. */
 require_once __DIR__ . '/../includes/error-logging.php';
 ?>
 /* ---------- utilidades das telas extras ---------- */

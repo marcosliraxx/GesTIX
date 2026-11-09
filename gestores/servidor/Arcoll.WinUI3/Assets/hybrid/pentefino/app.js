@@ -1,6 +1,7 @@
 /* Caminho: gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/app.js */
 'use strict';
 (()=>{
+ const document=window.tiPenteDocument||window.document;
  const $=id=>document.getElementById(id),bridge=window.chrome?.webview,modules=[['clean','Arquivos e dados'],['startup','Inicialização'],['registry','Registro'],['updates','Atualizações']],names=Object.fromEntries(modules),kinds={file:'Arquivos elegíveis',cookies:'Domínios de cookies',startup:'Entradas de inicialização',registry:'Referências do registro',info:'Registros informativos',update:'Atualizações','clean-category':'Itens das categorias selecionadas','tool-registry':'Referências selecionadas','startup-entry':'Itens de inicialização','software-update':'Atualizações de software','windows-update':'Atualizações do Windows'};
  let preferencesDraft=null,activeSettings='windows',estimateSeconds=0;
  let state={allowed:false,busy:false,historical:true,settings:{mode:'detailed',modules:modules.map(m=>m[0]),exclusions:[],trustedCookies:[]},report:null,backups:[]},request='',action='',pending=false,stopping=false,started=0,previousReport=null,chosen=new Set(modules.map(m=>m[0])),selected=new Set(),selectionFor='',sortKey='title',ascending=true,scanProgress={},fixProgress={},done=0,shownOutcome='',settingsDirty=false;

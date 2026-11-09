@@ -1,5 +1,5 @@
 <?php
-/* Caminho: redes/_clean_ui.php | Interface única (estilo CCleaner) usada por redes/clean.php (programas integrados).
+/* Caminho: redes/_maintenance_tools.php | Interface única (estilo CCleaner) usada por redes/clean.php (programas integrados).
    Recebe: $ccSections (chaves de seção permitidas), $ccStart (seção inicial), $networkId, $selectedGestorId, $csrf.
    Os dados e o contrato com o gestor (api.php: network-clean-* e network-program-*) não mudam; só a apresentação. */
 declare(strict_types=1);
@@ -131,4 +131,5 @@ $cleanConfig = [
  <div class="cc-content"><div id="cc-banner"></div><div class="cc-view" id="cc-view"></div><div class="cc-status" id="cc-status" role="status" aria-live="polite">Escolha uma ferramenta e clique no botão correspondente para executar a consulta.</div></div>
 </section>
 <dialog class="cc-dlg" id="cc-dlg"><h3 id="cc-dlg-title"></h3><div id="cc-dlg-body"></div><div class="cc-err err" id="cc-dlg-err" style="color:#ffa3a3;min-height:18px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button type="button" class="cc-pill" id="cc-dlg-no">Cancelar</button><button type="button" class="cc-pill blue" id="cc-dlg-yes">Confirmar</button></div></dialog>
-<?php require __DIR__.'/_clean_ui_js.php'; ?>
+<link rel="stylesheet" href="<?=arc_h(arc_workspace_base_url().'assets/gestao/tools.css')?>">
+<?php require __DIR__.'/_maintenance_tools_js.php'; ?>

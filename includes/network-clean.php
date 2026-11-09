@@ -9,6 +9,7 @@
    envia caminhos para exclusão; envia chaves de catálogo e identificadores que o próprio gestor produziu. */
 declare(strict_types=1);
 require_once __DIR__ . '/error-logging.php';
+require_once __DIR__.'/general-analysis.php';
 
 
 /** Máximo de programas por desinstalação (tela, API e gestor usam o mesmo valor). */
@@ -151,7 +152,7 @@ function arc_clean_registry_checks(): array
 /** Ferramentas servidas por clean_tool e suas ações. */
 function arc_clean_tools(): array
 {
-    return ['registry' => ['scan', 'fix', 'restore'], 'startup' => ['list', 'apply'], 'disk' => ['scan'], 'duplicates' => ['scan', 'delete'],
+    return ['general'=>['scan','fix'],'registry' => ['scan', 'fix', 'restore'], 'startup' => ['list', 'apply'], 'disk' => ['scan'], 'duplicates' => ['scan', 'delete'],
             'restore' => ['list', 'create'], 'updater' => ['list', 'apply'], 'health' => ['scan'],
             'performance' => ['list', 'suspend', 'resume'], 'drivers' => ['scan', 'install'], 'cloud' => ['scan', 'delete']];
 }
@@ -209,6 +210,7 @@ function arc_clean_validate_settings(mixed $body): array
         }
         $out[$field] = array_values(array_unique($out[$field]));
     }
+    if(is_array($body)&&array_key_exists('general_preferences',$body))$out['general_preferences']=arc_general_preferences($body['general_preferences']);
     return $out;
 }
 
@@ -230,6 +232,7 @@ function arc_clean_settings_get(PDO $pdo, int $gestorId, int $networkId, int $ac
 
 function arc_clean_settings_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $settings): void
 {
+    if(!array_key_exists('general_preferences',$settings)){$previous=arc_clean_settings_get($pdo,$gestorId,$networkId,$accountId);if(isset($previous['general_preferences']))$settings['general_preferences']=$previous['general_preferences'];}
     $pdo->prepare('INSERT INTO ' . arc_table('clean_settings') . ' (gestor_id,network_id,account_id,settings_json) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),settings_json=VALUES(settings_json)')
         ->execute([$gestorId, $networkId, $accountId, json_encode($settings, JSON_UNESCAPED_UNICODE)]);
 }
@@ -242,6 +245,7 @@ function arc_clean_validate_tool(array $body, ?array $last): array
     $action = (string)($body['action'] ?? '');
     $tools = arc_clean_tools();
     if (!isset($tools[$tool]) || !in_array($action, $tools[$tool], true)) throw new InvalidArgumentException('Operação inválida');
+    if($tool==='general')return arc_general_request($body,$last);
     $payload = ['tool' => $tool, 'action' => $action];
     $known = static function (string $field, array $rows): array {
         $ids = [];
@@ -366,6 +370,7 @@ function arc_clean_sanitize_report(array $report, bool $execute): array
 function arc_clean_sanitize_tool_report(string $tool, array $r): array
 {
     if (!isset(arc_clean_tools()[$tool])) throw new InvalidArgumentException('Ferramenta desconhecida');
+    if($tool==='general')return ['general',arc_general_sanitize_report($r)];
     $rows = static fn(mixed $v, int $max): array => is_array($v) ? array_slice(array_values(array_filter($v, 'is_array')), 0, $max) : [];
     $out = ['tool' => $tool];
     switch ($tool) {
