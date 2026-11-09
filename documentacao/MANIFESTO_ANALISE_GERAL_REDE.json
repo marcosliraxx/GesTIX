@@ -1,0 +1,86 @@
+{
+  "base_commit": "477aea4",
+  "code_commit": "721af93",
+  "version_files_changed": false,
+  "validation": "https://github.com/marcosliraxx/GesTI/actions/runs/42667078828",
+  "package": "ANALISE_GERAL_REDE_EXTRAIR_NA_RAIZ.zip",
+  "sha256": "810517e2c25ddee66f24fe1faa53aa498ad55262c034380076384b3e81cafad5",
+  "files": [
+    {
+      "path": "admin/network-identification-cron.php",
+      "sha256": "e62f13487bcb20d85208f0c1bdfb59d17d8b17d852d572127f897976437d6967"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/app.js",
+      "sha256": "66ad0c00410793e8591be63e69134aba21ef4bfa7635868a9149ab9b54acf431"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/index.html",
+      "sha256": "bb92632764bba63686cbcf15a65a6c3ed42ed050f5e7ed1ddeed5989052fd023"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/pentefino/styles.css",
+      "sha256": "c911848612ba58115b208cc9d604531b44e275f92cc8b52ed01891b752468f29"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Controls/PageLoadingView.cs",
+      "sha256": "b6d384e087fa9d73a5b3cf323c1e276a09e91f77042ff8bd795078c41f8b1bf0"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Workspace.cs",
+      "sha256": "48d72119fd25bac5067b1664c895289197106d714791c04fc1e338a3a5e1a74d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Models/GestorSnapshot.cs",
+      "sha256": "1700c7730fc07491f2f9d0cb3de7ea08707bdba1f9e5a6ea3cd96b506a74def1"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/PenteFinoPage.cs",
+      "sha256": "e9000dead99d21296f6faa48ff4d71e315d2071df6ce1d32ab50908298d501ed"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/GeneralAnalysisEngine.cs",
+      "sha256": "bdd45be0837587994337d98f6455ed1e5b9a8e674ef776f6f7c195968a5157cd"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/GestorRuntime.cs",
+      "sha256": "2c510832379f871617703baf953de2db096991bb50610c4a1982b21cae03f47d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/NetworkEngine.cs",
+      "sha256": "1b5a2d93835acb26cc189bc24ec3a2ba22b95cb60b0ef2d23835ea30f28af448"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/Contracts.cs",
+      "sha256": "dab8b92a56a66452d56d4a401c448f266ed27e30e4d6e4a97bf86c914037e9ba"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/FixEngine.cs",
+      "sha256": "1da3399c9ef2e4da2be373724070333216c2e46679bd048e8e74ea1206814b57"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PenteFino/Presentation.cs",
+      "sha256": "31eab3361cae495f9ef4ab8999672ab26e2a9d0a769d9d9ef6475fdf477290f6"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Worker/clean_worker.py",
+      "sha256": "1d2410335703c85e1f98e50b674e91c27e2f897cb788fdfe15f6ec76421fc755"
+    },
+    {
+      "path": "gestores/windows/arcoll_clean.py",
+      "sha256": "3092711a4bf7c6a1bd9bc42e0eb5b9bdc4aa4e3a5f39b0045da7cb28baa70999"
+    },
+    {
+      "path": "gestores/windows/arcoll_gestor.py",
+      "sha256": "533c63ecad5a04e53f334a1a57d57e3bb72f4aa4d6497240bac9e728612805ce"
+    },
+    {
+      "path": "includes/network-identification.php",
+      "sha256": "9a6929207ade3b4507fe471deebf608d2bd4cce9a1e08d9b13752e71ed54cba1"
+    },
+    {
+      "path": "includes/network-inventory.php",
+      "sha256": "6ef227a052d5afffe214d09dbb85fd01cf385f5a2e96a17ce6b80ee4830b2535"
+    }
+  ]
+}
