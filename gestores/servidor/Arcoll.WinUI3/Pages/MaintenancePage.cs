@@ -14,9 +14,9 @@ namespace Arcoll.WinUI3.Pages;
 public abstract class MaintenancePage : UserControl, IPageDataSource
 {
     public PageDataLoad DataLoad{get;}=new("Clique para consultar os dados desta ferramenta.");
-    public bool CanCancelCollection=>true;public void CancelCollection()=>CancelOperations();
+    private bool _collectionCancelled,_collectionInProgress;public bool CanCancelCollection=>true;public void CancelCollection(){_collectionCancelled=true;CancelOperations();}
     private Func<Task>? _collect;private bool _collectEnabled;
-    public async Task CollectDataAsync(){if(Busy||_dispatching||!Runtime.Allowed)return;Render();if(_collect is null||!_collectEnabled){DataLoad.Wait("Escolha as opções desta ferramenta antes de coletar.");return;}_dispatching=true;DataLoad.Begin("Consultando "+_heading.Text);try{await _collect();if(DataLoad.Current.Phase!=DataLoadPhase.Failed){if(Report.ValueKind==JsonValueKind.Object)DataLoad.Complete();else DataLoad.Fail(string.IsNullOrWhiteSpace(_status.Text)?"A consulta não retornou um relatório. Tente novamente.":_status.Text);}}catch(Exception error){Status(error.Message);DataLoad.Fail(error.Message);}finally{_dispatching=false;Render();}}
+    public async Task CollectDataAsync(){if(Busy||_dispatching||!Runtime.Allowed)return;Render();if(_collect is null||!_collectEnabled){DataLoad.Wait("Escolha as opções desta ferramenta antes de coletar.");return;}_dispatching=true;_collectionInProgress=true;_collectionCancelled=false;DataLoad.Begin("Consultando "+_heading.Text);try{await _collect();if(_collectionCancelled)DataLoad.Fail("Coleta interrompida. Clique para tentar novamente.");if(DataLoad.Current.Phase!=DataLoadPhase.Failed){if(Report.ValueKind==JsonValueKind.Object)DataLoad.Complete();else DataLoad.Fail(string.IsNullOrWhiteSpace(_status.Text)?"A consulta não retornou um relatório. Tente novamente.":_status.Text);}}catch(Exception error){Status(error.Message);DataLoad.Fail(error.Message);}finally{_collectionInProgress=false;_dispatching=false;Render();}}
     protected Button CollectAction(string title,Func<Task> collect,bool enabled=true){_collect=collect;_collectEnabled=enabled;return Action(title,CollectDataAsync,enabled,collection:true);}
     protected readonly GestorRuntime Runtime;
     protected readonly Func<string,string,string,Task<bool>> Confirm;
@@ -195,7 +195,7 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
     }
     protected async Task<bool> RunAsync(string mode,Dictionary<string,object?> payload)
     {
-        if(Busy||!Runtime.Allowed)return false;SyncNotice="";CancellationRequested=false;Busy=true;_operation=new();Status("Preparando operação…");Render();
+        if(Busy||!Runtime.Allowed)return false;if(_collectionInProgress&&_collectionCancelled){DataLoad.Fail("Coleta interrompida antes da análise.");return false;}SyncNotice="";CancellationRequested=false;Busy=true;_operation=new();Status("Preparando operação…");Render();
         try {
             var progress=new Progress<string>(message=>Status(message));
             Report=await CleanEngine.RunAsync(mode,payload,Runtime.Platform.Config,progress,_operation.Token);_collected=DateTime.Now;Selected.Clear();
@@ -210,7 +210,7 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
     }
     protected async Task ExecuteLocalAsync(Func<CancellationToken,Task> action)
     {
-        if(Busy||!Runtime.Allowed)return;Busy=true;_operation=new();Render();
+        if(Busy||!Runtime.Allowed)return;if(_collectionInProgress&&_collectionCancelled){DataLoad.Fail("Coleta interrompida antes da análise.");return;}Busy=true;_operation=new();Render();
         try{await action(_operation.Token);_collected=DateTime.Now;}
         catch(OperationCanceledException){Status("Acompanhamento interrompido. Um instalador oficial já iniciado pode continuar no Windows; verifique antes de repetir.");}
         catch(Exception ex){if(DataLoad.Current.Phase==DataLoadPhase.Loading)DataLoad.Fail("Falha na consulta: "+ex.Message);Status("Falha: "+ex.Message);}
