@@ -154,7 +154,7 @@ def local_adapter_mac(ip):
         return None
 
 
-def netbios_name(ip):
+def netbios_query_name(ip):
     """Consulta de nome somente leitura, limitada à máquina IPv4 privada descoberta."""
     try:
         if not ipaddress.ip_address(ip).is_private:
@@ -214,7 +214,7 @@ def reverse_name(ip):
     try:
         name=socket.gethostbyaddr(ip)[0].split(".")[0]
     except Exception:name=None
-    if not name:name=netbios_name(ip)
+    if not name:name=netbios_query_name(ip)
     if len(NAME_CACHE)>=512:NAME_CACHE.clear()
     NAME_CACHE[ip]=(time.monotonic(),name)
     return name

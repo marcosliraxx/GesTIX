@@ -80,12 +80,14 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
             if(action=="scan"){
                 // A escolha do círculo é parte do próprio comando: evita perder o scan
                 // enquanto uma mensagem separada de preferências ainda é processada.
+                _historical=true;await SyncAnalysisPathsAsync(false);
                 if(_settings.Preferences is null)throw new InvalidDataException("Configure as verificações da análise.");
                 GeneralAnalysisEngine.Validate(_settings.Preferences,CleanEngine.Catalog());
                 _settings=_settings with {Mode="detailed",Modules=GeneralAnalysisEngine.Modules(_settings.Preferences)};store.SaveSettings(_settings);
                 var options=new ScanOptions("detailed",_settings.Modules,_settings.Exclusions,_settings.TrustedCookies);var policy=new PathPolicy(PathPolicy.WindowsRules(options.Mode),options.Exclusions);_settingsHash=ResultsStore.Hash(JsonSerializer.Serialize(_settings));_fix=null;_report=null;
-                var progress=new Progress<ProgressState>(state=>Post(new{type="progress",requestId=operationRequestId,state}));_report=await new ScanOrchestrator(store,new GeneralAnalysisEngine(_runtime.Platform.Config,_settings.Preferences!,_settings.Exclusions).Checkers()).ScanAsync(options,policy,progress,_operation.Token);_historical=_report.Cancelled;_notice=_report.Cancelled?"Análise interrompida; nenhuma correção foi aplicada.":"Análise concluída. Revise e selecione os itens antes de corrigir.";
+                var progress=new Progress<ProgressState>(state=>Post(new{type="progress",requestId=operationRequestId,state}));_report=await new ScanOrchestrator(store,new GeneralAnalysisEngine(_runtime.Platform.Config,_settings.Preferences!,_settings.Exclusions,_settings.CustomFolders).Checkers()).ScanAsync(options,policy,progress,_operation.Token);_historical=_report.Cancelled;_notice=_report.Cancelled?"Análise interrompida; nenhuma correção foi aplicada.":"Análise concluída. Revise e selecione os itens antes de corrigir.";
             }else if(action=="fix"){
+                await SyncAnalysisPathsAsync(true);
                 if(_activeTool is not null)throw new InvalidOperationException("Volte à análise geral antes de corrigir.");
                 if(_report is null||_historical||_report.Cancelled||_settingsHash!=ResultsStore.Hash(JsonSerializer.Serialize(store.LoadSettings())))throw new InvalidOperationException("É necessária uma nova análise com as preferências atuais.");var selectedModules=Strings(body,"modules",5);var ids=Presentation.CorrectionIds(_report,Text(body,"reportId"),selectedModules);var summary=Presentation.Summarize(_report);
                 var description=string.Join("\n",summary.Modules.Where(m=>selectedModules.Contains(m.Id)&&m.Fixable>0).Select(m=>m.Title+": "+m.Fixable+" ajuste(s)"));
@@ -95,7 +97,7 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
 
                 var modulesById=_report.Modules.SelectMany(m=>m.Items.Select(i=>new{ i.Id,Module=m.Id})).DistinctBy(i=>i.Id).ToDictionary(i=>i.Id,i=>i.Module);
                 var fixProgress=new Progress<FixProgressState>(progress=>Post(new{type="fix-progress",requestId=operationRequestId,state=new{progress.Completed,progress.Total,progress.State,progress.Succeeded,progress.Failed,module=progress.Id is not null?modulesById.GetValueOrDefault(progress.Id):null}}));
-                _fix=await Task.Run(()=>new FixEngine(store,new PathPolicy(PathPolicy.WindowsRules(_settings.Mode),_settings.Exclusions),new GeneralAnalysisEngine(_runtime.Platform.Config,_settings.Preferences!,_settings.Exclusions).FixAsync).FixAsync(_report,ids,_operation.Token,fixProgress,decision.RestorePoint));
+                _fix=await Task.Run(()=>new FixEngine(store,new PathPolicy(PathPolicy.WindowsRules(_settings.Mode),_settings.Exclusions),new GeneralAnalysisEngine(_runtime.Platform.Config,_settings.Preferences!,_settings.Exclusions,_settings.CustomFolders).FixAsync).FixAsync(_report,ids,_operation.Token,fixProgress,decision.RestorePoint));
                 _outcome=new{kind="fix",session=_fix.Session,applied=_fix.Results.Where(r=>r.Ok).Sum(r=>_report.Modules.SelectMany(m=>m.Items).First(i=>i.Id==r.Id).Quantity),failed=_fix.Results.Where(r=>!r.Ok).Sum(r=>_report.Modules.SelectMany(m=>m.Items).First(i=>i.Id==r.Id).Quantity),pending=Math.Max(0,selectedQuantity-_fix.Results.Sum(r=>_report.Modules.SelectMany(m=>m.Items).First(i=>i.Id==r.Id).Quantity)),cancelled=_fix.Cancelled,errors=_fix.Results.Where(r=>!r.Ok).Select(r=>r.Message).Distinct().Take(8).ToArray()};_historical=true;_notice=_fix.Cancelled?"Correção interrompida. As etapas já aplicadas permanecem concluídas.":"Correção concluída. Revise o resultado e faça nova análise quando desejar.";
             }else if(action=="undo"){
                 var session=Text(body,"session");if(!Regex.IsMatch(session,"^[a-f0-9]{32}$"))throw new InvalidDataException("Sessão inválida.");if(!await _confirm("Desfazer Pente-Fino","Restaurar as alterações desta sessão? Arquivos/registro alterados posteriormente serão preservados e informados como conflito.","Desfazer")||!_runtime.Allowed)return;var result=await Task.Run(()=>new FixEngine(store,new PathPolicy(PathPolicy.WindowsRules(_settings.Mode),_settings.Exclusions)).UndoAsync(session,_operation.Token));_outcome=new{kind="undo",session,applied=result.Count(r=>r.Ok),failed=result.Count(r=>!r.Ok),pending=0,cancelled=false,errors=result.Where(r=>!r.Ok).Select(r=>r.Message).Distinct().Take(8).ToArray()};_historical=true;_notice=string.Join(" · ",result.Select(x=>(x.Ok?"OK: ":"Conflito/falha: ")+x.Message));
@@ -103,6 +105,13 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
         }catch(OperationCanceledException){_notice="Operação interrompida. Consulte o histórico das etapas concluídas; cancelar não desfaz etapas aplicadas.";_historical=true;}
         catch(Exception error){_notice="Não foi possível concluir: "+error.Message;RuntimeLog.Write("Pente-Fino/"+action+": "+error);}
         finally{_phase="";_operation.Dispose();_operation=null;try{await Task.Run(()=>RefreshLocalSummary(store));}catch(Exception error){_auditOk=false;_notice="O histórico precisa de revisão: "+error.Message;} _busy=false;Publish();}
+    }
+    private async Task SyncAnalysisPathsAsync(bool validateOnly){
+     var response=await _runtime.Platform.PostAsync("gestor-clean-local-settings",_runtime.Platform.WithCredentials(),_operation?.Token??CancellationToken.None,20);var settings=response.GetProperty("settings");
+     var exclusions=Strings(settings,"exclusions",100);var folders=Strings(settings,"custom_folders",20);
+     var combined=_settings.Exclusions.Concat(exclusions).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s=>s,StringComparer.OrdinalIgnoreCase).ToArray();
+     if(validateOnly){if(!combined.SequenceEqual(_settings.Exclusions,StringComparer.OrdinalIgnoreCase)||!folders.SequenceEqual(_settings.CustomFolders??[],StringComparer.OrdinalIgnoreCase))throw new InvalidOperationException("As exclusões ou pastas da plataforma mudaram. Faça uma nova análise.");return;}
+     _settings=_settings with{Exclusions=combined,CustomFolders=folders};Store().SaveSettings(_settings);
     }
     private async Task<(bool Confirmed,bool RestorePoint)> ConfirmCorrectionAsync(int count){
      var restore=new CheckBox{Content="Criar ponto de restauração no Windows",IsChecked=false,FontSize=12,Foreground=_palette.Text};

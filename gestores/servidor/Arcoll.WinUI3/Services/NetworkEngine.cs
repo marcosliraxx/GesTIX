@@ -32,6 +32,8 @@ public static class NetworkEngine
     private static readonly Regex HostRe = new(@"^[A-Za-z0-9._-]{1,253}$", RegexOptions.Compiled);
     private static readonly Regex ArpRe = new(@"(?<ip>\d{1,3}(?:\.\d{1,3}){3})\s+.*?(?<mac>[0-9a-fA-F]{2}(?:[:-][0-9a-fA-F]{2}){5})(?![0-9a-fA-F])", RegexOptions.Compiled);
     private static readonly ConcurrentDictionary<string, (DateTime At, string? Name)> NameCache = new();
+    private static readonly ConcurrentDictionary<string,DateTime> NameProbeCache=new();
+    private static readonly ConcurrentDictionary<string,(DateTime At,int[] Ports)> EvidenceCache=new();
     private static readonly SemaphoreSlim ScanLock = new(1, 1);
     private static (DateTime At, string Ip, IReadOnlyList<DeviceInfo> Rows) _scanCache = (DateTime.MinValue, "", Array.Empty<DeviceInfo>());
 
@@ -266,12 +268,18 @@ public static class NetworkEngine
 
     private static async Task<string?> NetbiosNameAsync(string ip, CancellationToken ct)
     {
-        var output = await RunAsync("nbtstat", "-A " + ip, 3000, ct);
-        foreach (var line in output.Split('\n'))
-        {
-            var m = Regex.Match(line, @"^\s*([^\s<]+)\s+<00>\s+UNIQUE", RegexOptions.IgnoreCase);
-            if (m.Success && m.Groups[1].Value != "__MSBROWSE__") return m.Groups[1].Value.Trim();
-        }
+        NameProbeCache[ip]=DateTime.UtcNow;
+        try{
+            var address=IPAddress.Parse(ip);if(!IsPrivate(address)||!InSubnet(Local(),ip))return null;
+            var query=new byte[50];var transaction=System.Security.Cryptography.RandomNumberGenerator.GetBytes(2);query[0]=transaction[0];query[1]=transaction[1];query[5]=1;query[12]=32;
+            for(var i=0;i<16;i++){var value=i==0?(byte)'*':(byte)0;query[13+i*2]=(byte)(65+(value>>4));query[14+i*2]=(byte)(65+(value&15));}query[47]=0x21;query[49]=1;
+            using var udp=new UdpClient(AddressFamily.InterNetwork);using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);timeout.CancelAfter(600);await udp.SendAsync(query,new IPEndPoint(address,137),timeout.Token);var reply=await udp.ReceiveAsync(timeout.Token);var data=reply.Buffer;
+            if(!reply.RemoteEndPoint.Address.Equals(address)||data.Length<31||data[0]!=query[0]||data[1]!=query[1])return null;
+            var pos=12;int Read16(int at)=>at+1<data.Length?(data[at]<<8)|data[at+1]:throw new InvalidDataException("Resposta incompleta.");
+            void SkipName(){for(var n=0;n<64;n++){if(pos>=data.Length)throw new InvalidDataException("Nome incompleto.");var length=data[pos++];if((length&0xc0)==0xc0){pos++;return;}if(length==0)return;pos+=length;}throw new InvalidDataException("Nome inválido.");}
+            var questions=Read16(4);if(questions>4)return null;for(var i=0;i<questions;i++){SkipName();pos+=4;}SkipName();if(Read16(pos)!=0x21||pos+10>=data.Length)return null;pos+=10;var count=data[pos++];
+            for(var i=0;i<Math.Min((int)count,100)&&pos+18<=data.Length;i++,pos+=18){if(data[pos+15]!=0||(Read16(pos+16)&0x8000)!=0)continue;var name=Encoding.ASCII.GetString(data,pos,15).Trim();if(Regex.IsMatch(name,@"^[A-Za-z0-9_.-]{1,15}$")&&name!="__MSBROWSE__")return name;}
+        }catch(Exception error)when(error is SocketException or OperationCanceledException or FormatException or InvalidDataException){ct.ThrowIfCancellationRequested();}
         return null;
     }
 
@@ -320,13 +328,13 @@ public static class NetworkEngine
             var names = new ConcurrentDictionary<string, string>();
             using (var gate = new SemaphoreSlim(8))
             {
-                await Task.WhenAll(live.Take(48).Select(async ip =>
+                await Task.WhenAll(live.Take(180).Select(async ip =>
                 {
                     await gate.WaitAsync(ct);
                     try { var n = await ReverseNameAsync(ip, ct); if (!string.IsNullOrWhiteSpace(n)) names[ip] = n!; }
                     finally { gate.Release(); }
                 }));
-                var unknown = live.Where(ip => !names.ContainsKey(ip) && ip != me && ip != gw).Take(16).ToList();
+                var unknown = live.Where(ip => !names.ContainsKey(ip) && ip != me && ip != gw&&(!NameProbeCache.TryGetValue(ip,out var checkedAt)||DateTime.UtcNow-checkedAt>TimeSpan.FromMinutes(10))).Take(24).ToList();
                 await Task.WhenAll(unknown.Select(async ip =>
                 {
                     await gate.WaitAsync(ct);
@@ -335,6 +343,13 @@ public static class NetworkEngine
                 }));
             }
 
+            names[me]=Environment.MachineName;
+            // Sondagens limitadas de portas já suportadas; sem autenticação ou comandos nos equipamentos.
+            using(var gate=new SemaphoreSlim(2)){
+                var targets=live.Where(ip=>ip!=me&&ip!=gw&&arp.TryGetValue(ip,out var mac)&&ValidMac(mac) is not null&&(!EvidenceCache.TryGetValue(mac,out var cached)||DateTime.UtcNow-cached.At>TimeSpan.FromMinutes(10))).Take(8).ToArray();
+                await Task.WhenAll(targets.Select(async ip=>{await gate.WaitAsync(ct);try{var ports=await PortsAsync(ip,ct);EvidenceCache[arp[ip]]=(DateTime.UtcNow,ports.Select(p=>p.Port).ToArray());}catch(Exception error)when(error is SocketException or ArgumentException){ }finally{gate.Release();}}));
+            }
+            if(EvidenceCache.Count>512)EvidenceCache.Clear();if(NameProbeCache.Count>512)NameProbeCache.Clear();
             var rows = new List<DeviceInfo>();
             var seen = new HashSet<string>();
             foreach (var ip in live)
@@ -343,11 +358,12 @@ public static class NetworkEngine
                 if (mac == null && ip == me) mac = LocalAdapterMac(me);
                 if (mac == null || !seen.Add(mac)) continue; // sem identidade permanente ou duplicado por outro IP
                 names.TryGetValue(ip, out var name);
-                var kind = DeviceKind(name, ip, gw, me, Array.Empty<int>());
+                var ports=EvidenceCache.TryGetValue(mac,out var fingerprint)?fingerprint.Ports:Array.Empty<int>();
+                var kind = DeviceKind(name, ip, gw, me, ports);
                 var label = !string.IsNullOrWhiteSpace(name) ? name! : ip == gw ? "Gateway" : ip == me ? "Este computador" : "Dispositivo " + ip[(ip.LastIndexOf('.') + 1)..];
                 var privateMac = (Convert.ToInt32(mac[..2], 16) & 2) != 0;
                 latencies.TryGetValue(ip, out var lat);
-                rows.Add(new DeviceInfo(label, ip, mac, kind, lat, privateMac ? "MAC privado/aleatório típico de celular" : ""));
+                rows.Add(new DeviceInfo(label, ip, mac, kind, lat, privateMac ? "MAC privado/aleatório típico de celular" : "",ports));
             }
             _scanCache = (DateTime.UtcNow, net.Ip, rows);
             return rows;

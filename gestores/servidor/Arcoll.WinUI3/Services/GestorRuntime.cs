@@ -354,7 +354,7 @@ public sealed class GestorRuntime : IDisposable
         {
             ["name"] = d.Name, ["ip"] = d.Ip, ["mac"] = d.Mac, ["type"] = d.Kind, ["status"] = "online", ["group"] = "Rede local",
             ["first_seen"] = now, ["last_seen"] = now, ["last_change"] = now, ["source"] = "Gestor Windows", ["latency_ms"] = d.LatencyMs,
-            ["gestor_installed"] = d.Ip == NetworkEngine.Local().Ip,
+            ["gestor_installed"] = d.Ip == NetworkEngine.Local().Ip, ["open_ports"]=d.OpenPorts??Array.Empty<int>(),
         }).ToList();
         await _platform.SendEventAsync(new Dictionary<string, object?> { ["event"] = "network_scan", ["device_count"] = devices.Count, ["devices"] = devices, ["groups"] = new List<object>() }, ct, 20);
         operation?.Succeed("Inventário sincronizado");

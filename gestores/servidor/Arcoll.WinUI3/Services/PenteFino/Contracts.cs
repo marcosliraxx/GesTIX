@@ -8,7 +8,7 @@ public sealed record ScanReport(string Schema,string Id,DateTimeOffset At,string
 public sealed record ScanOptions(string Mode,string[] Modules,string[] Exclusions,string[] TrustedCookies);
 public sealed record ProgressState(string Module,string State,int Percent,string Message);
 public sealed record FixProgressState(int Completed,int Total,string? Id,string State,Dictionary<string,bool> Outcomes,int Succeeded=0,int Failed=0);
-public sealed record Settings(string Mode,string[] Modules,string[] Exclusions,string[] TrustedCookies,string[] Ignored,AnalysisPreferences? Preferences=null){
+public sealed record Settings(string Mode,string[] Modules,string[] Exclusions,string[] TrustedCookies,string[] Ignored,AnalysisPreferences? Preferences=null,string[]? CustomFolders=null){
     public static Settings Default=>new("quick",["privacy","clean","startup","registry","updates"],[],[],[]);
 }
 public sealed record AnalysisPreferences(string[] Categories,string[] RegistryChecks,string[] StartupKinds,int PeriodDays,bool SoftwareUpdates,bool WindowsUpdates);

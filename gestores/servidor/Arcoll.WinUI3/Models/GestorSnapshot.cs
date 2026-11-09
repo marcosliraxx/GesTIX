@@ -2,7 +2,7 @@
 namespace Arcoll.WinUI3.Models;
 
 public sealed record GestorSnapshot(string Host, string Ip, string Gateway, string Os, string Version, bool Online);
-public sealed record DeviceInfo(string Name, string Ip, string Mac, string Kind, long? LatencyMs, string Detail);
+public sealed record DeviceInfo(string Name, string Ip, string Mac, string Kind, long? LatencyMs, string Detail,int[]? OpenPorts=null);
 public sealed record OpenPort(int Port, string Service);
 
 public static class AppInfo
