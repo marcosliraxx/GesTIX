@@ -1,0 +1,166 @@
+{
+  "version": "5.0.389",
+  "base": "5.0.388",
+  "backup": "bkp_app.digital.log.br_20261109_123552_199642.zip",
+  "code_commit": "2e853e7",
+  "zip": "CARREGAMENTO_TEMAS_5.0.389_EXTRAIR_NA_RAIZ.zip",
+  "sha256": "8251aac310d58f3de5d1bc7646cf477b445a0993138cf257cb6447518bab7fdc",
+  "files": [
+    {
+      "path": "VERSION",
+      "sha256": "3a4b2d86c70c495dfac8f34ffb01d4dcd5771332b614a798b461f99ea100b0bb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/app.js",
+      "sha256": "c89986afc67db2e3a379eba67e0fa24e186f05cfcc845ad8b75aaea2c1481acc"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Assets/hybrid/dashboard/app.js",
+      "sha256": "af90a786adc48d6b67730fcf98c8998d502d4da0b3ef0d83d9a0273a16359b7b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Controls/PageLoadingView.cs",
+      "sha256": "b98fdc18f3e591d14ae772f638cdd5caad12950e52171068c5404fcb783bdf3e"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MINIMUM_RELEASE_VERSION",
+      "sha256": "3a4b2d86c70c495dfac8f34ffb01d4dcd5771332b614a798b461f99ea100b0bb"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Hybrid.cs",
+      "sha256": "3161b865df381a1a2874c85da73f910b761b2441b99e9590249389311a1c5b63"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Update.cs",
+      "sha256": "c0f73731afd0869d55e01f568c60694a8f06fe2313caa4765d6abcd4fbb2d8fd"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.Workspace.cs",
+      "sha256": "0d2fc8067eb726f798ff66f599b980f739592d7515aa45ca2b3b092ef5f5b57e"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.xaml",
+      "sha256": "9553edb6e13c922006e40fadca9909f17e3370f716b51bce6c3fd7ecc9cbd7b6"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/MainWindow.xaml.cs",
+      "sha256": "1e0229d857747ee8a509b2501eb5ea59139ca36dec0e172dae6f90fb09a1f253"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/BackupCenterPage.cs",
+      "sha256": "71b6f21b2a9e9aef067822cee1ebecf6e76d4d73eee1e51e3b841bbeae2b1ed9"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/CleanPage.cs",
+      "sha256": "1ce5c4921b987cd56629e8cc70bed40d271504ac2ce927bc13a18d92d668c221"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/CloudBackupPage.cs",
+      "sha256": "7bf7def5ca7a2455d20cbfeca7998bcd21ce8b04d6db041c0c7bb720b517de9b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/CloudCleanupPage.cs",
+      "sha256": "c74dab333265ec499520ebff4bd16162cda0b7827fcb40c9413ef417813b45f7"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DashboardPage.cs",
+      "sha256": "e81fe9b48f0afe99a63475e4e5cd751979cd035aaaa1084b3328774529844d94"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DevicesPage.cs",
+      "sha256": "c9d7ca49425e5b57ead3462d1250b19e926c16433d5717f374f505b1a3fbb06e"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DiskPage.cs",
+      "sha256": "ab9802f3144ab59cff43a8647047fb9ad4cbfcc5d89c9ed3162b6351fd39bd73"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DriversPage.cs",
+      "sha256": "ebf7761ed1f3caeddb920dbc606b9357290bfc04d1612686b70479d9e346917c"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/DuplicatesPage.cs",
+      "sha256": "199690a1312fad7485db792d0686c925a368fb0c54d97c8966d009a23748c38c"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/FilesPage.cs",
+      "sha256": "ebff7d586ada91f34e08f7f1fb61515c768ec5f4887d4bc48c9de26b5b932038"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/GestorUpdatePage.cs",
+      "sha256": "f6f83004daca1c6537b0fe12b6a4a6d48dad5486a4cbb1b7dfd867c78a13a829"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/HealthPage.cs",
+      "sha256": "dfe02d9eb6ff2aec6f22362f2065039ac61633c2695c95557b83b0106b0c314c"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/MaintenancePage.cs",
+      "sha256": "30f924cbdaee1ddbdd6d319cc9b93b42922f81b9bcadb94cc543922392acd4d2"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/MaintenanceSettingsPage.cs",
+      "sha256": "879421ac3e2dad7dc9d2692781bdde61b6c729dbbcad2f23b15613eac4626b27"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/MapPage.cs",
+      "sha256": "468b78acc78c71ad02cd1da78aae947f9147232ed80feaf0afe498eeca9054f4"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/PenteFinoPage.cs",
+      "sha256": "2bb4c94bcc16aa3b8881cb5284c371a3d4023b312169001987abbd5df5092847"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/PerformancePage.cs",
+      "sha256": "e3e441ca2727d52261fa8473b8608b7a3b46477a105cb10283ae026105dfb4bc"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/ProgramsPage.cs",
+      "sha256": "a32f56be2aebcf00403a7135058cce0fe327282621b899dd4d90a121d60c0050"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/RegistryPage.cs",
+      "sha256": "ae0cdbf5d78cf1227ffd2ed353f6661b4bf96267c62557a3f706885b3d7c191d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/RestorePage.cs",
+      "sha256": "6bdb39a9b106582f80ad8243025f2df1efa3c1067ce9479515af87078dcc555d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/SecurityPage.cs",
+      "sha256": "b30402d49e79cd042976283e9dd69b797bcb18393c290b2c12601bfa4105157b"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/ServerPage.cs",
+      "sha256": "d99201c9c9f640c00a4c1f0506e675077faf424689f8119c9292d4a8edd3c0f4"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/SoftwareUpdatesPage.cs",
+      "sha256": "1c634959729069919b6eef15b5b4c1b63cd2b72a19d3f5ffadc5bd6203057a49"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/SpeedPage.cs",
+      "sha256": "3d6496c9911075bcac0b5734cae348f204daa353e489b4d399ea1ea8cdb7e20d"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/StartupPage.cs",
+      "sha256": "db4a4f1827a98d77ca1a18849ce96b31bdc52a9d51bf95df168ca77f7f6aae83"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/TicketsPage.cs",
+      "sha256": "3d86d351b884fbfe8ca74fd66f06c7b03beccdbd0665c419176b17465ba9a095"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/UninstallPage.cs",
+      "sha256": "83f02eae860eadd9b7b700203898534f68eb1fd62b850566c23d4c34de918e68"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Pages/WindowsUpdatePage.cs",
+      "sha256": "69bbd6e9699cd84ae81342316998fc125727df9dac1ca9ea478092bffc861c64"
+    },
+    {
+      "path": "gestores/servidor/Arcoll.WinUI3/Services/PageDataLoad.cs",
+      "sha256": "e4552dd072defbe656c36736e6dbe966b56a58fddbbc3537ed6abf8a9a8a89bd"
+    }
+  ]
+}

@@ -1,3 +1,9 @@
+# Atualização atual · 5.0.389
+
+[ZIP incremental: carregamento e temas](pacotes/CARREGAMENTO_TEMAS_5.0.389_EXTRAIR_NA_RAIZ.zip). O círculo acompanha o tema administrativo e aguarda a coleta real; na Internet ele inicia o teste. Extraia na raiz do cPanel e atualize o gestor Windows. [Detalhes e validação](documentacao/CARREGAMENTO_5.0.389.md).
+
+---
+
 # Correção atual · 5.0.388
 
 [ZIP incremental: botão Corrigir seleção](pacotes/CORRECAO_BOTAO_PENTE_FINO_5.0.388_CPANEL.zip). Corrige a seleção acima de 20.000 ajustes. Extraia na raiz do cPanel, atualize o gestor e faça nova análise. [Detalhes](documentacao/CORRECAO_PENTE_FINO_5.0.388.md).
