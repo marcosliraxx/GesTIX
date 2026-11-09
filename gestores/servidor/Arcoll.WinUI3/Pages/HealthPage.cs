@@ -66,6 +66,11 @@ public sealed class HealthPage : MaintenancePage
         Text("Os números apresentados são observações do diagnóstico. Nenhuma limpeza é realizada durante a verificação.");
     }
 
+    private Button PrimaryCollectAction(string title,Func<Task> action,bool enabled=true)
+    {
+        var button=CollectAction(title,action,enabled);button.Background=P.Accent;button.BorderBrush=P.Accent;
+        if(button.Content is TextBlock text)text.Foreground=ThemeService.Brush("#ffffff");return button;
+    }
     private Button PrimaryAction(string title,Func<Task> action,bool enabled=true)
     {
         var button=Action(title,action,enabled);button.Background=P.Accent;button.BorderBrush=P.Accent;
