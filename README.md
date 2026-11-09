@@ -1,3 +1,9 @@
+# Entrega atual · Pente-Fino integrado
+
+[Baixar ZIP incremental pronto para extrair na raiz do cPanel](pacotes/PENTE_FINO_CENTRAL_EXTRAIR_NA_RAIZ.zip). Base: anexo de 09/11 às 13:36. Menu lateral interno, ferramentas integradas, círculo ampliado e confirmação com ponto de restauração opcional. Controle automático de versões preservado. [Instalação e validação](documentacao/PENTE_FINO_CENTRAL.md).
+
+---
+
 # Base correta · atualização 5.0.390
 
 Esta entrega usa o backup correto `bkp_app.digital.log.br_20261109_130823_740443.zip`. [Baixe somente os arquivos alterados](pacotes/CARREGAMENTO_TEMAS_5.0.390_EXTRAIR_NA_RAIZ.zip), extraia na raiz do cPanel e atualize o gestor para 5.0.390. Ela substitui o pacote de carregamento 5.0.389 enviado antes da correção do anexo. [Detalhes](documentacao/CARREGAMENTO_5.0.390.md).
