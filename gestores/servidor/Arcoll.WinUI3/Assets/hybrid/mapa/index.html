@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- Caminho: gestores/servidor/Arcoll.WinUI3/Assets/hybrid/mapa/index.html -->
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"><title>Mapa · T.I Digital</title><link rel="stylesheet" href="styles.css"></head>
+<body><div class="map-layout" id="topology">
+<div class="map-toolbar" role="toolbar" aria-label="Controles do Mapa">
+ <div class="map-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5M5 21v-5h14v5M12 8v8M3 21h4M17 21h4M10 3h4v5h-4z"/></svg><div><strong>Mapa da rede</strong><small>Toque em um dispositivo para ver detalhes</small></div></div>
+ <span class="map-count" id="count">0 dispositivos · 0 grupos</span>
+ <button type="button" class="map-action" id="zoom-out" title="Diminuir zoom" aria-label="Diminuir zoom">−</button><span id="zoom-label" class="map-zoom" aria-live="polite">100%</span><button type="button" class="map-action" id="zoom-in" title="Aumentar zoom" aria-label="Aumentar zoom">+</button>
+ <button type="button" class="map-action" id="fullscreen" title="Exibir topologia em tela inteira" aria-label="Tela inteira" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M3 9V3h6m6 0h6v6M3 15v6h6m6 0h6v-6"/></svg></button>
+ <button type="button" class="map-action" id="print" title="Prévia e impressão A4" aria-label="Imprimir mapa"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H3V9h18v9h-3M6 14h12v8H6z"/></svg></button>
+ <button type="button" class="map-action" id="fit-width" title="Centralizar somente na largura" aria-label="Ajustar largura"><svg viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg></button>
+ <button type="button" class="map-action" id="fit-height" title="Centralizar somente na altura" aria-label="Ajustar altura"><svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/></svg></button>
+ <button type="button" class="map-action" id="fit-all" title="Centralizar e ajustar toda a topologia" aria-label="Ajustar tudo"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 .01 0M12 8a4 4 0 1 0 .01 0M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
+ <button type="button" class="map-settings" id="settings" aria-label="Configurações e atividades" title="Configurações e atividades" aria-expanded="false" aria-controls="center"><svg viewBox="0 0 24 24"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6l1.4 1.4m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8"/></svg></button>
+</div>
+<div class="map-body">
+ <div class="map-main"><div class="map-canvas" id="canvas"><svg class="map-lines" id="lines" aria-hidden="true"><defs><linearGradient id="topo-line" x1="0%" x2="100%"><stop offset="0%" stop-color="#31bcea"/><stop offset="100%" stop-color="#4dd6b2"/></linearGradient></defs><g id="paths"></g></svg><div class="map-content" id="content"><div class="map-branches" id="branches"></div><div class="map-empty" id="empty" hidden><strong>Nenhum dispositivo no inventário</strong><span>Toque na rede para procurar equipamentos.</span></div></div></div>
+ <div class="map-legend"><span><i class="dot online"></i> Online</span><span><i class="dot offline"></i> Offline</span><span><svg viewBox="0 0 24 24" class="cube"><path d="M12 2l9 5v10l-9 5-9-5V7zM12 12l9-5M12 12v10M12 12L3 7"/></svg> Gestor instalado</span><small id="message" role="status"></small></div></div>
+ <aside id="center" class="map-center" hidden aria-label="Central do Mapa"><header><strong>Mapa</strong><button type="button" id="center-close" aria-label="Fechar">×</button></header>
+  <nav><button type="button" data-tab="activities" aria-selected="true">Atividades</button><button type="button" data-tab="settings" aria-selected="false">Configurações</button></nav>
+  <section data-view="activities"><ol id="activities"></ol></section>
+  <section data-view="settings" hidden><label>Organizar por<select id="mode" aria-label="Organização do mapa"><option value="group">Grupos / setores</option><option value="type">Tipos de equipamentos</option><option value="infrastructure">Infraestrutura detectada</option></select></label><label class="inline"><input type="checkbox" id="touch-edit"> Mover equipamentos com toque</label><p>O desenho organiza os equipamentos encontrados. Linhas tracejadas indicam ligações ainda não confirmadas. Arraste um equipamento sobre outro grupo para movê-lo.</p><button type="button" id="reset">Restaurar organização</button></section>
+ </aside>
+</div></div><script src="app.js"></script></body></html>

@@ -3,6 +3,7 @@ using System.Text;
 using Arcoll.WinUI3.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Media;
 
 namespace Arcoll.WinUI3.Pages;
@@ -27,7 +28,11 @@ public sealed class DevicesPage : UserControl, IPageDataSource
     private string _search = "", _status = "all", _type = "all", _group = "all", _sortKey = "name"; private int _sortDir = 1;
     private bool _busy, _loaded;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(20) };
-    private readonly StackPanel _root = new() { Spacing = 12 };
+    private readonly Grid _root = new();
+    private readonly Grid _shell = new();
+    private readonly Border _center = new() { Width = 255, Visibility = Visibility.Collapsed };
+    private readonly Button _settings = new() { Content = new SymbolIcon(Symbol.Setting), MinWidth = 33, MinHeight = 33, Padding = new Thickness(5) };
+    private readonly TextBlock _centerActivity = new() { Text = "Aguardando consulta de dispositivos", TextWrapping = TextWrapping.Wrap };
     private readonly Border _tableHost = new(), _bulkHost = new();
     private readonly TextBlock _summary = new(), _feedback = new();
     private readonly Button _scan = new() { Content = "Atualizar varredura" };
@@ -40,28 +45,59 @@ public sealed class DevicesPage : UserControl, IPageDataSource
         var filters = new Button { Content = "Filtros" }; filters.Click += async (_, _) => await FiltersAsync();
         var export = new Button { Content = "Baixar lista" }; export.Click += async (_, _) => await ExportAsync();
         _scan.Click += async (_, _) => await ScanAsync();
-        var bar = new Grid { ColumnSpacing = 8 };
+        var bar = new Grid { ColumnSpacing = 6, MinHeight = 46, Padding = new Thickness(10, 6, 10, 6), Background = ThemeService.Brush("#1e2c3e"), BorderBrush = ThemeService.Brush("#394658"), BorderThickness = new Thickness(0, 0, 0, 1) };
         bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        for (var i = 0; i < 3; i++) bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        bar.Children.Add(search); Grid.SetColumn(filters, 1); bar.Children.Add(filters); Grid.SetColumn(export, 2); bar.Children.Add(export); Grid.SetColumn(_scan, 3); bar.Children.Add(_scan);
+        for (var i = 0; i < 4; i++) bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bar.Children.Add(search); Grid.SetColumn(filters, 1); bar.Children.Add(filters); Grid.SetColumn(export, 2); bar.Children.Add(export); Grid.SetColumn(_scan, 3); bar.Children.Add(_scan); Grid.SetColumn(_settings, 4); bar.Children.Add(_settings);
         bar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); bar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         SizeChanged += (_, e) => {
-            var compact = e.NewSize.Width < 700;
-            Grid.SetColumnSpan(search, compact ? 4 : 1);
-            Grid.SetRow(filters, compact ? 1 : 0); Grid.SetRow(export, compact ? 1 : 0); Grid.SetRow(_scan, compact ? 1 : 0);
-            Grid.SetColumn(filters, compact ? 0 : 1); Grid.SetColumn(export, compact ? 1 : 2); Grid.SetColumn(_scan, compact ? 2 : 3);
+            var compact = e.NewSize.Width < 540;
+            Grid.SetColumnSpan(search, compact ? 5 : 1);
+            Grid.SetRow(filters, compact ? 1 : 0); Grid.SetRow(export, compact ? 1 : 0); Grid.SetRow(_scan, compact ? 1 : 0); Grid.SetRow(_settings, compact ? 1 : 0);
+            Grid.SetColumn(filters, compact ? 0 : 1); Grid.SetColumn(export, compact ? 1 : 2); Grid.SetColumn(_scan, compact ? 2 : 3); Grid.SetColumn(_settings, compact ? 3 : 4);
         };
-        _root.Children.Add(bar); _root.Children.Add(_summary); _root.Children.Add(_bulkHost); _root.Children.Add(_tableHost); _root.Children.Add(_feedback);
-        Content = _root;
+        // Barra e rodapé ocupam a altura necessária; a tabela ocupa o restante e rola dentro dela.
+        for (var row = 0; row < 5; row++) _root.RowDefinitions.Add(new RowDefinition { Height = row == 3 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
+        _summary.Margin = new Thickness(10, 6, 10, 2); _bulkHost.Margin = new Thickness(10, 0, 10, 0); _tableHost.Margin = new Thickness(10, 4, 10, 6); _feedback.Margin = new Thickness(10, 0, 10, 6);
+        var rowIndex = 0; foreach (var part in new FrameworkElement[] { bar, _summary, _bulkHost, _tableHost, _feedback }) { Grid.SetRow(part, rowIndex++); _root.Children.Add(part); }
+        _shell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _shell.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _shell.Children.Add(_root); Grid.SetColumn(_center, 1); _shell.Children.Add(_center);
+        Content = _shell;
+        AutomationProperties.SetName(_settings, "Atividades e Configurações de Dispositivos");
+        _settings.Click += (_,_) => _center.Visibility = _center.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        SetupCenter();
         _timer.Tick += async (_, _) => await LoadAsync();
         Loaded += async (_, _) => { try { _timer.Start(); await LoadAsync(); } catch (Exception ex) { RuntimeLog.Write("Dispositivos/Loaded: " + ex); _timer.Stop(); } };
         Unloaded += (_, _) => _timer.Stop();
         Render();
     }
 
+    private void SetupCenter()
+    {
+        _center.Background = ThemeService.Brush("#172536");
+        _center.BorderBrush = ThemeService.Brush("#394658"); _center.BorderThickness = new Thickness(1, 0, 0, 0);
+        var stack = new StackPanel { Spacing = 9, Padding = new Thickness(11) };
+        var header = new Grid(); header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.Children.Add(new TextBlock { Text = "Central dos Dispositivos", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        var close = new Button { Content = "×", MinWidth = 27, MinHeight = 27, Padding = new Thickness(4) };
+        close.Click += (_,_) => _center.Visibility = Visibility.Collapsed; Grid.SetColumn(close, 1); header.Children.Add(close); stack.Children.Add(header);
+        var tabs = new Grid { ColumnSpacing = 5 };tabs.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });tabs.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var activities = new Button { Content = "Atividades", HorizontalAlignment = HorizontalAlignment.Stretch };
+        var settings = new Button { Content = "Configurações", HorizontalAlignment = HorizontalAlignment.Stretch };
+        tabs.Children.Add(activities); Grid.SetColumn(settings, 1); tabs.Children.Add(settings); stack.Children.Add(tabs);
+        var eventView = new StackPanel { Spacing = 8 };eventView.Children.Add(_centerActivity);
+        var settingsView = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
+        settingsView.Children.Add(new TextBlock { Text = "A consulta utiliza o inventário autorizado e as preferências administrativas da plataforma.", TextWrapping = TextWrapping.Wrap });
+        var refresh = new Button { Content = "Atualizar inventário" };refresh.Click += async (_,_) => await LoadAsync(); settingsView.Children.Add(refresh);
+        activities.Click += (_,_) => { eventView.Visibility = Visibility.Visible; settingsView.Visibility = Visibility.Collapsed; };
+        settings.Click += (_,_) => { eventView.Visibility = Visibility.Collapsed; settingsView.Visibility = Visibility.Visible; };
+        stack.Children.Add(eventView); stack.Children.Add(settingsView); _center.Child = stack;
+    }
+
     public void ApplyPalette(Palette p) { _p = p; Render(); }
 
-    private void Say(string text) { _feedback.Text = text; _feedback.Foreground = _p.Muted; _notify(text); }
+    private void Say(string text) { _centerActivity.Text = text; _feedback.Text = text; _feedback.Foreground = _p.Muted; _notify(text); }
 
     private async Task LoadAsync()
     {
@@ -158,7 +194,7 @@ public sealed class DevicesPage : UserControl, IPageDataSource
         }
         if (_loaded && rows.Count == 0) table.Children.Add(new Border { Padding = new Thickness(12), Child = Ui.Label("Nenhum dispositivo corresponde aos filtros selecionados.", _p.Muted, 12) });
         // A tabela diminui para caber na largura disponível (sem barra de rolagem horizontal).
-        _tableHost.Child = Ui.Card(new ScrollViewer { Content = new Viewbox { Child = table, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top }, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden }, _p, 6);
+        _tableHost.Child = Ui.Card(new ScrollViewer { Content = new Viewbox { Child = table, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top }, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, _p, 6);
     }
 
     private static Grid RowGrid()

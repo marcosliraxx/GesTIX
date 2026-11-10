@@ -142,10 +142,22 @@ $initial = [
 
 require __DIR__.'/_topo.php';
 ?>
+<div class="arc-speed-shell" id="arc-speed-shell">
+ <div class="arc-speed-toolbar" role="toolbar" aria-label="Controles da Internet">
+  <span class="arc-standard-search-icon" aria-hidden="true">⌁</span>
+  <div class="arc-speed-flags" role="group" aria-label="Medições exibidas">
+   <label><input type="checkbox" data-speed-metric="upload" checked> Upload</label>
+   <label><input type="checkbox" data-speed-metric="download" checked> Download</label>
+   <label><input type="checkbox" data-speed-metric="latency" checked> Latência</label>
+   <label><input type="checkbox" data-speed-metric="loss" checked> Perdas</label>
+   <label><input type="checkbox" data-speed-metric="provider" checked> Provedor</label>
+  </div>
+ </div>
+ <div class="arc-speed-content">
 <section class="arc-speed-view" aria-label="Velocidade e mapa de conexão">
  <div class="arc-speed-launch" id="arc-speed-launch">
-  <button class="arc-speed-start" id="arc-speed-start" type="button" aria-label="Iniciar medição real no gestor" aria-busy="false"><span id="arc-speed-text">START</span><small id="arc-speed-gauge">INICIAR MEDIÇÃO</small></button>
-  <div class="arc-speed-caption" id="arc-speed-caption" role="status" aria-live="polite"></div>
+  <button class="arc-speed-start" id="arc-speed-start" type="button" aria-label="Iniciar medição real no gestor" aria-busy="false"><span class="arc-speed-eyebrow">COLETA DE DADOS</span><span id="arc-speed-text">COLETAR</span><small id="arc-speed-gauge">SOLICITAR · COLETAR · EXIBIR</small></button>
+  <div class="arc-speed-caption" id="arc-speed-caption" role="status" aria-live="polite">Clique para medir a conexão deste computador.</div>
   <div class="arc-speed-progress" role="progressbar" aria-label="Progresso do teste" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="arc-speed-progress" hidden><span id="arc-speed-bar"></span></div>
  </div>
  <div class="arc-speed-dashboard" id="arc-speed-dashboard" hidden>
@@ -254,8 +266,10 @@ require __DIR__.'/_topo.php';
   }
 }
 
-/* Diagnóstico avançado: componentes isolados do tema global */
-.arc-speed-quality{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:15px}
+/* Diagnóstico avançado: componentes isolados do tema global.
+ * grid-column:1/-1 garante que, se o painel acabar dentro do grid de
+ * resultados, ele ocupe a linha inteira em vez de uma célula estreita. */
+.arc-speed-quality{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
 .arc-speed-quality-card{position:relative;overflow:hidden;background:linear-gradient(145deg,var(--surface-alt),var(--surface));border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:inset 0 1px #ffffff12;transition:transform .22s,border-color .22s}
 .arc-speed-quality-card:hover{transform:translateY(-2px);border-color:var(--primary)}
 .arc-speed-quality-card small{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}
@@ -497,16 +511,35 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{if(map){map.inva
 </div>
  </div>
 </section>
+ </div>
+</div>
 <script>
 (()=>{'use strict';
+ document.querySelectorAll('.arc-speed-flags [data-speed-metric]').forEach(input=>input.addEventListener('change',()=>{
+  const metric=input.dataset.speedMetric;
+  const card=({upload:'arc-speed-up',download:'arc-speed-down',latency:'arc-speed-ping',loss:'arc-speed-loss'})[metric];
+  if(card){const node=document.getElementById(card)?.closest('.arc-speed-result');if(node)node.hidden=!input.checked;}
+  if(metric==='provider')document.querySelector('.arc-speed-map-pane')?.toggleAttribute('hidden',!input.checked);
+ }));
  const base=<?=json_encode(arc_workspace_base_url())?>,network=<?= (int)$networkId ?>,csrf=<?=json_encode($csrf)?>;
  const get=id=>document.getElementById(id), start=get('arc-speed-start'),target=get('arc-gestor-target'),caption=get('arc-speed-caption'),text=get('arc-speed-text'),gauge=get('arc-speed-gauge'),progress=get('arc-speed-progress'),bar=get('arc-speed-bar'),results=get('arc-speed-results'),dashboard=get('arc-speed-dashboard'),launch=get('arc-speed-launch');
  let commandId=0,diagnosticCommandId=0,diagnosticBaselineId=0,measurement=null,diagnosticRequestError='',busy=false,startedAt=0,baseline='',timer=null,activeGestor='';const showOnLoad=new URLSearchParams(location.search).get('show_result')==='1';
+ const activeKey=()=> 'arc-speed-running-'+network+'-'+target.value;
  const numeral=x=>x===null||x===undefined||!Number.isFinite(Number(x))?'--':Number(x).toFixed(2);
  function percent(x){const n=Math.min(100,Math.max(0,Number(x)||0));progress.setAttribute('aria-valuenow',String(Math.round(n)));bar.style.width=n+'%'}
  function setBusy(v){busy=v;start.disabled=v;start.setAttribute('aria-busy',String(v));if(!v){text.textContent='START';gauge.textContent='INICIAR MEDIÇÃO'}}
  async function json(url,opts){const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...opts});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Erro de comunicação com o servidor');return j}
- function display(d){dashboard.hidden=false;launch.hidden=true;get('arc-speed-down').textContent=numeral(d.download_mbps);get('arc-speed-up').textContent=numeral(d.upload_mbps);get('arc-speed-ping').textContent=numeral(d.latency_ms);const loss=d.packet_loss_pct??d.loss_pct??d.packet_loss_percent;get('arc-speed-loss').textContent=loss==null?'Não aferido':numeral(loss);get('arc-speed-loss-unit').textContent=loss==null?'Sem dado do gestor':'%';let extra=get('arc-speed-quality');if(!extra){extra=document.createElement('div');extra.id='arc-speed-quality';extra.className='arc-speed-quality';results.append(extra)}if(extra){const vals=[['Jitter HTTP',d.jitter_ms,'ms'],['Latência sob download',d.loaded_download_ms,'ms'],['Latência sob upload',d.loaded_upload_ms,'ms']];extra.replaceChildren();for(const [name,value,unit] of vals){const card=document.createElement('div');card.className='arc-speed-quality-card';const title=document.createElement('small');title.textContent=name;const number=document.createElement('strong');number.textContent=value==null?'Não aferido':numeral(value)+' '+unit;card.append(title,number);extra.append(card)}const note=document.createElement('p');note.className='arc-speed-quality-note';note.textContent='Medição HTTP/TLS realizada no gestor Windows, com fluxos paralelos e limite de tráfego. Latência com carga é estimada durante a transferência. O resultado varia conforme o servidor de teste e a conexão.';extra.append(note)}}
+ function display(d){dashboard.hidden=false;launch.hidden=true;get('arc-speed-down').textContent=numeral(d.download_mbps);get('arc-speed-up').textContent=numeral(d.upload_mbps);get('arc-speed-ping').textContent=numeral(d.latency_ms);const loss=d.packet_loss_pct??d.loss_pct??d.packet_loss_percent;get('arc-speed-loss').textContent=loss==null?'Não aferido':numeral(loss);get('arc-speed-loss-unit').textContent=loss==null?'Sem dado do gestor':'%';
+  // Painel de qualidade inserido FORA do grid de resultados (entre os cards e a nota),
+  // para não ficar espremido numa única célula do grid.
+  const measures=results.parentElement;
+  let extra=get('arc-speed-quality');
+  if(!extra){extra=document.createElement('div');extra.id='arc-speed-quality';extra.className='arc-speed-quality';measures.insertBefore(extra,get('arc-speed-note'))}
+  const vals=[['Jitter HTTP',d.jitter_ms,'ms'],['Latência sob download',d.loaded_download_ms,'ms'],['Latência sob upload',d.loaded_upload_ms,'ms']];
+  extra.replaceChildren();
+  for(const [name,value,unit] of vals){const card=document.createElement('div');card.className='arc-speed-quality-card';const title=document.createElement('small');title.textContent=name;const number=document.createElement('strong');number.textContent=value==null?'Não aferido':numeral(value)+' '+unit;card.append(title,number);extra.append(card)}
+  const note=document.createElement('p');note.className='arc-speed-quality-note';note.textContent='Medição HTTP/TLS realizada no gestor Windows, com fluxos paralelos e limite de tráfego. Latência com carga é estimada durante a transferência. O resultado varia conforme o servidor de teste e a conexão.';extra.append(note);
+ }
  function stamp(x){return x?String(x.time||'')+':'+String(x.data?.command_id||''):''}
  async function check(){
   if(!target.value)return;
@@ -523,7 +556,7 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{if(map){map.inva
      const d=progressData.data||{}; percent(d.percent);caption.textContent=d.message||'Medição em andamento no gestor Windows';gauge.textContent=Math.round(Number(d.percent)||0)+'%';
      // Resultados exibidos juntos somente após a conclusão da medição.
     }
-    if(mine && mine.status==='failed'){setBusy(false);caption.textContent='Teste interrompido: '+(mine.result_text||'falha no gestor');return}
+    if(mine && mine.status==='failed'){try{localStorage.removeItem(activeKey())}catch(e){}setBusy(false);caption.textContent='Teste interrompido: '+(mine.result_text||'falha no gestor');return}
     if(mine && mine.status==='completed' && !measurement && feed.result && Number(feed.result.data?.command_id)===commandId){
       measurement=feed.result.data;
       percent(100);
@@ -534,13 +567,14 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{if(map){map.inva
       const diagFailed=!!diagnosticRequestError || (diagCmd && ['failed','expired','cancelled'].includes(diagCmd.status));
       const diagnosticTimeOut=Date.now()-startedAt>150000;
       if(arrived || diagFailed || diagnosticTimeOut){
+        try{localStorage.removeItem(activeKey())}catch(e){}
         setBusy(false);
         sessionStorage.setItem('arc-speed-complete-'+network+'-'+target.value,JSON.stringify({commandId,data:measurement,diagnosticReady:arrived,diagnosticError:diagFailed?(diagnosticRequestError||diagCmd?.result_text||'O gestor não conseguiu concluir o diagnóstico'):diagnosticTimeOut?'O diagnóstico não foi recebido dentro do prazo':null}));
         location.assign(location.pathname+'?network='+network+'&gestor='+encodeURIComponent(target.value)+'&show_result=1');return;
       }
       caption.textContent='Velocidade medida. Aguardando dados reais da conexão do gestor…';
     }
-    if(Date.now()-startedAt>150000 && !measurement){setBusy(false);caption.textContent='Tempo limite do teste de velocidade. Confira a conexão do gestor.'}
+    if(Date.now()-startedAt>150000 && !measurement){try{localStorage.removeItem(activeKey())}catch(e){}setBusy(false);caption.textContent='Tempo limite do teste de velocidade. Confira a conexão do gestor.'}
    }
   }catch(e){if(busy)caption.textContent='Aguardando comunicação: '+e.message}
  }
@@ -553,11 +587,31 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{if(map){map.inva
    // O diagnóstico aproveita o comando nativo do gestor e não substitui a medição real.
    try{const diagResponse=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(target.value),command:'diagnostic',_csrf:csrf})});diagnosticCommandId=Number(diagResponse.command_id||0)}catch(err){diagnosticRequestError=err.message;console.warn('Diagnóstico não disponibilizado:',err.message)}
    const j=await json(base+'api/api.php?action=network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:Number(target.value),command:'speed_test',_csrf:csrf})});
-   commandId=Number(j.command_id);caption.textContent='Comando enviado. Aguardando o gestor iniciar…';
+   commandId=Number(j.command_id);try{localStorage.setItem(activeKey(),JSON.stringify({commandId,diagnosticCommandId,diagnosticBaselineId,startedAt,baseline}))}catch(e){}caption.textContent='Comando enviado. Aguardando o gestor iniciar…';
   }catch(e){setBusy(false);caption.textContent=e.message}
  });
- if(showOnLoad&&target.value){try{const saved=JSON.parse(sessionStorage.getItem('arc-speed-complete-'+network+'-'+target.value)||'null');if(saved?.data){display(saved.data);window.dispatchEvent(new Event('resize'));get('arc-speed-note').textContent=saved.diagnosticReady?'Medição real concluída e diagnóstico da conexão sincronizado.':('Medição de velocidade concluída. '+(saved.diagnosticError||'Não foi possível atualizar o diagnóstico; os dados do mapa podem estar desatualizados.'));}}catch(e){}}
- get('arc-speed-repeat').addEventListener('click',()=>{dashboard.hidden=true;launch.hidden=false;get('arc-speed-progress').hidden=true;commandId=0;caption.textContent='';});
+ if(target.value){
+  try{
+   const running=JSON.parse(localStorage.getItem(activeKey())||'null');
+   if(running && Date.now()-Number(running.startedAt)<180000 && Number(running.commandId)>0){
+     commandId=Number(running.commandId);diagnosticCommandId=Number(running.diagnosticCommandId)||0;
+     diagnosticBaselineId=Number(running.diagnosticBaselineId)||0;startedAt=Number(running.startedAt);baseline=String(running.baseline||'');activeGestor=target.value;
+     setBusy(true);get('arc-speed-progress').hidden=false;dashboard.hidden=true;launch.hidden=false;caption.textContent='Retomando acompanhamento do teste em andamento…';check();
+   }else{
+     if(running)localStorage.removeItem(activeKey());
+     const saved=JSON.parse(sessionStorage.getItem('arc-speed-complete-'+network+'-'+target.value)||'null');
+     if(saved?.data){display(saved.data);get('arc-speed-note').textContent=saved.diagnosticReady?'Medição real concluída e diagnóstico da conexão sincronizado.':('Medição concluída. '+(saved.diagnosticError||''));}
+     else {
+       // A última medição válida está no servidor e sobrevive à navegação,
+       // ao encerramento do navegador e à perda do armazenamento local.
+       json(location.pathname+'?network='+network+'&gestor='+encodeURIComponent(target.value)+'&speed_feed=1')
+        .then(feed=>{if(!busy && feed.result?.data && Number(feed.result.data.download_mbps)>=0){display(feed.result.data);get('arc-speed-note').textContent='Última medição confirmada pelo AGestor. Use Novo teste para atualizar.';}})
+        .catch(()=>{});
+     }
+   }
+  }catch(e){console.warn('Não foi possível restaurar a medição:',e)}
+ }
+ get('arc-speed-repeat').addEventListener('click',()=>{try{localStorage.removeItem(activeKey())}catch(e){}dashboard.hidden=true;launch.hidden=false;get('arc-speed-progress').hidden=true;commandId=0;caption.textContent='';});
  timer=setInterval(()=>{if(!document.hidden && busy && target.value && activeGestor===target.value)check()},2000);
 })();
 </script>

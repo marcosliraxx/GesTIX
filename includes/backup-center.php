@@ -1,6 +1,6 @@
 <?php
 /* Caminho: includes/backup-center.php */
-/* Central de Backup: catálogo versionado separado do Clean. Tokens continuam no adaptador de nuvem existente. */
+/* Central de Backup: catálogo versionado separado do Pente-Fino. Tokens continuam no adaptador de nuvem existente. */
 declare(strict_types=1);
 require_once __DIR__ . '/error-logging.php';
 

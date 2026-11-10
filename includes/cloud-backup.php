@@ -1,6 +1,6 @@
 <?php
 /* Caminho: includes/cloud-backup.php
-   Backup em Nuvem (Gestão de Redes > Clean > Backup em Nuvem).
+   Backup em Nuvem (Gestão de Redes > Backup em Nuvem).
 
    Princípios:
    - Nenhum arquivo do usuário é gravado na plataforma: os blocos enviados pelo gestor são repassados ao provedor em memória
@@ -1001,14 +1001,14 @@ function arc_cloud_validate_url(string $url): array
     return [$host,$addresses];
 }
 
-/** Controle de acesso único: mesmo papel e direito Clean da página original. */
+/** Controle de acesso único: mesmo papel e direito do Pente-Fino/Backup da página original. */
 function arc_cloud_access(PDO $pdo,int $network,int $user): array
 {
     $q=$pdo->prepare('SELECT account_status FROM '.arc_table('user_accounts').' WHERE id=?');$q->execute([$user]);
     $access=arc_network_team_access($pdo,$network,$user);
     if ($q->fetchColumn()!=='active' || !$access || !in_array($access['role'],['owner','administrator'],true)) throw new RuntimeException('Acesso de gestão necessário.',403);
     $rights=arc_network_profile_rights($pdo,$network,$user);
-    if ($access['role']!=='owner' && $rights!==null && !in_array('clean',$rights,true)&&!in_array('backup',$rights,true)) throw new RuntimeException('Perfil sem permissão Clean.',403);
+    if ($access['role']!=='owner' && $rights!==null && !in_array('pentefino',$rights,true)&&!in_array('backup',$rights,true)) throw new RuntimeException('Perfil sem permissão do Pente-Fino.',403);
     $q=$pdo->prepare('SELECT id FROM '.arc_table('managed_networks').' WHERE id=? AND account_id=? AND is_active=1');$q->execute([$network,$access['account_id']]);
     if (!$q->fetchColumn()) throw new RuntimeException('Rede indisponível.',403);
     arc_billing_assert_active($pdo,(int)$access['account_id']);

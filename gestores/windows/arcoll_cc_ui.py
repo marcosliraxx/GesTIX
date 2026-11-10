@@ -1,11 +1,11 @@
 # Caminho: gestores/windows/arcoll_cc_ui.py
-"""Telas Programas e Clean do gestor Windows, no mesmo estilo/estrutura da plataforma (redes/_clean_ui.php) e do CCleaner.
+"""Telas Programas e Pente-Fino do gestor Windows, no mesmo estilo/estrutura da plataforma (redes/_pentefino_ui.php).
 
 Sincronia com a plataforma:
-  * Execuções feitas aqui são enviadas à plataforma (cc_push_tool / cc_push_clean / cc_push_programs em arcoll_app.py) e
-    aparecem na página Clean/Programas sem recarregar.
-  * Execuções pedidas pela plataforma chamam CleanerFrame.receive() (via arcoll_app.cc_notify) e esta tela é atualizada.
-Os dados vêm de arcoll_clean e arcoll_programs (mesmas funções usadas pelos comandos remotos)."""
+  * Execuções feitas aqui são enviadas à plataforma (cc_push_tool / cc_push_pentefino / cc_push_programs em arcoll_app.py) e
+    aparecem na página Pente-Fino/Programas sem recarregar.
+  * Execuções pedidas pela plataforma chamam PenteFinoFrame.receive() (via arcoll_app.cc_notify) e esta tela é atualizada.
+Os dados vêm de arcoll_pentefino e arcoll_programs (mesmas funções usadas pelos comandos remotos)."""
 import json
 import os
 import queue
@@ -20,7 +20,7 @@ from tkinter import ttk, messagebox
 F = 'Segoe UI'
 P = dict(side='#10151f', main='#1f2533', panel='#2a2f3c', row='#3a3f4b', foot='#313643', act='#28344d', line='#4c515c', blue='#2f6bff',
          blue2='#4f86ff', yel='#ffbf02', ok='#37c871', warn='#ff7a45', txt='#eef1f7', mut='#a7afbf', bad='#ffa3a3', list='#222836', deep='#1b202b')
-SETTINGS_FILE = Path(os.environ.get('ProgramData', r'C:\ProgramData')) / 'Arcoll' / 'Clean' / 'ui-settings.json'
+SETTINGS_FILE = Path(os.environ.get('ProgramData', r'C:\ProgramData')) / 'Arcoll' / 'PenteFino' / 'ui-settings.json'
 
 
 # ------------------------------------------------------------------------------------------------ utilidades
@@ -99,7 +99,7 @@ class Pill(tk.Canvas):
 
 
 class Ring(tk.Canvas):
-    """Anel de progresso como no CCleaner: porcentagem no centro; sem valor, gira."""
+    """Anel de progresso: porcentagem no centro; sem valor, gira."""
     def __init__(self, master, size=130, bg=None):
         super().__init__(master, width=size, height=size, bg=bg or P['main'], highlightthickness=0)
         self.size, self.value, self.angle = size, None, 90
@@ -125,7 +125,7 @@ class Ring(tk.Canvas):
             pass
 
 
-# ------------------------------------------------------------------------------------------------ catálogo local (espelha includes/network-clean.php)
+# ------------------------------------------------------------------------------------------------ catálogo local (espelha includes/network-pentefino.php)
 LABELS = {
     'recent_docs': 'Documentos recentes', 'jump_lists': 'Listas de atalhos da barra de tarefas', 'thumbnails': 'Cache de miniaturas e ícones',
     'run_history': 'Histórico do Executar', 'search_history': 'Histórico de pesquisa e caminhos', 'user_assist': 'Programas usados (UserAssist)',
@@ -154,14 +154,14 @@ DEFAULT_ON = {'recent_docs', 'run_history', 'search_history', 'thumbnails', 'jum
 HEALTH_SPACE = ['user_temp', 'windows_temp', 'thumbnails', 'system_logs', 'error_reports', 'windows_update', 'gpu_shader_cache', 'chkdsk_fragments']
 HEALTH_PRIVACY = ['recent_docs', 'jump_lists', 'run_history', 'search_history', 'clipboard'] + ['%s_%s' % (b, f) for _n, b in BROWSERS for f in ('history', 'cookies')]
 
-NAV_CLEAN = [('health', 'Health Check', '♡'), ('custom', 'Limpeza personalizada', '✦'), ('duplicates', 'Localizador de arquivos duplicados', '⎘'),
+NAV_PENTEFINO = [('health', 'Health Check', '♡'), ('custom', 'Limpeza personalizada', '✦'), ('duplicates', 'Localizador de arquivos duplicados', '⎘'),
              ('cloud', 'Limpador de Disco na Nuvem', '☁'), ('backup', 'Backup em Nuvem', '⇧'), ('perf', 'Otimização de Desempenho', '🚀'), ('startup', 'Gerenciador de inicialização', '🖥'),
              ('updater', 'Atualizador de Software', '⟳'), ('windows_update', 'Windows Update', '↻'), ('drivers', 'Driver Updater', '⚙')]
 NAV_PROGRAMS = [('uninstall', 'Desinstalador', '🗑')]
 
 
-class CleanerFrame(tk.Frame):
-    """Uma tela completa (menu lateral + conteúdo). `sections` define Programas (desinstalador) ou Clean (demais)."""
+class PenteFinoFrame(tk.Frame):
+    """Uma tela completa (menu lateral + conteúdo). `sections` define Programas (desinstalador) ou Pente-Fino (demais)."""
 
     def __init__(self, master, app, sections, start):
         super().__init__(master, bg=P['main'])
@@ -239,7 +239,7 @@ class CleanerFrame(tk.Frame):
         self._paint_all()
 
     def sections_nav(self):
-        pool = NAV_CLEAN + NAV_PROGRAMS
+        pool = NAV_PENTEFINO + NAV_PROGRAMS
         return [n for n in pool if n[0] in self.sections]
 
     def _paint(self, key, hover):
@@ -386,8 +386,8 @@ class CleanerFrame(tk.Frame):
     # ---------------------------------------------------------------- operações
     def tool(self, kind, payload, label, extra=None):
         def work(prog):
-            import arcoll_clean
-            return arcoll_clean.execute_tool(payload, progress=prog)
+            import arcoll_pentefino
+            return arcoll_pentefino.execute_tool(payload, progress=prog)
 
         def done(res):
             self.rep[kind] = res
@@ -402,13 +402,13 @@ class CleanerFrame(tk.Frame):
         cfg = load_settings()
 
         def work(prog):
-            import arcoll_clean
-            return arcoll_clean.execute_clean(cats, execute=execute, age_days=age, progress=prog, exclusions=cfg.get('exclusions'), custom_folders=cfg.get('custom_folders'))
+            import arcoll_pentefino
+            return arcoll_pentefino.execute_clean(cats, execute=execute, age_days=age, progress=prog, exclusions=cfg.get('exclusions'), custom_folders=cfg.get('custom_folders'))
 
         def done(res):
             self.rep['clean'] = res
             self.stamp['clean'] = time.strftime('%d/%m/%Y %H:%M')
-            self.app.cc_push_clean('execute' if execute else 'scan', res)
+            self.app.cc_push_pentefino('execute' if execute else 'scan', res)
             self.status(('Limpeza concluída: ' if execute else 'Análise concluída: ') + '%d itens · %s' % (res.get('file_count', 0), human(res.get('bytes', 0))))
         self.run(label, work, done)
 
@@ -596,8 +596,8 @@ class CleanerFrame(tk.Frame):
     @staticmethod
     def _valid(keys):
         try:
-            import arcoll_clean
-            return [k for k in keys if k in arcoll_clean.CATEGORIES]
+            import arcoll_pentefino
+            return [k for k in keys if k in arcoll_pentefino.CATEGORIES]
         except ImportError:
             return keys
 
@@ -607,13 +607,13 @@ class CleanerFrame(tk.Frame):
         space, privacy = self._valid(HEALTH_SPACE), self._valid(HEALTH_PRIVACY)
 
         def work(prog):
-            import arcoll_clean
-            a = arcoll_clean.execute_clean(space, True, 7, progress=prog)
-            b = arcoll_clean.execute_clean(privacy, True, 0, progress=prog)
+            import arcoll_pentefino
+            a = arcoll_pentefino.execute_clean(space, True, 7, progress=prog)
+            b = arcoll_pentefino.execute_clean(privacy, True, 0, progress=prog)
             return {'clean': b, 'bytes': a['bytes'] + b['bytes'], 'files': a['file_count'] + b['file_count'], 'last': a}
 
         def done(res):
-            self.app.cc_push_clean('execute', res['clean'])
+            self.app.cc_push_pentefino('execute', res['clean'])
             self.status('Otimização concluída: %d itens · %s liberados' % (res['files'], human(res['bytes'])))
             self.rep.pop('health', None)
         self.run('Otimizando o computador', work, done)
@@ -653,8 +653,8 @@ class CleanerFrame(tk.Frame):
 
     def _groups(self, tab):
         try:
-            import arcoll_clean
-            known = set(arcoll_clean.CATEGORIES)
+            import arcoll_pentefino
+            known = set(arcoll_pentefino.CATEGORIES)
         except ImportError:
             known = None
         ok = lambda k: known is None or k in known

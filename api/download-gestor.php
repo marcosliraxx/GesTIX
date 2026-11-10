@@ -68,7 +68,7 @@ try {
             $isProjectSource = (bool)preg_match('~\.(?:cs|csproj|xaml|ps1|manifest|md)$~i', $rel);
             // O painel WebView2 local precisa acompanhar a instalacao inicial E cada atualizacao.
             // Lista positiva estrita: nao incluir outros HTML/JS/JSON que possam conter dados privados.
-            $isHybridAsset = (bool)preg_match('~^Assets/hybrid/(?:dashboard|internet(?:/vendor)?|pentefino|backup)/[a-zA-Z0-9_-]+\.(?:html|css|js)$~D', $rel);
+            $isHybridAsset = (bool)preg_match('~^Assets/hybrid/(?:dashboard|internet(?:/vendor)?|pentefino|backup|arquivos|mapa)/[a-zA-Z0-9_-]+\.(?:html|css|js)$~D', $rel);
             if (!$isProjectSource && !$isHybridAsset) continue;
             if ($isHybridAsset && $file->getSize() > 524288) {
                 throw new RuntimeException('Recurso visual excede 512 KB: ' . $rel);
@@ -76,24 +76,24 @@ try {
             $zipNative->addFile($file->getPathname(), 'Arcoll.WinUI3/' . $rel);
         }
         require_once dirname(__DIR__) . '/includes/support.php';
-        require_once dirname(__DIR__) . '/includes/network-clean.php';
+        require_once dirname(__DIR__) . '/includes/network-pentefino.php';
         $themeFile=dirname(__DIR__).'/assets/themes/catalog.json';if(!is_readable($themeFile))throw new RuntimeException('Catálogo visual indisponível.');
         $zipNative->addFromString('Arcoll.WinUI3/Assets/theme-catalog.json',file_get_contents($themeFile));
         $zipNative->addFromString('Arcoll.WinUI3/Assets/system.ico', arc_support_icon($pdo, 'gestor'));
         $zipNative->addFromString('Arcoll.WinUI3/Assets/program-catalog.json', json_encode(arc_program_install_catalog(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-        $zipNative->addFromString('Arcoll.WinUI3/Assets/clean-catalog.json', json_encode([
-            'catalog'=>arc_clean_catalog(), 'registry'=>arc_clean_registry_checks(), 'health'=>arc_clean_health_sets(),
-            'tabs'=>arc_clean_tabs(), 'ages'=>arc_clean_age_options()
+        $zipNative->addFromString('Arcoll.WinUI3/Assets/pentefino-catalog.json', json_encode([
+            'catalog'=>arc_pf_catalog(), 'registry'=>arc_pf_registry_checks(), 'health'=>arc_pf_health_sets(),
+            'tabs'=>arc_pf_tabs(), 'ages'=>arc_pf_age_options()
         ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-        foreach (['arcoll_clean.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py'] as $engineFile) {
+        foreach (['arcoll_pentefino.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py'] as $engineFile) {
             $enginePath=dirname(__DIR__).'/gestores/windows/'.$engineFile;
-            if (!is_file($enginePath)) throw new RuntimeException('Motor Clean incompleto: '.$engineFile);
-            $zipNative->addFile($enginePath,'Arcoll.WinUI3/Assets/clean-engine/'.$engineFile);
+            if (!is_file($enginePath)) throw new RuntimeException('Motor do Pente-Fino incompleto: '.$engineFile);
+            $zipNative->addFile($enginePath,'Arcoll.WinUI3/Assets/pentefino-engine/'.$engineFile);
         }
-        $zipNative->addFile($nativeRoot.'/Worker/clean_worker.py','Arcoll.WinUI3/Assets/clean-engine/clean_worker.py');
+        $zipNative->addFile($nativeRoot.'/Worker/pentefino_worker.py','Arcoll.WinUI3/Assets/pentefino-engine/pentefino_worker.py');
         // Fonte unica: a plataforma fornece VERSION ao compilador, sem alterar projetos C#.
         $zipNative->addFromString('Arcoll.WinUI3/VERSION', arc_app_version() . "\n");
-        $zipNative->addFromString('Arcoll.WinUI3/Assets/clean-engine/VERSION',arc_app_version());
+        $zipNative->addFromString('Arcoll.WinUI3/Assets/pentefino-engine/VERSION',arc_app_version());
         // Falhar ANTES de enviar um gestor sem os arquivos essenciais do painel.
         foreach (['index.html', 'styles.css', 'app.js'] as $asset) {
             $assetPath = $nativeRoot . '/Assets/hybrid/dashboard/' . $asset;
@@ -121,6 +121,14 @@ try {
             }
         }
 
+        foreach (['index.html','styles.css','app.js'] as $asset) {
+            $visualPath=$nativeRoot.'/Assets/hybrid/arquivos/'.$asset;
+            if (!is_readable($visualPath) || filesize($visualPath)===0 || $zipNative->locateName('Arcoll.WinUI3/Assets/hybrid/arquivos/'.$asset)===false) throw new RuntimeException('Interface Arquivos incompleta: '.$asset);
+        }
+        foreach (['index.html','styles.css','app.js'] as $asset) {
+            $visualPath=$nativeRoot.'/Assets/hybrid/mapa/'.$asset;
+            if (!is_readable($visualPath) || filesize($visualPath)===0 || $zipNative->locateName('Arcoll.WinUI3/Assets/hybrid/mapa/'.$asset)===false) throw new RuntimeException('Interface Mapa incompleta: '.$asset);
+        }
         foreach (['index.html','styles.css','native.css','app.js'] as $asset) {
             $visualPath=$nativeRoot.'/Assets/hybrid/backup/'.$asset;
             if (!is_readable($visualPath) || filesize($visualPath)===0 || $zipNative->locateName('Arcoll.WinUI3/Assets/hybrid/backup/'.$asset)===false) throw new RuntimeException('Interface Backup incompleta: '.$asset);
@@ -200,27 +208,27 @@ try {
         $list = $manifest['files'];
         if (count($list) < 2 || count($list) > 3500 || !isset($list['Arcoll.WinUI3.exe'])) throw new RuntimeException('Release precompilada incompleta.');
         // Recursos dinamicos gerados pelo backend sao adicionados com hash ao mesmo
-        // manifesto, evitando reintroduzir a recompilacao no PC e preservando o Clean.
+        // manifesto, evitando reintroduzir a recompilacao no PC e preservando o Pente-Fino.
         require_once dirname(__DIR__) . '/includes/support.php';
-        require_once dirname(__DIR__) . '/includes/network-clean.php';
+        require_once dirname(__DIR__) . '/includes/network-pentefino.php';
         $generated = [
             'Assets/theme-catalog.json'=>file_get_contents(dirname(__DIR__).'/assets/themes/catalog.json'),
             'Assets/system.ico' => arc_support_icon($pdo, 'gestor'),
             'Assets/program-catalog.json' => json_encode(arc_program_install_catalog(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
-            'Assets/clean-catalog.json' => json_encode([
-                'catalog'=>arc_clean_catalog(), 'registry'=>arc_clean_registry_checks(), 'health'=>arc_clean_health_sets(),
-                'tabs'=>arc_clean_tabs(), 'ages'=>arc_clean_age_options()
+            'Assets/pentefino-catalog.json' => json_encode([
+                'catalog'=>arc_pf_catalog(), 'registry'=>arc_pf_registry_checks(), 'health'=>arc_pf_health_sets(),
+                'tabs'=>arc_pf_tabs(), 'ages'=>arc_pf_age_options()
             ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
-            'Assets/clean-engine/VERSION' => $releaseVersion,
+            'Assets/pentefino-engine/VERSION' => $releaseVersion,
         ];
-        foreach (['arcoll_clean.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py'] as $engineFile) {
+        foreach (['arcoll_pentefino.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py'] as $engineFile) {
             $src = dirname(__DIR__) . '/gestores/windows/' . $engineFile;
-            if (!is_file($src)) throw new RuntimeException('Motor Clean incompleto: ' . $engineFile);
-            $generated['Assets/clean-engine/' . $engineFile] = file_get_contents($src);
+            if (!is_file($src)) throw new RuntimeException('Motor do Pente-Fino incompleto: ' . $engineFile);
+            $generated['Assets/pentefino-engine/' . $engineFile] = file_get_contents($src);
         }
-        $workerFile = $nativeRoot . '/Worker/clean_worker.py';
-        if (!is_file($workerFile)) throw new RuntimeException('Motor Clean do WinUI ausente.');
-        $generated['Assets/clean-engine/clean_worker.py'] = file_get_contents($workerFile);
+        $workerFile = $nativeRoot . '/Worker/pentefino_worker.py';
+        if (!is_file($workerFile)) throw new RuntimeException('Motor do Pente-Fino do WinUI ausente.');
+        $generated['Assets/pentefino-engine/pentefino_worker.py'] = file_get_contents($workerFile);
         foreach (glob(dirname(__DIR__) . '/assets/program-logos/*.png') ?: [] as $logo) {
             if (is_file($logo) && !is_link($logo) && filesize($logo) < 200000) {
                 $generated['Assets/program-logos/' . basename($logo)] = file_get_contents($logo);

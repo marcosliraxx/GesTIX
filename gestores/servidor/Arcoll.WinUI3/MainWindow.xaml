@@ -50,8 +50,9 @@
     <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
      <StackPanel x:Name="CategoryTabs" Orientation="Horizontal" Spacing="1" VerticalAlignment="Bottom" AutomationProperties.Name="Categorias do gestor"/>
     </ScrollViewer>
-    <Button x:Name="RefreshButton" Grid.Column="2" Style="{StaticResource QuickButton}" Click="GestorUpdate_Open_Click" ToolTipService.ToolTip="Central de atualização do gestor" AutomationProperties.Name="Central de atualização do gestor" AutomationProperties.AutomationId="quick-refresh"><FontIcon Glyph="&#xE72C;" FontSize="16"/></Button>
-    <Button x:Name="RemoteButton" Grid.Column="3" Style="{StaticResource QuickButton}" Click="RemoteAccess_Click" ToolTipService.ToolTip="Código de acesso remoto" AutomationProperties.Name="Gerar código de acesso remoto" AutomationProperties.AutomationId="remote-access"><FontIcon Glyph="&#xE890;" FontSize="17"/></Button>
+    <!-- Acesso aos recursos centralizado no menu Helpdesk; controles nomeados preservados para compatibilidade. -->
+    <Button Visibility="Collapsed" x:Name="RefreshButton" Grid.Column="2" Style="{StaticResource QuickButton}" Click="GestorUpdate_Open_Click" ToolTipService.ToolTip="Central de atualização do gestor" AutomationProperties.Name="Central de atualização do gestor" AutomationProperties.AutomationId="quick-refresh"><FontIcon Glyph="&#xE72C;" FontSize="16"/></Button>
+    <Button Visibility="Collapsed" x:Name="RemoteButton" Grid.Column="3" Style="{StaticResource QuickButton}" Click="RemoteAccess_Click" ToolTipService.ToolTip="Código de acesso remoto" AutomationProperties.Name="Gerar código de acesso remoto" AutomationProperties.AutomationId="remote-access"><FontIcon Glyph="&#xE890;" FontSize="17"/></Button>
    </Grid>
   </Border>
 
@@ -93,7 +94,7 @@
 
   <Border x:Name="StatusBorder" Grid.Row="3" BorderThickness="0,1,0,0" Background="#FFFFFF">
    <Grid Padding="8,2" ColumnSpacing="12">
-    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Border x:Name="FooterNetworkIdentity" HorizontalAlignment="Left" VerticalAlignment="Center" Opacity="0.42">
      <Button x:Name="BrandButton" Style="{StaticResource FlatButton}" Tag="panel" Click="Menu_Click" Padding="0" MinWidth="0" MinHeight="24" HorizontalContentAlignment="Left" ToolTipService.ToolTip="Painel da rede" AutomationProperties.Name="Painel da rede" AutomationProperties.AutomationId="quick-panel">
       <Grid ColumnSpacing="7">
@@ -107,7 +108,8 @@
     </Border>
     <!-- Retained only for the existing tray/status logic; no Connected label is rendered. -->
     <TextBlock x:Name="ConnectionLabel" Visibility="Collapsed" IsHitTestVisible="False"/>
-    <TextBlock x:Name="FooterText" Grid.Column="1" FontSize="10" TextTrimming="CharacterEllipsis" HorizontalAlignment="Stretch" TextAlignment="Right" VerticalAlignment="Center"/>
+    <TextBlock x:Name="FooterOperation" Grid.Column="1" Text="" FontSize="10" HorizontalAlignment="Center" TextAlignment="Center" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+    <TextBlock x:Name="FooterText" Grid.Column="2" FontSize="10" TextTrimming="CharacterEllipsis" HorizontalAlignment="Stretch" TextAlignment="Right" VerticalAlignment="Center"/>
    </Grid>
   </Border>
   <Grid x:Name="GateOverlay" Grid.RowSpan="4" Visibility="Collapsed" Background="#E6101826">

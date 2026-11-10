@@ -49,65 +49,8 @@ if ($arcNetworkDock):
         return $arcDockRights === null || in_array($section,$arcDockRights,true);
     };
 ?>
-<!-- Navegação completa da rede no desktop, alinhada aos cinco atalhos do celular. -->
-<nav class="arc-network-desktop-dock" aria-label="Navegação da rede no computador">
-<?php foreach (['servidor'=>1,'velocidade'=>2,'suporte'=>4] as $section=>$position):
-    if (!isset($arcDockBySection[$section]) || !$arcDockAllowed($section)) continue;
-    $arcDeskEntry=$arcDockBySection[$section];
-    $label=(string)$arcDeskEntry['label'];$icon=(string)$arcDeskEntry['icon'];
-    $arcDesktopUrl = arc_workspace_base_url().(string)$arcDeskEntry['url'];
-?>
-<a style="grid-column:<?= $position ?>" href="<?=arc_h($arcDesktopUrl)?>" <?= $arcDockCurrent===$section?'aria-current="page"':'' ?>><i class="fa <?=arc_h($icon)?>" aria-hidden="true"></i><span><?=arc_h($label)?></span></a>
-<?php endforeach; ?>
-<button type="button" class="arc-network-desktop-more-trigger" style="grid-column:5" data-mobile-more aria-controls="arc-mobile-more" aria-expanded="false" aria-label="Mais opções da rede"><i class="fa fa-ellipsis-h" aria-hidden="true"></i><span>Mais</span></button>
-</nav>
-<!-- Painel da Rede no footer de computadores — mesmo destino e logo do atalho móvel. -->
-<?php if(isset($arcDockBySection['painel']) && $arcDockAllowed('painel')): ?><a class="arc-network-desktop-panel" href="<?=arc_h(arc_workspace_base_url().(string)$arcDockBySection['painel']['url'])?>" aria-label="Abrir Painel da Rede" <?= $arcDockCurrent==='painel'?'aria-current="page"':'' ?>>
-  <span class="arc-network-desktop-bubble">
-  <?php if(!empty($network['logo_file'])): ?>
-    <img src="<?=arc_h(arc_workspace_base_url().'api/network-logo.php?network='.(int)$networkId)?>" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false">
-    <i class="fa fa-sitemap" hidden aria-hidden="true"></i>
-  <?php else: ?><i class="fa fa-sitemap" aria-hidden="true"></i><?php endif; ?>
-  </span>
-  <span class="arc-network-desktop-panel-label"><?=arc_h((string)$arcDockBySection['painel']['label'])?></span>
-</a><?php endif; ?>
-<style>
-/* Caminho: includes/footer.php — Painel da Rede no rodapé do desktop (v2026.11.03.2). */
-.arc-network-desktop-panel{display:none!important}
-@media(min-width:861px){
- .arc-workspace .app-footer.arc-compact-footer:has(>.arc-network-desktop-panel){position:relative!important;overflow:visible!important;height:52px!important;min-height:52px!important;max-height:52px!important;padding:0 16px!important}
- .arc-workspace .app-footer.arc-compact-footer:has(>.arc-network-desktop-panel)>.arc-footer-system-name{position:absolute;right:15px;max-width:calc(50% - 90px);text-align:right;font-size:10px}
- .arc-workspace .app-footer.arc-compact-footer>.arc-network-desktop-panel{box-sizing:border-box;display:flex!important;position:absolute;left:50%;top:0;transform:translateX(-50%);width:120px;height:52px;align-items:center;justify-content:flex-end;flex-direction:column;gap:0;padding:0 4px 6px!important;text-decoration:none;color:var(--primary);background:transparent;border-radius:10px;z-index:40;white-space:nowrap}
- .arc-workspace .app-footer.arc-compact-footer>.arc-network-desktop-panel:hover,.arc-workspace .app-footer.arc-compact-footer>.arc-network-desktop-panel[aria-current="page"]{background:color-mix(in srgb,var(--primary) 9%,transparent)}
- .arc-workspace .app-footer.arc-compact-footer .arc-network-desktop-bubble{box-sizing:border-box;position:absolute;left:50%;top:-21px;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;width:48px;height:48px;min-width:48px;overflow:hidden;padding:2px;border-radius:50%;border:3px solid var(--surface);background:var(--primary);box-shadow:0 4px 12px #0005}
- .arc-workspace .arc-network-desktop-bubble img{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:50%}
- .arc-workspace .arc-network-desktop-bubble img[hidden],.arc-workspace .arc-network-desktop-bubble i[hidden]{display:none!important}
- .arc-workspace .arc-network-desktop-bubble i{font-size:20px;color:white}
- .arc-workspace .app-footer.arc-compact-footer .arc-network-desktop-panel-label{font-size:11px;line-height:14px;font-weight:700;white-space:nowrap}
- .arc-workspace .app-footer.arc-compact-footer:has(>.arc-network-desktop-panel)>nav:first-child{position:absolute;left:15px;max-width:calc(50% - 90px);overflow:hidden;white-space:nowrap}
-}
-
-/* Caminho: includes/footer.php — Footer da rede idêntico no desktop e no celular (v2026.11.03.3). */
-.arc-network-desktop-dock{display:none!important}
-@media(min-width:861px){
- .arc-workspace .app-footer.arc-compact-footer:has(>.arc-network-desktop-panel){height:64px!important;min-height:64px!important;max-height:64px!important;padding:0 12px!important;overflow:visible!important}
- .arc-workspace .app-footer.arc-compact-footer:has(>.arc-network-desktop-panel)>nav:first-child,
- .arc-workspace .app-footer.arc-compact-footer:has(>.arc-network-desktop-panel)>.arc-footer-system-name{display:none!important}
- .arc-workspace .app-footer.arc-compact-footer>.arc-network-desktop-dock{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));width:min(100%,820px);height:64px;margin:0 auto;align-items:stretch;justify-items:stretch;overflow:visible;gap:0;isolation:isolate}
- .arc-workspace .arc-network-desktop-dock>a,
- .arc-workspace .arc-network-desktop-dock>button{box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;min-width:0;height:64px;padding:6px 4px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:600 11px/1.2 var(--font);text-decoration:none;cursor:pointer;transition:background .15s,color .15s}
- .arc-workspace .arc-network-desktop-dock>a>i,.arc-workspace .arc-network-desktop-dock>button>i{font-size:20px;line-height:22px}
- .arc-workspace .arc-network-desktop-dock>a:hover,.arc-workspace .arc-network-desktop-dock>button:hover,
- .arc-workspace .arc-network-desktop-dock>a[aria-current="page"],.arc-workspace .arc-network-desktop-dock>button[aria-expanded="true"]{background:color-mix(in srgb,var(--primary) 10%,transparent);color:var(--primary)}
- .arc-workspace .arc-network-desktop-dock>a:focus-visible,.arc-workspace .arc-network-desktop-dock>button:focus-visible{outline:2px solid var(--primary);outline-offset:-3px}
- .arc-workspace .app-footer.arc-compact-footer>.arc-network-desktop-panel{top:0;height:64px;width:min(164px,19%);padding-bottom:8px!important;z-index:42}
- .arc-workspace .app-footer.arc-compact-footer .arc-network-desktop-bubble{top:-17px}
- .arc-workspace .app-footer.arc-compact-footer .arc-network-desktop-panel-label{font-size:11px}
-}
-@media print{.arc-network-desktop-dock{display:none!important}}
-
-@media print{.arc-network-desktop-panel{display:none!important}}
-</style>
+<?php /* Desktop: navegação exclusivamente no ribbon superior (redes/_menu.php).
+   O dock inferior permanece apenas no mobile. */ ?>
 <nav class="arc-mobile-dock arc-mobile-dock-five arc-network-mobile-dock" aria-label="Navegação da rede">
 <?php foreach($arcDockLinks as $i=>$entry):
   if ($entry[0]!=='liberacao' && !$arcDockAllowed($entry[0])) continue;
@@ -177,6 +120,16 @@ $arcCanRegisterNetwork = arc_is_user();
 <?php endif; ?>
 <?php endif; // dock global ?>
 <?php endif; // dock de rede ?>
+<?php if ($arcNetworkDock): ?>
+<div class="arc-gestor-statusbar" aria-label="Estado da rede">
+  <span class="arc-gestor-statusbrand">
+    <?php if (!empty($network['logo_file'])): ?><img src="<?=arc_h(arc_workspace_base_url().'api/network-logo.php?network='.(int)$networkId)?>" alt="" onerror="this.hidden=true"><?php else: ?><i class="fa fa-sitemap" aria-hidden="true"></i><?php endif; ?>
+    <strong><?=arc_h((string)($network['name'] ?? $arcSiteName))?></strong>
+  </span>
+  <span class="arc-gestor-statuscenter" id="arc-gestor-inventory-status" aria-live="off">Sincronizando em 15 s</span>
+  <span class="arc-gestor-statusright" title="Rede selecionada e versão da plataforma"><?=arc_h((string)($network['name'] ?? 'Rede'))?> · v<?=arc_h(arc_app_version())?></span>
+</div>
+<?php endif; ?>
 </footer>
 
 <?php /* Dropdown fora do footer para não ser recortado pelo dock móvel. */ ?>
@@ -186,6 +139,39 @@ $arcCanRegisterNetwork = arc_is_user();
 <dialog id="arc-mobile-more" class="arc-mobile-more arc-global-more erp-user-menu-style" aria-labelledby="arc-mobile-more-title"><header><h2 id="arc-mobile-more-title">Mais páginas</h2><button type="button" data-close-more aria-label="Fechar"><i class="fa fa-times" aria-hidden="true"></i></button></header><div class="erp-menu-sep"></div><nav aria-label="Outras páginas do sistema"><?php foreach($arcGlobalMore as $item): ?><a href="<?=arc_h((string)$item['url'])?>"><span class="arc-db-icon" data-icon="<?=arc_h((string)$item['icon'])?>" aria-hidden="true"></span><span><?=arc_h((string)$item['label'])?></span></a><?php endforeach; ?></nav></dialog>
 <?php endif; ?>
 
+<style>
+/* Caminho: includes/footer.php — barra de estado do gestor no desktop da rede. */
+.arc-gestor-statusbar{display:none}
+@media(min-width:861px){
+ body.arc-workspace:has(.arc-redes-page){--footer-h:32px}
+ body.arc-workspace:has(.arc-redes-page) .app-footer.arc-compact-footer{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:stretch!important;flex:none!important;height:32px!important;min-height:32px!important;max-height:32px!important;padding:0 10px!important;overflow:hidden!important;background:#936d5c!important;color:#fff!important;border-top:1px solid #a78370!important;box-shadow:none!important}
+ body.arc-workspace:has(.arc-redes-page) .app-footer.arc-compact-footer>nav,
+ body.arc-workspace:has(.arc-redes-page) .app-footer.arc-compact-footer>.arc-footer-system-name,
+ body.arc-workspace:has(.arc-redes-page) .app-footer.arc-compact-footer>.arc-network-desktop-panel,
+ body.arc-workspace:has(.arc-redes-page) .app-footer.arc-compact-footer>.arc-network-desktop-dock{display:none!important}
+ body.arc-workspace:has(.arc-redes-page) .arc-gestor-statusbar{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(200px,1.5fr) minmax(0,1fr);align-items:center;gap:12px;width:100%;height:100%;font:10px/1.2 'Segoe UI',Arial,sans-serif;min-width:0}
+ .arc-gestor-statusbrand{display:flex;align-items:center;min-width:0;gap:7px}.arc-gestor-statusbrand img{width:20px;height:20px;object-fit:contain;border-radius:4px;background:#fff}.arc-gestor-statusbrand i{display:grid;place-items:center;width:20px;height:20px;border-radius:4px;background:#19346b}.arc-gestor-statusbrand strong{font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .arc-gestor-statuscenter{text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px}.arc-gestor-statusright{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+}
+@media print{.arc-gestor-statusbar{display:none!important}}
+</style>
+<script>
+/* Caminho: includes/footer.php — espelha indicadores reais do painel, sem novos pedidos ao servidor. */
+(()=>{'use strict';
+const target=document.getElementById('arc-gestor-inventory-status');if(!target)return;
+const panel=document.getElementById('network-panel');
+let nextAt=Date.now()+15000;
+function render(){
+ const panelSync=panel?.querySelector('.np-sync')?.textContent?.trim();
+ if(panelSync){target.textContent=panelSync;return;}
+ const seconds=Math.max(0,Math.ceil((nextAt-Date.now())/1000));
+ target.textContent='Sincronizando em '+seconds+' s';
+ if(seconds===0)nextAt=Date.now()+15000;
+}
+if(panel){const observer=new MutationObserver(render);observer.observe(panel,{childList:true,subtree:true,characterData:true});}
+const timer=setInterval(render,1000);render();window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+})();
+</script>
 <style>
 /* Caminho: includes/footer.php — Mais fora do footer, acima da barra e do conteúdo. */
 body.arc-workspace > #arc-mobile-more.arc-network-more[open],

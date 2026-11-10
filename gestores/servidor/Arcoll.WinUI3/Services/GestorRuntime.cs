@@ -13,14 +13,17 @@ namespace Arcoll.WinUI3.Services;
 public sealed class GestorRuntime : IDisposable
 {
     /// <summary>Comandos implementados diretamente no gestor WinUI 3/C#, sem recorrer ao núcleo Python.</summary>
-    private static readonly HashSet<string> Native = new() { "monitor_start", "monitor_pause", "remote_assistance", "scan_devices", "scan_map", "speed_test", "program_inventory", "program_install", "clean_scan", "clean_execute", "clean_tool",
+    private static readonly HashSet<string> Native = new() { "monitor_start", "monitor_pause", "remote_assistance", "scan_devices", "scan_map", "speed_test", "program_inventory", "program_install", "pentefino_scan", "pentefino_execute", "pentefino_tool",
         "power_shutdown", "power_restart", "power_cancel", "screen_lock", "terminal_diagnostic", "windows_update",
-        "diagnostic", "gestor_update", "toolkit", "toolkit_traceroute", "toolkit_services", "toolkit_health", "toolkit_troubleshooter",
+        "diagnostic", "gestor_update", "gestor_update_check", "support_code_prompt", "toolkit", "toolkit_traceroute", "toolkit_services", "toolkit_health", "toolkit_troubleshooter",
         "storage_health", "service_health", "restart_readiness", "file_browser", "cloud_folders", "quick_health", "dns_test", "public_ip", "system_snapshot", "flush_dns", "wifi_info" };
 
     private readonly PlatformClient _platform = new(GestorConfig.Load());
     private readonly AuthorizationService _auth;
     private readonly SystemMetrics _metrics = new();
+    private readonly PerformanceCollector _serverCollector = new();
+    private DateTime _lastHardwareInventory = DateTime.MinValue;
+    private PerformanceSnapshot? _hardwareSnapshot;
     private readonly CancellationTokenSource _cts = new();
     private readonly List<double> _latencies = new();
     private Task? _loop;
@@ -30,6 +33,8 @@ public sealed class GestorRuntime : IDisposable
     private object[] _windowsUsers = [];
     private bool _windowsUsersError;
     private bool _busy;
+    private int _commandPollSeconds = 3;
+    private bool _remoteCommandOpensTool;
     private CloudVirtualDriveService? _virtualDrive;
     private RemoteScreenService? _remoteScreen;
 
@@ -52,6 +57,9 @@ public sealed class GestorRuntime : IDisposable
     /// <summary>Disparado fora da thread de interface; a janela deve usar o dispatcher.</summary>
     public event Action? Changed;
     public event Action<string>? ProgramActivity;
+    public event Action<string>? RemoteToolRequested;
+    public event Action? SupportCodeRequested;
+    public event Action? UpdateCheckRequested;
     /// <summary>Pede à janela principal que encerre o processo (usado pela atualização, que reabre o gestor em seguida).</summary>
     public Action? RequestExit { get; set; }
     private bool _updateChecked;
@@ -117,7 +125,7 @@ public sealed class GestorRuntime : IDisposable
                 LastActivity = "Sem comunicação com a plataforma: " + (ex is TaskCanceledException ? "tempo esgotado" : ex.Message);
                 RuntimeLog.Write("Ciclo falhou: " + ex.GetType().Name + ": " + ex.Message); Changed?.Invoke();
             }
-            try { await Task.Delay(TimeSpan.FromSeconds(3), ct); } catch (OperationCanceledException) { break; }
+            try { await Task.Delay(TimeSpan.FromSeconds(_commandPollSeconds), ct); } catch (OperationCanceledException) { break; }
         }
     }
 
@@ -128,7 +136,24 @@ public sealed class GestorRuntime : IDisposable
         var gateway = NetworkEngine.Local().Gateway;
         var latency = await NetworkEngine.PingAsync(string.IsNullOrWhiteSpace(gateway) ? "1.1.1.1" : gateway, 1200);
         _latencies.Add(latency is null ? 1 : 0); if (_latencies.Count > 20) _latencies.RemoveAt(0);
-        await _platform.SendEventAsync(SystemMetrics.ToPlatformPayload(sample, latency, _latencies.Average() * 100), ct, 10);
+        // O mesmo coletor nativo da aba Servidor alimenta o portal remoto.
+        // Inventário WMI/DXGI sob cadência própria para não sobrecarregar o ciclo de presença.
+        if (DateTime.UtcNow - _lastHardwareInventory >= TimeSpan.FromSeconds(15))
+        {
+            _lastHardwareInventory = DateTime.UtcNow;
+            try { _hardwareSnapshot = await _serverCollector.SampleAsync(15, null, null, ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) { RuntimeLog.Write("Coleta remota de hardware: " + ex.Message); }
+        }
+        var payload = SystemMetrics.ToPlatformPayload(sample, latency, _latencies.Average() * 100);
+        if (_hardwareSnapshot is not null && payload.TryGetValue("metrics", out var metrics)
+            && metrics is Dictionary<string, object?> values)
+        {
+            // JSON camelCase reproduz diretamente os tipos enviados ao WebView2 local.
+            values["performance"] = JsonSerializer.SerializeToElement(_hardwareSnapshot,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        }
+        await _platform.SendEventAsync(payload, ct, 10);
         Changed?.Invoke();
     }
 
@@ -156,6 +181,9 @@ public sealed class GestorRuntime : IDisposable
             body["windows_users_error"] = _windowsUsersError;
         }
         var response = await _platform.PostAsync("gestor-command-poll", body, ct, 10);
+        if (response.TryGetProperty("poll_interval_seconds", out var configured) && configured.TryGetInt32(out var seconds))
+            _commandPollSeconds = Math.Clamp(seconds, 1, 30);
+        _remoteCommandOpensTool = response.TryGetProperty("open_tool", out var openTool) && openTool.ValueKind == JsonValueKind.True;
         if (!response.TryGetProperty("command", out var cmd) || cmd.ValueKind != JsonValueKind.Object) return;
         _busy = true;
         try { await ExecuteAsync(cmd, ct); } finally { _busy = false; }
@@ -167,6 +195,20 @@ public sealed class GestorRuntime : IDisposable
         var name = cmd.TryGetProperty("command_name", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? "" : "";
         if (id < 1 || name.Length == 0) return;
         LastActivity = "Solicitação da plataforma: " + name.Replace('_', ' '); Changed?.Invoke();
+        // A tela acompanha somente comandos recebidos da fila autenticada do agente.
+        // Não navega por simples eventos do navegador nem por mensagens não reconhecidas.
+        var targetTool = name switch
+        {
+            "speed_test" or "diagnostic" => "speed",
+            "program_inventory" or "program_install" => "programs",
+            "scan_devices" => "devices",
+            "scan_map" => "map",
+            "pentefino_scan" or "pentefino_execute" or "pentefino_tool" => "health",
+            "file_browser" or "cloud_folders" => "files",
+            "windows_update" => "windows_update",
+            _ => null
+        };
+        if (_remoteCommandOpensTool && targetTool is not null && Native.Contains(name)) RemoteToolRequested?.Invoke(targetTool);
         using var operation = name == "gestor_update" ? null : OperationProgress.Begin(OperationProgress.Title(name), "Remoto");
         if (!Native.Contains(name))
         {
@@ -185,13 +227,23 @@ public sealed class GestorRuntime : IDisposable
                 case "speed_test": await SpeedAsync(id, ct); break;
                 case "program_inventory": await InventoryAsync(id, cmd, ct); break;
                 case "program_install": await InstallProgramsAsync(id, cmd, ct); break;
-                case "clean_scan": case "clean_execute": case "clean_tool": await CleanRemoteAsync(id, name, cmd, ct); break;
+                case "pentefino_scan": case "pentefino_execute": case "pentefino_tool": await PenteFinoRemoteAsync(id, name, cmd, ct); break;
                 case "file_browser": case "cloud_folders": await BrowseAsync(id, name, cmd, ct); break;
                 case "power_shutdown": case "power_restart": case "power_cancel": await PowerAsync(id, name, cmd, ct); break;
                 case "screen_lock": await MaintenanceAsync(id, name, cmd, ct); break;
                 case "windows_update": await WindowsUpdateAsync(id, cmd, ct); break;
                 case "terminal_diagnostic": await TerminalAsync(id, cmd, ct); break;
                 case "gestor_update": await UpdateAsync(id, cmd, ct); break;
+                case "gestor_update_check":
+                    if(UpdateCheckRequested is null)throw new InvalidOperationException("Interface de atualização indisponível.");
+                    UpdateCheckRequested.Invoke();
+                    await _platform.AckAsync(id,"completed","Central de atualização aberta no gestor Windows; verificação solicitada.",ct);
+                    break;
+                case "support_code_prompt":
+                    if(SupportCodeRequested is null)throw new InvalidOperationException("Interface de acesso remoto indisponível.");
+                    SupportCodeRequested.Invoke();
+                    await _platform.AckAsync(id,"completed","Janela de código solicitada no gestor Windows; código exibido apenas localmente.",ct);
+                    break;
                 case "diagnostic": await ConnectionAsync(id, ct); break;
                 case string t when t.StartsWith("toolkit", StringComparison.Ordinal): await ToolkitAsync(id, t, ct); break;
                 case string q when ToolkitService.QuickTitles.ContainsKey(q): await QuickAsync(id, q, ct); break;
@@ -325,13 +377,13 @@ public sealed class GestorRuntime : IDisposable
     }
 
     /// <summary>Executa a limpeza somente após requisição explícita e registra o relatório antes de concluir a fila.</summary>
-    private async Task CleanRemoteAsync(long id, string name, JsonElement cmd, CancellationToken ct)
+    private async Task PenteFinoRemoteAsync(long id, string name, JsonElement cmd, CancellationToken ct)
     {
         if (!cmd.TryGetProperty("request_text", out var raw) || raw.ValueKind != JsonValueKind.String)
-            throw new InvalidOperationException("Requisição Clean não encontrada.");
+            throw new InvalidOperationException("Requisição do Pente-Fino não encontrada.");
         using var doc = JsonDocument.Parse(raw.GetString() ?? "{}");
         await _platform.AckAsync(id, "running", "Executando " + name, ct);
-        var result = await NativeCleanCommands.RunAsync(name, doc.RootElement, _platform, id, ct);
+        var result = await NativePenteFinoCommands.RunAsync(name, doc.RootElement, _platform, id, ct);
         await _platform.AckAsync(id, "completed", result, ct);
     }
 

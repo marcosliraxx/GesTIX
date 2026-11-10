@@ -1,15 +1,13 @@
 <?php
-// Caminho: includes/network-clean.php
-/* Caminho: includes/network-clean.php */
-/* Fonte única de Programas (inventário/desinstalação) e Clean (limpeza, registro, inicialização, disco, duplicados,
+/* Caminho: includes/network-pentefino.php */
+/* Fonte única de Programas (inventário/desinstalação) e Pente-Fino (limpeza, registro, inicialização, disco, duplicados,
    restauração do sistema, atualizador de software e verificação de integridade): catálogos, limites, validações,
    higienização dos relatórios do gestor, configurações, histórico, operação ativa e política de tempo limite.
-   Usado por api/api.php, includes/bootstrap.php, redes/programas.php e redes/clean.php.
-   As chaves e limites são o contrato com gestores/windows/arcoll_clean.py e arcoll_programs.py: a plataforma nunca
+   Usado por api/api.php, includes/bootstrap.php, redes/programas.php e redes/pentefino.php.
+   As chaves e limites são o contrato com gestores/windows/arcoll_pentefino.py e arcoll_programs.py: a plataforma nunca
    envia caminhos para exclusão; envia chaves de catálogo e identificadores que o próprio gestor produziu. */
 declare(strict_types=1);
 require_once __DIR__ . '/error-logging.php';
-require_once __DIR__.'/general-analysis.php';
 
 
 /** Máximo de programas por desinstalação (tela, API e gestor usam o mesmo valor). */
@@ -19,42 +17,42 @@ const ARC_PROGRAM_BATCH_MAX = 100;
 const ARC_PROGRAM_INVENTORY_MAX_AGE = 1800;
 
 /** Limites compartilhados com o gestor. */
-const ARC_CLEAN_MAX_EXCLUSIONS = 50;
-const ARC_CLEAN_MAX_CUSTOM_FOLDERS = 20;
-const ARC_CLEAN_MAX_REGISTRY_IDS = 1500;
+const ARC_PF_MAX_EXCLUSIONS = 50;
+const ARC_PF_MAX_CUSTOM_FOLDERS = 20;
+const ARC_PF_MAX_REGISTRY_IDS = 1500;
 
 /** Idades mínimas (dias) aceitas na limpeza; 0 = tudo que não estiver em uso. */
-function arc_clean_age_options(): array
+function arc_pf_age_options(): array
 {
     return [0, 1, 7, 30];
 }
 
-/** Abas da Limpeza personalizada, na ordem do CCleaner (a aba Registro usa arc_clean_registry_checks). */
-function arc_clean_tabs(): array
+/** Abas da Limpeza personalizada do Pente-Fino (a aba Registro usa arc_pf_registry_checks). */
+function arc_pf_tabs(): array
 {
     return ['junk' => 'Lixo', 'browser' => 'Navegador', 'registry' => 'Registro'];
 }
 
-/** Grupos da aba Lixo, na ordem do CCleaner: nome => [ícone Font Awesome, cor]. */
-function arc_clean_junk_groups(): array
+/** Grupos da aba Lixo: nome => [ícone Font Awesome, cor]. */
+function arc_pf_junk_groups(): array
 {
     return ['Windows' => 'fa-windows', 'Sistema' => 'fa-desktop', 'Programas' => 'fa-clone', 'Windows Store' => 'fa-shopping-cart', 'Utilitários' => 'fa-wrench',
             'Multimídia' => 'fa-film', 'Internet' => 'fa-globe', 'Downloads para Windows' => 'fa-arrow-circle-down', 'Ferramentas de IA' => 'fa-commenting-o', 'Avançado' => 'fa-sliders'];
 }
 
 /** Ícone de cada navegador (Font Awesome 4 não tem Brave nem Vivaldi: a tela usa a inicial). */
-function arc_clean_browser_icons(): array
+function arc_pf_browser_icons(): array
 {
     return ['chrome' => 'fa-chrome', 'edge' => 'fa-edge', 'brave' => '', 'opera' => 'fa-opera', 'vivaldi' => '', 'firefox' => 'fa-firefox'];
 }
 
 /** Navegadores: nome, grupo e opções (a chave final é "<navegador>_<opção>"). */
-function arc_clean_browsers(): array
+function arc_pf_browsers(): array
 {
     return ['brave' => 'Brave', 'edge' => 'Edge Chromium', 'chrome' => 'Google Chrome', 'opera' => 'Opera', 'vivaldi' => 'Vivaldi', 'firefox' => 'Mozilla Firefox'];
 }
 
-function arc_clean_browser_facets(): array
+function arc_pf_browser_facets(): array
 {
     return [
         'cache'     => ['Cache da internet', 'Páginas e imagens temporárias.', true, false],
@@ -67,7 +65,7 @@ function arc_clean_browser_facets(): array
 }
 
 /** Categorias de limpeza: chave => tab, group, label, hint, default, danger. A chave é o contrato com o gestor. */
-function arc_clean_catalog(): array
+function arc_pf_catalog(): array
 {
     $c = [];
     $add = static function (string $key, string $tab, string $group, string $label, string $hint, bool $default = false, bool $danger = false) use (&$c): void {
@@ -117,8 +115,8 @@ function arc_clean_catalog(): array
     $add('user_assist',   $t, $g, 'Histórico UserAssist', 'Contadores de programas executados.');
     $add('event_logs',    $t, $g, 'Logs de eventos do Windows', 'Limpa todos os logs, exceto Security (auditoria).', false, true);
     $add('custom_folders',$t, $g, 'Pastas personalizadas', 'Pastas definidas em Configurações. Exclusões se aplicam.', false, true);
-    foreach (arc_clean_browsers() as $b => $name) {
-        foreach (arc_clean_browser_facets() as $f => [$label, $hint, $default, $danger]) {
+    foreach (arc_pf_browsers() as $b => $name) {
+        foreach (arc_pf_browser_facets() as $f => [$label, $hint, $default, $danger]) {
             $add($b . '_' . $f, 'browser', $name, $label, $hint, $default, $danger);
         }
     }
@@ -126,7 +124,7 @@ function arc_clean_catalog(): array
 }
 
 /** Grupos da Verificação de integridade (somente chaves do catálogo). */
-function arc_clean_health_sets(): array
+function arc_pf_health_sets(): array
 {
     $space = ['user_temp', 'windows_temp', 'thumbnails', 'system_logs', 'error_reports', 'windows_update', 'gpu_shader_cache', 'chkdsk_fragments'];
     $privacy = ['recent_docs', 'jump_lists', 'run_history', 'search_history', 'clipboard', 'firefox_cookies', 'firefox_history'];
@@ -135,7 +133,7 @@ function arc_clean_health_sets(): array
 }
 
 /** Verificações do limpador de registro (chaves = contrato com o gestor). */
-function arc_clean_registry_checks(): array
+function arc_pf_registry_checks(): array
 {
     return [
         'shared_dlls'       => ['DLLs compartilhadas ausentes', 'Entradas SharedDLLs que apontam para arquivos inexistentes.'],
@@ -149,18 +147,18 @@ function arc_clean_registry_checks(): array
     ];
 }
 
-/** Ferramentas servidas por clean_tool e suas ações. */
-function arc_clean_tools(): array
+/** Ferramentas servidas por pentefino_tool e suas ações. */
+function arc_pf_tools(): array
 {
-    return ['general'=>['scan','fix'],'registry' => ['scan', 'fix', 'restore'], 'startup' => ['list', 'apply'], 'disk' => ['scan'], 'duplicates' => ['scan', 'delete'],
+    return ['registry' => ['scan', 'fix', 'restore'], 'startup' => ['list', 'apply'], 'disk' => ['scan'], 'duplicates' => ['scan', 'delete'],
             'restore' => ['list', 'create'], 'updater' => ['list', 'apply'], 'health' => ['scan'],
             'performance' => ['list', 'suspend', 'resume'], 'drivers' => ['scan', 'install'], 'cloud' => ['scan', 'delete']];
 }
 
 /** Valida categorias e prazo vindos da tela. Lança InvalidArgumentException com mensagem amigável. */
-function arc_clean_validate_request(mixed $categories, mixed $age): array
+function arc_pf_validate_request(mixed $categories, mixed $age): array
 {
-    $catalog = arc_clean_catalog();
+    $catalog = arc_pf_catalog();
     if (!is_array($categories) || count($categories) < 1 || count($categories) > count($catalog) || count(array_unique($categories, SORT_REGULAR)) !== count($categories)) {
         throw new InvalidArgumentException('Seleção de categorias inválida');
     }
@@ -168,12 +166,12 @@ function arc_clean_validate_request(mixed $categories, mixed $age): array
         if (!is_string($category) || !isset($catalog[$category])) throw new InvalidArgumentException('Categoria não permitida');
     }
     $age = filter_var($age ?? 7, FILTER_VALIDATE_INT);
-    if ($age === false || !in_array($age, arc_clean_age_options(), true)) throw new InvalidArgumentException('Prazo de limpeza inválido');
+    if ($age === false || !in_array($age, arc_pf_age_options(), true)) throw new InvalidArgumentException('Prazo de limpeza inválido');
     return [array_values($categories), (int)$age];
 }
 
 /** Caminho absoluto do Windows aceito em exclusões e pastas personalizadas (sem curingas, exceto * nas exclusões). */
-function arc_clean_valid_path(mixed $value, bool $wildcard): bool
+function arc_pf_valid_path(mixed $value, bool $wildcard): bool
 {
     return is_string($value) && strlen($value) >= 4 && strlen($value) <= 240
         && preg_match($wildcard ? '#^[A-Za-z]:\\\\[^<>"|?\x00-\x1f]+$#D' : '#^[A-Za-z]:\\\\[^<>"|?*\x00-\x1f]+$#D', $value) === 1
@@ -182,21 +180,21 @@ function arc_clean_valid_path(mixed $value, bool $wildcard): bool
 
 /** Configurações por máquina: exclusões, pastas personalizadas, aplicativos excluídos da suspensão e drivers ignorados.
     Lança InvalidArgumentException. */
-function arc_clean_default_settings(): array
+function arc_pf_default_settings(): array
 {
     return ['exclusions' => [], 'custom_folders' => [], 'perf_excluded' => [], 'drivers_ignored' => []];
 }
 
-function arc_clean_validate_settings(mixed $body): array
+function arc_pf_validate_settings(mixed $body): array
 {
-    $out = arc_clean_default_settings();
-    foreach (['exclusions' => [ARC_CLEAN_MAX_EXCLUSIONS, true], 'custom_folders' => [ARC_CLEAN_MAX_CUSTOM_FOLDERS, false]] as $field => [$max, $wildcard]) {
+    $out = arc_pf_default_settings();
+    foreach (['exclusions' => [ARC_PF_MAX_EXCLUSIONS, true], 'custom_folders' => [ARC_PF_MAX_CUSTOM_FOLDERS, false]] as $field => [$max, $wildcard]) {
         $list = is_array($body) ? ($body[$field] ?? []) : [];
         if (!is_array($list) || count($list) > $max) throw new InvalidArgumentException('Lista de caminhos inválida (máximo ' . $max . ')');
         foreach ($list as $path) {
             $path = is_string($path) ? trim($path) : '';
             if ($path === '') continue;
-            if (!arc_clean_valid_path($path, $wildcard)) throw new InvalidArgumentException('Caminho inválido: ' . mb_substr($path, 0, 60));
+            if (!arc_pf_valid_path($path, $wildcard)) throw new InvalidArgumentException('Caminho inválido: ' . mb_substr($path, 0, 60));
             $out[$field][] = $path;
         }
         $out[$field] = array_values(array_unique($out[$field]));
@@ -210,11 +208,10 @@ function arc_clean_validate_settings(mixed $body): array
         }
         $out[$field] = array_values(array_unique($out[$field]));
     }
-    if(is_array($body)&&array_key_exists('general_preferences',$body))$out['general_preferences']=arc_general_preferences($body['general_preferences']);
     return $out;
 }
 
-function arc_clean_settings_get(PDO $pdo, int $gestorId, int $networkId, int $accountId): array
+function arc_pf_settings_get(PDO $pdo, int $gestorId, int $networkId, int $accountId): array
 {
     try {
         $q = $pdo->prepare('SELECT settings_json FROM ' . arc_table('clean_settings') . ' WHERE gestor_id=? AND network_id=? AND account_id=?');
@@ -224,28 +221,26 @@ function arc_clean_settings_get(PDO $pdo, int $gestorId, int $networkId, int $ac
         $data = null;
     }
     try {
-        return arc_clean_validate_settings(is_array($data) ? $data : []);
+        return arc_pf_validate_settings(is_array($data) ? $data : []);
     } catch (InvalidArgumentException $e) {
-        return arc_clean_default_settings();
+        return arc_pf_default_settings();
     }
 }
 
-function arc_clean_settings_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $settings): void
+function arc_pf_settings_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $settings): void
 {
-    if(!array_key_exists('general_preferences',$settings)){$previous=arc_clean_settings_get($pdo,$gestorId,$networkId,$accountId);if(isset($previous['general_preferences']))$settings['general_preferences']=$previous['general_preferences'];}
     $pdo->prepare('INSERT INTO ' . arc_table('clean_settings') . ' (gestor_id,network_id,account_id,settings_json) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),settings_json=VALUES(settings_json)')
         ->execute([$gestorId, $networkId, $accountId, json_encode($settings, JSON_UNESCAPED_UNICODE)]);
 }
 
 /** Valida um pedido de ferramenta e devolve a carga enviada ao gestor. $last é o último relatório da mesma ferramenta
     (os identificadores aceitos são somente os que o gestor produziu). Lança InvalidArgumentException. */
-function arc_clean_validate_tool(array $body, ?array $last): array
+function arc_pf_validate_tool(array $body, ?array $last): array
 {
     $tool = (string)($body['tool'] ?? '');
     $action = (string)($body['action'] ?? '');
-    $tools = arc_clean_tools();
+    $tools = arc_pf_tools();
     if (!isset($tools[$tool]) || !in_array($action, $tools[$tool], true)) throw new InvalidArgumentException('Operação inválida');
-    if($tool==='general')return arc_general_request($body,$last);
     $payload = ['tool' => $tool, 'action' => $action];
     $known = static function (string $field, array $rows): array {
         $ids = [];
@@ -259,10 +254,10 @@ function arc_clean_validate_tool(array $body, ?array $last): array
     };
     switch ($tool) {
         case 'registry':
-            $checks = $body['checks'] ?? array_keys(arc_clean_registry_checks());
-            if (!is_array($checks) || !$checks || array_diff($checks, array_keys(arc_clean_registry_checks()))) throw new InvalidArgumentException('Verificações inválidas');
+            $checks = $body['checks'] ?? array_keys(arc_pf_registry_checks());
+            if (!is_array($checks) || !$checks || array_diff($checks, array_keys(arc_pf_registry_checks()))) throw new InvalidArgumentException('Verificações inválidas');
             $payload['checks'] = array_values($checks);
-            if ($action === 'fix') $payload['ids'] = $ids($body['ids'] ?? null, $known('id', (array)($last['issues'] ?? [])), ARC_CLEAN_MAX_REGISTRY_IDS);
+            if ($action === 'fix') $payload['ids'] = $ids($body['ids'] ?? null, $known('id', (array)($last['issues'] ?? [])), ARC_PF_MAX_REGISTRY_IDS);
             if ($action === 'restore') {
                 $backup = (string)($body['backup'] ?? '');
                 if (!preg_match('/^\d{8}-\d{6}$/D', $backup) || !in_array($backup, (array)($last['backups'] ?? []), true)) throw new InvalidArgumentException('Backup inexistente');
@@ -306,7 +301,7 @@ function arc_clean_validate_tool(array $body, ?array $last): array
             if ($action === 'apply') $payload['ids'] = $ids($body['ids'] ?? null, $known('id', (array)($last['items'] ?? [])), 30);
             break;
         case 'health':
-            $payload += arc_clean_health_sets();
+            $payload += arc_pf_health_sets();
             break;
         case 'performance':
             if ($action !== 'list') $payload['ids'] = $ids($body['ids'] ?? null, $known('id', array_merge((array)($last['active'] ?? []), (array)($last['suspended'] ?? []))), 40);
@@ -322,34 +317,34 @@ function arc_clean_validate_tool(array $body, ?array $last): array
 }
 
 /** Inteiros não negativos e textos curtos: o relatório do gestor nunca é guardado como veio. */
-function arc_clean_text(mixed $v, int $max): string
+function arc_pf_text(mixed $v, int $max): string
 {
     return mb_substr(preg_replace('/[\x00-\x1f\x7f]/u', ' ', (string)$v) ?? '', 0, $max);
 }
 
-function arc_clean_count(mixed $v): int
+function arc_pf_count(mixed $v): int
 {
     return max(0, (int)$v);
 }
 
 /** Mantém somente campos conhecidos e numéricos do relatório da Limpeza personalizada.
     $execute vem do nome do comando solicitado, nunca do corpo enviado pelo gestor. */
-function arc_clean_sanitize_report(array $report, bool $execute): array
+function arc_pf_sanitize_report(array $report, bool $execute): array
 {
     $age = (int)($report['age_days'] ?? 7);
     $clean = [
         'file_count' => 0, 'bytes' => 0, 'errors' => 0, 'truncated' => false,
         'execute'    => $execute,
-        'age_days'   => in_array($age, arc_clean_age_options(), true) ? $age : 7,
+        'age_days'   => in_array($age, arc_pf_age_options(), true) ? $age : 7,
         'categories' => [],
     ];
-    foreach (array_keys(arc_clean_catalog()) as $key) {
+    foreach (array_keys(arc_pf_catalog()) as $key) {
         $r = $report['categories'][$key] ?? null;
         if (!is_array($r)) continue;
         $item = [
-            'file_count' => arc_clean_count($r['file_count'] ?? 0),
-            'bytes'      => arc_clean_count($r['bytes'] ?? 0),
-            'errors'     => arc_clean_count($r['errors'] ?? 0),
+            'file_count' => arc_pf_count($r['file_count'] ?? 0),
+            'bytes'      => arc_pf_count($r['bytes'] ?? 0),
+            'errors'     => arc_pf_count($r['errors'] ?? 0),
             'truncated'  => !empty($r['truncated']),
             'unit'       => !empty($r['action']) ? 'action' : (!empty($r['records']) || !empty($r['registry']) ? 'records' : 'files'),
         ];
@@ -361,129 +356,128 @@ function arc_clean_sanitize_report(array $report, bool $execute): array
     }
     $disk = $report['disk'] ?? null;
     if (is_array($disk) && isset($disk['total'], $disk['free'])) {
-        $clean['disk'] = ['total' => arc_clean_count($disk['total']), 'free' => arc_clean_count($disk['free']), 'drive' => mb_substr((string)preg_replace('/[^A-Za-z:]/', '', (string)($disk['drive'] ?? 'C:')), 0, 3)];
+        $clean['disk'] = ['total' => arc_pf_count($disk['total']), 'free' => arc_pf_count($disk['free']), 'drive' => mb_substr((string)preg_replace('/[^A-Za-z:]/', '', (string)($disk['drive'] ?? 'C:')), 0, 3)];
     }
     return $clean;
 }
 
 /** Higieniza o relatório de uma ferramenta. Retorna [tipo, relatório]. Lança InvalidArgumentException. */
-function arc_clean_sanitize_tool_report(string $tool, array $r): array
+function arc_pf_sanitize_tool_report(string $tool, array $r): array
 {
-    if (!isset(arc_clean_tools()[$tool])) throw new InvalidArgumentException('Ferramenta desconhecida');
-    if($tool==='general')return ['general',arc_general_sanitize_report($r)];
+    if (!isset(arc_pf_tools()[$tool])) throw new InvalidArgumentException('Ferramenta desconhecida');
     $rows = static fn(mixed $v, int $max): array => is_array($v) ? array_slice(array_values(array_filter($v, 'is_array')), 0, $max) : [];
     $out = ['tool' => $tool];
     switch ($tool) {
         case 'registry':
-            $checks = arc_clean_registry_checks();
+            $checks = arc_pf_registry_checks();
             $out['issues'] = [];
-            foreach ($rows($r['issues'] ?? [], ARC_CLEAN_MAX_REGISTRY_IDS) as $i) {
+            foreach ($rows($r['issues'] ?? [], ARC_PF_MAX_REGISTRY_IDS) as $i) {
                 if (!preg_match('/^[a-f0-9]{16}$/D', (string)($i['id'] ?? '')) || !isset($checks[$i['check'] ?? ''])) continue;
                 $out['issues'][] = ['id' => (string)$i['id'], 'check' => (string)$i['check'], 'hive' => ($i['hive'] ?? '') === 'HKCU' ? 'HKCU' : 'HKLM',
-                                    'key' => arc_clean_text($i['key'] ?? '', 400), 'value' => isset($i['value']) ? arc_clean_text($i['value'], 260) : null, 'detail' => arc_clean_text($i['detail'] ?? '', 300)];
+                                    'key' => arc_pf_text($i['key'] ?? '', 400), 'value' => isset($i['value']) ? arc_pf_text($i['value'], 260) : null, 'detail' => arc_pf_text($i['detail'] ?? '', 300)];
             }
             $out['counts'] = [];
-            foreach ($checks as $k => $_) if (isset($r['counts'][$k])) $out['counts'][$k] = arc_clean_count($r['counts'][$k]);
+            foreach ($checks as $k => $_) if (isset($r['counts'][$k])) $out['counts'][$k] = arc_pf_count($r['counts'][$k]);
             $out['backups'] = array_values(array_filter(array_map('strval', (array)($r['backups'] ?? [])), static fn($b) => preg_match('/^\d{8}-\d{6}$/D', $b) === 1));
-            foreach (['fixed', 'failed', 'restored', 'total'] as $n) if (isset($r[$n])) $out[$n] = arc_clean_count($r[$n]);
+            foreach (['fixed', 'failed', 'restored', 'total'] as $n) if (isset($r[$n])) $out[$n] = arc_pf_count($r[$n]);
             if (!empty($r['backup']) && preg_match('/^\d{8}-\d{6}$/D', (string)$r['backup'])) $out['backup'] = (string)$r['backup'];
             break;
         case 'startup':
             $out['items'] = [];
             foreach ($rows($r['items'] ?? [], 700) as $i) {
                 if (!preg_match('/^[a-f0-9]{16}$/D', (string)($i['id'] ?? ''))) continue;
-                $out['items'][] = ['id' => (string)$i['id'], 'kind' => in_array($i['kind'] ?? '', ['run', 'folder', 'task', 'service', 'context'], true) ? (string)$i['kind'] : 'run', 'name' => arc_clean_text($i['name'] ?? '', 120),
-                                   'detail' => arc_clean_text($i['detail'] ?? '', 120), 'publisher' => arc_clean_text($i['publisher'] ?? '', 80),
-                                   'command' => arc_clean_text($i['command'] ?? '', 260), 'source' => arc_clean_text($i['source'] ?? '', 60), 'enabled' => !empty($i['enabled'])];
+                $out['items'][] = ['id' => (string)$i['id'], 'kind' => in_array($i['kind'] ?? '', ['run', 'folder', 'task', 'service', 'context'], true) ? (string)$i['kind'] : 'run', 'name' => arc_pf_text($i['name'] ?? '', 120),
+                                   'detail' => arc_pf_text($i['detail'] ?? '', 120), 'publisher' => arc_pf_text($i['publisher'] ?? '', 80),
+                                   'command' => arc_pf_text($i['command'] ?? '', 260), 'source' => arc_pf_text($i['source'] ?? '', 60), 'enabled' => !empty($i['enabled'])];
             }
-            foreach (['done', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_clean_count($r[$n]);
+            foreach (['done', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_pf_count($r[$n]);
             break;
         case 'disk':
-            $out += ['drive' => mb_substr((string)preg_replace('/[^A-Za-z:]/', '', (string)($r['drive'] ?? 'C:')), 0, 2), 'files' => arc_clean_count($r['files'] ?? 0), 'bytes' => arc_clean_count($r['bytes'] ?? 0),
-                     'truncated' => !empty($r['truncated']), 'disk_total' => arc_clean_count($r['disk_total'] ?? 0), 'disk_free' => arc_clean_count($r['disk_free'] ?? 0)];
-            $out['types'] = array_map(static fn($t) => ['name' => arc_clean_text($t['name'] ?? '', 40), 'count' => arc_clean_count($t['count'] ?? 0), 'bytes' => arc_clean_count($t['bytes'] ?? 0)], $rows($r['types'] ?? [], 12));
-            $out['folders'] = array_map(static fn($t) => ['path' => arc_clean_text($t['path'] ?? '', 300), 'bytes' => arc_clean_count($t['bytes'] ?? 0)], $rows($r['folders'] ?? [], 80));
-            $out['largest'] = array_map(static fn($t) => ['path' => arc_clean_text($t['path'] ?? '', 400), 'bytes' => arc_clean_count($t['bytes'] ?? 0)], $rows($r['largest'] ?? [], 50));
+            $out += ['drive' => mb_substr((string)preg_replace('/[^A-Za-z:]/', '', (string)($r['drive'] ?? 'C:')), 0, 2), 'files' => arc_pf_count($r['files'] ?? 0), 'bytes' => arc_pf_count($r['bytes'] ?? 0),
+                     'truncated' => !empty($r['truncated']), 'disk_total' => arc_pf_count($r['disk_total'] ?? 0), 'disk_free' => arc_pf_count($r['disk_free'] ?? 0)];
+            $out['types'] = array_map(static fn($t) => ['name' => arc_pf_text($t['name'] ?? '', 40), 'count' => arc_pf_count($t['count'] ?? 0), 'bytes' => arc_pf_count($t['bytes'] ?? 0)], $rows($r['types'] ?? [], 12));
+            $out['folders'] = array_map(static fn($t) => ['path' => arc_pf_text($t['path'] ?? '', 300), 'bytes' => arc_pf_count($t['bytes'] ?? 0)], $rows($r['folders'] ?? [], 80));
+            $out['largest'] = array_map(static fn($t) => ['path' => arc_pf_text($t['path'] ?? '', 400), 'bytes' => arc_pf_count($t['bytes'] ?? 0)], $rows($r['largest'] ?? [], 50));
             break;
         case 'duplicates':
             $out['groups'] = [];
             foreach ($rows($r['groups'] ?? [], 300) as $g) {
                 $files = [];
                 foreach ($rows($g['files'] ?? [], 20) as $f) {
-                    if (preg_match('/^[a-f0-9]{16}$/D', (string)($f['id'] ?? ''))) $files[] = ['id' => (string)$f['id'], 'path' => arc_clean_text($f['path'] ?? '', 500), 'modified' => arc_clean_count($f['modified'] ?? 0)];
+                    if (preg_match('/^[a-f0-9]{16}$/D', (string)($f['id'] ?? ''))) $files[] = ['id' => (string)$f['id'], 'path' => arc_pf_text($f['path'] ?? '', 500), 'modified' => arc_pf_count($f['modified'] ?? 0)];
                 }
-                if (count($files) > 1) $out['groups'][] = ['size' => arc_clean_count($g['size'] ?? 0), 'files' => $files];
+                if (count($files) > 1) $out['groups'][] = ['size' => arc_pf_count($g['size'] ?? 0), 'files' => $files];
             }
-            $out += ['scanned' => arc_clean_count($r['scanned'] ?? 0), 'wasted' => arc_clean_count($r['wasted'] ?? 0), 'truncated' => !empty($r['truncated'])];
-            foreach (['removed', 'freed', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_clean_count($r[$n]);
+            $out += ['scanned' => arc_pf_count($r['scanned'] ?? 0), 'wasted' => arc_pf_count($r['wasted'] ?? 0), 'truncated' => !empty($r['truncated'])];
+            foreach (['removed', 'freed', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_pf_count($r[$n]);
             break;
         case 'restore':
             $out['complete'] = !isset($r['complete']) || !empty($r['complete']);
-            $out['points'] = array_map(static fn($p) => ['sequence' => arc_clean_count($p['sequence'] ?? 0), 'description' => arc_clean_text($p['description'] ?? '', 120), 'created' => preg_replace('/\D/', '', (string)($p['created'] ?? '')) ?: '', 'type' => arc_clean_count($p['type'] ?? 0)], $rows($r['points'] ?? [], 30));
+            $out['points'] = array_map(static fn($p) => ['sequence' => arc_pf_count($p['sequence'] ?? 0), 'description' => arc_pf_text($p['description'] ?? '', 120), 'created' => preg_replace('/\D/', '', (string)($p['created'] ?? '')) ?: '', 'type' => arc_pf_count($p['type'] ?? 0)], $rows($r['points'] ?? [], 30));
             if (isset($r['created'])) $out['created'] = !empty($r['created']);
-            if (!empty($r['message'])) $out['message'] = arc_clean_text($r['message'], 300);
+            if (!empty($r['message'])) $out['message'] = arc_pf_text($r['message'], 300);
             break;
         case 'updater':
             $out['items'] = [];
             foreach ($rows($r['items'] ?? [], 200) as $i) {
-                if (preg_match('/^[A-Za-z0-9][A-Za-z0-9.+_-]{1,120}$/D', (string)($i['id'] ?? ''))) $out['items'][] = ['id' => (string)$i['id'], 'name' => arc_clean_text($i['name'] ?? '', 120), 'version' => arc_clean_text($i['version'] ?? '', 40), 'available' => arc_clean_text($i['available'] ?? '', 40)];
+                if (preg_match('/^[A-Za-z0-9][A-Za-z0-9.+_-]{1,120}$/D', (string)($i['id'] ?? ''))) $out['items'][] = ['id' => (string)$i['id'], 'name' => arc_pf_text($i['name'] ?? '', 120), 'version' => arc_pf_text($i['version'] ?? '', 40), 'available' => arc_pf_text($i['available'] ?? '', 40)];
             }
-            $out['results'] = array_map(static fn($x) => ['id' => arc_clean_text($x['id'] ?? '', 120), 'ok' => !empty($x['ok']), 'message' => arc_clean_text($x['message'] ?? '', 120)], $rows($r['results'] ?? [], 30));
+            $out['results'] = array_map(static fn($x) => ['id' => arc_pf_text($x['id'] ?? '', 120), 'ok' => !empty($x['ok']), 'message' => arc_pf_text($x['message'] ?? '', 120)], $rows($r['results'] ?? [], 30));
             break;
         case 'performance':
             foreach (['active', 'suspended'] as $list) {
                 $out[$list] = [];
                 foreach ($rows($r[$list] ?? [], 150) as $i) {
                     if (!preg_match('/^[a-f0-9]{16}$/D', (string)($i['id'] ?? ''))) continue;
-                    $out[$list][] = ['id' => (string)$i['id'], 'name' => arc_clean_text($i['name'] ?? '', 80), 'publisher' => arc_clean_text($i['publisher'] ?? '', 60),
-                                     'memory' => arc_clean_count($i['memory'] ?? 0), 'impact' => max(1, min(3, (int)($i['impact'] ?? 1))), 'count' => max(1, (int)($i['count'] ?? 1))];
+                    $out[$list][] = ['id' => (string)$i['id'], 'name' => arc_pf_text($i['name'] ?? '', 80), 'publisher' => arc_pf_text($i['publisher'] ?? '', 60),
+                                     'memory' => arc_pf_count($i['memory'] ?? 0), 'impact' => max(1, min(3, (int)($i['impact'] ?? 1))), 'count' => max(1, (int)($i['count'] ?? 1))];
                 }
             }
-            foreach (['done', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_clean_count($r[$n]);
+            foreach (['done', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_pf_count($r[$n]);
             break;
         case 'drivers':
             $driverRow = static function (array $d): array {
-                return ['id' => (string)$d['id'], 'name' => arc_clean_text($d['name'] ?? '', 100), 'group' => arc_clean_text($d['group'] ?? 'Outros', 40), 'version' => arc_clean_text($d['version'] ?? '', 40),
-                        'date' => preg_match('/^\d{4}-\d{2}-\d{2}$/D', (string)($d['date'] ?? '')) ? (string)$d['date'] : '', 'manufacturer' => arc_clean_text($d['manufacturer'] ?? '', 60)];
+                return ['id' => (string)$d['id'], 'name' => arc_pf_text($d['name'] ?? '', 100), 'group' => arc_pf_text($d['group'] ?? 'Outros', 40), 'version' => arc_pf_text($d['version'] ?? '', 40),
+                        'date' => preg_match('/^\d{4}-\d{2}-\d{2}$/D', (string)($d['date'] ?? '')) ? (string)$d['date'] : '', 'manufacturer' => arc_pf_text($d['manufacturer'] ?? '', 60)];
             };
             foreach (['outdated' => 100, 'current' => 400] as $list => $max) {
                 $out[$list] = [];
-                foreach ($rows($r[$list] ?? [], $max) as $d) if (preg_match('/^[a-f0-9]{16}$/D', (string)($d['id'] ?? ''))) $out[$list][] = $driverRow($d) + ($list === 'outdated' ? ['size' => arc_clean_count($d['size'] ?? 0)] : []);
+                foreach ($rows($r[$list] ?? [], $max) as $d) if (preg_match('/^[a-f0-9]{16}$/D', (string)($d['id'] ?? ''))) $out[$list][] = $driverRow($d) + ($list === 'outdated' ? ['size' => arc_pf_count($d['size'] ?? 0)] : []);
             }
-            $out['results'] = array_map(static fn($x) => ['id' => arc_clean_text($x['id'] ?? '', 20), 'ok' => !empty($x['ok']), 'message' => arc_clean_text($x['message'] ?? '', 120)], $rows($r['results'] ?? [], 40));
+            $out['results'] = array_map(static fn($x) => ['id' => arc_pf_text($x['id'] ?? '', 20), 'ok' => !empty($x['ok']), 'message' => arc_pf_text($x['message'] ?? '', 120)], $rows($r['results'] ?? [], 40));
             $out['reboot'] = !empty($r['reboot']);
             $out['complete'] = !isset($r['complete']) || !empty($r['complete']);
             break;
         case 'cloud':
             $providerKeys = ['onedrive', 'gdrive', 'dropbox', 'icloud', 'box'];
-            $out['providers'] = array_map(static fn($p) => ['key' => in_array($p['key'] ?? '', $providerKeys, true) ? (string)$p['key'] : 'box', 'name' => arc_clean_text($p['name'] ?? '', 80), 'root' => arc_clean_text($p['root'] ?? '', 200),
-                                                             'files' => arc_clean_count($p['files'] ?? 0), 'bytes' => arc_clean_count($p['bytes'] ?? 0)], $rows($r['providers'] ?? [], 12));
+            $out['providers'] = array_map(static fn($p) => ['key' => in_array($p['key'] ?? '', $providerKeys, true) ? (string)$p['key'] : 'box', 'name' => arc_pf_text($p['name'] ?? '', 80), 'root' => arc_pf_text($p['root'] ?? '', 200),
+                                                             'files' => arc_pf_count($p['files'] ?? 0), 'bytes' => arc_pf_count($p['bytes'] ?? 0)], $rows($r['providers'] ?? [], 12));
             $out['cats'] = [];
-            foreach (['junk', 'duplicate', 'large', 'old'] as $cat) $out['cats'][$cat] = ['count' => arc_clean_count($r['cats'][$cat]['count'] ?? 0), 'bytes' => arc_clean_count($r['cats'][$cat]['bytes'] ?? 0)];
+            foreach (['junk', 'duplicate', 'large', 'old'] as $cat) $out['cats'][$cat] = ['count' => arc_pf_count($r['cats'][$cat]['count'] ?? 0), 'bytes' => arc_pf_count($r['cats'][$cat]['bytes'] ?? 0)];
             $out['items'] = [];
             foreach ($rows($r['items'] ?? [], 480) as $i) {
                 if (!preg_match('/^[a-f0-9]{16}$/D', (string)($i['id'] ?? '')) || !isset($out['cats'][$i['cat'] ?? ''])) continue;
                 $out['items'][] = ['id' => (string)$i['id'], 'cat' => (string)$i['cat'], 'provider' => in_array($i['provider'] ?? '', $providerKeys, true) ? (string)$i['provider'] : 'box',
-                                   'path' => arc_clean_text($i['path'] ?? '', 400), 'bytes' => arc_clean_count($i['bytes'] ?? 0), 'modified' => arc_clean_count($i['modified'] ?? 0), 'local' => !empty($i['local'])];
+                                   'path' => arc_pf_text($i['path'] ?? '', 400), 'bytes' => arc_pf_count($i['bytes'] ?? 0), 'modified' => arc_pf_count($i['modified'] ?? 0), 'local' => !empty($i['local'])];
             }
             $out['truncated'] = !empty($r['truncated']);
-            foreach (['removed', 'freed', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_clean_count($r[$n]);
+            foreach (['removed', 'freed', 'failed'] as $n) if (isset($r[$n])) $out[$n] = arc_pf_count($r[$n]);
             break;
         case 'health':
             $out['incomplete'] = !empty($r['incomplete']);
             $out['missing'] = array_values(array_slice(array_filter((array)($r['missing'] ?? []), 'is_string'), 0, 60));
-            $out['note'] = arc_clean_text($r['note'] ?? '', 300);
+            $out['note'] = arc_pf_text($r['note'] ?? '', 300);
             foreach (['space', 'privacy'] as $part) {
-                $san = arc_clean_sanitize_report(is_array($r[$part] ?? null) ? $r[$part] : [], false);
+                $san = arc_pf_sanitize_report(is_array($r[$part] ?? null) ? $r[$part] : [], false);
                 $out[$part] = ['file_count' => $san['file_count'], 'bytes' => $san['bytes'], 'errors' => $san['errors'], 'categories' => $san['categories']];
             }
-            $out['speed'] = ['startup_total' => arc_clean_count($r['speed']['startup_total'] ?? 0), 'startup_enabled' => arc_clean_count($r['speed']['startup_enabled'] ?? 0)];
-            $out['registry'] = ['issues'=>arc_clean_count($r['registry']['issues']??0),'complete'=>!isset($r['registry']['complete'])||!empty($r['registry']['complete']),'message'=>arc_clean_text($r['registry']['message']??'',250)];
-            $out['sync_errors']=array_slice(array_map(static fn($text)=>arc_clean_text($text,300),array_filter((array)($r['sync_errors']??[]),'is_string')),0,4);
+            $out['speed'] = ['startup_total' => arc_pf_count($r['speed']['startup_total'] ?? 0), 'startup_enabled' => arc_pf_count($r['speed']['startup_enabled'] ?? 0)];
+            $out['registry'] = ['issues'=>arc_pf_count($r['registry']['issues']??0),'complete'=>!isset($r['registry']['complete'])||!empty($r['registry']['complete']),'message'=>arc_pf_text($r['registry']['message']??'',250)];
+            $out['sync_errors']=array_slice(array_map(static fn($text)=>arc_pf_text($text,300),array_filter((array)($r['sync_errors']??[]),'is_string')),0,4);
             $out['optimization'] = !empty($r['optimization']);
-            $out['removed'] = arc_clean_count($r['removed']??0); $out['freed_bytes'] = arc_clean_count($r['freed_bytes']??0); $out['errors'] = arc_clean_count($r['errors']??0);
-            $out['reboot'] = !empty($r['reboot']);$out['created'] = !isset($r['created'])||!empty($r['created']);$out['captured_at'] = arc_clean_count($r['captured_at']??0);
-            $out['message'] = arc_clean_text($r['message']??'',500);
+            $out['removed'] = arc_pf_count($r['removed']??0); $out['freed_bytes'] = arc_pf_count($r['freed_bytes']??0); $out['errors'] = arc_pf_count($r['errors']??0);
+            $out['reboot'] = !empty($r['reboot']);$out['created'] = !isset($r['created'])||!empty($r['created']);$out['captured_at'] = arc_pf_count($r['captured_at']??0);
+            $out['message'] = arc_pf_text($r['message']??'',500);
             $out['steps'] = array_values(array_intersect((array)($r['steps']??[]),['space','privacy']));
             $out['free_space_delta'] = isset($r['free_space_delta'])&&is_numeric($r['free_space_delta'])?(int)$r['free_space_delta']:null;
             break;
@@ -492,7 +486,7 @@ function arc_clean_sanitize_tool_report(string $tool, array $r): array
 }
 
 /** Último relatório de uma ferramenta/limpeza da máquina (tipo "clean" para a Limpeza personalizada). */
-function arc_clean_report_get(PDO $pdo, int $gestorId, int $networkId, int $accountId, string $kind): ?array
+function arc_pf_report_get(PDO $pdo, int $gestorId, int $networkId, int $accountId, string $kind): ?array
 {
     $q = $pdo->prepare('SELECT report_json,collected_at FROM ' . arc_table('gestor_clean_inventory') . ' WHERE gestor_id=? AND network_id=? AND account_id=? AND kind=?');
     $q->execute([$gestorId, $networkId, $accountId, $kind]);
@@ -502,14 +496,14 @@ function arc_clean_report_get(PDO $pdo, int $gestorId, int $networkId, int $acco
     return is_array($report) ? ['report' => $report, 'collected_at' => $row['collected_at']] : null;
 }
 
-function arc_clean_report_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, string $kind, array $report): void
+function arc_pf_report_save(PDO $pdo, int $gestorId, int $networkId, int $accountId, string $kind, array $report): void
 {
     $pdo->prepare('INSERT INTO ' . arc_table('gestor_clean_inventory') . ' (gestor_id,kind,network_id,account_id,report_json) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),report_json=VALUES(report_json),collected_at=CURRENT_TIMESTAMP')
         ->execute([$gestorId, $kind, $networkId, $accountId, json_encode($report, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
 }
 
 /** Datas da última execução de cada ferramenta (a tela só baixa o relatório da ferramenta aberta). */
-function arc_clean_report_index(PDO $pdo, int $gestorId, int $networkId, int $accountId): array
+function arc_pf_report_index(PDO $pdo, int $gestorId, int $networkId, int $accountId): array
 {
     $q = $pdo->prepare('SELECT kind,collected_at FROM ' . arc_table('gestor_clean_inventory') . ' WHERE gestor_id=? AND network_id=? AND account_id=?');
     $q->execute([$gestorId, $networkId, $accountId]);
@@ -518,7 +512,7 @@ function arc_clean_report_index(PDO $pdo, int $gestorId, int $networkId, int $ac
 
 /** Guarda a linha do histórico e preserva apenas as 30 mais recentes por máquina.
     O histórico é auxiliar: se a tabela ainda não existir, a limpeza continua válida. */
-function arc_clean_record_history(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $report): void
+function arc_pf_record_history(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $report): void
 {
     try {
         $table = arc_table('clean_history');
@@ -527,12 +521,12 @@ function arc_clean_record_history(PDO $pdo, int $gestorId, int $networkId, int $
         $pdo->prepare('DELETE FROM ' . $table . ' WHERE gestor_id=? AND id NOT IN (SELECT id FROM (SELECT id FROM ' . $table . ' WHERE gestor_id=? ORDER BY id DESC LIMIT 30) keep)')
             ->execute([$gestorId, $gestorId]);
     } catch (Throwable $e) {
-        arc_log_error('Arcoll clean history: ' . $e->getMessage());
+        arc_log_error('Arcoll pentefino history: ' . $e->getMessage());
     }
 }
 
 /** Últimas execuções da máquina, mais recentes primeiro. Lista vazia se a tabela ainda não existir. */
-function arc_clean_history(PDO $pdo, int $gestorId, int $networkId, int $accountId, int $limit = 8): array
+function arc_pf_history(PDO $pdo, int $gestorId, int $networkId, int $accountId, int $limit = 8): array
 {
     try {
         $q = $pdo->prepare('SELECT mode,age_days,file_count,bytes,errors,categories,created_at FROM ' . arc_table('clean_history') . ' WHERE gestor_id=? AND network_id=? AND account_id=? ORDER BY id DESC LIMIT ' . max(1, min(30, $limit)));
@@ -542,52 +536,6 @@ function arc_clean_history(PDO $pdo, int $gestorId, int $networkId, int $account
         return [];
     }
 }
-
-/** Esquema do Clean (idempotente, sem apagar dados): relatórios por ferramenta, histórico e configurações.
-    A tabela de relatórios ganha a coluna "kind" mantendo os relatórios existentes como tipo "clean". */
-function arc_clean_ensure_schema(PDO $pdo): void
-{
-    $engine = ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('gestor_clean_inventory') . ' (
-        gestor_id BIGINT UNSIGNED NOT NULL,
-        kind VARCHAR(24) NOT NULL DEFAULT \'clean\',
-        network_id BIGINT UNSIGNED NOT NULL,
-        account_id BIGINT UNSIGNED NOT NULL,
-        report_json MEDIUMTEXT NOT NULL,
-        collected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (gestor_id,kind),
-        KEY idx_clean_network (network_id,account_id)
-    )' . $engine);
-    $has = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=\'kind\'');
-    $has->execute([arc_prefix() . 'gestor_clean_inventory']);
-    if ((int)$has->fetchColumn() === 0) {
-        $pdo->exec('ALTER TABLE ' . arc_table('gestor_clean_inventory') . ' ADD COLUMN kind VARCHAR(24) NOT NULL DEFAULT \'clean\' AFTER gestor_id, DROP PRIMARY KEY, ADD PRIMARY KEY (gestor_id,kind)');
-    }
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('clean_history') . ' (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        gestor_id BIGINT UNSIGNED NOT NULL,
-        network_id BIGINT UNSIGNED NOT NULL,
-        account_id BIGINT UNSIGNED NOT NULL,
-        mode ENUM(\'scan\',\'execute\') NOT NULL DEFAULT \'scan\',
-        age_days SMALLINT UNSIGNED NOT NULL DEFAULT 7,
-        file_count INT UNSIGNED NOT NULL DEFAULT 0,
-        bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
-        errors INT UNSIGNED NOT NULL DEFAULT 0,
-        categories VARCHAR(255) NOT NULL DEFAULT \'\',
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_clean_history_gestor (gestor_id,id),
-        KEY idx_clean_history_network (network_id,account_id)
-    )' . $engine);
-    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . arc_table('clean_settings') . ' (
-        gestor_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
-        network_id BIGINT UNSIGNED NOT NULL,
-        account_id BIGINT UNSIGNED NOT NULL,
-        settings_json TEXT NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        KEY idx_clean_settings_network (network_id,account_id)
-    )' . $engine);
-}
-
 
 /** Catálogo explícito para instalação remota via WinGet (IDs fixos, sem comandos personalizados). */
 /** Domínio do site oficial de cada pacote do catálogo: origem do logo exibido na plataforma (api/program-logo.php) e no gestor. */
@@ -880,13 +828,13 @@ function arc_program_install_catalog(): array
 /** Comandos de cada tela (nomes usados na fila gestor_commands). */
 function arc_network_operation_commands(): array
 {
-    return ['program' => ['program_inventory', 'program_uninstall', 'program_install'], 'clean' => ['clean_scan', 'clean_execute', 'clean_tool']];
+    return ['program' => ['program_inventory', 'program_uninstall', 'program_install'], 'pentefino' => ['pentefino_scan', 'pentefino_execute', 'pentefino_tool']];
 }
 
 /** Tempo limite (minutos) das operações longas. As demais usam a política padrão de arc_expire_running_commands. */
 function arc_network_operation_timeouts(): array
 {
-    return ['program_inventory' => 10, 'program_uninstall' => 120, 'program_install' => 120, 'clean_scan' => 20, 'clean_execute' => 60, 'clean_tool' => 120];
+    return ['program_inventory' => 10, 'program_uninstall' => 120, 'program_install' => 120, 'pentefino_scan' => 20, 'pentefino_execute' => 60, 'pentefino_tool' => 120];
 }
 
 /** Modos do ponto de restauração antes de desinstalar: off, try (tenta e segue) e require (cancela se falhar). */
@@ -952,19 +900,19 @@ function arc_network_active_operation(PDO $pdo, int $gestorId, int $networkId, i
 
 
 /** Estado que o gestor baixa para espelhar a plataforma: configurações, histórico, último relatório de cada ferramenta e inventário de programas. */
-function arc_clean_gestor_state(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $kinds): array
+function arc_pf_gestor_state(PDO $pdo, int $gestorId, int $networkId, int $accountId, array $kinds): array
 {
     $reports = [];
     foreach ($kinds as $kind) {
-        if ($kind !== 'clean' && !isset(arc_clean_tools()[$kind])) continue;
-        $row = arc_clean_report_get($pdo, $gestorId, $networkId, $accountId, (string)$kind);
+        if ($kind !== 'clean' && !isset(arc_pf_tools()[$kind])) continue;
+        $row = arc_pf_report_get($pdo, $gestorId, $networkId, $accountId, (string)$kind);
         if ($row) $reports[$kind] = ['report' => $row['report'], 'collected_at' => $row['collected_at']];
     }
     $q = $pdo->prepare('SELECT programs_json,collected_at FROM ' . arc_table('gestor_software_inventory') . ' WHERE gestor_id=? AND network_id=? AND account_id=?');
     $q->execute([$gestorId, $networkId, $accountId]);
     $inventory = $q->fetch(PDO::FETCH_ASSOC);
     $programs = $inventory ? json_decode((string)$inventory['programs_json'], true) : [];
-    return ['settings' => arc_clean_settings_get($pdo, $gestorId, $networkId, $accountId), 'history' => arc_clean_history($pdo, $gestorId, $networkId, $accountId),
-            'index' => arc_clean_report_index($pdo, $gestorId, $networkId, $accountId), 'reports' => $reports,
+    return ['settings' => arc_pf_settings_get($pdo, $gestorId, $networkId, $accountId), 'history' => arc_pf_history($pdo, $gestorId, $networkId, $accountId),
+            'index' => arc_pf_report_index($pdo, $gestorId, $networkId, $accountId), 'reports' => $reports,
             'programs' => is_array($programs) ? $programs : [], 'programs_at' => $inventory['collected_at'] ?? null];
 }

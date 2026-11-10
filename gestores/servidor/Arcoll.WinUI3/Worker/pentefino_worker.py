@@ -1,4 +1,4 @@
-# Caminho: gestores/servidor/Arcoll.WinUI3/Worker/clean_worker.py
+# Caminho: gestores/servidor/Arcoll.WinUI3/Worker/pentefino_worker.py
 """Protocolo local JSON por stdin/stdout; reutiliza o motor original, sem porta HTTP nem comandos arbitrários."""
 import json
 import hashlib
@@ -18,19 +18,19 @@ def emit(**packet):
 def run(request):
     if not isinstance(request, dict) or request.get('mode') not in ('scan', 'execute', 'tool', 'backup_status', 'backup_run'):
         raise ValueError('Operação local não permitida.')
-    import arcoll_clean as clean
+    import arcoll_pentefino as engine
     identity = hashlib.sha256(json.dumps(request.get('config', {}), sort_keys=True).encode()).hexdigest()
-    clean.DATA_DIR = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'TI-Digital' / 'Clean' / identity
+    engine.DATA_DIR = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'TI-Digital' / 'PenteFino' / 'Engine' / identity
     payload = request.get('payload') or {}
     if not isinstance(payload, dict):
         raise ValueError('Requisição inválida.')
     progress = lambda text: emit(progress=str(text)[:500])
     mode = request['mode']
     if mode in ('scan', 'execute'):
-        return clean.execute_clean(payload.get('categories'), mode == 'execute', payload.get('age_days', 7), progress,
+        return engine.execute_clean(payload.get('categories'), mode == 'execute', payload.get('age_days', 7), progress,
                                    payload.get('exclusions'), payload.get('custom_folders'), payload.get('period_days', 0))
     if mode == 'tool':
-        return clean.execute_tool(payload, progress)
+        return engine.execute_tool(payload, progress)
     from arcoll_cloud import CloudBackup
     config = request['config']
     worker = CloudBackup(config['origin'], config['fingerprint'], config['site_code'], config['download_key'])

@@ -78,7 +78,7 @@ public static class OperationProgress
     public static string Title(string name) => name switch
     {
         "scan_devices" or "scan_map" => "Examinar dispositivos", "speed_test" => "Testar Internet", "diagnostic" => "Diagnosticar conexão",
-        "clean_scan" => "Analisar limpeza", "clean_execute" => "Limpar computador", "clean_tool" => "Executar Clean",
+        "pentefino_scan" => "Analisar limpeza", "pentefino_execute" => "Limpar computador", "pentefino_tool" => "Executar Pente-Fino",
         "program_install" => "Instalar e atualizar programas", "program_inventory" => "Consultar programas", "windows_update" => "Windows Update",
         "remote_assistance" => "Iniciar acesso remoto", "monitor_start" => "Iniciar monitoramento", "monitor_pause" => "Pausar monitoramento",
         "file_browser" or "cloud_folders" => "Consultar arquivos", "power_shutdown" => "Agendar desligamento", "power_restart" => "Agendar reinicialização",

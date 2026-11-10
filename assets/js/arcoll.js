@@ -215,6 +215,8 @@ apply(choice);media.addEventListener('change',()=>{if(choice==='auto')apply(choi
   };
 
   updateNotifications();
+  // Permite que módulos (ex.: aviso de nova versão do gestor) adicionem itens ao sino.
+  window.arcNotifications = { refresh: updateNotifications, read: saveRead };
   userButton?.addEventListener('click', event => {
     event.stopPropagation();
     userMenu?.classList.toggle('open');

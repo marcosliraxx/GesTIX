@@ -340,7 +340,23 @@ try {
                 }
             Write-Host ('Diagnosticos XAML: ' + $diagnosticDir)
         }
-        throw ('Falha na compilacao XAML (codigo ' + $result + ').')
+        # A etapa XamlPreCompile tambem compila C#: nao rotular todo erro como XAML.
+        # Mostrar no resultado o primeiro erro real, com arquivo e linha quando disponiveis.
+        $diagnosis = $null
+        if (Test-Path -LiteralPath $buildLog) {
+            $errorLines = @(Get-Content -LiteralPath $buildLog -ErrorAction SilentlyContinue |
+                Where-Object { $_ -match '(?i)(: error (CS[0-9]+|XLS[0-9]+|MC[0-9]+|MSB[0-9]+|NETSDK[0-9]+)|\berror [A-Z]+[0-9]+:)' -and $_ -notmatch '(?i)error MSB3073:.*XamlCompiler\.exe' } |
+                Select-Object -Unique -First 8)
+            foreach ($line in $errorLines) { Write-Host ('ERRO DE COMPILACAO: ' + $line) -ForegroundColor Red }
+            if ($errorLines.Count -gt 0) { $diagnosis = ($errorLines[0] -replace '^\s+', '').Trim() }
+        }
+        if (-not $diagnosis) {
+            $diagnosis = 'Compilacao WinUI falhou sem erro especifico no log; consulte output.json, input.json e Compilacao-WinUI3-*.binlog.'
+        }
+        # A mensagem precisa chegar ao AGestor e ao historico de atualizacoes.
+        # A compilacao interrompida nao substitui a instalacao anterior.
+        throw ('Falha na compilacao do Gestor (codigo ' + $result + '): ' + $diagnosis)
+
     }
     Step 82 'Compilacao concluida. Publicando arquivos...'
     $publishCode = Invoke-WithBeat $dotnetExe @('publish', $project, $buildVersionArg, '-c', 'Release', '-r', $arch, '--self-contained', 'true', '-p:WindowsPackageType=None', '-p:WindowsAppSDKSelfContained=true', "-p:Platform=$platform", '-p:PublishReadyToRun=false', '-p:PublishTrimmed=false', '-o', $publish, '--no-restore') $buildLog 84 88 'Publicando arquivos' $true

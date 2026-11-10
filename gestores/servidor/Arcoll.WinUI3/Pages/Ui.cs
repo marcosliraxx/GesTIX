@@ -51,6 +51,19 @@ public static class Ui
     }
 
 
+    /// <summary>Faixa de aviso com barra lateral colorida; substitui textos soltos de estado.</summary>
+    public static Border Banner(string title, string detail, Brush tone, Palette p)
+    {
+        var text = new StackPanel { Spacing = 2 };
+        text.Children.Add(Label(title, p.Text, 13, true, true));
+        if (!string.IsNullOrWhiteSpace(detail)) text.Children.Add(Label(detail, p.Muted, 12, false, true));
+        var grid = new Grid { ColumnSpacing = 10 };
+        grid.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+        grid.Children.Add(new Border { Width = 4, CornerRadius = new CornerRadius(2), Background = tone });
+        Grid.SetColumn(text, 1); grid.Children.Add(text);
+        return Card(grid, p, 12);
+    }
+
     public static ContentDialog Dialog(XamlRoot root, Palette p, string title, UIElement content, string primary = "", string secondary = "", string close = "Fechar", ContentDialogButton defaultButton = ContentDialogButton.Close, string note = "")
     {
         var head = new StackPanel { Spacing = 4 };

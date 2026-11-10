@@ -133,7 +133,6 @@ public sealed partial class MainWindow
             "monitor" => "Indicadores e dados do monitoramento do Windows.",
             "health" => "Pente-Fino: examinar, revisar e corrigir com backup, quarentena e desfazer.",
             "security" => "Verifique proteção do Windows, firewall, antivírus registrados e TPM.",
-            "clean" => "Analise e selecione com segurança o que deseja limpar.",
             "drivers" => "Consulte e atualize drivers compatíveis com este dispositivo.",
             "backup" => "Gerencie cópias de segurança e sincronização em nuvem.",
             _ => "Ferramentas de " + (group?.Label.ToLowerInvariant() ?? "gestão") + " do T.I. Digital."
@@ -189,6 +188,11 @@ public sealed partial class MainWindow
                     using var message = JsonDocument.Parse(e.WebMessageAsJson);
                     var root = message.RootElement;
                     if (!root.TryGetProperty("type", out var typ) || typ.ValueKind != JsonValueKind.String) return;
+                    if (typ.GetString() == "sync-schedule")
+                    {
+                        if (root.TryGetProperty("milliseconds", out var interval) && interval.TryGetInt32(out var ms)) ScheduleFooterSync(ms);
+                        return;
+                    }
                     if (typ.GetString() == "network-ready") { PublishHybridState(); return; }
                     if (typ.GetString() == "network-refresh")
                     {

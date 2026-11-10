@@ -21,6 +21,7 @@ public sealed class DuplicatesPage : MaintenancePage
             ("Cópias extras",copies.ToString(),"Mantendo ao menos uma por grupo"),
             ("Potencial",Ui.Size(reclaimable),"Estimativa, não espaço liberado"),
             ("Selecionados",Selected.Count.ToString(),"Envio confirmado à Lixeira"));
-        foreach(var group in groups){var files=Rows(group,"files");if(!files.Any(f=>Matches(Get(f,"path"))))continue;Text(files.Length+" cópias · "+Ui.Size(Number(group,"size")),true);foreach(var file in files)Select(file,Get(file,"path"));}
+        foreach(var group in groups){var files=Rows(group,"files");if(!files.Any(f=>Matches(Get(f,"path"))))continue;Text(files.Length+" cópias · "+Ui.Size(Number(group,"size")),true);foreach(var file in files.Skip(1))Select(file,Get(file,"path"));
+            if(files.Length>0)Text("Cópia de referência preservada: "+Get(files[0],"path"));}
     }
 }

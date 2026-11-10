@@ -65,7 +65,7 @@ def stage_installer(package,stage):
     if not isinstance(package,dict) or not package.get('ok'):raise ValueError('Instalador indisponível.')
     binary=base64.b64decode(package.get('archive',''),validate=True)
     if not binary or len(binary)>33554432 or hashlib.sha256(binary).hexdigest()!=package.get('sha256'):raise ValueError('Integridade do instalador inválida.')
-    rows=package.get('manifest');required={'arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_remote.py','arcoll_secure_helper.py','arcoll_release.py','arcoll_gestor.py','arcoll_updater.py','arcoll_toolkit.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1','rt_engine.py','connection_diagnostics.py'}
+    rows=package.get('manifest');required={'arcoll_app.py','arcoll_programs.py','arcoll_pentefino.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_remote.py','arcoll_secure_helper.py','arcoll_release.py','arcoll_gestor.py','arcoll_updater.py','arcoll_toolkit.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1','rt_engine.py','connection_diagnostics.py'}
     if not isinstance(rows,list) or not 6<=len(rows)<=2000:raise ValueError('Inventário do instalador inválido.')
     expected={};seen=set()
     for row in rows:

@@ -1,15 +1,15 @@
 <?php
-/* Caminho: redes/_maintenance_tools.php | Interface única (estilo CCleaner) usada por redes/clean.php (programas integrados).
+/* Caminho: redes/_pentefino_ui.php | Interface única do Pente-Fino usada por redes/pentefino.php (programas integrados).
    Recebe: $ccSections (chaves de seção permitidas), $ccStart (seção inicial), $networkId, $selectedGestorId, $csrf.
-   Os dados e o contrato com o gestor (api.php: network-clean-* e network-program-*) não mudam; só a apresentação. */
+   Os dados e o contrato com o gestor (api.php: network-pentefino-* e network-program-*) não mudam; só a apresentação. */
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/error-logging.php';
 
 $ccSections = $ccSections ?? ['health','custom','uninstall','duplicates','cloud','backup','perf','startup','updater','drivers','disk','restore','options'];
 $ccStart = in_array($ccStart ?? 'health', $ccSections, true) ? $ccStart : $ccSections[0];
-$cleanConfig = [
-    'catalog' => arc_clean_catalog(), 'tabs' => arc_clean_tabs(), 'ages' => arc_clean_age_options(),
-    'registry' => arc_clean_registry_checks(), 'health' => arc_clean_health_sets(), 'browsers' => array_values(arc_clean_browsers()),
+$pfConfig = [
+    'catalog' => arc_pf_catalog(), 'tabs' => arc_pf_tabs(), 'ages' => arc_pf_age_options(),
+    'registry' => arc_pf_registry_checks(), 'health' => arc_pf_health_sets(), 'browsers' => array_values(arc_pf_browsers()),
     'sections' => array_values($ccSections), 'start' => $ccStart, 'batch' => ARC_PROGRAM_BATCH_MAX,
 ];
 ?>
@@ -125,11 +125,73 @@ $cleanConfig = [
 .cb-prev{position:fixed;inset:0;z-index:99999;background:rgba(6,10,18,.88);display:flex;flex-direction:column;padding:14px;gap:10px}.cb-prev-bar{display:flex;gap:12px;align-items:center;color:#fff}.cb-prev-bar b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cb-prev-body{flex:1;min-height:0;display:grid;place-items:center}.cb-prev-body img,.cb-prev-body video{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}.cb-prev-body iframe{width:min(1100px,100%);height:100%;border:0;border-radius:8px;background:#fff}
 .cb-crumbs button:first-child{font-weight:700}.cb-table td:first-child{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:820px){.cb-pick{grid-template-columns:minmax(0,1fr)}.cb-browser:has(.cb-detail:not([hidden])){grid-template-columns:minmax(0,1fr)}.cb-workspace{padding:14px 12px 90px}.cb-savebar{margin:0 -12px -90px;padding:10px 12px}.cb-tools .cc-input{width:100%}.cb-tabs button{padding:9px 10px}}
+.arc-pente-migration{padding:10px 16px;background:#1d3250;color:#d7e7ff;font:500 12px/1.5 "Segoe UI",sans-serif;border-bottom:1px solid #355276}
+
+/* Análise geral e lateral no mesmo layout do gestor Windows. */
+.cc-nav-h{font-size:9px;letter-spacing:.16em;color:var(--mut);padding:12px 12px 4px}
+.cc-nav-h:first-child{padding-top:6px}
+.cc.mini .cc-nav-h{display:none}
+.pf{display:grid;grid-template-columns:minmax(0,1fr) 400px;height:100%;min-height:0}
+.pf-left{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line)}
+.pf-tools{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.pf-ib{width:32px;height:30px;border:1px solid var(--line);border-radius:6px;background:var(--row);color:inherit;cursor:pointer}
+.pf-sum{display:flex;justify-content:space-between;gap:14px;padding:18px 18px 8px}
+.pf-sum h2{margin:3px 0 4px;font-size:20px}.pf-sum p{font-size:11px}
+.pf-eye{font-size:9px;letter-spacing:.2em;color:var(--warn)}
+.pf-badge{align-self:flex-start;padding:3px 12px;border:1px solid var(--warn);border-radius:999px;font-size:10px;color:var(--warn)}
+.pf-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:6px 18px 16px}
+.pf-metrics div{border:1px solid var(--line);border-radius:4px;padding:12px 14px}
+.pf-metrics strong{display:block;font-size:24px;color:var(--warn)}.pf-metrics span{font-size:10px}
+.pf-table{flex:1;min-height:0;overflow:auto;border-top:1px solid var(--line)}
+.pf-row{display:grid;grid-template-columns:34px minmax(150px,1.6fr) 1fr 1fr 1fr 1fr;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line);font-size:12px}
+.pf-row.hd{font-size:10px;font-weight:700;padding:11px 16px;position:sticky;top:0;background:var(--panel)}
+.pf-row b,.pf-row small{display:block}.pf-row small{font-size:10px;opacity:.8}
+.pf-row strong{font-size:15px}.pf-row .acc{color:var(--warn)}.pf-row .st{font-size:10px}
+.pf-foot{display:flex;justify-content:space-between;padding:9px 16px;font-size:10px;border-top:1px solid var(--line)}
+.pf-empty{padding:40px 28px}.pf-empty h2{margin:0 0 8px}
+.pf-right{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px 34px}
+.pf-ring{position:relative;width:250px;height:250px;border:0;background:none;color:inherit;cursor:pointer;margin-bottom:8px}
+.pf-ring:disabled{opacity:.55;cursor:default}
+.pf-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.pf-ring .bg{fill:none;stroke:var(--line);stroke-width:4}.pf-ring .fg{fill:none;stroke:var(--warn);stroke-width:4;stroke-linecap:round;stroke-dasharray:289;stroke-dashoffset:230}
+.pf-ring-in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.pf-ring-in small{font-size:9px;letter-spacing:.2em;color:var(--warn)}.pf-ring-in .fa{font-size:26px;color:var(--warn)}
+.pf-ring-in b{font-size:18px;letter-spacing:.06em}.pf-ring-in em{font-style:normal;font-size:11px}
+.pf-msg{text-align:center;font-size:12px}.pf-msg b,.pf-msg span{display:block}.pf-msg span{font-size:10px;margin-top:3px;color:var(--blue)}
+.pf-btn{width:100%;padding:11px;border:1px solid var(--line);border-radius:3px;background:transparent;color:inherit;font-weight:600;font-size:11px;cursor:pointer}
+.pf-btn.pri{background:var(--warn);border-color:var(--warn);color:#fff}.pf-btn.sm{width:auto;padding:6px 12px;font-weight:400;color:var(--warn);border-color:var(--warn);border-radius:6px}
+.pf-btn:disabled{opacity:.5;cursor:default}
+.pf-note{font-size:10px;text-align:center}
+@media(max-width:1100px){.pf{grid-template-columns:1fr}.pf-right{border-top:1px solid var(--line)}.pf-left{border-right:0}.pf-ring{width:200px;height:200px}}
+
+/* Análise geral: mesmo visual do gestor (escopo, ordenação e modal "O que analisar") */
+.cc .pf-scope-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;max-width:100%}
+.cc .pf-scope{display:flex;flex-wrap:wrap;justify-content:center;gap:5px;max-width:420px;max-height:96px;overflow:auto}
+.cc .pf-chip{display:flex;flex-direction:column;align-items:flex-start;padding:4px 9px;border-radius:14px;background:transparent;border:1px solid var(--line);color:var(--txt);cursor:pointer;text-align:left;font-family:inherit}
+.cc .pf-chip b{font-size:11px;font-weight:600}.cc .pf-chip small{font-size:9px;color:var(--mut)}
+.cc .pf-chip:hover:not(:disabled){border-color:var(--blue)}.cc .pf-chip:disabled{opacity:.45;cursor:default}
+.cc .pf-sort{border:0;background:transparent;color:inherit;font:inherit;padding:0;cursor:pointer;text-align:left}
+.cc .pf-ring.busy .fg{transition:stroke-dashoffset .7s cubic-bezier(.2,.7,.3,1)}
+.cc dialog.pf-set{width:min(680px,calc(100vw - 24px));max-height:85vh;padding:0;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.cc dialog.pf-set[open]{display:flex;flex-direction:column}.cc dialog.pf-set::backdrop{background:#071529a6}
+.cc dialog.pf-set>header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cc dialog.pf-set>header h2{margin:2px 0 0;font-size:15px}.cc dialog.pf-set>header button{font-size:23px;border:0;background:transparent;color:inherit;cursor:pointer;padding:0 4px}
+.cc dialog.pf-set>footer{border-top:1px solid var(--line);padding:11px 18px;display:flex;justify-content:flex-end}
+.cc .pf-set-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}.cc .pf-set-fb{font-size:11px;color:var(--warn)}
+.cc .pf-set-layout{display:grid;grid-template-columns:170px minmax(0,1fr);min-height:0;flex:1;overflow:hidden;height:min(460px,60vh)}
+.cc .pf-set-nav{display:flex;flex-direction:column;gap:2px;padding:8px;border-right:1px solid var(--line);overflow:auto}
+.cc .pf-set-nav button{background:transparent;border:0;border-left:2px solid transparent;color:var(--txt);text-align:left;padding:8px 10px;cursor:pointer;font-family:inherit;font-size:12px;border-radius:0}
+.cc .pf-set-nav button.on{border-left-color:var(--blue);color:var(--blue);background:var(--row)}
+.cc .pf-set-opt{padding:14px 18px;overflow:auto}.cc .pf-set-opt h3{margin:0 0 10px;font-size:15px}.cc .pf-set-opt h4{margin:14px 0 4px;font-size:12px;color:var(--mut)}
+.cc .pf-choice{display:flex;gap:11px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.cc .pf-choice b{display:block;font-size:12px}.cc .pf-choice small{display:block;font-size:10px;color:var(--mut)}.cc .pf-choice input{margin-top:3px;accent-color:var(--blue)}
+.cc .pf-dl{margin:0 0 12px}.cc .pf-dl>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px}.cc .pf-dl dd{margin:0;font-weight:600}.cc .pf-dl dt{color:var(--mut)}
+.cc .pf-ul{padding-left:17px;font-size:12px;color:var(--mut)}.cc .pf-ul li{margin:6px 0}
+@media(max-width:560px){.cc .pf-set-layout{grid-template-columns:1fr;height:auto}.cc .pf-set-nav{flex-direction:row;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}}
 </style>
-<section class="cc" id="cc" data-network="<?=(int)$networkId?>" data-gestor="<?=(int)$selectedGestorId?>" data-csrf="<?=arc_h($csrf)?>" data-api="<?=arc_h(arc_workspace_base_url().'api/api.php')?>" data-config="<?=arc_h(json_encode($cleanConfig,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT))?>">
- <aside class="cc-side"><button type="button" class="cc-burger" id="cc-burger" aria-label="Recolher ou expandir o menu"><i class="fa fa-bars"></i></button><nav class="cc-nav" id="cc-nav" aria-label="Seções do Clean"></nav><div class="cc-foot-nav" id="cc-foot-nav"></div><div class="cc-gestor" id="cc-gestor" title="Estado do gestor"><b></b><span>Modo manual</span></div></aside>
- <div class="cc-content"><div id="cc-banner"></div><div class="cc-view" id="cc-view"></div><div class="cc-status" id="cc-status" role="status" aria-live="polite">Escolha uma ferramenta e clique no botão correspondente para executar a consulta.</div></div>
+<section class="cc" id="cc" data-network="<?=(int)$networkId?>" data-gestor="<?=(int)$selectedGestorId?>" data-csrf="<?=arc_h($csrf)?>" data-api="<?=arc_h(arc_workspace_base_url().'api/api.php')?>" data-config="<?=arc_h(json_encode($pfConfig,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT))?>">
+ <aside class="cc-side"><button type="button" class="cc-burger" id="cc-burger" aria-label="Recolher ou expandir o menu"><i class="fa fa-bars"></i></button><nav class="cc-nav" id="cc-nav" aria-label="Ferramentas do Pente-Fino"></nav><div class="cc-foot-nav" id="cc-foot-nav"></div><div class="cc-gestor" id="cc-gestor" title="Estado do gestor"><b></b><span>Modo manual</span></div></aside>
+ <div class="cc-content"><div class="arc-pente-migration" role="note">Pente-Fino Web · Ferramentas em transição. Os comandos remotos existentes foram preservados; alguns diagnósticos ainda utilizam o motor anterior.</div><div id="cc-banner"></div><div class="cc-view" id="cc-view"></div><div class="cc-status" id="cc-status" role="status" aria-live="polite">Escolha uma ferramenta e clique no botão correspondente para executar a consulta.</div></div>
 </section>
 <dialog class="cc-dlg" id="cc-dlg"><h3 id="cc-dlg-title"></h3><div id="cc-dlg-body"></div><div class="cc-err err" id="cc-dlg-err" style="color:#ffa3a3;min-height:18px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button type="button" class="cc-pill" id="cc-dlg-no">Cancelar</button><button type="button" class="cc-pill blue" id="cc-dlg-yes">Confirmar</button></div></dialog>
-<link rel="stylesheet" href="<?=arc_h(arc_workspace_base_url().'assets/gestao/tools.css')?>">
-<?php require __DIR__.'/_maintenance_tools_js.php'; ?>
+<?php require __DIR__.'/_pentefino_ui_js.php'; ?>

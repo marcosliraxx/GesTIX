@@ -1,2 +1,19 @@
-/* Caminho: gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/native.css */
-html,body{margin:0;height:100%;overflow:hidden;background:#edf3fb}*{box-sizing:border-box}#backup-center{height:100vh;max-height:100vh;min-height:0}.bc-content{overflow:auto;flex:1}.bc-header{flex-shrink:0}.bc-tabs{flex-shrink:0}.bc-footer{flex-shrink:0}body:has([data-theme=dark]){background:#0b1220}
+/* Caminho: gestores/servidor/Arcoll.WinUI3/Assets/hybrid/backup/native.css — mesma barra e mesma área do Painel e do Servidor. */
+html,body{margin:0;height:100%;overflow:hidden;background:#172536}*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:#3d5878 transparent}
+#backup-center.bc-app{--bc-bg:#172536;--bc-surface:#1e2c3e;--bc-alt:#182638;--bc-text:#e9f1fd;--bc-muted:#adbac9;--bc-line:#394658;--bc-accent:#b98570;height:100vh;max-height:100vh;min-height:0;border:0;border-radius:0;font-size:12px}
+.bc-bar{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-height:46px;padding:6px 10px;background:#1e2c3e;border-bottom:1px solid #394658}
+.bc-bar-title{font-size:13px;white-space:nowrap}.bc-bar-note{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#adbac9;font-size:11px}
+.bc-app .bc-icon-button{display:grid;place-items:center;width:32px;height:32px;min-width:32px;padding:0;background:#182638;color:#e9f1fd;border:1px solid #394658;border-radius:7px;font-size:17px}.bc-app .bc-icon-button:hover,.bc-app .bc-icon-button[aria-expanded=true]{border-color:#b98570;color:#b98570}
+.bc-body{display:flex;flex:1;min-height:0;min-width:0}.bc-content{flex:1;min-width:0;min-height:0;overflow:auto;padding:10px}
+.bc-center{width:265px;flex:0 0 265px;display:flex;flex-direction:column;min-height:0;background:#172536;border-left:1px solid #394658}.bc-center>header{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:12px;border-bottom:1px solid #394658;font-size:12px}.bc-center header button{background:none;border:0;color:#e9f1fd;font-size:20px}
+.bc-center nav{display:flex;gap:5px;padding:9px;border-bottom:1px solid #394658}.bc-center nav button{flex:1;padding:8px 4px;background:#182638;color:#e9f1fd;border:1px solid #394658;border-radius:7px;font-size:11px}.bc-center nav button[aria-selected=true]{background:#b98570;border-color:#b98570;color:#fff}
+.bc-center section{flex:1;min-height:0;overflow:auto;padding:12px;font-size:11px}.bc-center ol{margin:0;padding:0;list-style:none}.bc-center li{padding:9px 1px;border-bottom:1px solid #394658;overflow-wrap:anywhere}.bc-center li small{display:block;color:#adbac9;margin-top:3px}
+.bc-app .bc-button{padding:6px 10px;border-radius:7px;background:#182638;color:#e9f1fd;border-color:#394658}.bc-app .bc-button.primary{background:#b98570;border-color:#b98570;color:#fff}
+.bc-stats{gap:8px;margin-bottom:10px}.bc-stat{padding:10px;border-radius:8px}.bc-stat strong{font-size:20px}.bc-stat span{display:none}
+.bc-section{padding:10px;margin-top:10px;border-radius:8px}.bc-section-head{margin-bottom:8px}.bc-section-head h2{font-size:13px}.bc-section-head p{display:none}
+.bc-run{padding:8px 0;gap:10px}.bc-banner{padding:8px 10px;margin-bottom:10px;border-radius:8px}.bc-banner.warn{background:#3a3020;border-color:#8b6a2a;color:#f1d79a}
+.bc-grid{gap:10px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}.bc-plan{padding:12px;border-radius:8px}.bc-plan h3{font-size:13px;margin:8px 0 4px}.bc-icon{width:30px;height:30px;font-size:16px;background:#182638}
+.bc-empty{padding:24px 10px}.bc-empty h3{font-size:13px}.bc-empty>span{font-size:24px}.bc-points{gap:7px;margin-top:8px}.bc-point{padding:9px;border-radius:8px}.bc-notice{background:#1e2c3e;color:#e9f1fd}
+.bc-pill.complete{background:#123a2c;border-color:#1f6b50;color:#5fd9a5}.bc-pill.running,.bc-pill.queued{background:#182f52;border-color:#2c5aa8;color:#8db4ff}.bc-pill.partial,.bc-pill.interrupted{background:#3a3020;border-color:#8b6a2a;color:#f1d79a}.bc-pill.failed{background:#3b1f27;border-color:#8c3a4c;color:#ff9aaa}
+.bc-app input,.bc-app select,.bc-app textarea{background:#182638;color:#e9f1fd;border:1px solid #394658;border-radius:7px;min-height:32px}
+@media(max-width:750px){.bc-center{position:absolute;top:46px;right:0;bottom:0;width:min(265px,85vw);z-index:20}.bc-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}

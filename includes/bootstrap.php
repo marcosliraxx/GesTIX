@@ -10,7 +10,7 @@ const ARC_SCHEMA_VERSION = '2026.11.08-42';
 
 require_once __DIR__.'/billing.php';
 require_once __DIR__.'/support.php';
-require_once __DIR__.'/network-clean.php';
+require_once __DIR__.'/network-pentefino.php';
 require_once __DIR__.'/cloud-backup.php';
 
 /* Fuso horário fixo do Workspace: America/Belem (UTC-03:00). */
@@ -51,8 +51,8 @@ function arc_require_billing_release(): void
 function arc_gestor_release_sources(?string $directory=null): array
 {
     $directory=$directory??dirname(__DIR__).'/gestores/windows';
-    $required=['arcoll_logsync.py','arcoll_release.py','arcoll_gestor.py','arcoll_app.py','arcoll_programs.py','arcoll_clean.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py','arcoll_updater.py','arcoll_remote.py','arcoll_secure_helper.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
-    $retired=['Instalar_Arcoll.py','arcoll_session.py'];$files=[];
+    $required=['arcoll_logsync.py','arcoll_release.py','arcoll_gestor.py','arcoll_app.py','arcoll_programs.py','arcoll_pentefino.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py','arcoll_updater.py','arcoll_remote.py','arcoll_secure_helper.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
+    $retired=['Instalar_Arcoll.py','arcoll_session.py','arcoll_clean.py'];$files=[];
     $paths=glob($directory.'/*');
     if($paths===false)throw new RuntimeException('Inventário do gestor indisponível.');
     foreach($paths as $path){
@@ -90,7 +90,7 @@ function arc_expire_running_commands(PDO $pdo,?int $gestorId=null,?int $networkI
     elseif($accountId!==null&&$accountId>0){$where='account_id=?';$params=[$accountId];}
     else throw new InvalidArgumentException('Escopo do comando ausente.');
     /* Política única de tempo limite (minutos, contados do despacho). Comandos fora da tabela usam 4 minutos.
-       Programas e Clean têm prazos próprios em includes/network-clean.php: uma desinstalação ou limpeza
+       Programas e Pente-Fino têm prazos próprios em includes/network-pentefino.php: uma desinstalação ou limpeza
        longa não pode ser marcada como falha enquanto o gestor ainda trabalha. */
     $limits=['windows_update'=>120,'gestor_update'=>45,'screen_lock'=>65]+arc_network_operation_timeouts();
     $names="'remote_assistance'";$rules=[];
@@ -132,6 +132,7 @@ function arc_table(string $name): string
         'field_values', 'user_accounts', 'managed_networks', 'network_sessions', 'account_login_attempts', 'account_audit', 'pwa_installations',
         'user_preferences', 'network_user_preferences', 'network_gestores', 'gestor_download_keys', 'gestor_telemetry', 'gestor_commands', 'gestor_terminal_jobs', 'file_browser_requests', 'network_device_inventory', 'navigation_items', 'permission_groups', 'permission_group_members', 'gestor_release_metadata', 'network_geo_points', 'network_team_members', 'network_team_invitations', 'network_access_profiles', 'billing_plans','billing_subscriptions','billing_invoices','billing_customers','billing_events','support_tickets','support_events','support_remote_sessions','support_remote_tokens','support_file_transfers','support_schedules','support_schedule_runs','support_guest_codes','support_native_accounts','support_command_requests','support_schedule_managers','platform_release_history','platform_release_state','navigation_backup',
         'cloud_connections','cloud_backup_jobs','cloud_backup_status','cloud_backup_uploads','cloud_backup_folders',
+        'backup_center_plans','backup_center_runs','backup_center_objects','backup_center_files','backup_center_workers',
         'gestor_removal_queue', 'gestor_rebind_requests', 'gestor_software_inventory', 'gestor_clean_inventory', 'clean_history', 'clean_settings', 'gestor_command_errors',
     ];
     if (!in_array($name, $allowed, true)) {
@@ -337,7 +338,14 @@ function arc_ensure_user_schema(PDO $pdo): void
 
 function arc_pref_defs(): array
 {
-    return [
+    $toolIntervals = ['auto'=>'Automático (verificação de segurança)','continuous'=>'Contínuo (limitado)','5'=>'5 segundos','15'=>'15 segundos','30'=>'30 segundos','60'=>'60 segundos'];
+    $toolPreferences = [];
+    foreach (['painel','servidor','pentefino','backup','velocidade','programas','remoto','suporte','chamados','arquivos','mapa','dispositivos','preferencias','usuarios','permissoes','cadastros','agenda','atualizacoes','relatorios','historico','clean'] as $tool) {
+        $toolPreferences['tool_refresh_'.$tool] = ['group'=>'Ferramentas','label'=>'Atualização · '.$tool,'type'=>'select','default'=>'15','options'=>$toolIntervals];
+        $toolPreferences['tool_notify_'.$tool] = ['group'=>'Ferramentas','label'=>'Notificar mudanças · '.$tool,'type'=>'bool','default'=>'1'];
+        $toolPreferences['tool_background_'.$tool] = ['group'=>'Ferramentas','label'=>'Atualizar em segundo plano · '.$tool,'type'=>'bool','default'=>'0'];
+    }
+    return array_merge($toolPreferences, [
         'notifications_email'   => ['group' => 'Notificações', 'label' => 'Notificações por e-mail', 'help' => 'Receber avisos importantes da conta e das redes.', 'type' => 'bool', 'default' => '1'],
         'alert_new_device'      => ['group' => 'Notificações', 'label' => 'Alertar dispositivos novos', 'help' => 'Avisa quando um equipamento desconhecido entrar na rede.', 'type' => 'bool', 'default' => '1'],
         'alert_connection_drop' => ['group' => 'Notificações', 'label' => 'Alertar queda de conexão', 'help' => 'Avisa quando uma rede ficar offline.', 'type' => 'bool', 'default' => '1'],
@@ -368,7 +376,7 @@ function arc_pref_defs(): array
             'options' => ['d/m/Y' => 'DD/MM/AAAA', 'Y-m-d' => 'AAAA-MM-DD', 'm/d/Y' => 'MM/DD/AAAA']],
         'time_format'           => ['group' => 'Região', 'label' => 'Formato de hora', 'type' => 'select', 'default' => '24',
             'options' => ['24' => '24 horas', '12' => '12 horas (AM/PM)']],
-    ];
+    ]);
 }
 
 function arc_pref_sanitize(string $key, mixed $value): string
@@ -495,7 +503,7 @@ function arc_team_save(PDO $pdo,int $account,int $network,int $user,string $role
 
 /** Perfis personalizáveis limitados à rede e aos recursos efetivamente autorizados. */
 function arc_network_profile_capabilities(): array {return [
- 'programas'=>'Programas instalados','clean'=>'Limpeza do Windows','backup'=>'Central de Backup','painel'=>'Painel da rede','servidor'=>'Servidor','velocidade'=>'Internet e velocidade','dispositivos'=>'Dispositivos',
+ 'programas'=>'Programas instalados','pentefino'=>'Pente-Fino','backup'=>'Central de Backup','painel'=>'Painel da rede','servidor'=>'Servidor','velocidade'=>'Internet e velocidade','dispositivos'=>'Dispositivos',
  'mapa'=>'Mapa','remoto'=>'Remoto','suporte'=>'Suporte','arquivos'=>'Arquivos','chamados'=>'Chamados','agenda'=>'Agenda','relatorios'=>'Relatórios','liberacao'=>'Liberações',
  'usuarios'=>'Usuários','preferencias'=>'Preferências','cadastros'=>'Cadastro da rede',
  'permissoes'=>'Perfis de acesso','gestor_local_login'=>'Entrar no gestor bloqueado (tela de login do gestor)'];}

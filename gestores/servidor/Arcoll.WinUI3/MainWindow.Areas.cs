@@ -25,7 +25,7 @@ public sealed partial class MainWindow
  {
   RefreshOsCaption();PaintAreaFooter();
   if(_areaTheme==_themes.Current)return;_areaTheme=_themes.Current;
-  var c=AreaColors();_gestorUpdatePage?.ApplyAreas(c);foreach(var frame in _nativeWorkspaces.Values)frame.Paint(c);
+  var c=AreaColors();_gestorUpdatePage?.ApplyAreas(c);
   var json=JsonSerializer.Serialize(c,new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.CamelCase});
   foreach(var core in _compactCores.ToArray())_ = ApplyAreaScriptAsync(core,"window.__tiSetAreas?.("+json+");");
  }

@@ -1,9 +1,9 @@
-# Caminho: gestores/windows/arcoll_clean.py
-"""Arcoll Clean: equivalente remoto das ferramentas do CCleaner, executado pelo gestor com privilégios de administrador.
+# Caminho: gestores/windows/arcoll_pentefino.py
+"""Arcoll Pente-Fino (motor de manutenção): manutenção remota executada pelo gestor com privilégios de administrador.
 
-Contrato com a plataforma (includes/network-clean.php):
-  * execute_clean(...)  -> comandos clean_scan / clean_execute (Limpeza personalizada).
-  * execute_tool(...)   -> comando clean_tool (registro, inicialização, disco, duplicados, restauração,
+Contrato com a plataforma (includes/network-pentefino.php):
+  * execute_clean(...)  -> comandos pentefino_scan / pentefino_execute (Limpeza personalizada).
+  * execute_tool(...)   -> comando pentefino_tool (registro, inicialização, disco, duplicados, restauração,
                            atualizador de software e verificação de integridade).
 A plataforma nunca envia caminhos de arquivo para exclusão: envia apenas chaves de catálogo e identificadores
 de itens que o próprio gestor produziu na última análise. Todo alvo é revalidado localmente antes de agir.
@@ -34,10 +34,10 @@ MAX_CUSTOM_PATHS = 20
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 _REPARSE_POINT = 0x400
 _PROTECTED_TEMP_PREFIXES = ('arcoll', '.arcoll', '_mei')   # temporários do próprio gestor e do PyInstaller em uso
-DATA_DIR = Path(os.environ.get('ProgramData', r'C:\ProgramData')) / 'Arcoll' / 'Clean'
+DATA_DIR = Path(os.environ.get('ProgramData', r'C:\ProgramData')) / 'Arcoll' / 'PenteFino'
 
 # ----------------------------------------------------------------------------------------------------------------
-# Catálogo. As chaves são o contrato com includes/network-clean.php (arc_clean_catalog); os caminhos ficam só aqui.
+# Catálogo. As chaves são o contrato com includes/network-pentefino.php (arc_pf_catalog); os caminhos ficam só aqui.
 # ----------------------------------------------------------------------------------------------------------------
 # Alvos de arquivos: (base, caminho relativo, modo, padrões). base: local|roaming|locallow|system|programdata|drive.
 # modo: tree = tudo dentro da pasta; files = apenas arquivos que casam com os padrões na própria pasta;
@@ -117,7 +117,7 @@ _FACET_NAMES = {'cache': 'cache', 'history': 'histórico', 'cookies': 'cookies',
 
 
 def _label(category):
-    """Texto do andamento; o catálogo completo de rótulos está em includes/network-clean.php."""
+    """Texto do andamento; o catálogo completo de rótulos está em includes/network-pentefino.php."""
     browser, _, facet = category.partition('_')
     if browser in _BROWSER_NAMES and facet in _FACET_NAMES:
         return '%s: %s' % (_BROWSER_NAMES[browser], _FACET_NAMES[facet])
@@ -1548,7 +1548,7 @@ def _tool_restore(payload, progress):
     if payload.get('action') == 'create':
         if progress:
             progress('Criando ponto de restauração...')
-        proc = _powershell("Checkpoint-Computer -Description 'Arcoll Clean' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop", 300)
+        proc = _powershell("Checkpoint-Computer -Description 'Arcoll Pente-Fino' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop", 300)
         report['created'] = proc.returncode == 0
         if proc.returncode != 0:
             report['message'] = (proc.stderr or proc.stdout or 'Falha ao criar o ponto.').strip()[:300]
@@ -2070,7 +2070,7 @@ TOOLS = {'registry': _tool_registry, 'startup': _tool_startup, 'disk': _tool_dis
 
 
 def execute_tool(payload, progress=None):
-    """Executa uma ferramenta do comando clean_tool e devolve o relatório (`tool` identifica o tipo)."""
+    """Executa uma ferramenta do comando pentefino_tool e devolve o relatório (`tool` identifica o tipo)."""
     if not isinstance(payload, dict) or payload.get('tool') not in TOOLS:
         raise ValueError('Ferramenta inválida.')
     return TOOLS[payload['tool']](payload, progress)

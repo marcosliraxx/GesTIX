@@ -1,6 +1,6 @@
 <?php
 /* Caminho: redes/backup.php */
-/* Área independente da Central de Backup; não carrega o Clean. */
+/* Área independente da Central de Backup; não carrega o Pente-Fino. */
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/error-logging.php';
 

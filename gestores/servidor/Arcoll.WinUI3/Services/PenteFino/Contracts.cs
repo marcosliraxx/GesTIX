@@ -3,7 +3,7 @@
 namespace Arcoll.WinUI3.Services.PenteFino;
 public sealed record Finding(string Id,string Module,string Title,string Path,long Bytes,string Reason,string Action,bool CanFix,
     string Kind="file",string Rule="",string Selector="",long ModifiedTicks=0,string Expected="",string ValueKind="",string Severity="info",int Quantity=1);
-public sealed record CheckResult(string Id,string Title,List<Finding> Items,List<string> Notes,bool Complete=true);
+public sealed record CheckResult(string Id,string Title,List<Finding> Items,List<string> Notes,bool Complete=true,string[]? Scanned=null);
 public sealed record ScanReport(string Schema,string Id,DateTimeOffset At,string Mode,List<CheckResult> Modules,bool Cancelled,double Seconds);
 public sealed record ScanOptions(string Mode,string[] Modules,string[] Exclusions,string[] TrustedCookies);
 public sealed record ProgressState(string Module,string State,int Percent,string Message);

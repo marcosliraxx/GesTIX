@@ -31,9 +31,15 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
     private readonly Grid _root = new() { RowSpacing = 10, Padding = new Thickness(14, 10, 14, 12) };
     private readonly Border _headerCard = new() { BorderThickness = new Thickness(1, 1, 1, 1), CornerRadius = new CornerRadius(14), Padding = new Thickness(14, 10, 14, 10) };
     private readonly Border _footerCard = new() { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 7, 10, 7) };
+    private readonly Border _statusCard = new() { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 6, 11, 6), Visibility = Visibility.Collapsed };
+    private readonly ProgressBar _progress = new() { IsIndeterminate = true, Visibility = Visibility.Collapsed, Height = 3, MinHeight = 3 };
+    private readonly Border _stateChip = new() { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(20), Padding = new Thickness(10, 3, 10, 4), VerticalAlignment = VerticalAlignment.Top };
+    private readonly TextBlock _stateText = new() { FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
     private readonly TextBlock _heading, _description, _status = new() { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, _summary = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBox _search = new() { PlaceholderText = "Filtrar resultados", MinHeight = 30, FontSize = 14 };
-    private readonly Button _cancel = new() { Content = "Cancelar operação" }, _clear = new() { Content = "Limpar seleção" }, _copy = new() { Content = "Copiar relatório" };
+    private readonly Button _cancel = new() { Content = "Cancelar operação" }, _clear = new() { Content = "Limpar seleção" }, _copy = new() { Content = "Copiar relatório" }, _selectVisible = new() { Content = "Marcar resultados visíveis" };
+    private readonly HashSet<string> _visibleIds = new(StringComparer.Ordinal);
+    private readonly Border _accentBar = new() { Width = 4, CornerRadius = new CornerRadius(2) };
     private CancellationTokenSource? _operation;
     private JsonElement _catalog;
     private DateTime? _collected;
@@ -46,20 +52,27 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
         _heading = new TextBlock { Text = title, FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
         _description = new TextBlock { Text = description, FontSize = 12, TextWrapping = TextWrapping.Wrap };
         for (var row = 0; row < 5; row++) _root.RowDefinitions.Add(new() { Height = row == 3 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
-        var header = new StackPanel { Spacing = 4 }; header.Children.Add(_heading); header.Children.Add(_description); _headerCard.Child = header; _root.Children.Add(_headerCard);
+        var header = new StackPanel { Spacing = 4 }; header.Children.Add(_heading); header.Children.Add(_description);
+        _stateChip.Child = _stateText;
+        var headerGrid = new Grid { ColumnSpacing = 12 };
+        headerGrid.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); headerGrid.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); headerGrid.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+        headerGrid.Children.Add(_accentBar); Grid.SetColumn(header, 1); headerGrid.Children.Add(header); Grid.SetColumn(_stateChip, 2); headerGrid.Children.Add(_stateChip);
+        _headerCard.Child = headerGrid; _root.Children.Add(_headerCard);
         _search.CornerRadius = new CornerRadius(9);
         _search.PlaceholderText = "Pesquisar na página…";
         Grid.SetRow(_search, 1); _root.Children.Add(_search);
-        _status.Padding = new Thickness(9, 4, 9, 4);
-        Grid.SetRow(_status, 2); _root.Children.Add(_status);
+        var statusStack = new StackPanel { Spacing = 5 }; statusStack.Children.Add(_status); statusStack.Children.Add(_progress); _statusCard.Child = statusStack;
+        Grid.SetRow(_statusCard, 2); _root.Children.Add(_statusCard);
         var scroll = new ScrollViewer { Content = View, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0,0,5,0) }; Grid.SetRow(scroll, 3); _root.Children.Add(scroll);
         var footer = new StackPanel { Spacing = 5 }; footer.Children.Add(_summary);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 }; actions.Children.Add(_clear); actions.Children.Add(_copy); actions.Children.Add(_cancel); footer.Children.Add(actions);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 }; actions.Children.Add(_selectVisible); actions.Children.Add(_clear); actions.Children.Add(_copy); actions.Children.Add(_cancel); footer.Children.Add(actions);
         _footerCard.Child = footer; Grid.SetRow(_footerCard, 4); _root.Children.Add(_footerCard);
-        foreach (var button in new[] { _clear, _copy, _cancel }) { button.FontSize = 12; button.MinHeight = 28; button.Padding = new Thickness(8,3,8,3); }
+        foreach (var button in new[] { _selectVisible, _clear, _copy, _cancel }) { button.FontSize = 12; button.MinHeight = 32; button.Padding = new Thickness(10,3,10,3); button.CornerRadius = new CornerRadius(8); }
         AutomationProperties.SetAutomationId(this, "tool-" + kind); AutomationProperties.SetAutomationId(_search, "filter-" + kind);
         AutomationProperties.SetName(_search, "Filtrar " + title); AutomationProperties.SetLiveSetting(_status, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
-        _search.TextChanged += (_, _) => Render(); _clear.Click += (_, _) => { Selected.Clear(); Render(); }; _cancel.Click += (_, _) => CancelOperations();
+        _search.TextChanged += (_, _) => Render();
+        _selectVisible.Click += (_, _) => { foreach(var id in _visibleIds) Selected.Add(id); Render(); };
+        _clear.Click += (_, _) => { Selected.Clear(); Render(); }; _cancel.Click += (_, _) => CancelOperations();
         _copy.Click += (_, _) => { try { var data = new DataPackage(); data.SetText(JsonSerializer.Serialize(Report, new JsonSerializerOptions { WriteIndented = true })); Clipboard.SetContent(data); Status("Relatório copiado."); } catch (Exception ex) { Status(ex.Message); } };
         Loaded += (_, _) => Render();
         SizeChanged += (_, e) =>
@@ -68,7 +81,7 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
             if (_lastMetricColumns != columns) { _lastMetricColumns = columns; Render(); }
         };
     }
-    protected JsonElement Catalog { get { if (_catalog.ValueKind != JsonValueKind.Object) _catalog = CleanEngine.Catalog(); return _catalog; } }
+    protected JsonElement Catalog { get { if (_catalog.ValueKind != JsonValueKind.Object) _catalog = PenteFinoEngine.Catalog(); return _catalog; } }
     public void CancelOperations() => _operation?.Cancel();
     public void ApplyPalette(Palette palette) { P = palette; Render(); }
     protected void StoreReport(object report) { Report=JsonSerializer.SerializeToElement(report);_collected=DateTime.Now; }
@@ -94,25 +107,38 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
     protected async Task SaveSnapshotAsync(object report)
     {
         SyncNotice="";StoreReport(report);PersistSnapshot();
-        try{using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(40));if(!Runtime.Allowed)throw new UnauthorizedAccessException("Autorização indisponível para sincronizar.");await Runtime.Platform.PostAsync("gestor-clean-local-result",Runtime.Platform.WithCredentials(("mode","tool"),("tool",Kind),("report",Report)),timeout.Token,35);}
+        try{using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(40));if(!Runtime.Allowed)throw new UnauthorizedAccessException("Autorização indisponível para sincronizar.");await Runtime.Platform.PostAsync("gestor-pentefino-local-result",Runtime.Platform.WithCredentials(("mode","tool"),("tool",Kind),("report",Report)),timeout.Token,35);}
         catch(Exception ex){SyncNotice="Envio pendente: "+ex.Message;Status(_status.Text+" Relatório local preservado; "+SyncNotice);}
     }
-    protected void Status(string message) { _status.Text = message; _status.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible; }
+    protected void Status(string message) { _status.Text = message; _statusCard.Visibility = string.IsNullOrWhiteSpace(message) && !Busy ? Visibility.Collapsed : Visibility.Visible; }
+    private void PaintState()
+    {
+        var (text, tone) = Busy || _collectionInProgress ? ("Em andamento", P.Accent)
+            : Report.ValueKind != JsonValueKind.Object ? ("Aguardando análise", P.Muted)
+            : Yes(Report, "truncated") || Part(Report, "complete").ValueKind == JsonValueKind.False || SyncNotice.Length > 0 ? ("Resultado parcial", P.Warning)
+            : ("Atualizado", P.Success);
+        _stateText.Text = text; _stateText.Foreground = tone; _stateChip.BorderBrush = tone; _stateChip.Background = P.Alt; _accentBar.Background = P.Accent;
+        _statusCard.Background = P.Surface; _statusCard.BorderBrush = Busy ? P.Accent : P.Line;
+        _progress.Visibility = Busy || _collectionInProgress ? Visibility.Visible : Visibility.Collapsed; _progress.Foreground = P.Accent;
+        _statusCard.Visibility = string.IsNullOrWhiteSpace(_status.Text) && _progress.Visibility == Visibility.Collapsed ? Visibility.Collapsed : Visibility.Visible;
+    }
     protected abstract void Build();
     protected void Render()
     {
-        _collect=null;_collectEnabled=false;View.Children.Clear();
+        _collect=null;_collectEnabled=false;View.Children.Clear();_visibleIds.Clear();
         _root.Background = P.Alt;
         _headerCard.Background = _footerCard.Background = P.Surface;
         _headerCard.BorderBrush = _footerCard.BorderBrush = P.Line;
         _heading.Foreground = P.Text; _description.Foreground = _summary.Foreground = P.Muted; _status.Foreground = P.Text;
-        _status.Visibility = string.IsNullOrWhiteSpace(_status.Text) ? Visibility.Collapsed : Visibility.Visible;
+        PaintState();
         _search.IsEnabled = !Busy; _clear.IsEnabled = !Busy && Selected.Count > 0; _copy.IsEnabled = Report.ValueKind == JsonValueKind.Object;
-        _cancel.Visibility = Busy ? Visibility.Visible : Visibility.Collapsed;
+        _cancel.Visibility = Busy ? Visibility.Visible : Visibility.Collapsed; _cancel.Foreground = P.Danger; _cancel.BorderBrush = P.Danger;
+        _search.Background = P.Surface; _search.BorderBrush = P.Line;
+        foreach (var b in new[] { _selectVisible, _clear, _copy }) { b.Background = P.Alt; b.BorderBrush = P.Line; b.Foreground = P.Text; }
         try { Build(); ReportNotes(); } catch (Exception ex) { Text("Não foi possível mostrar os dados: " + ex.Message); }
         UpdateSummary();
     }
-    private void UpdateSummary() { _summary.Text = Selected.Count + " selecionado(s)" + (_collected.HasValue ? " · Última execução: " + _collected.Value.ToString("dd/MM HH:mm:ss") : " · Carregue os dados para começar"); _clear.IsEnabled = !Busy && Selected.Count > 0; }
+    private void UpdateSummary() { _summary.Text = Selected.Count + " selecionado(s) · " + _visibleIds.Count + " resultado(s) elegível(is) visíveis" + (_collected.HasValue ? " · Última execução: " + _collected.Value.ToString("dd/MM HH:mm:ss") : " · Carregue os dados para começar"); _clear.IsEnabled = !Busy && Selected.Count > 0; _selectVisible.IsEnabled = !Busy && Runtime.Allowed && _visibleIds.Count > 0 && _visibleIds.Any(id=>!Selected.Contains(id)); }
     protected bool Matches(params string[] values) => ProgramService.Normalize(string.Join(" ",values)).Contains(ProgramService.Normalize(_search.Text));
     protected static string Get(JsonElement parent,string key) => parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(key,out var value) ? value.ToString() : "";
     protected static JsonElement Part(JsonElement parent,string key) => parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(key,out var value) ? value : default;
@@ -137,7 +163,8 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
         for (var i = 0; i < metrics.Length; i++)
         {
             if (i % columns == 0) grid.RowDefinitions.Add(new() { Height = GridLength.Auto });
-            var panel = new StackPanel { Spacing = 5, MinHeight = 86 };
+            var panel = new StackPanel { Spacing = 5, MinHeight = 92 };
+            panel.Children.Add(new Border { Height = 3, Width = 26, HorizontalAlignment = HorizontalAlignment.Left, Background = P.Accent, CornerRadius = new CornerRadius(2) });
             panel.Children.Add(Ui.Label(metrics[i].Title.ToUpperInvariant(), P.Muted, 10, true, true));
             panel.Children.Add(Ui.Label(metrics[i].Value, P.Text, 19, true, true));
             panel.Children.Add(Ui.Label(metrics[i].Detail, P.Muted, 11, false, true));
@@ -148,8 +175,9 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
     }
     protected Button Action(string title,Func<Task> action,bool enabled=true,bool collection=false)
     {
-        var label=Ui.Label(title,P.Text,12,wrap:true);
-        var button = new Button { Content=label,IsEnabled=!Busy&&Runtime.Allowed&&enabled,FontSize=12,MinHeight=38,Padding=new Thickness(12,7,12,7),HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Center,CornerRadius=new CornerRadius(10),Background=P.Surface,BorderBrush=P.Line,BorderThickness=new Thickness(1) };
+        var label=Ui.Label(title,collection?ThemeService.Brush("#ffffff"):P.Text,12,true,true);label.TextAlignment=TextAlignment.Center;
+        var button = new Button { Content=label,IsEnabled=!Busy&&Runtime.Allowed&&enabled,FontSize=12,MinHeight=40,Padding=new Thickness(12,7,12,7),HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Center,CornerRadius=new CornerRadius(10),Background=collection?P.Accent:P.Surface,BorderBrush=collection?P.Accent:P.Line,BorderThickness=new Thickness(1) };
+        button.Opacity=button.IsEnabled?1:.5;
         AutomationProperties.SetName(button,title);
         button.Click += async (_,_) => {if(collection){await action();return;} if(_dispatching||Busy||!Runtime.Allowed)return;_dispatching=true;button.IsEnabled=false;try { await action(); } catch(Exception ex) { Status(ex.Message); } finally {_dispatching=false;Render();} }; return button;
     }
@@ -171,38 +199,40 @@ public abstract class MaintenancePage : UserControl, IPageDataSource
     }
     protected ComboBox Choices((string Key,string Label)[] choices,string selected,Action<string> change)
     {
-        var combo=new ComboBox { HorizontalAlignment=HorizontalAlignment.Stretch,MinHeight=38,IsEnabled=!Busy,CornerRadius=new CornerRadius(9),Background=P.Surface,BorderBrush=P.Line };
+        var combo=new ComboBox { HorizontalAlignment=HorizontalAlignment.Stretch,MinHeight=40,IsEnabled=!Busy,CornerRadius=new CornerRadius(10),Background=P.Surface,BorderBrush=P.Line,Foreground=P.Text };
         foreach(var item in choices)combo.Items.Add(item.Label);combo.SelectedIndex=Array.FindIndex(choices,x=>x.Key==selected);
         combo.SelectionChanged+=(_,_)=>{if(combo.SelectedIndex>=0){Selected.Clear();change(choices[combo.SelectedIndex].Key);Render();}};View.Children.Add(combo);return combo;
     }
     protected void Select(JsonElement item,string title,string detail="",bool enabled=true)
     {
         if(!Matches(title,detail))return;
-        var id=Get(item,"id");var label=new StackPanel { Spacing=2 };label.Children.Add(Ui.Label(title,P.Text,14,true,true));if(detail.Length>0)label.Children.Add(Ui.Label(detail,P.Muted,12,wrap:true));
+        var id=Get(item,"id");if(enabled&&id.Length>0)_visibleIds.Add(id);var label=new StackPanel { Spacing=2 };label.Children.Add(Ui.Label(title,P.Text,14,true,true));if(detail.Length>0)label.Children.Add(Ui.Label(detail,P.Muted,12,wrap:true));
         var box=new CheckBox { Content=label,IsChecked=Selected.Contains(id),IsEnabled=!Busy&&enabled&&id.Length>0,MinHeight=44,HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Stretch,Padding=new Thickness(5,2,5,2) };
-        AutomationProperties.SetName(box,title);box.Click+=(_,_)=>{if(box.IsChecked==true)Selected.Add(id);else Selected.Remove(id);UpdateSummary();};
         var tile = new Border { Background=P.Surface,BorderBrush=P.Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(10),Padding=new Thickness(8,4,8,4),Child=box };
+        void Paint(){var on=box.IsChecked==true;tile.BorderBrush=on?P.Accent:P.Line;tile.Background=on?P.Alt:P.Surface;tile.BorderThickness=new Thickness(on?2:1);}
+        Paint();
+        AutomationProperties.SetName(box,title);box.Click+=(_,_)=>{if(box.IsChecked==true)Selected.Add(id);else Selected.Remove(id);Paint();UpdateSummary();};
         View.Children.Add(tile);
     }
     protected async Task<JsonElement> LoadSettingsAsync()
     {
-        using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(20));var response=await Runtime.Platform.PostAsync("gestor-clean-local-settings",Runtime.Platform.WithCredentials(),timeout.Token,15);Settings=response.GetProperty("settings").Clone();return response;
+        using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(20));var response=await Runtime.Platform.PostAsync("gestor-pentefino-local-settings",Runtime.Platform.WithCredentials(),timeout.Token,15);Settings=response.GetProperty("settings").Clone();return response;
     }
     protected string[] Setting(string key)=>Rows(Settings,key).Select(x=>x.ToString()).ToArray();
     protected async Task SaveSettingsAsync(string[] exclusions,string[] folders,string[] performance,string[] drivers)
     {
-        using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(20));var response=await Runtime.Platform.PostAsync("gestor-clean-local-settings",Runtime.Platform.WithCredentials(("save",true),("exclusions",exclusions),("custom_folders",folders),("perf_excluded",performance),("drivers_ignored",drivers)),timeout.Token,15);Settings=response.GetProperty("settings").Clone();
+        using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(20));var response=await Runtime.Platform.PostAsync("gestor-pentefino-local-settings",Runtime.Platform.WithCredentials(("save",true),("exclusions",exclusions),("custom_folders",folders),("perf_excluded",performance),("drivers_ignored",drivers)),timeout.Token,15);Settings=response.GetProperty("settings").Clone();
     }
     protected async Task<bool> RunAsync(string mode,Dictionary<string,object?> payload)
     {
         if(Busy||!Runtime.Allowed)return false;if(_collectionInProgress&&_collectionCancelled){DataLoad.Fail("Coleta interrompida antes da análise.");return false;}SyncNotice="";CancellationRequested=false;Busy=true;_operation=new();Status("Preparando operação…");Render();
         try {
             var progress=new Progress<string>(message=>Status(message));
-            Report=await CleanEngine.RunAsync(mode,payload,Runtime.Platform.Config,progress,_operation.Token);_collected=DateTime.Now;Selected.Clear();
-            var partial=CleanEngine.HasFailures(Report)||Number(Part(Report,"status"),"errors")>0;
+            Report=await PenteFinoEngine.RunAsync(mode,payload,Runtime.Platform.Config,progress,_operation.Token);_collected=DateTime.Now;Selected.Clear();
+            var partial=PenteFinoEngine.HasFailures(Report)||Number(Part(Report,"status"),"errors")>0;
             Status(partial?"Operação parcial. Revise as falhas e limitações do relatório.":"Execução concluída. Revise o relatório.");
             PersistSnapshot();
-            if(!mode.StartsWith("backup",StringComparison.Ordinal))try{await Runtime.Platform.PostAsync("gestor-clean-local-result",Runtime.Platform.WithCredentials(("mode",mode),("tool",Get(Report,"tool").Length>0?Get(Report,"tool"):Kind),("report",Report)),_operation.Token,40);}catch(Exception ex){SyncNotice="Envio pendente: "+ex.Message;Status(_status.Text+" Relatório local preservado; "+SyncNotice);}
+            if(!mode.StartsWith("backup",StringComparison.Ordinal))try{await Runtime.Platform.PostAsync("gestor-pentefino-local-result",Runtime.Platform.WithCredentials(("mode",mode),("tool",Get(Report,"tool").Length>0?Get(Report,"tool"):Kind),("report",Report)),_operation.Token,40);}catch(Exception ex){SyncNotice="Envio pendente: "+ex.Message;Status(_status.Text+" Relatório local preservado; "+SyncNotice);}
             return true;
         }catch(OperationCanceledException){if(DataLoad.Current.Phase==DataLoadPhase.Loading)DataLoad.Fail("A consulta foi interrompida; tente novamente.");Status("Operação interrompida. Alterações concluídas não foram desfeitas.");return false;}
         catch(Exception ex){if(DataLoad.Current.Phase==DataLoadPhase.Loading)DataLoad.Fail("Falha na consulta: "+ex.Message);Status("Falha: "+ex.Message);return false;}

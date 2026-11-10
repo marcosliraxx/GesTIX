@@ -7,7 +7,7 @@ namespace Arcoll.WinUI3.Services;
 
 /// <summary>
 /// Navegação de arquivos autorizada pela plataforma. Somente enumeração: não copia, executa,
-/// altera ou transmite conteúdo. Restrição a discos locais, proteção contra pontos de junção
+/// altera ou transmite conteúdo. Unidades montadas na sessão Windows, proteção contra pontos de junção
 /// e recusa a diretórios do sistema/gestor e cofres de credenciais.
 /// </summary>
 public static class FileBrowserService
@@ -28,16 +28,23 @@ public static class FileBrowserService
             foreach (var drive in DriveInfo.GetDrives())
             {
                 ct.ThrowIfCancellationRequested();
-                if (drive.DriveType != DriveType.Fixed && !(foldersOnly && drive.DriveType == DriveType.Removable)) continue;
+                if (!AllowedDrive(drive.DriveType, foldersOnly)) continue;
                 try
                 {
-                    if (!drive.IsReady) continue;
-                    entries.Add(new Dictionary<string, object?>
+                    var entry = new Dictionary<string, object?>
                     {
-                        ["name"] = drive.Name, ["path"] = drive.RootDirectory.FullName, ["directory"] = true,
-                        ["drive"] = true, ["size"] = drive.TotalSize, ["total"] = drive.TotalSize,
-                        ["free"] = drive.AvailableFreeSpace, ["used"] = drive.TotalSize - drive.AvailableFreeSpace,
-                    });
+                        ["label"] = "", ["drive_type"] = drive.DriveType.ToString(),
+                        ["name"] = drive.Name, ["path"] = drive.Name, ["directory"] = true,
+                        ["drive"] = true, ["size"] = 0L, ["total"] = 0L, ["free"] = 0L, ["used"] = 0L,
+                    };
+                    // Unidades sem mídia ou sem capacidade reportada também aparecem no Explorer.
+                    entries.Add(entry);
+                    if (drive.IsReady)
+                    {
+                        entry["label"] = drive.VolumeLabel;
+                        var total = drive.TotalSize; var free = drive.AvailableFreeSpace;
+                        entry["size"] = total; entry["total"] = total; entry["free"] = free; entry["used"] = Math.Max(0L, total - free);
+                    }
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             }
@@ -90,8 +97,8 @@ public static class FileBrowserService
         var driveName = Path.GetPathRoot(full) ?? "";
         if (driveName.Length != 3) throw new ArgumentException("Disco local inválido.");
         var drive = new DriveInfo(driveName);
-        if (drive.DriveType != DriveType.Fixed && !(foldersOnly && drive.DriveType == DriveType.Removable))
-            throw new UnauthorizedAccessException("Somente unidades locais são permitidas.");
+        if (!AllowedDrive(drive.DriveType, foldersOnly))
+            throw new UnauthorizedAccessException("Selecione uma unidade montada e acessível nesta sessão Windows.");
         var folder = new DirectoryInfo(full);
         if (!folder.Exists) throw new DirectoryNotFoundException("A pasta não existe ou não está acessível.");
         var canonical = Path.TrimEndingDirectorySeparator(folder.FullName);
@@ -111,6 +118,9 @@ public static class FileBrowserService
         }
         return folder;
     }
+
+    private static bool AllowedDrive(DriveType type, bool foldersOnly) =>
+        (type is DriveType.Fixed or DriveType.Removable) || (!foldersOnly && (type is DriveType.Network or DriveType.CDRom or DriveType.Ram));
 
     private static bool StartsInside(string path, string root) => !string.IsNullOrWhiteSpace(root) &&
         (path.Equals(Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase) ||

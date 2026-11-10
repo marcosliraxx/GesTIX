@@ -33,6 +33,27 @@ require __DIR__.'/_topo.php';
 .pi-bottom button{width:auto;min-width:175px;padding:8px 14px;font-size:12px;border-radius:7px}
 @media(max-width:700px){.arc-install{height:calc(100dvh - 160px);min-height:340px}.pi-controls{gap:4px}.pi-controls .pi-retry{padding:5px 7px;font-size:11px}.pi-bottom button{width:auto}.pi-columns{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:460px){.arc-install{height:calc(100dvh - 145px);padding:7px}.pi-controls input,.pi-controls select{font-size:11px;padding:4px}.pi-controls .pi-retry{font-size:10px;padding:4px}.pi-columns{grid-template-columns:1fr 1fr;gap:10px}.pi-name{font-size:11px}.pi-bottom button{width:100%}}
+/* Barra padronizada e catálogo compacto: preenchimento vertical e continuação à direita. */
+.arc-install{--pi-accent:#b98570;gap:0;height:calc(100dvh - 156px);min-height:300px;padding:0;border:0;border-radius:0;background:#172536}
+.arc-install .pi-controls{min-height:43px;padding:6px 9px;background:#1e2c3e;border-bottom:1px solid #394658;gap:6px;flex:none;align-items:center}
+.arc-install .pi-controls input,.arc-install .pi-controls select,.arc-install .pi-controls button{height:32px;min-height:32px;border-radius:7px;background:#182638;border:1px solid #394658;color:#e9f1fd;padding:5px 9px;font-size:12px}
+.arc-install .pi-controls .pi-search{flex:1 1 auto;width:1px;min-width:90px}
+.arc-install .pi-controls select{flex:0 1 235px;width:235px;min-width:120px}
+.arc-install .pi-controls .pi-retry{flex:none;white-space:nowrap;background:#253c58!important}
+.pi-workspace{display:flex;flex:1 1 auto;min-height:0;min-width:0;overflow:hidden;position:relative}
+.arc-install .pi-columns{display:flex!important;flex:1 1 auto;min-width:0;min-height:0;gap:8px;align-items:stretch;overflow-x:auto;overflow-y:hidden;padding:7px 9px 5px;scrollbar-width:thin;overscroll-behavior:contain}
+.pi-flow-column{width:clamp(162px,13vw,218px);flex:0 0 clamp(162px,13vw,218px);min-width:0;display:flex;flex-direction:column;gap:0}
+.pi-flow-column .pi-group{margin:0;min-width:0}
+.pi-flow-column .pi-group h2{font-size:12px;font-weight:750;margin:1px 0 3px;line-height:17px;min-height:17px;color:#eef5ff}
+.pi-flow-column .pi-list{display:flex;flex-direction:column;gap:0}
+.pi-flow-column .pi-item{min-height:30px;max-height:30px;padding:2px 3px;gap:5px;align-items:center;overflow:hidden}
+.pi-flow-column .pi-icon{width:24px;height:24px;flex:none}
+.pi-flow-column .pi-name{display:block;font-size:11px;line-height:13px;max-height:26px;overflow:hidden;overflow-wrap:anywhere}
+.pi-flow-column .pi-item input{width:13px;height:13px}
+.arc-install .pi-bottom{min-height:46px;margin:0;padding:6px 10px;background:#172536;border-top:1px solid #394658}
+.arc-install .pi-bottom button{padding:6px 11px;min-width:145px}
+.arc-install .pi-status:not([hidden]){margin:5px 10px;padding:5px 8px}
+@media(max-width:600px){.arc-install{height:calc(100dvh - 143px)}.arc-install .pi-controls{gap:4px}.arc-install .pi-controls select{flex:0 1 150px;min-width:80px;width:150px}.pi-flow-column{width:172px;flex-basis:172px}.arc-install .pi-bottom button{width:auto}}
 /* Logos reais dos programas e botão de cancelamento */
 .pi-icon{padding:3px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
 .pi-icon img{width:100%;height:100%;object-fit:contain;border-radius:4px;display:block}
@@ -40,11 +61,51 @@ require __DIR__.'/_topo.php';
 .pi-danger{background:#c9344b!important}.pi-danger:hover:not(:disabled){background:#e0475e!important}
 .pi-bottom{gap:8px;justify-content:space-between}
 .pi-modal-foot button{min-width:150px}
+
+/* Caminho: redes/programas.php — barra comum, central compartilhada, fluxo vertical. */
+.arc-install{height:calc(100dvh - 175px);min-height:300px;max-height:none;overflow:hidden}
+.arc-install .pi-controls{display:flex;flex-wrap:nowrap;gap:6px;min-height:43px;margin:0;padding:5px 9px;background:#1e2c3e;border-bottom:1px solid #394658;align-items:center}
+.arc-install .pi-controls .pi-search{flex:1 1 auto;min-width:80px;max-width:none;width:1px}
+.arc-install .pi-controls select{flex:0 1 225px;width:225px;min-width:110px}
+.arc-install .pi-controls .pi-retry{flex:none}
+.arc-install .pi-workspace{flex:1 1 auto;min-height:0;overflow:hidden;display:flex}
+.arc-install .pi-columns{display:grid!important;grid-template-columns:repeat(var(--pi-cols,6),minmax(0,1fr));grid-auto-rows:max-content;align-items:start;align-content:start;gap:7px;overflow-x:hidden!important;overflow-y:auto!important;scrollbar-width:thin;padding:7px 9px 9px}
+.arc-install .pi-flow-column{display:flex;flex-direction:column;gap:2px;width:auto!important;min-width:0;flex:none!important}
+.arc-install .pi-group{margin-bottom:2px;break-inside:avoid}
+.arc-install .pi-flow-column .pi-group h2{font-size:11px;line-height:15px;min-height:0;margin:0 0 2px;white-space:normal}
+.arc-install .pi-flow-column .pi-item{min-height:27px;max-height:none;padding:1px 2px;gap:5px;align-items:center}
+.arc-install .pi-flow-column .pi-icon{width:21px;height:21px;flex:none}
+.arc-install .pi-flow-column .pi-name{font-size:10.5px;line-height:12px;max-height:25px;overflow:hidden}
+.arc-install .pi-bottom{flex:none;min-height:38px;padding:5px 9px;margin:0}
+/* A central compartilhada é a única da página; sem botão flutuante. */
+.arc-install .arc-tool-center-inline{flex:none;display:flex;align-items:center}
+.arc-install .arc-tool-center-inline .arc-tool-center-trigger{position:static!important;inset:auto!important;transform:none!important;width:33px;height:32px;min-width:33px;border-radius:7px}
+.arc-install .arc-tool-center-docked{flex:0 0 266px;min-width:0;overflow-y:auto;max-height:100%}
+@media(max-width:650px){.arc-install .pi-controls select{width:125px;flex-basis:125px}.arc-install .pi-controls .pi-retry{padding:5px 7px}.arc-install .arc-tool-center-docked{position:absolute;right:0;top:0;bottom:0;width:min(266px,85vw);z-index:20}}
+
+/* Barra única — padrão do Painel; o componente compartilhado é movido para a extremidade direita. */
+.arc-install .pi-controls{display:flex!important;align-items:center!important;flex-wrap:nowrap!important;min-height:48px!important;height:48px!important;padding:6px 10px!important;background:#1e2c3e!important;border:0!important;border-bottom:1px solid #394658!important;gap:6px!important}
+.arc-install .arc-standard-search-icon{color:#d0dfef;font-size:18px;flex:none;line-height:1}
+.arc-install .pi-controls .pi-search{flex:1 1 auto!important;width:0!important;min-width:72px!important;height:32px!important;margin:0!important}
+.arc-install .pi-controls select{flex:0 1 220px!important;width:220px!important;max-width:28vw!important;min-width:100px!important;height:32px!important}
+.arc-install .pi-controls .pi-retry{height:32px!important;min-height:32px!important;padding:4px 10px!important}
+#arc-install-panel .arc-tool-center-inline{display:flex!important;position:static!important;right:auto!important;bottom:auto!important;left:auto!important;top:auto!important;margin:0!important;padding:0!important;z-index:auto!important;flex:0 0 auto!important;align-items:center!important}
+#arc-install-panel .arc-tool-center-inline .arc-tool-center-trigger{display:grid!important;place-items:center!important;position:static!important;width:33px!important;min-width:33px!important;height:32px!important;border:1px solid #394658!important;border-radius:7px!important;background:#182638!important;box-shadow:none!important;transform:none!important;margin:0!important;color:#e9f1fd!important}
+#arc-install-panel .arc-tool-center-docked{display:flex!important;position:static!important;inset:auto!important;flex:0 0 270px!important;width:270px!important;max-width:70vw!important;max-height:none!important;min-height:0!important;border-radius:0!important;box-shadow:none!important;overflow:hidden!important}
+#arc-install-panel .arc-tool-center-docked[hidden]{display:none!important}
+#arc-install-panel .arc-tool-center-docked section{flex:1;min-height:0}
+@media(max-width:650px){#arc-install-panel .arc-tool-center-docked{position:absolute!important;right:0!important;top:0!important;bottom:0!important;width:min(270px,85vw)!important;z-index:20!important}#arc-install-panel .pi-controls select{width:115px!important;min-width:70px!important}}
+
+/* Barra de seleção fixa dentro da ferramenta, sem sobreposição ao rodapé global. */
+#arc-install-panel .pi-bottom{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;overflow:visible!important;min-height:43px!important;padding:5px 10px!important}
+#arc-install-panel .pi-bottom .pi-summary{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0!important}
+#arc-install-panel .pi-bottom #pi-install{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 auto!important;min-width:148px!important;min-height:32px!important;visibility:visible!important;opacity:1!important;white-space:nowrap;position:relative!important;bottom:auto!important;right:auto!important;z-index:1}
+#arc-install-panel .pi-bottom #pi-install:disabled{opacity:.5!important}
 </style>
 <section class="arc-install" id="arc-install-panel" aria-label="Instalação de programas">
- <div class="pi-controls"><input id="pi-search" class="pi-search" type="search" placeholder="Pesquisar aplicativos" aria-label="Pesquisar aplicativos"><select id="pi-category" aria-label="Filtrar categoria"><option value="">Todas as categorias</option></select><button class="pi-retry pi-button-muted" id="pi-clear" type="button">Limpar</button></div>
+ <div class="pi-controls"><span class="arc-standard-search-icon" aria-hidden="true">⌕</span><input id="pi-search" class="pi-search" type="search" placeholder="Pesquisar aplicativos" aria-label="Pesquisar aplicativos"><select id="pi-category" aria-label="Filtrar categoria"><option value="">Todas as categorias</option></select><button class="pi-retry pi-button-muted" id="pi-clear" type="button">Limpar</button></div>
  <div class="pi-status" id="pi-message" role="status" aria-live="polite" hidden></div>
- <div id="pi-catalog" class="pi-columns"></div>
+ <div class="pi-workspace"><div id="pi-catalog" class="pi-columns" aria-label="Catálogo de programas"></div></div>
  <div class="pi-bottom"><span class="pi-summary" id="pi-selection-summary" role="status" aria-live="polite">Nenhum programa selecionado</span><button type="button" id="pi-cancel" class="pi-danger" hidden><i class="fa fa-ban" aria-hidden="true"></i> Cancelar operação</button><button type="button" id="pi-install" disabled><i class="fa fa-download" aria-hidden="true"></i> Instalar e Atualizar</button></div>
 </section>
 <div class="pi-modal" id="pi-progress-modal" hidden aria-hidden="true">
@@ -78,7 +139,7 @@ let available=<?= $arcProgramOnline && $arcProgramHeadless ? 'true':'false' ?>,b
 const normalize=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function isChecked(app){return choices.has(app.id)}
 function checkedApps(){return catalog.filter(isChecked)}
-function status(message,kind='info'){const node=$('pi-message');node.hidden=!message||kind==='working';node.dataset.kind=kind;node.replaceChildren();if(kind==='working'){const i=document.createElement('span');i.className='pi-busy';node.append(i)}node.append(document.createTextNode(message||''))}
+function status(message,kind='info'){const node=$('pi-message');node.hidden=!message||kind==='working';node.dataset.kind=kind;node.replaceChildren();if(kind==='working'){const i=document.createElement('span');i.className='pi-busy';node.append(i)}node.append(document.createTextNode(message||''));if(message)window.dispatchEvent(new CustomEvent('arc-tool-activity',{detail:{message}}))}
 async function api(op,body){const post=body!==undefined,u=new URL(base+'api/api.php',location.href);u.searchParams.set('action','network-program-'+op);if(!post){u.searchParams.set('network_id',network);u.searchParams.set('gestor_id',gestor)}const response=await fetch(u,{method:post?'POST':'GET',cache:'no-store',credentials:'same-origin',headers:post?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{},body:post?JSON.stringify({network_id:network,gestor_id:gestor,...body}):undefined});let data={};try{data=await response.json()}catch{}if(!response.ok||!data.ok)throw new Error(data.error||'Falha na comunicação com a plataforma.');return data}
 const cell=(tag,className,txt)=>{const el=document.createElement(tag);if(className)el.className=className;if(txt!==undefined)el.textContent=txt;return el};
 function fallbackSrc(app){return base+'api/program-logo.php?id='+encodeURIComponent(app.id)}
@@ -86,7 +147,39 @@ function iconSrc(app){return app.logo?base+app.logo:fallbackSrc(app)}
 function logoImg(app){const img=document.createElement('img');img.alt='';img.decoding='async';img.addEventListener('error',()=>{const f=fallbackSrc(app);if(img.dataset.fb!=='1'){img.dataset.fb='1';img.src=f}},{once:false});img.src=iconSrc(app);return img}
 function update(){const checked=checkedApps();$('pi-install').disabled=busy||!available||!checked.length||checked.length>20;$('pi-install').title=checked.length?`${checked.length} selecionado(s) · máximo 20 por operação`:'Selecione pelo menos um programa';$('pi-clear').disabled=busy||!catalog.length;$('pi-selection-summary').textContent=checked.length+' programa(s) selecionado(s) · escolha manual';if(checked.length>20)status('Selecione no máximo 20 programas por operação.','error')}
 
-function render(){const out=$('pi-catalog');out.replaceChildren();const q=normalize($('pi-search').value.trim()),category=$('pi-category').value;const groups=new Map();for(const app of catalog){if(category&&category!==app.category)continue;if(q&&!normalize(`${app.name} ${app.category}`).includes(q))continue;if(!groups.has(app.category))groups.set(app.category,[]);groups.get(app.category).push(app)}let shown=0;for(const [label,apps] of groups){shown+=apps.length;const section=cell('section','pi-group'),title=cell('h2','',label),list=cell('div','pi-list');section.append(title);for(const app of apps){const checked=isChecked(app);const row=cell('label','pi-item'+(checked?' pi-pending':'')),box=cell('input');box.type='checkbox';box.checked=checked;box.disabled=busy;box.addEventListener('change',()=>{box.checked?choices.add(app.id):choices.delete(app.id);update();render()});const icon=cell('span','pi-icon');const img=logoImg(app);img.loading='lazy';icon.append(img);const text=cell('span','');const name=cell('span','pi-name',app.name);text.append(name);row.append(box,icon,text);list.append(row)}section.append(list);out.append(section)}if(!shown)out.append(cell('p','',catalog.length?'Nenhum programa corresponde ao filtro.':'Catálogo indisponível.'));update()}
+// O catálogo utiliza apenas rolagem vertical, sem cortar colunas à direita.
+// Distribuição por quantidade de linhas, sem blocos inteiros de categorias desalinhados.
+let catalogColumns=0;
+function columnCount(){const box=$('pi-catalog');return Math.max(1,Math.min(8,Math.floor(Math.max(200,box.clientWidth)/192)));}
+function render(){
+ const out=$('pi-catalog');out.replaceChildren();
+ const q=normalize($('pi-search').value.trim()),category=$('pi-category').value;
+ const groups=new Map();for(const app of catalog){if(category&&category!==app.category)continue;if(q&&!normalize(`${app.name} ${app.category}`).includes(q))continue;if(!groups.has(app.category))groups.set(app.category,[]);groups.get(app.category).push(app)}
+ const count=[...groups.values()].reduce((n,a)=>n+a.length,0);
+ if(!count){out.append(cell('p','',catalog.length?'Nenhum programa corresponde ao filtro.':'Catálogo indisponível.'));update();return;}
+ const cols=Math.min(columnCount(),count);
+ out.style.setProperty('--pi-cols',String(cols));
+ const columns=Array.from({length:cols},()=>{const col=cell('div','pi-flow-column');out.append(col);return col});
+ const target=Math.ceil((count+groups.size)/cols);
+ let col=0,used=0,list=null,activeLabel=null;
+ function section(label){const section=cell('section','pi-group'),heading=cell('h2','',label);list=cell('div','pi-list');section.append(heading,list);columns[col].append(section);used++;activeLabel=label;}
+ for(const [label,apps] of groups){
+  list=null;
+  for(const app of apps){
+   if(col<cols-1&&used>=target){col++;used=0;list=null;}
+   if(!list||activeLabel!==label)section(label);
+   const checked=isChecked(app),row=cell('label','pi-item'+(checked?' pi-pending':'')),box=cell('input');box.type='checkbox';box.checked=checked;box.disabled=busy;
+   box.addEventListener('change',()=>{box.checked?choices.add(app.id):choices.delete(app.id);update();row.classList.toggle('pi-pending',box.checked)});
+   const icon=cell('span','pi-icon'),img=logoImg(app);img.loading='lazy';icon.append(img);
+   const name=cell('span','pi-name',app.name);name.title=app.name;row.append(box,icon,name);list.append(row);used++;
+  }
+ }
+ update();
+}
+function resizeCatalog(){const cols=columnCount();if(cols!==catalogColumns){catalogColumns=cols;render()}}
+if(typeof ResizeObserver!=='undefined')new ResizeObserver(resizeCatalog).observe($('pi-catalog'));
+else window.addEventListener('resize',resizeCatalog);
+
 function loadCatalog(){
  const select=$('pi-category');
  for(const category of [...new Set(catalog.map(app=>app.category))]){
@@ -102,7 +195,7 @@ async function poll(id,refresh=false,showModal=false){busy=true;cancelled=false;
 async function cancelAll(){const a=$('pi-cancel'),b=$('pi-progress-cancel');a.disabled=b.disabled=true;status('Cancelando todas as operações...','working');try{const res=await fetch(base+'api/api.php?action=network-operation-cancel',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({network_id:network,gestor_id:gestor})});let d={};try{d=await res.json()}catch{}if(!res.ok||!d.ok)throw new Error(d.error||'Falha ao cancelar.');cancelled=true;busy=false;modal(false);status(d.cancelled?'Operação cancelada. O gestor está encerrando os processos no computador.':'Nenhuma operação em andamento.','success');choices.clear()}catch(e){status(e.message,'error')}finally{a.disabled=false;b.disabled=false;render()}}
 $('pi-cancel').addEventListener('click',cancelAll);$('pi-progress-cancel').addEventListener('click',cancelAll);
 $('pi-search').addEventListener('input',render);$('pi-category').addEventListener('change',render);$('pi-clear').addEventListener('click',()=>{choices.clear();status('Seleção limpa.');render()});$('pi-progress-close').addEventListener('click',()=>modal(false));
-$('pi-install').addEventListener('click',async()=>{const picked=checkedApps();if(!picked.length||busy||!available)return;if(picked.length>20){status('Selecione no máximo 20 programas por operação.','error');return}busy=true;render();status('Enviando a seleção à fila...','working');try{const r=await api('start',{mode:'install',package_ids:picked.map(app=>app.id)});choices.clear();status('Solicitação adicionada à fila global. Acompanhe a bolinha lateral.','success');window.dispatchEvent(new Event('arc-queue-refresh'));busy=false;render()}catch(e){busy=false;status(e.message,'error');window.arcRemoteFailure?.({command:'program_install',message:e.message});render()}});
+$('pi-install').addEventListener('click',async()=>{const picked=checkedApps();if(!picked.length||busy||!available)return;if(picked.length>20){status('Selecione no máximo 20 programas por operação.','error');return}busy=true;render();status('Enviando a seleção à fila...','working');try{const r=await api('start',{mode:'install',package_ids:picked.map(app=>app.id)});choices.clear();status('Solicitação adicionada à fila global. Acompanhe a sincronização no rodapé.','success');window.dispatchEvent(new Event('arc-queue-refresh'));busy=false;render()}catch(e){busy=false;status(e.message,'error');window.arcRemoteFailure?.({command:'program_install',message:e.message});render()}});
 loadCatalog();if(!available)status('O gestor precisa estar conectado e com o modo sem monitor ativo. Após reconectá-lo, reabra esta página.','info');
 })();
 </script>

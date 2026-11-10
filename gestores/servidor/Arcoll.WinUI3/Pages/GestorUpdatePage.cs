@@ -14,6 +14,14 @@ public sealed class GestorUpdatePage:UserControl,IPageDataSource
  private const string Origin="https://update.tidigital.local/";private readonly GestorRuntime _runtime;private readonly Func<bool,Task> _run;private readonly Func<Task<UpdateAvailability>> _check;private readonly WebView2 _web=new(){HorizontalAlignment=HorizontalAlignment.Stretch,VerticalAlignment=VerticalAlignment.Stretch};private bool _ready,_loading,_running,_checking;private GestorAreaColors? _areas;private string _error="",_view="update";private UpdateAvailability? _availability;
  public GestorUpdatePage(GestorRuntime runtime,Func<bool,Task> run,Func<Task<UpdateAvailability>> check){_runtime=runtime;_run=run;_check=check;Content=_web;Loaded+=async(_,_)=>await InitializeAsync();}
  public void ApplyAreas(GestorAreaColors areas){_areas=areas;Publish();}
+ public async Task CheckNowAsync(){
+  await InitializeAsync();
+  if(_checking||_running||!_runtime.Allowed)return;
+  _checking=true;_error="";_availability=null;Publish();
+  try{_availability=await _check();}
+  catch(Exception ex){_error=ex.Message;}
+  finally{_checking=false;Publish();}
+ }
  public void Navigate(string view){_view=view=="history"?"history":"update";Publish();}
  public void Publish(){if(!_ready)return;try{var history=_view=="history"?UpdateHistoryStore.Read():Array.Empty<UpdateHistoryEntry>();_web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new{type="state",view=_view,state=UpdatePresentation.Current,allowed=_runtime.Allowed,areas=_areas,error=_error,checking=_checking,availability=_availability,history,historyWarning=UpdateHistoryStore.Warning},new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.CamelCase}));}catch(InvalidOperationException){}}
  private async Task InitializeAsync(){if(_ready||_loading)return;_loading=true;DataLoad.Begin("Abrindo a central de atualização");Content=_web;try{if(_dataBridgeConfigured&&_web.CoreWebView2 is not null){_web.CoreWebView2.Reload();return;}var folder=Path.Combine(AppContext.BaseDirectory,"Assets","hybrid","dashboard");var profile=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"TI-Digital","UpdateWebView");Directory.CreateDirectory(profile);var env=await CoreWebView2Environment.CreateWithOptionsAsync(null,profile,null);await _web.EnsureCoreWebView2Async(env);var core=_web.CoreWebView2??throw new InvalidOperationException("WebView2 não inicializado.");core.Settings.AreDevToolsEnabled=false;core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreHostObjectsAllowed=false;core.SetVirtualHostNameToFolderMapping("update.tidigital.local",folder,CoreWebView2HostResourceAccessKind.DenyCors);core.NavigationStarting+=(_,e)=>{if(!e.Uri.StartsWith(Origin,StringComparison.OrdinalIgnoreCase))e.Cancel=true;};core.NewWindowRequested+=(_,e)=>e.Handled=true;

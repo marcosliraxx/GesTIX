@@ -16,7 +16,7 @@ public sealed class CloudCleanupPage : MaintenancePage
             ("Tamanho",Ui.Size(items.Sum(x=>Number(x,"bytes"))),"Soma dos itens exibidos"),
             ("Cópias locais",items.Count(x=>Yes(x,"local")).ToString(),"Dados disponíveis neste PC"),
             ("Selecionados",Selected.Count.ToString(),"Excluir pode afetar a nuvem"));
-        Text("Atenção: arquivos apagados em pastas sincronizadas podem desaparecer também de outros dispositivos.");
+        View.Children.Add(Ui.Banner("Atenção: exclusão sincronizada","A Lixeira local NÃO garante recuperação da nuvem. Arquivos sincronizados podem ser excluídos de outros computadores. Verifique o provedor antes de confirmar.",P.Warning,P));
         foreach(var item in items.OrderByDescending(x=>Number(x,"bytes")))Select(item,Get(item,"path"),Get(item,"provider")+" · "+Get(item,"cat")+" · "+Ui.Size(Number(item,"bytes"))+" · "+(Yes(item,"local")?"Disponível localmente":"Somente na nuvem"),Yes(item,"local"));
     }
 }

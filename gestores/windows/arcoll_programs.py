@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.request
 
 # --- Cancelamento cooperativo e forçado ---------------------------------------------------------------------------
-# Fonte única: toda chamada externa de Programas/Clean passa por run_tracked(); cancel_all() derruba os processos
+# Fonte única: toda chamada externa de Programas/Pente-Fino passa por run_tracked(); cancel_all() derruba os processos
 # filhos (taskkill /T), o auxiliar elevado de instalação e impede novas etapas até reset_cancel().
 _CANCEL = threading.Event()
 _ACTIVE = set()
@@ -92,7 +92,7 @@ def run_tracked(args, timeout=120, **kwargs):
 
 
 def cancel_all():
-    """Derruba tudo que Programas/Clean iniciou neste computador, inclusive o auxiliar elevado."""
+    """Derruba tudo que Programas/Pente-Fino iniciou neste computador, inclusive o auxiliar elevado."""
     _CANCEL.set()
     with _ACTIVE_LOCK:
         running = list(_ACTIVE)
@@ -249,7 +249,7 @@ _ROOTS = [(winreg.HKEY_LOCAL_MACHINE, 'HKLM'), (winreg.HKEY_CURRENT_USER, 'HKCU'
 _VIEWS = [winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY]
 _GUID = re.compile(r'^\{[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\}$')
 _GUID_IN_COMMAND = re.compile(r'(\{[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\})')
-BATCH_MAX = 100  # mesmo valor de ARC_PROGRAM_BATCH_MAX em includes/network-clean.php
+BATCH_MAX = 100  # mesmo valor de ARC_PROGRAM_BATCH_MAX em includes/network-pentefino.php
 RESTORE_MODES = ('off', 'try', 'require')
 _SILENT_FLAGS = {'/s', '/silent', '/verysilent', '/quiet', '/qn', '/q', '/qb', '-s', '-silent', '--silent', '-quiet', '--quiet', '--force-uninstall'}
 _NSIS_NAMES = ('uninstall.exe', 'uninst.exe', 'uninstaller.exe')

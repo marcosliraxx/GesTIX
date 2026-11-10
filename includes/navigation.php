@@ -74,21 +74,22 @@ function arc_navigation_catalog(): array {
         'redes' => [],
     ];
     $names = [
-        'admin/gestorwin.php'=>'Gestores', 'admin/clean.php'=>'Clean (admin)',
+        'admin/gestorwin.php'=>'Gestores', 'admin/clean.php'=>'Manutenção (admin)',
         'admin/versao.php'=>'Versões', 'admin/usuarios.php'=>'Administradores',
         'pages/assinatura.php'=>'Planos', 'pages/atendimentos.php'=>'Suporte',
         'pages/cobrancas.php'=>'Cobranças', 'pages/atividades.php'=>'Atividades',
         'pages/painel.php'=>'Painel', 'pages/perfil.php'=>'Minha conta',
         'pages/preferencias.php'=>'Preferências',
-        'redes/relatorios.php'=>'Relatórios', 'redes/clean.php'=>'Clean',
+        'redes/relatorios.php'=>'Relatórios', 'redes/pentefino.php'=>'Pente-Fino',
         'redes/arquivos.php'=>'Arquivos', 'redes/remoto.php'=>'Acesso remoto',
         'redes/chamados.php'=>'Chamados', 'redes/agenda.php'=>'Agenda',
+        'redes/atualizacoes.php'=>'Atualizações', 'redes/historico.php'=>'Histórico',
         'redes/cadastros.php'=>'Cadastros', 'redes/liberacao.php'=>'Liberações',
     ];
     $permissions = [
         'painel'=>'monitor','servidor'=>'monitor','velocidade'=>'connection',
         'dispositivos'=>'devices','mapa'=>'topology',
-        'suporte'=>'tools','clean'=>'tools','remoto'=>'tools',
+        'suporte'=>'tools','pentefino'=>'tools','remoto'=>'tools','atualizacoes'=>'tools','historico'=>'tools',
         'arquivos'=>'tools','chamados'=>'tools','agenda'=>'tools',
         'relatorios'=>'reports','cadastros'=>'settings',
         'liberacao'=>'settings','usuarios'=>'settings',
@@ -150,9 +151,10 @@ function arc_navigation_icon_defaults(): array {
         'redes/mapa.php'=>'fa-sitemap', 'redes/suporte.php'=>'fa-life-ring',
         'redes/usuarios.php'=>'fa-users', 'redes/permissoes.php'=>'fa-lock',
         'redes/preferencias.php'=>'fa-sliders', 'redes/programas.php'=>'fa-cubes',
-        'redes/backup.php'=>'fa-cloud-upload', 'redes/clean.php'=>'fa-magic',
+        'redes/backup.php'=>'fa-cloud-upload', 'redes/pentefino.php'=>'fa-filter',
         'redes/remoto.php'=>'fa-eye', 'redes/arquivos.php'=>'fa-folder-open',
         'redes/chamados.php'=>'fa-ticket', 'redes/agenda.php'=>'fa-calendar',
+        'redes/atualizacoes.php'=>'fa-refresh', 'redes/historico.php'=>'fa-history',
         'redes/cadastros.php'=>'fa-address-book', 'redes/liberacao.php'=>'fa-unlock-alt',
         'redes/relatorios.php'=>'fa-bar-chart',
     ];

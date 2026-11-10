@@ -2563,6 +2563,7 @@ h3{overflow-wrap:anywhere}
 [data-gestor-state="online"] .fa-desktop, [data-gestor-state="online"].arc-net-status-badge {color:var(--success)!important}
 [data-gestor-state="partial"] .fa-desktop, [data-gestor-state="partial"].arc-net-status-badge {color:var(--warning)!important}
 [data-gestor-state="offline"] .fa-desktop, [data-gestor-state="offline"].arc-net-status-badge {color:var(--danger)!important;animation:arc-gestor-critical 1s ease-in-out infinite}
+.arc-gestor-window-button[data-gestor-state="offline"].arc-net-status-badge{animation:none}
 [data-gestor-state="none"] .fa-desktop, [data-gestor-state="none"].arc-net-status-badge {color:var(--muted)!important}
 .arc-net-status-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 7px;border:1px solid currentColor;border-radius:10px;white-space:nowrap;background:transparent}
 .arc-net-status-badge .fa-desktop{font-size:14px}

@@ -10,8 +10,9 @@ public sealed class SoftwareUpdatesPage : MaintenancePage
         var items=Rows(Report,"items");
         Metrics(("Atualizações",items.Length.ToString(),"Pacotes WinGet encontrados"),
             ("Selecionados",Selected.Count.ToString(),"Limite de 30 por operação"),
-            ("Fonte","WinGet","Catálogo e instaladores oficiais"));
-        if(items.Length==0)Text(Report.ValueKind==System.Text.Json.JsonValueKind.Object?"Nenhuma atualização encontrada nesta consulta.":"Clique em Procurar atualizações para analisar os aplicativos.");
+            ("Fonte","WinGet","Catálogo e instaladores oficiais"),
+            ("Situação",Report.ValueKind==System.Text.Json.JsonValueKind.Object?"Consultado":"Não consultado","Nenhuma atualização é instalada automaticamente"));
+        if(items.Length==0)View.Children.Add(Ui.Banner(Report.ValueKind==System.Text.Json.JsonValueKind.Object?"Tudo em dia":"Nenhuma consulta feita",Report.ValueKind==System.Text.Json.JsonValueKind.Object?"Nenhuma atualização encontrada nesta consulta.":"Clique em Procurar atualizações para analisar os aplicativos.",Report.ValueKind==System.Text.Json.JsonValueKind.Object?P.Success:P.Accent,P));
         foreach(var item in Rows(Report,"items").OrderBy(x=>Get(x,"name")))Select(item,Get(item,"name"),Get(item,"id")+" · "+Get(item,"version")+" → "+Get(item,"available"));
     }
 }

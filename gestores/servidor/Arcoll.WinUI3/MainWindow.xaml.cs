@@ -38,6 +38,8 @@ public sealed partial class MainWindow : Window
     private readonly FilesPage _filesPage;
     private readonly SupportPage _supportPage;
     private readonly TicketsPage _ticketsPage;
+    private readonly AgendaPage _agendaPage;
+    private readonly RemoteAccessPage _remoteAccessPage;
     private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromSeconds(45) };
     private readonly DispatcherTimer _themeTimer = new() { Interval = TimeSpan.FromSeconds(30) };
     private DateTime _lastBrand = DateTime.MinValue;
@@ -47,13 +49,12 @@ public sealed partial class MainWindow : Window
     private sealed record MenuItem(string Key, string Label, Symbol Icon, int Band = 0);
     private sealed record MenuGroup(string Key, string Label, Symbol Icon, MenuItem[] Items);
     private static readonly MenuGroup[] Groups = {
-        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.View) }),
-        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("health", "Pente-Fino", Symbol.Filter), new MenuItem("clean", "Limpeza", Symbol.Delete), new MenuItem("registry", "Registro", Symbol.Repair), new MenuItem("startup", "Inicialização", Symbol.Play), new MenuItem("performance", "Desempenho", Symbol.View, 1), new MenuItem("restore", "Restauração", Symbol.Undo, 1), new MenuItem("security", "Segurança", Symbol.Important, 1), new MenuItem("options", "Configurações", Symbol.Setting, 2) }),
+        new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.AllApps) }),
+        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("health", "Pente-Fino", Symbol.Filter), new MenuItem("registry", "Registro", Symbol.Repair), new MenuItem("startup", "Inicialização", Symbol.Play), new MenuItem("performance", "Desempenho", Symbol.View, 1), new MenuItem("restore", "Restauração", Symbol.Undo, 1), new MenuItem("security", "Segurança", Symbol.Important, 1) }),
         new("software", "Aplicativos", Symbol.Library, new[] { new MenuItem("programs", "Programas", Symbol.Library), new MenuItem("uninstall", "Desinstalar", Symbol.Remove), new MenuItem("updater", "Atualizações", Symbol.Refresh, 1), new MenuItem("drivers", "Drivers", Symbol.AllApps, 1), new MenuItem("windows_update", "Windows Update", Symbol.Download, 1) }),
-        new("storage", "Armazenamento", Symbol.Folder, new[] { new MenuItem("disk", "Disco", Symbol.Folder), new MenuItem("duplicates", "Duplicados", Symbol.Copy), new MenuItem("cloud", "Sincronizados", Symbol.World, 1) }),
         new("backup_center", "Backup", Symbol.Save, new[] { new MenuItem("backup", "Visão geral", Symbol.Home), new MenuItem("backup_cloud", "Nuvem", Symbol.World), new MenuItem("backup_local", "Local / NAS", Symbol.Folder), new MenuItem("backup_restore", "Restauração", Symbol.Undo, 1), new MenuItem("backup_history", "Atividade", Symbol.Clock, 1), new MenuItem("backup_settings", "Destinos", Symbol.Setting, 1), new MenuItem("backup_drive", "Disco virtual", Symbol.Save, 1) }),
         new("network", "Rede", Symbol.World, new[] { new MenuItem("speed", "Internet", Symbol.World), new MenuItem("devices", "Dispositivos", Symbol.AllApps), new MenuItem("map", "Mapa", Symbol.Map), new MenuItem("files", "Arquivos", Symbol.Folder, 1) }),
-        new("service", "Atendimento", Symbol.Help, new[] { new MenuItem("support", "Suporte", Symbol.Help), new MenuItem("tickets", "Chamados", Symbol.Message) })
+        new("helpdesk", "Helpdesk", Symbol.Help, new[] { new MenuItem("updates", "Atualizações", Symbol.Refresh), new MenuItem("remote", "Acesso remoto", Symbol.View), new MenuItem("support", "Suporte", Symbol.Help), new MenuItem("tickets", "Chamados", Symbol.Message), new MenuItem("agenda", "Agenda", Symbol.Calendar, 1), new MenuItem("history", "Histórico", Symbol.Clock, 1) })
     };
     private readonly Dictionary<string, Button> _tabs = new(), _menus = new();
     private readonly Dictionary<string, string> _lastSection = new();
@@ -123,6 +124,52 @@ public sealed partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
         return new();
     }
+    // Estado compartilhado pela rede: conta/rede no servidor; arquivo local serve só como cache offline.
+    private bool _favoriteSyncing, _favoriteWritePending;
+    private async Task SyncFavoritesAsync()
+    {
+        if (_favoriteSyncing || _favoriteWritePending || !_runtime.Allowed) return;
+        _favoriteSyncing = true;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(9));
+            var remote = await _runtime.Platform.PostAsync("gestor-menu-favorites",
+                _runtime.Platform.WithCredentials(("operation", "read")), cts.Token, 9);
+            if (remote.TryGetProperty("initialized", out var init) && init.ValueKind == JsonValueKind.False)
+            {
+                remote = await _runtime.Platform.PostAsync("gestor-menu-favorites",
+                    _runtime.Platform.WithCredentials(("operation", "initialize"), ("favorites", _favorites.ToArray())), cts.Token, 9);
+            }
+            ApplyRemoteFavorites(remote);
+        }
+        catch (Exception ex) { RuntimeLog.Write("Sincronização de favoritos: " + ex.Message); }
+        finally { _favoriteSyncing = false; }
+    }
+    private void ApplyRemoteFavorites(JsonElement response)
+    {
+        if (_favoriteWritePending || !response.TryGetProperty("favorites", out var list) || list.ValueKind != JsonValueKind.Array) return;
+        var valid = Groups.SelectMany(g => g.Items).Where(i => i.Key != FixedMenuKey).Select(i => i.Key).ToHashSet(StringComparer.Ordinal);
+        var incoming = list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String)
+            .Select(x => x.GetString() ?? "").Where(valid.Contains).ToHashSet(StringComparer.Ordinal);
+        if (_favorites.SetEquals(incoming)) return;
+        _favorites.Clear(); _favorites.UnionWith(incoming);
+        SaveFavorites();
+        RefreshRibbonAfterFavorite();
+    }
+    private async Task PushFavoriteAsync(string key, bool favorite)
+    {
+        _favoriteWritePending = true;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var response = await _runtime.Platform.PostAsync("gestor-menu-favorites",
+                _runtime.Platform.WithCredentials(("operation", "set"), ("key", key), ("favorite", favorite)), cts.Token, 10);
+            _favoriteWritePending = false;
+            ApplyRemoteFavorites(response);
+        }
+        catch (Exception ex) { RuntimeLog.Write("Não foi possível publicar o favorito: " + ex.Message); }
+        finally { _favoriteWritePending = false; }
+    }
     private void SaveFavorites()
     {
         try { Directory.CreateDirectory(Path.GetDirectoryName(FavoritesFile)!); File.WriteAllText(FavoritesFile, JsonSerializer.Serialize(_favorites.OrderBy(x => x).ToArray())); }
@@ -151,7 +198,6 @@ public sealed partial class MainWindow : Window
         _dashboardPage = new(_runtime); _serverPage = new(_hub, () => FooterText.Text, () => _runtime.Allowed);
         _speedPage = new(_runtime); _devicesPage = new(_runtime, m => SetWorkspaceFooter(m)); _mapPage = new(_runtime, m => SetWorkspaceFooter(m));
         _programsPage = new(_runtime, ConfirmAsync); _filesPage = new(_runtime); _windowsUpdatePage = new(_runtime);
-        var clean = new CleanPage(_runtime, ConfirmAsync); _tools.Add("clean", clean);
         _backupPage = new BackupCenterPage(_runtime);
         _backupLoop = new BackupBackgroundLoop(() => { var c = _runtime.Platform.Config; return new(c.Origin,c.Fingerprint,c.SiteCode,c.DownloadKey); }, () => _runtime.Allowed, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TI-Digital", "BackupCache"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TI-Digital", "Restaurados"), log: RuntimeLog.Write);
         _backupLoop.Start();
@@ -166,16 +212,26 @@ public sealed partial class MainWindow : Window
         _penteFinoPage.ConfigureTools(key=>key=="windows_update"?_windowsUpdatePage:_tools[key]);
         _penteFinoPage.ToolChanged+=()=>{if(_section=="health"){ApplyTheme(_themes.Current);CompactScheduleContent();FinishPageLoading();}};
         _supportPage = new(_runtime, ShowRemoteCodeAsync, () => SelectSection("tickets")); _ticketsPage = new(_runtime);
+        _agendaPage = new(_runtime); _remoteAccessPage = new(_runtime, ShowRemoteCodeAsync);
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "system.ico");
         if (File.Exists(icon)) try { AppWindow.SetIcon(icon); } catch (Exception ex) { RuntimeLog.Write("Ícone da janela: " + ex.Message); }
         var work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
         AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Max(480, Math.Min(1320, work.Width - 24)), Math.Max(420, Math.Min(830, work.Height - 40))));
         _hub.Start(); SelectSection("panel"); ApplyTheme(_themes.Current);
         _refreshTimer.Tick += async (_, _) => await RefreshAsync();
-        _themeTimer.Tick += async (_, _) => { await RefreshThemeAsync(); if (DateTime.UtcNow - _lastBrand > TimeSpan.FromMinutes(2)) await RefreshBrandAsync(); };
+        _themeTimer.Tick += async (_, _) => { await RefreshThemeAsync(); await SyncFavoritesAsync(); if (DateTime.UtcNow - _lastBrand > TimeSpan.FromMinutes(2)) await RefreshBrandAsync(); };
         _refreshTimer.Start(); _themeTimer.Start();
-        _runtime.ProgramActivity += message => DispatcherQueue.TryEnqueue(() => { _programsPage.ShowActivity(message); });
+        _runtime.ProgramActivity += message => DispatcherQueue.TryEnqueue(() => {
+            _programsPage.ShowActivity(message);
+            FooterOperation.Text = string.IsNullOrWhiteSpace(message) ? "" : "Programas · " + message;
+        });
         _runtime.Changed += () => DispatcherQueue.TryEnqueue(UpdateRuntimeUi);
+        _runtime.RemoteToolRequested += section => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_runtime.Allowed) return;
+            ShowFromBackground();
+            SelectSection(section);
+        });
         // O andamento segue no serviço; não criar janela flutuante no gestor.
         _runtime.Consent = message =>
         {
@@ -183,6 +239,14 @@ public sealed partial class MainWindow : Window
             if (!DispatcherQueue.TryEnqueue(async () => { try { ShowFromBackground(); result.TrySetResult(await ConfirmAsync("Solicitação do gestor", message, "Autorizar")); } catch { result.TrySetResult(false); } })) result.TrySetResult(false);
             return result.Task;
         };
+        _runtime.UpdateCheckRequested += () => DispatcherQueue.TryEnqueue(async () => {
+            if(!_runtime.Allowed)return;
+            ShowFromBackground();ShowGestorUpdateArea();
+            if(_gestorUpdatePage is not null)await _gestorUpdatePage.CheckNowAsync();
+        });
+        _runtime.SupportCodeRequested += () => DispatcherQueue.TryEnqueue(async () => {
+            if(_runtime.Allowed)await ShowRemoteCodeAsync();
+        });
         _runtime.RequestExit = () => DispatcherQueue.TryEnqueue(ExitGestor);
         AppWindow.Closing += (_, e) => { if (!_exiting) { e.Cancel = true; AppWindow.Hide(); } };
         _tray.OnOpen = () => DispatcherQueue.TryEnqueue(ShowFromBackground);
@@ -194,7 +258,7 @@ public sealed partial class MainWindow : Window
             _exiting = true;
             _refreshTimer.Stop(); _themeTimer.Stop(); _pending?.Cancel(); _hub.Dispose(); _gestor.Dispose(); _themes.Dispose(); _presence.Dispose(); foreach (var page in _tools.Values) page.CancelOperations(); _programsPage.CancelOperations(); _penteFinoPage.CancelOperations(); _backupLoop.Dispose(); _runtime.Dispose(); _tray.Dispose();
         };
-        _ = RefreshAsync(); _ = RefreshThemeAsync();
+        _ = RefreshAsync(); _ = RefreshThemeAsync(); _ = SyncFavoritesAsync();
     }
     public void ShowFromBackground() { AppWindow.Show(); Activate(); }
     private void ExitGestor() { _exiting = true; Close(); Application.Current.Exit(); }
@@ -216,6 +280,7 @@ public sealed partial class MainWindow : Window
             var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
             label.Children.Add(new SymbolIcon(group.Icon) { Width = 16, Height = 16 });
             label.Children.Add(new TextBlock { Text = group.Label, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            label.Children.Add(CategoryUpdateBadge(group.Key));
             var tab = new Button { Tag = group.Key, Content = label, Style = (Style)RootGrid.Resources["RibbonTab"], Margin = new Thickness(0) };
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(tab, "category-" + group.Key);
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(tab, group.Label);
@@ -279,20 +344,22 @@ public sealed partial class MainWindow : Window
                 button.CanDrag = true;
                 button.DragStarting += (_, e) => { _dragKey = item.Key; e.Data.SetText(item.Key); e.Data.RequestedOperation = DataPackageOperation.Move; };
                 button.DropCompleted += (_, _) => _dragKey = null;
-                var star = new Button { Tag = item.Key, Style = (Style)RootGrid.Resources["FlatButton"], Width = 22, Height = 22, Padding = new Thickness(0), CornerRadius = new CornerRadius(11), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 1, 0), Content = new FontIcon { FontSize = 11 } };
+                var star = new Button { Tag = item.Key, Style = (Style)RootGrid.Resources["FlatButton"], Width = 22, Height = 22, Padding = new Thickness(0), CornerRadius = new CornerRadius(11), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 1, 0), Content = new FontIcon { FontSize = 11, Glyph = _favorites.Contains(item.Key) ? "\uE735" : "\uE734" } };
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(star, "Favoritar " + item.Label); ToolTipService.SetToolTip(star, "Favoritar");
                 star.Click += (_, _) =>
                 {
                     if (!_favorites.Remove(item.Key)) _favorites.Add(item.Key);
                     SaveFavorites();
+                    _ = PushFavoriteAsync(item.Key, _favorites.Contains(item.Key));
                     // Reconstrói a faixa fora do evento Click: o botão clicado pertence à árvore que será substituída.
                     if (!DispatcherQueue.TryEnqueue(RefreshRibbonAfterFavorite)) RuntimeLog.Write("Favoritos do menu: DispatcherQueue indisponível.");
                 };
                 _stars.Add(item.Key, star); cell.Children.Add(star);
             }
+            if (item.Key == UpdateMenuKey) cell.Children.Add(UpdateMenuBadge());
             RibbonMenus.Children.Add(cell);
         }
-        UpdateCategoryVisibility();
+        UpdateCategoryVisibility(); ApplyUpdateBadges();
         RibbonScroll.ChangeView(0, null, null, true);
     }
     private void RefreshRibbonAfterFavorite()
@@ -336,7 +403,7 @@ public sealed partial class MainWindow : Window
         ConnectionLabel.Foreground = FooterText.Foreground = p.Muted;
         if (_appliedTheme == t && _paletteState == _runtime.State) return; _appliedTheme = t; _paletteState = _runtime.State;
         _dashboardPage.ApplyPalette(p); _serverPage.ApplyPalette(p); _speedPage.ApplyPalette(p); _devicesPage.ApplyPalette(p); _mapPage.ApplyPalette(p);
-        _backupPage.ApplyPalette(p); _penteFinoPage.ApplyPalette(p); _programsPage.ApplyPalette(p); foreach (var page in _tools.Values) page.ApplyPalette(p); _windowsUpdatePage.ApplyPalette(p); _filesPage.ApplyPalette(p); _supportPage.ApplyPalette(p); _ticketsPage.ApplyPalette(p);
+        _backupPage.ApplyPalette(p); _penteFinoPage.ApplyPalette(p); _programsPage.ApplyPalette(p); foreach (var page in _tools.Values) page.ApplyPalette(p); _windowsUpdatePage.ApplyPalette(p); _filesPage.ApplyPalette(p); _supportPage.ApplyPalette(p); _ticketsPage.ApplyPalette(p); _agendaPage.ApplyPalette(p);
     }
     private void Menu_Click(object sender, RoutedEventArgs e)
     {
@@ -382,6 +449,7 @@ public sealed partial class MainWindow : Window
     {
         if(PenteFinoPage.IntegratedKeys.Contains(section)){var target=section;SelectSectionCore("health");_penteFinoPage.OpenTool(target);return;}
         if(section=="monitor")section="server";
+        if(section is "updates" or "history"){ShowGestorUpdateArea(section=="history"?"history":"update");return;}
         if (!Groups.Any(g => g.Items.Any(i => i.Key == section))) section = "panel";
         var group = ResolveGroup(section);
         if (section == _section && _group == group.Key && (_menus.Count > 0) && (section=="panel"&&_hybridReady?HybridDashboard.Visibility==Visibility.Visible:CompactHost.Content is not null))
@@ -406,7 +474,7 @@ public sealed partial class MainWindow : Window
         else if (section == "programs") CompactHost.Content = _programsPage;
         else if (section == "health") CompactHost.Content = _penteFinoPage;
         else if (_tools.TryGetValue(section, out var tool)) CompactHost.Content = tool;
-        else CompactHost.Content = section switch { "windows_update" => _windowsUpdatePage, "devices" => _devicesPage, "map" => _mapPage, "files" => _filesPage, "server" => _serverPage, "speed" => _speedPage, "support" => _supportPage, "tickets" => _ticketsPage, _ => _serverPage };
+        else CompactHost.Content = section switch { "windows_update" => _windowsUpdatePage, "devices" => _devicesPage, "map" => _mapPage, "files" => _filesPage, "server" => _serverPage, "speed" => _speedPage, "support" => _supportPage, "tickets" => _ticketsPage, "agenda" => _agendaPage, "remote" => _remoteAccessPage, _ => _serverPage };
         RuntimeLog.Write("Navegação: conteúdo criado; aplicando tema: " + section);
         ApplyTheme(_themes.Current);
         UpdateHybridHeading();

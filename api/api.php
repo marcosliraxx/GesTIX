@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/error-logging.php';
 require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/network-inventory.php';
 require __DIR__ . '/../includes/command-diagnostics.php';
+require_once __DIR__ . '/../includes/menu-favorites.php';
 
 try {
     $pdo = arc_db();
@@ -264,46 +265,43 @@ try {
         $result=json_decode((string)($row['result_json']??''),true);
         arc_json(['ok'=>true,'status'=>$row['status']==='pending'?$row['command_status']:$row['status'],'data'=>is_array($result)?$result:null,'message'=>(string)$row['result_text']]);
     }
-    /* Programas e Clean: consultas e solicitações pela fila autenticada. Categorias, prazos e limites
-       vêm de includes/network-clean.php (fonte única, também usada pelas telas e pelo gestor). */
-    if (in_array($action,['network-program-list','network-program-start','network-program-status','network-clean-list','network-clean-start','network-clean-status','network-clean-report','network-clean-tool','network-clean-settings','network-clean-settings-save'],true)) {
+    /* Programas e Pente-Fino: consultas e solicitações pela fila autenticada. Categorias, prazos e limites
+       vêm de includes/network-pentefino.php (fonte única, também usada pelas telas e pelo gestor). */
+    if (in_array($action,['network-program-list','network-program-start','network-program-status','network-pentefino-list','network-pentefino-start','network-pentefino-status','network-pentefino-report','network-pentefino-tool','network-pentefino-settings','network-pentefino-settings-save'],true)) {
         if(!arc_is_user()&&!arc_is_admin())arc_json(['ok'=>false,'error'=>'Autenticação necessária'],401);
         if($_SERVER['REQUEST_METHOD']==='POST')arc_verify_csrf();
         $body=$_SERVER['REQUEST_METHOD']==='POST'?json_decode((string)file_get_contents('php://input'),true):$_GET;
         if(!is_array($body))arc_json(['ok'=>false,'error'=>'Requisição inválida'],400);
         $network=(int)($body['network_id']??0);$gestorId=(int)($body['gestor_id']??0);
-        $isClean=str_starts_with($action,'network-clean-');
-        $names=arc_network_operation_commands()[$isClean?'clean':'program'];
+        $isPf=str_starts_with($action,'network-pentefino-');
+        $names=arc_network_operation_commands()[$isPf?'pentefino':'program'];
         $access=arc_network_team_access($pdo,$network,(int)arc_user_id());
         if(!$access||!in_array($access['role'],['owner','administrator','system_admin'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária'],403);
         $rights=arc_network_profile_rights($pdo,$network,(int)arc_user_id());
-        if(!in_array($access['role'],['owner','system_admin'],true)&&$rights!==null&&!in_array($isClean?'clean':'programas',$rights,true))arc_json(['ok'=>false,'error'=>$isClean?'Permissão Clean indisponível':'Permissão de programas indisponível'],403);
+        if(!in_array($access['role'],['owner','system_admin'],true)&&$rights!==null&&!in_array($isPf?'pentefino':'programas',$rights,true))arc_json(['ok'=>false,'error'=>$isPf?'Permissão Pente-Fino indisponível':'Permissão de programas indisponível'],403);
         $account=(int)$access['account_id'];
         $q=$pdo->prepare('SELECT id,headless_mode,last_seen_at FROM '.arc_table('network_gestores')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");
         $q->execute([$gestorId,$network,$account]);$machine=$q->fetch(PDO::FETCH_ASSOC);
         if(!$machine)arc_json(['ok'=>false,'error'=>'Gestor não aprovado'],404);
         $online=!empty($machine['last_seen_at'])&&strtotime((string)$machine['last_seen_at'])>=time()-120;
-        if($action==='network-clean-list'){
-            $row=arc_clean_report_get($pdo,$gestorId,$network,$account,'clean');
-            $active=arc_network_active_operation($pdo,$gestorId,$network,$account,$names);
-            if($active&&$active['command_name']==='clean_tool'){$details=$pdo->prepare('SELECT request_text FROM '.arc_table('gestor_terminal_jobs').' WHERE command_id=? AND gestor_id=? AND network_id=?');$details->execute([$active['command_id'],$gestorId,$network]);$request=json_decode((string)$details->fetchColumn(),true);if(($request['tool']??'')==='general')$active['general']=$request;}
-            arc_json(['ok'=>true,'report'=>$row['report']??null,'collected_at'=>$row['collected_at']??null,'online'=>$online,'headless'=>(int)$machine['headless_mode']===1,'history'=>arc_clean_history($pdo,$gestorId,$network,$account),'active'=>$active,'settings'=>arc_clean_settings_get($pdo,$gestorId,$network,$account),'index'=>arc_clean_report_index($pdo,$gestorId,$network,$account)]);
+        if($action==='network-pentefino-list'){
+            $row=arc_pf_report_get($pdo,$gestorId,$network,$account,'clean');
+            arc_json(['ok'=>true,'report'=>$row['report']??null,'collected_at'=>$row['collected_at']??null,'online'=>$online,'headless'=>(int)$machine['headless_mode']===1,'history'=>arc_pf_history($pdo,$gestorId,$network,$account),'active'=>arc_network_active_operation($pdo,$gestorId,$network,$account,$names),'settings'=>arc_pf_settings_get($pdo,$gestorId,$network,$account),'index'=>arc_pf_report_index($pdo,$gestorId,$network,$account)]);
         }
-        if($action==='network-clean-report'){
+        if($action==='network-pentefino-report'){
             $kind=(string)($body['kind']??'');
-            if(!isset(arc_clean_tools()[$kind]))arc_json(['ok'=>false,'error'=>'Ferramenta inválida'],422);
-            $row=arc_clean_report_get($pdo,$gestorId,$network,$account,$kind);
+            if(!isset(arc_pf_tools()[$kind]))arc_json(['ok'=>false,'error'=>'Ferramenta inválida'],422);
+            $row=arc_pf_report_get($pdo,$gestorId,$network,$account,$kind);
             arc_json(['ok'=>true,'report'=>$row['report']??null,'collected_at'=>$row['collected_at']??null]);
         }
-        if($action==='network-clean-settings'){
-            arc_json(['ok'=>true,'settings'=>arc_clean_settings_get($pdo,$gestorId,$network,$account)]);
+        if($action==='network-pentefino-settings'){
+            arc_json(['ok'=>true,'settings'=>arc_pf_settings_get($pdo,$gestorId,$network,$account)]);
         }
-        if($action==='network-clean-settings-save'){
+        if($action==='network-pentefino-settings-save'){
             if($_SERVER['REQUEST_METHOD']!=='POST')arc_json(['ok'=>false,'error'=>'Método inválido'],405);
-            try{$settings=arc_clean_validate_settings($body);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
-            arc_clean_settings_save($pdo,$gestorId,$network,$account,$settings);
-            if(array_key_exists('general_preferences',$body))arc_general_invalidate($pdo,$gestorId,$network,$account);
-            arc_user_audit($pdo,'clean_settings','Configurações do Clean da máquina '.$gestorId.' ('.count($settings['exclusions']).' exclusões, '.count($settings['custom_folders']).' pastas)');
+            try{$settings=arc_pf_validate_settings($body);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+            arc_pf_settings_save($pdo,$gestorId,$network,$account,$settings);
+            arc_user_audit($pdo,'pentefino_settings','Configurações do Pente-Fino da máquina '.$gestorId.' ('.count($settings['exclusions']).' exclusões, '.count($settings['custom_folders']).' pastas)');
             arc_json(['ok'=>true,'settings'=>$settings]);
         }
         if($action==='network-program-list'){
@@ -315,7 +313,7 @@ try {
             $programs=$row?json_decode((string)$row['programs_json'],true):[];
             arc_json(['ok'=>true,'programs'=>is_array($programs)?$programs:[],'collected_at'=>$row['collected_at']??null,'online'=>$online,'headless'=>(int)$machine['headless_mode']===1,'batch_max'=>ARC_PROGRAM_BATCH_MAX,'install_catalog'=>arc_program_install_catalog(),'active'=>arc_network_active_operation($pdo,$gestorId,$network,$account,$names)]);
         }
-        if(in_array($action,['network-program-status','network-clean-status'],true)){
+        if(in_array($action,['network-program-status','network-pentefino-status'],true)){
             arc_expire_running_commands($pdo,$gestorId);
             $id=(int)($body['command_id']??0);
             $q=$pdo->prepare('SELECT status,result_text,command_name FROM '.arc_table('gestor_commands').' WHERE id=? AND gestor_id=? AND network_id=? AND account_id=?');
@@ -327,18 +325,19 @@ try {
         if((int)$machine['headless_mode']!==1)arc_json(['ok'=>false,'error'=>'Ative o modo sem monitor neste gestor'],403);
         if(!$online)arc_json(['ok'=>false,'error'=>'Gestor desconectado'],409);
         $mode=(string)($body['mode']??'');
-        if($action==='network-clean-tool')$mode='tool';
-        if(!in_array($mode,$isClean?['scan','execute','tool']:['refresh','uninstall','install'],true))arc_json(['ok'=>false,'error'=>'Operação inválida'],422);
+        if($action==='network-pentefino-tool')$mode='tool';
+        if(!in_array($mode,$isPf?['scan','execute','tool']:['refresh','uninstall','install'],true))arc_json(['ok'=>false,'error'=>'Operação inválida'],422);
         $request=['ids'=>[],'categories'=>[],'age_days'=>7,'restore'=>'off','residual'=>false,'interactive'=>false];
         try{
-            if($isClean&&$mode==='tool'){
+            if($isPf&&$mode==='tool'){
                 $toolName=(string)($body['tool']??'');
-                $last=isset(arc_clean_tools()[$toolName])?(arc_clean_report_get($pdo,$gestorId,$network,$account,$toolName)['report']??null):null;
-                $request=arc_clean_validate_tool($body,$last);
-                if(($request['tool']??'')==='health'){$healthSettings=arc_clean_settings_get($pdo,$gestorId,$network,$account);$request['exclusions']=$healthSettings['exclusions'];$request['custom_folders']=$healthSettings['custom_folders'];}
-            }elseif($isClean){
-                [$request['categories'],$request['age_days']]=arc_clean_validate_request($body['categories']??null,$body['age_days']??7);
-                $settings=arc_clean_settings_get($pdo,$gestorId,$network,$account);
+                $last=isset(arc_pf_tools()[$toolName])?(arc_pf_report_get($pdo,$gestorId,$network,$account,$toolName)['report']??null):null;
+                $request=arc_pf_validate_tool($body,$last);
+                if(($request['tool']??'')==='health'){$healthSettings=arc_pf_settings_get($pdo,$gestorId,$network,$account);$request['exclusions']=$healthSettings['exclusions'];$request['custom_folders']=$healthSettings['custom_folders'];}
+            }elseif($isPf){
+                [$request['categories'],$request['age_days']]=arc_pf_validate_request($body['categories']??null,$body['age_days']??7);
+                $period=filter_var($body['period_days']??0,FILTER_VALIDATE_INT);if($period===false||!in_array($period,[0,7,15,30,180,365],true))throw new InvalidArgumentException('Período inválido');$request['period_days']=$period;
+                $settings=arc_pf_settings_get($pdo,$gestorId,$network,$account);
                 $request['exclusions']=$settings['exclusions'];$request['custom_folders']=$settings['custom_folders'];
             }elseif($mode==='install'){
                 $selected=$body['package_ids']??null;
@@ -362,9 +361,9 @@ try {
         $payload=json_encode($request,JSON_UNESCAPED_UNICODE);
         /* Pendências mantidas para despacho sequencial. */
         arc_expire_running_commands($pdo,$gestorId);
-        $busy=arc_network_active_operation($pdo,$gestorId,$network,$account,array_merge(arc_network_operation_commands()['program'],arc_network_operation_commands()['clean']));
+        $busy=arc_network_active_operation($pdo,$gestorId,$network,$account,array_merge(arc_network_operation_commands()['program'],arc_network_operation_commands()['pentefino']));
         /* Operações elegíveis são enfileiradas em vez de rejeitadas por ocupação. */
-        $command=$isClean?($mode==='tool'?'clean_tool':($mode==='scan'?'clean_scan':'clean_execute')):($mode==='refresh'?'program_inventory':($mode==='install'?'program_install':'program_uninstall'));
+        $command=$isPf?($mode==='tool'?'pentefino_tool':($mode==='scan'?'pentefino_scan':'pentefino_execute')):($mode==='refresh'?'program_inventory':($mode==='install'?'program_install':'program_uninstall'));
         $pdo->beginTransaction();try{
             $pdo->prepare('INSERT INTO '.arc_table('gestor_commands').' (account_id,network_id,gestor_id,command_name) VALUES (?,?,?,?)')->execute([$account,$network,$gestorId,$command]);
             $id=(int)$pdo->lastInsertId();
@@ -372,10 +371,10 @@ try {
             $pdo->prepare('INSERT INTO '.arc_table('support_command_requests').' (command_id,user_id,admin_id) VALUES (?,?,?)')->execute([$id,(int)arc_user_id(),arc_is_admin()?arc_admin_id():null]);
             $pdo->commit();
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
-        arc_user_audit($pdo,($isClean?'clean_':'program_').$mode,'Solicitação '.$id.' ao gestor '.$gestorId.($mode==='tool'?' (ferramenta '.$request['tool'].': '.$request['action'].')':' ('.count($request['ids']).' programas, '.count($request['categories']).' categorias)'));
+        arc_user_audit($pdo,($isPf?'pentefino_':'program_').$mode,'Solicitação '.$id.' ao gestor '.$gestorId.($mode==='tool'?' (ferramenta '.$request['tool'].': '.$request['action'].')':' ('.count($request['ids']).' programas, '.count($request['categories']).' categorias)'));
         arc_json(['ok'=>true,'command_id'=>$id,'status'=>'pending']);
     }
-    /* Operação ativa e cancelamento geral da Gestão de Rede: uma única regra para Programas, Clean, Diagnóstico e demais comandos longos. */
+    /* Operação ativa e cancelamento geral da Gestão de Rede: uma única regra para Programas, Pente-Fino, Diagnóstico e demais comandos longos. */
     if (in_array($action,['network-operation-active','network-operation-cancel'],true)) {
         if (!arc_is_user()&&!arc_is_admin()) arc_json(['ok'=>false,'error'=>'Autenticação necessária'],401);
         $post=$_SERVER['REQUEST_METHOD']==='POST';
@@ -397,12 +396,11 @@ try {
         if (!$post) arc_json(['ok'=>false,'error'=>'Método inválido'],405);
         $q=$pdo->prepare('UPDATE '.arc_table('gestor_commands')." SET status='failed',result_text='Cancelado pelo operador',completed_at=NOW() WHERE gestor_id=? AND network_id=? AND account_id=? AND status IN ('pending','running') AND $guard AND command_name NOT IN ('monitor_start','monitor_pause')");
         $q->execute([$gestorId,$network,$account]);
-        if($q->rowCount())arc_general_invalidate($pdo,$gestorId,$network,$account);
         if ($q->rowCount()) arc_user_audit($pdo,'operation_cancel_all',$q->rowCount().' operação(ões) canceladas no gestor '.$gestorId);
         arc_json(['ok'=>true,'cancelled'=>$q->rowCount()]);
     }
-    /* Cancelamento cooperativo de operação Clean/Programas: não marca êxito de exclusões já iniciadas. */
-    if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='network-clean-cancel') {
+    /* Cancelamento cooperativo de operação Pente-Fino/Programas: não marca êxito de exclusões já iniciadas. */
+    if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='network-pentefino-cancel') {
         if (!arc_is_user()&&!arc_is_admin()) arc_json(['ok'=>false,'error'=>'Autenticação necessária'],401);
         arc_verify_csrf();
         $body=json_decode((string)file_get_contents('php://input'),true);
@@ -411,25 +409,29 @@ try {
         $access=arc_network_team_access($pdo,$network,(int)arc_user_id());
         if (!$access || !in_array($access['role'],['owner','administrator','system_admin'],true)) arc_json(['ok'=>false,'error'=>'Sem permissão'],403);
         $rights=arc_network_profile_rights($pdo,$network,(int)arc_user_id());
-        if (!in_array($access['role'],['owner','system_admin'],true) && $rights!==null && !array_intersect(['clean','programas'],$rights)) arc_json(['ok'=>false,'error'=>'Sem permissão'],403);
-        $q=$pdo->prepare('UPDATE '.arc_table('gestor_commands')." SET status='failed',result_text='Cancelamento solicitado pelo operador',completed_at=NOW() WHERE (id=? OR ?=0) AND gestor_id=? AND network_id=? AND account_id=? AND command_name IN ('clean_scan','clean_execute','clean_tool','program_inventory','program_uninstall','program_install') AND status IN ('pending','running')");
+        if (!in_array($access['role'],['owner','system_admin'],true) && $rights!==null && !array_intersect(['pentefino','programas'],$rights)) arc_json(['ok'=>false,'error'=>'Sem permissão'],403);
+        $q=$pdo->prepare('UPDATE '.arc_table('gestor_commands')." SET status='failed',result_text='Cancelamento solicitado pelo operador',completed_at=NOW() WHERE (id=? OR ?=0) AND gestor_id=? AND network_id=? AND account_id=? AND command_name IN ('pentefino_scan','pentefino_execute','pentefino_tool','program_inventory','program_uninstall','program_install') AND status IN ('pending','running')");
         $q->execute([$id,$id,$gestorId,$network,(int)$access['account_id']]);
-        if($q->rowCount())arc_general_invalidate($pdo,$gestorId,$network,(int)$access['account_id']);
-        if ($q->rowCount())arc_user_audit($pdo,'clean_cancel','Cancelamento solicitado para operação '.$id.' no gestor '.$gestorId);
+        if ($q->rowCount())arc_user_audit($pdo,'pentefino_cancel','Cancelamento solicitado para operação '.$id.' no gestor '.$gestorId);
         arc_json(['ok'=>true,'cancelled'=>$q->rowCount()>0]);
     }
     /* Canal de comandos: ações limitadas, gestor aprovado, token da instalação. */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['gestor-command-poll','gestor-command-ack','gestor-command-output','gestor-config','gestor-terminal-local-start','gestor-power-authorize','gestor-command-authorize','gestor-remote-authorize','gestor-file-transfer','gestor-file-browser-result','gestor-support-code','gestor-workspace','gestor-program-inventory','gestor-clean-result','gestor-clean-local-result','gestor-general-status','gestor-clean-local-settings','gestor-program-local-inventory','gestor-devices','gestor-device-save'],true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['gestor-command-poll','gestor-command-ack','gestor-command-output','gestor-config','gestor-terminal-local-start','gestor-power-authorize','gestor-command-authorize','gestor-remote-authorize','gestor-file-transfer','gestor-file-browser-result','gestor-support-code','gestor-workspace','gestor-program-inventory','gestor-pentefino-result','gestor-pentefino-local-result','gestor-pentefino-local-settings','gestor-program-local-inventory','gestor-devices','gestor-device-save','gestor-menu-favorites'],true)) {
         $raw = file_get_contents('php://input');
         if ($action==='gestor-workspace' && (!is_string($raw)||strlen($raw)>131072)) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
-        if ($action!=='gestor-workspace' && (!is_string($raw) || strlen($raw)>(in_array($action,['gestor-program-inventory','gestor-clean-result','gestor-clean-local-result','gestor-clean-local-settings','gestor-program-local-inventory'],true)?6000000:($action==='gestor-file-browser-result'?90000:($action==='gestor-command-poll'?32768:($action==='gestor-command-ack'?16384:8192)))))) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
+        if ($action!=='gestor-workspace' && (!is_string($raw) || strlen($raw)>(in_array($action,['gestor-program-inventory','gestor-pentefino-result','gestor-pentefino-local-result','gestor-pentefino-local-settings','gestor-program-local-inventory'],true)?6000000:($action==='gestor-file-browser-result'?90000:($action==='gestor-command-poll'?32768:($action==='gestor-command-ack'?16384:8192)))))) arc_json(['ok'=>false,'error'=>'Payload inválido'],413);
         $body=json_decode($raw,true);
         if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
         try {$gestor=arc_gestor_authenticate($pdo,$body);} catch (RuntimeException $e) {if($e->getCode()===403)arc_json(['ok'=>false,'error'=>'Gestor sem autorização'],403);throw $e;}
-        $gestorId=(int)$gestor['id'];
-        if($action==='gestor-general-status'){
-            $q=$pdo->prepare('SELECT status FROM '.arc_table('gestor_commands').' WHERE id=? AND gestor_id=? AND network_id=? AND account_id=? AND command_name=\'clean_tool\'');$q->execute([(int)($body['command_id']??0),$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id']]);$status=$q->fetchColumn();if(!$status)arc_json(['ok'=>false,'error'=>'Operação não encontrada'],404);arc_json(['ok'=>true,'status'=>$status]);
+        if($action==='gestor-menu-favorites') {
+            try {
+                $data=(!isset($body['operation']) || $body['operation']==='read')
+                    ? arc_menu_favorites_read($pdo,(int)$gestor['account_id'],(int)$gestor['network_id'])
+                    : arc_menu_favorites_write($pdo,(int)$gestor['account_id'],(int)$gestor['network_id'],$body);
+            }catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+            arc_json(['ok'=>true]+$data);
         }
+        $gestorId=(int)$gestor['id'];
         if($action==='gestor-command-poll'&&in_array($body['desktop_state']??'', ['locked','unlocked'],true)){
             $users=[];foreach(array_slice(is_array($body['windows_users']??null)?$body['windows_users']:[],0,50) as $entry){
                 if(!is_array($entry))continue;$name=(string)($entry['username']??'');$label=(string)($entry['label']??'');
@@ -440,22 +442,21 @@ try {
             if($temp!==false){chmod($temp,0600);file_put_contents($temp,json_encode(['desktop_state'=>$body['desktop_state'],'windows_users'=>$users,'windows_users_error'=>!empty($body['windows_users_error']),'updated'=>time()]));rename($temp,$path);}
         }
 
-        if($action==='gestor-clean-result'){
+        if($action==='gestor-pentefino-result'){
             $id=(int)($body['command_id']??0);$report=$body['report']??null;
             if(!is_array($report))arc_json(['ok'=>false,'error'=>'Relatório de limpeza inválido'],422);
-            $q=$pdo->prepare('SELECT c.command_name,COALESCE(t.request_text,\'\') AS request_text FROM '.arc_table('gestor_commands').' c LEFT JOIN '.arc_table('gestor_terminal_jobs')." t ON t.command_id=c.id WHERE c.id=? AND c.gestor_id=? AND c.network_id=? AND c.account_id=? AND c.command_name IN ('clean_scan','clean_execute','clean_tool') AND c.status='running'");
+            $q=$pdo->prepare('SELECT c.command_name,COALESCE(t.request_text,\'\') AS request_text FROM '.arc_table('gestor_commands').' c LEFT JOIN '.arc_table('gestor_terminal_jobs')." t ON t.command_id=c.id WHERE c.id=? AND c.gestor_id=? AND c.network_id=? AND c.account_id=? AND c.command_name IN ('pentefino_scan','pentefino_execute','pentefino_tool') AND c.status='running'");
             $q->execute([$id,$gestorId,$gestor['network_id'],$gestor['account_id']]);$job=$q->fetch(PDO::FETCH_ASSOC);
             if(!$job)arc_json(['ok'=>false,'error'=>'Varredura não solicitada'],403);
-            if($job['command_name']==='clean_tool'){
+            if($job['command_name']==='pentefino_tool'){
                 /* O tipo vem do pedido gravado pela plataforma, nunca do corpo enviado pelo gestor. */
                 $requested=json_decode((string)$job['request_text'],true);
-                try{[$kind,$clean]=arc_clean_sanitize_tool_report((string)($requested['tool']??''),$report);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
-                if($kind==='general')$clean['commandId']=$id;
-                arc_clean_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$kind,$clean);
+                try{[$kind,$clean]=arc_pf_sanitize_tool_report((string)($requested['tool']??''),$report);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+                arc_pf_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$kind,$clean);
             }else{
-                $clean=arc_clean_sanitize_report($report,$job['command_name']==='clean_execute');
-                arc_clean_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],'clean',$clean);
-                arc_clean_record_history($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$clean);
+                $clean=arc_pf_sanitize_report($report,$job['command_name']==='pentefino_execute');
+                arc_pf_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],'clean',$clean);
+                arc_pf_record_history($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$clean);
             }
             arc_json(['ok'=>true,'saved'=>true]);
         }
@@ -469,22 +470,22 @@ try {
             $pdo->prepare('INSERT INTO '.arc_table('gestor_software_inventory').' (gestor_id,network_id,account_id,programs_json) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE network_id=VALUES(network_id),account_id=VALUES(account_id),programs_json=VALUES(programs_json),collected_at=CURRENT_TIMESTAMP')->execute([$gestorId,$gestor['network_id'],$gestor['account_id'],$json]);
             arc_json(['ok'=>true,'saved'=>count($clean)]);
         }
-        /* Execuções feitas na própria tela do gestor (abas Clean/Programas do Windows): mesmo saneamento das execuções remotas,
+        /* Execuções feitas na própria tela do gestor (abas Pente-Fino/Programas do Windows): mesmo saneamento das execuções remotas,
            sem comando pendente. O resultado fica disponível na plataforma (sincronia nos dois sentidos). */
-        if($action==='gestor-clean-local-settings'){
+        if($action==='gestor-pentefino-local-settings'){
             $acc=(int)$gestor['account_id'];$net=(int)$gestor['network_id'];
             if(!empty($body['save'])){
-                try{$settings=arc_clean_validate_settings($body);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
-                arc_clean_settings_save($pdo,$gestorId,$net,$acc,$settings);
+                try{$settings=arc_pf_validate_settings($body);}catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
+                arc_pf_settings_save($pdo,$gestorId,$net,$acc,$settings);
             }
-            arc_json(['ok'=>true,'network_id'=>$net,'gestor_id'=>$gestorId,'settings'=>arc_clean_settings_get($pdo,$gestorId,$net,$acc)]);
+            arc_json(['ok'=>true,'network_id'=>$net,'gestor_id'=>$gestorId,'settings'=>arc_pf_settings_get($pdo,$gestorId,$net,$acc)]);
         }
-        if($action==='gestor-clean-local-result'){
+        if($action==='gestor-pentefino-local-result'){
             $report=$body['report']??null;if(!is_array($report))arc_json(['ok'=>false,'error'=>'Relatório inválido'],422);
             $mode=(string)($body['mode']??'tool');
             try{
-                if($mode==='tool'){[$kind,$clean]=arc_clean_sanitize_tool_report((string)($body['tool']??''),$report);arc_clean_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$kind,$clean);}
-                else{$clean=arc_clean_sanitize_report($report,$mode==='execute');arc_clean_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],'clean',$clean);arc_clean_record_history($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$clean);}
+                if($mode==='tool'){[$kind,$clean]=arc_pf_sanitize_tool_report((string)($body['tool']??''),$report);arc_pf_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$kind,$clean);}
+                else{$clean=arc_pf_sanitize_report($report,$mode==='execute');arc_pf_report_save($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],'clean',$clean);arc_pf_record_history($pdo,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id'],$clean);}
             }catch(InvalidArgumentException $e){arc_json(['ok'=>false,'error'=>$e->getMessage()],422);}
             arc_json(['ok'=>true,'saved'=>true]);
         }
@@ -550,7 +551,7 @@ try {
         if($action==='gestor-file-browser-result'){
             $id=(int)($body['command_id']??0);$entries=$body['entries']??null;$error=substr((string)($body['error']??''),0,250);
             if($id<1||!is_array($entries)||count($entries)>180)arc_json(['ok'=>false,'error'=>'Listagem inválida'],422);
-            $clean=[];foreach($entries as $entry){if(!is_array($entry))continue;$name=mb_substr((string)($entry['name']??''),0,200);$entryPath=mb_substr((string)($entry['path']??''),0,1024);if($name===''||$entryPath==='')continue;$clean[]=['name'=>$name,'path'=>$entryPath,'directory'=>!empty($entry['directory']),'size'=>max(0,(int)($entry['size']??0)),'modified'=>max(0,(int)($entry['modified']??0)),'folder_size'=>array_key_exists('folder_size',$entry)?max(0,(int)$entry['folder_size']):null,'folder_size_complete'=>!empty($entry['folder_size_complete']),'total'=>max(0,(int)($entry['total']??0)),'free'=>max(0,(int)($entry['free']??0))];}
+            $clean=[];foreach($entries as $entry){if(!is_array($entry))continue;$name=mb_substr((string)($entry['name']??''),0,200);$entryPath=mb_substr((string)($entry['path']??''),0,1024);if($name===''||$entryPath==='')continue;$clean[]=['label'=>mb_substr((string)($entry['label']??''),0,200),'drive_type'=>mb_substr((string)($entry['drive_type']??''),0,30),'name'=>$name,'path'=>$entryPath,'directory'=>!empty($entry['directory']),'size'=>max(0,(int)($entry['size']??0)),'modified'=>max(0,(int)($entry['modified']??0)),'folder_size'=>array_key_exists('folder_size',$entry)?max(0,(int)$entry['folder_size']):null,'folder_size_complete'=>!empty($entry['folder_size_complete']),'total'=>max(0,(int)($entry['total']??0)),'free'=>max(0,(int)($entry['free']??0))];}
             $json=json_encode(['entries'=>$clean,'truncated'=>!empty($body['truncated']),'path'=>mb_substr((string)($body['path']??''),0,1024),'error'=>$error],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
             $q=$pdo->prepare('UPDATE '.arc_table('file_browser_requests').' r JOIN '.arc_table('gestor_commands')." c ON c.id=r.command_id SET r.result_json=?,r.status=?,r.updated_at=NOW() WHERE r.command_id=? AND r.gestor_id=? AND r.network_id=? AND r.account_id=? AND c.status='running' AND r.status='pending'");
             $q->execute([$json,$error!==''?'failed':'completed',$id,$gestorId,(int)$gestor['network_id'],(int)$gestor['account_id']]);arc_json(['ok'=>true,'saved'=>$q->rowCount()>0]);
@@ -600,7 +601,7 @@ try {
                 $lastConnection=['public_ip'=>$publicIp,'provider'=>$provider,'interface'=>is_array($diag['interface']??null)?$diag['interface']:[], 'machine'=>(string)($diag['machine']??''),'os'=>(string)($diag['os']??''),'route'=>is_array($diag['route']??null)?array_slice($diag['route'],0,16):[],'captured_at'=>(int)($diag['captured_at']??$diagRow['collected_at']),'source'=>'platform_saved_diagnostic'];
                 break;
             }
-            arc_json(['ok'=>true,'design'=>arc_support_design($pdo,'gestor'),'visual_theme'=>arc_visual_theme($pdo),'system_name'=>(string)(arc_setting_values($pdo)['site_name']??'Gestor de Rede'),'system_description'=>(string)(arc_setting_values($pdo)['tagline']??''),'allowed_tabs'=>$tabs,'latest_release'=>$release?:null,'poll_interval_seconds'=>30,'monitor_interval_seconds'=>$interval,'alert_latency_ms'=>$latency,'last_connection'=>$lastConnection,'device_overrides'=>arc_inventory_overrides($pdo,(int)$gestor['account_id'],(int)$gestor['network_id'],$gestorId)]);
+            arc_json(['ok'=>true,'design'=>arc_support_design($pdo,'gestor'),'visual_theme'=>arc_visual_theme($pdo),'system_name'=>(string)(arc_setting_values($pdo)['site_name']??'Gestor de Rede'),'system_description'=>(string)(arc_setting_values($pdo)['tagline']??''),'allowed_tabs'=>$tabs,'latest_release'=>$release?:null,'poll_interval_seconds'=>max(1,min(30,(int)arc_platform_setting($pdo,'platform_gestor_command_poll_seconds','3'))),'remote_command_open_tool'=>arc_platform_setting($pdo,'platform_gestor_command_open_tool','background')==='open_tool','monitor_interval_seconds'=>$interval,'alert_latency_ms'=>$latency,'last_connection'=>$lastConnection,'device_overrides'=>arc_inventory_overrides($pdo,(int)$gestor['account_id'],(int)$gestor['network_id'],$gestorId)]);
         }
         if ($action==='gestor-terminal-local-start') {
             $rawCommand=trim((string)($body['request_text']??''));
@@ -686,12 +687,12 @@ try {
                 $active->execute([(int)$cmd['account_id']]);
                 if((int)$order->fetchColumn()>0||(int)$active->fetchColumn()>0)$cmd=false;
             }
-            if($cmd&&in_array($cmd['command_name'],['program_inventory','program_uninstall','program_install','clean_scan','clean_execute','clean_tool','cloud_folders'],true)){
+            if($cmd&&in_array($cmd['command_name'],['program_inventory','program_uninstall','program_install','pentefino_scan','pentefino_execute','pentefino_tool','cloud_folders'],true)){
                 $adminReq=$pdo->prepare('SELECT admin_id FROM '.arc_table('support_command_requests').' WHERE command_id=?');$adminReq->execute([(int)$cmd['id']]);$isAdminRequest=(int)$adminReq->fetchColumn()>0;
                 $q=$pdo->prepare('SELECT user_id FROM '.arc_table('support_command_requests').' WHERE command_id=?');$q->execute([(int)$cmd['id']]);$requester=(int)$q->fetchColumn();
                 $access=$requester?arc_network_team_access($pdo,(int)$cmd['network_id'],$requester):null;
                 $rights=$requester?arc_network_profile_rights($pdo,(int)$cmd['network_id'],$requester):[];
-                if((!$isAdminRequest&&(!$access||!in_array($access['role'],['owner','administrator'],true)||($access['role']!=='owner'&&$rights!==null&&!in_array(in_array($cmd['command_name'],['clean_scan','clean_execute','clean_tool','cloud_folders'],true)?'clean':'programas',$rights,true))))||!arc_support_command_request_allowed($pdo,(int)$cmd['id'],(int)$cmd['network_id'],(int)$cmd['account_id'])){
+                if((!$isAdminRequest&&(!$access||!in_array($access['role'],['owner','administrator'],true)||($access['role']!=='owner'&&$rights!==null&&!in_array(in_array($cmd['command_name'],['pentefino_scan','pentefino_execute','pentefino_tool','cloud_folders'],true)?'pentefino':'programas',$rights,true))))||!arc_support_command_request_allowed($pdo,(int)$cmd['id'],(int)$cmd['network_id'],(int)$cmd['account_id'])){
                     $pdo->prepare('UPDATE '.arc_table('gestor_commands')." SET status='failed',result_text='Permissão de programas revogada',completed_at=NOW() WHERE id=?")->execute([(int)$cmd['id']]);$cmd=false;
                 }
             }
@@ -745,7 +746,7 @@ try {
             if ($cmd) $pdo->prepare('UPDATE '.arc_table('gestor_commands').' SET status=\'running\',dispatched_at=CURRENT_TIMESTAMP WHERE id=?')->execute([(int)$cmd['id']]);
             $pdo->commit();
         } catch (Throwable $e) { $pdo->rollBack();throw $e; }
-        arc_json(['ok'=>true,'command'=>$cmd?:null]);
+        arc_json(['ok'=>true,'command'=>$cmd?:null,'poll_interval_seconds'=>max(1,min(30,(int)arc_platform_setting($pdo,'platform_gestor_command_poll_seconds','3'))),'open_tool'=>arc_platform_setting($pdo,'platform_gestor_command_open_tool','background')==='open_tool']);
     }
     /* Interromper diagnóstico de forma autenticada e restrita ao gestor selecionado. */
     if ($_SERVER['REQUEST_METHOD']==='POST' && $action==='network-terminal-cancel') {
@@ -826,7 +827,7 @@ try {
         $body=json_decode($raw,true);
         if (!is_array($body)) arc_json(['ok'=>false,'error'=>'JSON inválido'],400);
         $networkId=(int)($body['network_id']??0);$command=(string)($body['command']??'');
-        $allowed=['monitor_start','monitor_pause','speed_test','scan_devices','scan_map','diagnostic','toolkit','toolkit_traceroute','toolkit_services','toolkit_health','toolkit_troubleshooter','quick_health','storage_health','service_health','restart_readiness','dns_test','public_ip','system_snapshot','flush_dns','wifi_info','terminal_diagnostic','gestor_update','remote_assistance','power_shutdown','power_restart','power_cancel','screen_lock','windows_update'];
+        $allowed=['monitor_start','monitor_pause','speed_test','scan_devices','scan_map','diagnostic','toolkit','toolkit_traceroute','toolkit_services','toolkit_health','toolkit_troubleshooter','quick_health','storage_health','service_health','restart_readiness','dns_test','public_ip','system_snapshot','flush_dns','wifi_info','terminal_diagnostic','gestor_update','gestor_update_check','support_code_prompt','remote_assistance','power_shutdown','power_restart','power_cancel','screen_lock','windows_update'];
         if (!in_array($command,$allowed,true)) arc_json(['ok'=>false,'error'=>'Comando não permitido'],422);
         if ($command==='remote_assistance') {
             try {$id=arc_support_request_remote($pdo,$networkId,(int)($body['gestor_id']??0),(int)arc_user_id(),(int)($body['ticket_id']??0));}
@@ -836,7 +837,7 @@ try {
             arc_json(['ok'=>true,'command_id'=>$id,'status'=>'pending','unattended'=>(int)$q->fetchColumn()===1]);
         }
         try{$commandAccess=arc_support_access($pdo,$networkId,(int)arc_user_id(),true);}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Sem permissão para este comando.'],403);}
-        if(in_array($command,['power_shutdown','power_restart','power_cancel','restart_readiness','screen_lock','windows_update','gestor_update'],true)&&!in_array($commandAccess['role'],['owner','administrator','system_admin'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);
+        if(in_array($command,['power_shutdown','power_restart','power_cancel','restart_readiness','screen_lock','windows_update','gestor_update','gestor_update_check','support_code_prompt'],true)&&!in_array($commandAccess['role'],['owner','administrator','system_admin'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);
         $commandAccount=(int)$commandAccess['account_id'];
         $delaySeconds=$command==='screen_lock'?0:filter_var($body['delay_seconds']??60,FILTER_VALIDATE_INT);if(in_array($command,['power_restart','power_shutdown'],true)&&($delaySeconds===false||$delaySeconds<5||$delaySeconds>3600))arc_json(['ok'=>false,'error'=>'O prazo deve ser entre 5 e 3600 segundos.'],422);
         $terminalInput=trim((string)($body['terminal_input']??''));
@@ -847,6 +848,17 @@ try {
         $q=$pdo->prepare('SELECT id,machine_name,headless_mode FROM '.arc_table('network_gestores').' WHERE id=? AND network_id=? AND account_id=? AND status=\'approved\'');
         $q->execute([$gestorId,$networkId,$commandAccount]);$targetGestor=$q->fetch();
         if (!$targetGestor) arc_json(['ok'=>false,'error'=>'Selecione um gestor aprovado'],403);
+        // Ações de interface: disponíveis apenas para gestor autorizado e conectado.
+        // Nenhuma ação emite o código ao navegador ou inicia uma sessão remota.
+        if(in_array($command,['gestor_update_check','support_code_prompt'],true)){
+            $lastSeen=$pdo->prepare('SELECT last_seen_at FROM '.arc_table('network_gestores').' WHERE id=? AND network_id=? AND account_id=?');
+            $lastSeen->execute([$gestorId,$networkId,$commandAccount]);
+            $seen=$lastSeen->fetchColumn();
+            if(!$seen||strtotime((string)$seen)<time()-120)arc_json(['ok'=>false,'error'=>'O gestor precisa estar conectado para abrir a tela no Windows.'],409);
+            $recent=$pdo->prepare('SELECT id FROM '.arc_table('gestor_commands')." WHERE gestor_id=? AND command_name=? AND status IN ('pending','running') AND created_at>DATE_SUB(NOW(),INTERVAL 45 SECOND) ORDER BY id DESC LIMIT 1");
+            $recent->execute([$gestorId,$command]);$existing=$recent->fetchColumn();
+            if($existing)arc_json(['ok'=>true,'command_id'=>(int)$existing,'already_queued'=>true]);
+        }
         $windowsRequest=null;
         if($command==='windows_update'){
             $q=$pdo->prepare('SELECT gestor_version FROM '.arc_table('network_gestores').' WHERE id=?');$q->execute([$gestorId]);if(version_compare((string)$q->fetchColumn(),'3.7.1','<'))arc_json(['ok'=>false,'error'=>'Atualize o gestor para usar a verificação detalhada do Windows Update.'],409);
@@ -1078,6 +1090,25 @@ try {
             $view=$pref->fetchColumn();
         }
         arc_json(['ok'=>true,'commands'=>$out,'view_state'=>in_array($view,['open','closed'],true)?$view:null]);
+    }
+    // Histórico de atualização: consulta somente leitura, limitada à rede e ao computador autorizados.
+    if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-gestor-update-history') {
+        if (!arc_is_user() && !arc_is_admin()) arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);
+        $networkId=(int)($_GET['network_id']??0);
+        $gestorId=(int)($_GET['gestor_id']??0);
+        if ($networkId<=0 || $gestorId<=0) arc_json(['ok'=>false,'error'=>'Selecione um computador.'],422);
+        try { $access=arc_support_access($pdo,$networkId,(int)arc_user_id()); }
+        catch (RuntimeException $e) { arc_json(['ok'=>false,'error'=>'Rede não autorizada'],403); }
+        if (!in_array((string)$access['role'],['owner','administrator','system_admin'],true)) {
+            arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);
+        }
+        $account=(int)$access['account_id'];
+        $verify=$pdo->prepare('SELECT id FROM '.arc_table('network_gestores').' WHERE id=? AND network_id=? AND account_id=? LIMIT 1');
+        $verify->execute([$gestorId,$networkId,$account]);
+        if (!$verify->fetchColumn()) arc_json(['ok'=>false,'error'=>'Computador não pertence a esta rede.'],404);
+        $history=$pdo->prepare('SELECT id,command_name,status,result_text,created_at,completed_at FROM '.arc_table('gestor_commands')." WHERE network_id=? AND account_id=? AND gestor_id=? AND command_name IN ('gestor_update','gestor_update_check') ORDER BY id DESC LIMIT 150");
+        $history->execute([$networkId,$account,$gestorId]);
+        arc_json(['ok'=>true,'commands'=>$history->fetchAll(PDO::FETCH_ASSOC)]);
     }
     if ($_SERVER['REQUEST_METHOD']==='GET' && $action==='network-command-status') {
         if(!arc_is_user()&&!arc_is_admin())arc_json(['ok'=>false,'error'=>'Acesso não autorizado'],401);

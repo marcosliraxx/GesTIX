@@ -1,7 +1,17 @@
 <?php /* Caminho: redes/_rodape.php */ 
 require_once __DIR__ . '/../includes/error-logging.php';
 ?>
-<?php require __DIR__.'/_workspace_end.php'; ?>
+</div></div></main>
+<?php
+/* Central da ferramenta: reaproveita a preferência do usuário sem duplicar a lateral do Painel. */
+$arcToolNames=['servidor'=>'Servidor','pentefino'=>'Pente-Fino','backup'=>'Backup','velocidade'=>'Internet','programas'=>'Programas','remoto'=>'Acesso remoto','suporte'=>'Suporte','chamados'=>'Helpdesk','arquivos'=>'Arquivos','mapa'=>'Mapa','dispositivos'=>'Dispositivos','preferencias'=>'Preferências','usuarios'=>'Usuários','permissoes'=>'Permissões','cadastros'=>'Cadastros','agenda'=>'Agenda','atualizacoes'=>'Atualizações','relatorios'=>'Relatórios','historico'=>'Histórico','clean'=>'Pente-Fino'];
+$arcTool=(string)($arcSectionFile??'');
+if(isset($arcToolNames[$arcTool])):
+?>
+<link rel="stylesheet" href="<?=arc_h(arc_workspace_base_url())?>assets/css/tool-center.css">
+<div data-arc-tool-center="<?=arc_h($arcTool)?>" data-title="<?=arc_h($arcToolNames[$arcTool])?>" data-endpoint="<?=arc_h(arc_workspace_base_url())?>api/tool-preferences.php" data-csrf="<?=arc_h(arc_csrf_token())?>"></div>
+<script src="<?=arc_h(arc_workspace_base_url())?>assets/js/tool-center.js" defer></script>
+<?php endif; ?>
 <!-- BLOCO 03 — AGENDAMENTO SEGURO DE AÇÕES DO COMPUTADOR -->
 <dialog id="arc-power-schedule" class="arc-power-dialog" aria-labelledby="arc-power-title">
 <form method="dialog" id="arc-power-form">
@@ -72,11 +82,6 @@ body>.arc-command-log.arc-operation-notice[data-kind=error]{pointer-events:auto!
 
 .arc-operation-notice[data-kind=error] .arc-notice-fill{background:#ee657c;animation:none;width:100%}
 .arc-operation-notice[data-kind=success] .arc-notice-fill{background:#2dd4a6;animation:none;width:100%}
-.arc-support-action-grid .arc-remote-request.arc-update-available{border-color:#f2bd43!important;box-shadow:0 0 0 1px #f2bd4366,0 0 18px #f2bd4333!important;animation:arcUpdateAlert 1.5s ease-in-out infinite!important}
-.arc-support-action-grid .arc-remote-request.arc-update-available i{color:#f2c44e!important}
-.arc-support-action-grid .arc-remote-request.arc-update-available::after{content:'Nova versão';display:block;color:#f2c44e;font:700 10px Segoe UI,Arial,sans-serif}
-@keyframes arcUpdateAlert{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4)}}
-@media(prefers-reduced-motion:reduce){.arc-support-action-grid .arc-remote-request.arc-update-available{animation:none!important}}
 
 @media(prefers-reduced-motion:reduce){.arc-operation-notice.is-working .arc-notice-fill::after{animation:none;display:none}}
 `;document.head.append(style);
@@ -384,6 +389,18 @@ const network=<?= (int)$networkId ?>,csrf=<?= json_encode($csrf) ?>,base=<?= jso
 const HINT_VIEW='Tela completa, incluindo a barra de tarefas. O controle de mouse e teclado depende da autorização no computador remoto.';
 const HINT_CTRL='Controle ativo: toque ou clique para controlar. No celular, use o botão de teclado para digitar. Ctrl+V digita o texto copiado no computador remoto.';
 let commandId=0,timer=null,locked=false,live=false,controlOn=false,pumping=false,lastMonitorKey='';
+// Ligação ao código temporário validado no servidor: não cria uma segunda sessão.
+document.addEventListener('arc:remote-code-connected', async e=>{
+ const data=e.detail||{};const id=Number(data.command_id||0),gestor=Number(data.gestor_id||0);
+ if(!id||!gestor)return;
+ const option=[...select.options].find(opt=>Number(opt.value)===gestor);
+ if(!option){state.textContent='O computador validado não pertence à seleção desta rede.';return;}
+ clearTimers();commandId=id;select.value=option.value;saveRemoteSession();
+ showRemoteViewer();send.hidden=true;send.disabled=false;stop.hidden=false;
+ host.textContent='• '+(option.textContent||'Gestor');
+ setState('Código validado. Aguardando a autorização local e o vídeo do Windows…');
+ timer=setInterval(refresh,1200);await refresh();
+});
 // BLOCO 31 — SESSÃO PERSISTENTE: compartilhada entre abas da mesma origem e rede.
 const REMOTE_KEY='arcoll:remote-session:'+network;
 function saveRemoteSession(){try{if(commandId)localStorage.setItem(REMOTE_KEY,JSON.stringify({command_id:commandId,gestor_id:Number(select.value),saved_at:Date.now()}));}catch(e){}}

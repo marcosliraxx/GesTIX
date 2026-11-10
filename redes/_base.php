@@ -400,8 +400,6 @@ $live     = $isActive && $lastSeen !== '' && strtotime($lastSeen) >= time() - 90
    4. SAÍDA — WORKSPACE PADRÃO
    ============================================================ */
 
-if(in_array($teamRole,['owner','system_admin'],true)){require_once dirname(__DIR__).'/includes/gestao-migration.php';arc_gestao_remove_obsolete(dirname(__DIR__));}
-
 $ARCPageBodyClass = 'arc-page-redes';
 $ARCMode      = 'app';
 $ARCPageTitle = (string)$network['name'];

@@ -10,7 +10,7 @@
   overflow-y:auto;
   overflow-x:hidden;
   overscroll-behavior:contain;
-  padding:8px 0px;
+  padding:0;
   scrollbar-color:#355e81 #0c1b2f;
   scrollbar-width:thin;
 }
@@ -173,7 +173,7 @@
 .arc-inventory-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .arc-inventory-toolbar input{height:36px;border-radius:7px;border:1px solid var(--border);background:var(--surface-alt);color:var(--text);padding:0 10px;font-size:12px}
 .arc-inventory-toolbar select{border-radius:7px;border:1px solid var(--border);background:var(--surface-alt);color:var(--text);height:32px;min-width:105px;max-width:170px;padding:3px 7px;font-size:12px;flex:1 1 108px;margin:0}
-.arc-inventory-search{display:flex;align-items:center;gap:8px;min-width:220px;flex:1 1 260px;background:var(--surface-alt);border:1px solid var(--border);border-radius:7px;padding-left:10px;color:var(--primary)}
+.arc-inventory-search{display:flex;align-items:center;gap:8px;min-width:220px;flex:1 1 260px;background:var(--surface-alt);border-radius:7px;padding-left:10px;color:var(--primary)}
 .arc-inventory-search input{width:100%;background:none;border:0;outline:0}
 .arc-inventory-total{font-size:11px;color:var(--muted);white-space:nowrap;margin-right:auto}
 .arc-inventory-state{font-size:11px;color:var(--muted);min-height:18px}
@@ -373,6 +373,7 @@
 .arc-trade-dialog input{background:var(--surface-alt);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px}
 .arc-trade-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
 .arc-trade-dialog-actions button{background:#22547c;border:1px solid var(--border);color:var(--text);border-radius:5px;;cursor:pointer}
+body.arc-page-redes .app-main.arc-redes-page{padding:0!important;margin:0!important}
 .arc-redes-page{
   --redes-bg:var(--bg);
   --redes-surface:var(--surface);
@@ -585,7 +586,7 @@
 .arc-inventory-table td[data-device-field]{display:none;min-width:0;border:0;padding:0!important;white-space:normal;overflow:hidden}.arc-inventory-table td[data-device-field=select]{display:grid;grid-column:1;grid-row:1 / 3;align-items:center}.arc-inventory-table td[data-device-field=name]{display:block;grid-column:2;grid-row:1}.arc-inventory-table td[data-device-field=ip]{display:block;grid-column:2;grid-row:2;padding-left:34px!important;color:var(--muted)}.arc-inventory-table td[data-device-field=status]{display:grid;grid-column:3;grid-row:1 / 3;align-items:center;justify-items:center}.arc-inventory-table .arc-device-badge{font-size:9px;padding:4px 5px;white-space:nowrap}.arc-inventory-table .arc-device-ident{min-width:0;gap:7px}.arc-inventory-table .arc-device-ident>div{min-width:0}.arc-inventory-table .arc-device-name-row strong{font-size:12px}.arc-inventory-table .arc-device-ident small{display:none}.arc-device-dialog{max-height:calc(100dvh - 16px)}.arc-device-modalhead{padding:9px}.arc-device-modalhead h2{font-size:15px}.arc-device-modalhead small{display:none}.arc-device-modalbody{padding:9px}.arc-device-modalfoot{gap:6px;flex-wrap:wrap}.arc-device-formgrid input:not([type=checkbox]),.arc-device-formgrid select{font-size:16px;min-height:40px}.arc-device-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.arc-device-summary{gap:7px}.arc-device-summary>div{min-width:0}.arc-device-summary small{overflow-wrap:anywhere}.arc-inventory-toolbar .arc-inventory-search input {font-size:16px}.arc-inventory .arc-inventory-toolbar {flex-wrap:nowrap;padding:4px;gap:5px}.arc-bulkbar {gap:5px}.arc-bulkbar select,.arc-bulkbar input {font-size:16px;min-width:0;flex:1 1 110px;max-width:none}.arc-bulkbar button {height:36px}.arc-inventory-empty-start {min-height:140px;padding:16px}.arc-inventory-startbox strong {font-size:15px}.arc-inventory-startbox small {font-size:12px}
 }
 @media(max-width:760px){.arc-redes-page .arc-redes-identidade{max-width:28%;min-width:85px}.arc-redes-identity-bar .arc-redes-identidade strong{font-size:11px}.arc-gestor-select-wrap{flex-basis:100px}.arc-redes-header-controls{gap:4px}.arc-gestor-state{flex-basis:24px;width:24px}.arc-gestor-running{flex-basis:24px;width:24px}.arc-redes-header-controls .arc-identity-icon{width:30px;height:32px;flex-basis:30px}}
-@media(max-width:700px){.arc-redes-conteudo{padding:9px}.arc-network-manager{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.arc-manager-body{padding:9px}.arc-manager-panel .card{padding:11px}.arc-manager-panel .form-field{grid-template-columns:1fr}.arc-manager-panel .form-field>label.span2{grid-column:auto}.arc-manager-footer span{display:none}.asc-ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-ops-event{grid-template-columns:1fr 1fr}.asc-ops-event small{display:none}.asc-ops{padding:10px}.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{padding:5px}.arc-redes-page .asc-monitor{padding:5px}.asc-monitor-summary{flex-wrap:wrap}.arc-redes-page .asc-monitor .asc-chart-wrap{min-height:0!important}#arc-network-manager{width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important}#arc-network-manager .arc-manager-body{max-height:calc(100dvh - 190px)}.arc-device-facts {grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.arc-redes-conteudo{padding:0}.arc-network-manager{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.arc-manager-body{padding:9px}.arc-manager-panel .card{padding:11px}.arc-manager-panel .form-field{grid-template-columns:1fr}.arc-manager-panel .form-field>label.span2{grid-column:auto}.arc-manager-footer span{display:none}.asc-ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-ops-event{grid-template-columns:1fr 1fr}.asc-ops-event small{display:none}.asc-ops{padding:10px}.arc-redes-page:has(.asc-monitor) .arc-redes-conteudo{padding:5px}.arc-redes-page .asc-monitor{padding:5px}.asc-monitor-summary{flex-wrap:wrap}.arc-redes-page .asc-monitor .asc-chart-wrap{min-height:0!important}#arc-network-manager{width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important}#arc-network-manager .arc-manager-body{max-height:calc(100dvh - 190px)}.arc-device-facts {grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.arc-redes-menu{padding:3px 4px}.arc-redes-menu-link{flex:0 0 50px;min-height:40px;padding:2px;font-size:9px}}
 @media(max-width:650px){.arc-report-dialog .arc-report-form{grid-template-columns:1fr}.arc-report-preview-dialog .arc-report-body{padding:4px}.arc-report-sheet{padding:12px;font-size:9px}.arc-report-sheet .rkpis{gap:4px}.arc-network-brand-editor{grid-template-columns:80px minmax(0,1fr)}.arc-network-logo-pick{height:80px}}
 @media(max-width:600px){.arc-redes-header-left{gap:4px}.arc-redes-header-right{gap:4px}.arc-redes-header-controls .arc-gestor-select-wrap{flex:1 1 auto;width:auto;min-width:85px;padding:0 5px}.arc-redes-header-controls .arc-gestor-select-wrap>i{display:none}.arc-redes-header-controls .arc-gestor-state{display:grid}.arc-redes-header-controls .arc-gestor-running{flex:0 0 28px;width:28px}.arc-redes-header-controls .arc-identity-icon{width:30px;flex-basis:30px}.arc-cmd-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.arc-cmd-card{min-height:145px;padding:12px}.arc-cmd-icon{width:42px;height:42px;flex-basis:42px;font-size:20px}.arc-cmd-toolbar{flex-wrap:wrap}
@@ -724,7 +725,7 @@
 
 .arc-files-dialog{width:min(600px,calc(100vw - 24px))}.arc-files-dialog #file-list{max-height:40dvh;overflow:auto}.arc-files-dialog #file-list>article>div{min-width:0;flex:1}.arc-support-stage>.arc-files-dialog #file-list>article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}.arc-files-dialog #file-list strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arc-files-dialog input[type=file]{width:100%;max-width:100%;box-sizing:border-box;font-family:inherit}.arc-files-dialog #file-feedback{min-height:20px}
 
-.arc-update-release-details{padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt)}.arc-update-release-details p{margin:4px 0;font-size:12px}.arc-gestor-update-copy h2{font-size:18px}.arc-gestor-update-actions{margin-top:12px}
+.arc-gestor-update-actions{margin-top:12px}
 
 .arc-schedules-dialog{width:min(680px,calc(100vw - 24px))}.arc-schedule-weekdays{display:flex;flex-wrap:wrap;gap:8px}.arc-schedule-weekdays label,.arc-schedule-consent{display:flex;align-items:center;gap:5px}.arc-schedules-dialog [hidden]{display:none}.arc-schedules-dialog #schedule-list,.arc-schedules-dialog #schedule-runs{max-height:32dvh;overflow:auto}.arc-schedules-dialog .arc-service-list>article>div{min-width:0;flex:1}.arc-support-stage>.arc-schedules-dialog .arc-service-list>article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}.arc-schedules-dialog small{display:block;font-size:12px;color:var(--muted)}
 
@@ -992,10 +993,6 @@
 .app-header #arc-header-gestor-update{display:grid!important;place-items:center;flex:0 0 32px;width:32px;height:32px;padding:0;border:0;border-left:1px solid var(--border);border-radius:0;background:transparent;color:var(--primary);cursor:pointer}
 .app-header #arc-header-gestor-update:hover,.app-header #arc-header-gestor-update:focus-visible{background:rgba(242,196,78,.14);outline-offset:-2px}
  .app-header #arc-header-gestor-update i{font-size:17px}
-.app-header #arc-header-gestor-update.arc-update-available{color:#f4c453;background:rgba(242,196,78,.08)}
-.app-header #arc-header-gestor-update.arc-update-available i{animation:arcWindowsUpdateBlink 1.25s ease-in-out infinite}
-@keyframes arcWindowsUpdateBlink{0%,100%{opacity:1;filter:drop-shadow(0 0 0 transparent)}50%{opacity:.25;filter:drop-shadow(0 0 8px #f6d169)}}
-@media(prefers-reduced-motion:reduce){.app-header #arc-header-gestor-update.arc-update-available i{animation:none;filter:none}}
 
 #arc-gestor-update-confirm.arc-gestor-update-confirm{width:min(95vw,450px)!important;max-height:min(85dvh,540px)!important;overflow:hidden!important}
 #arc-gestor-update-confirm .arc-gestor-update-card{display:flex!important;flex-direction:column;min-height:0;max-height:min(85dvh,540px);padding:0!important}
@@ -1003,9 +1000,6 @@
 #arc-gestor-update-confirm .arc-update-modal-header strong{font-size:13px;line-height:1.35}
 #arc-gestor-update-confirm .arc-update-modal-header small{font-size:11px;color:#97cbea}
 #arc-gestor-update-confirm .arc-update-modal-close{width:25px;height:25px;border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px}
-#arc-gestor-update-confirm .arc-gestor-update-copy{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:12px 14px!important}
-#arc-gestor-update-confirm .arc-gestor-update-copy [data-update-release]{max-height:none!important;min-height:70px;flex:1 1 auto;overflow-y:auto!important;white-space:pre-wrap;padding:10px!important;line-height:1.6!important;overscroll-behavior:contain}
-#arc-gestor-update-confirm .arc-gestor-update-copy [data-update-gestor-details]{font-size:11px!important}
 #arc-gestor-update-confirm .arc-gestor-update-actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px!important;margin:0!important;padding:10px 12px!important;border-top:1px solid var(--border);flex:0 0 auto}
 #arc-gestor-update-confirm .arc-gestor-update-actions>.button{box-sizing:border-box;min-width:0;min-height:42px;display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 4px;text-align:center;white-space:normal;line-height:1.2;font-size:11px;text-decoration:none}
 #arc-gestor-update-confirm .arc-gestor-update-actions>.button:disabled{opacity:.45;cursor:not-allowed}
@@ -1072,10 +1066,103 @@ html[data-arc-design] body.arc-page-redes :is(.arp-toolbar,.arp-footer) {
 .arc-gestor-window-button:hover{transform:translateY(-1px);background:var(--surface-alt)!important}
 .arc-gestor-window-button[data-gestor-state="online"]{color:#36d58e!important;border-color:#36d58e!important;background:rgba(54,213,142,.10)!important}
 .arc-gestor-window-button[data-gestor-state="offline"]{color:#ef626f!important;border-color:#ef626f!important;background:rgba(239,98,111,.10)!important}
-.arc-gestor-window-button[data-gestor-state="update"]{color:#f3b82e!important;border-color:#f3b82e!important;background:rgba(243,184,46,.12)!important;animation:arcGestorUpdatePulse 1.5s ease-in-out infinite}
 .arc-gestor-window-button[data-gestor-state="none"]{color:#8998a8!important;border-color:#8998a8!important;background:rgba(137,152,168,.10)!important}
-@keyframes arcGestorUpdatePulse{50%{box-shadow:0 0 0 4px rgba(243,184,46,.13)}}
-@media(prefers-reduced-motion:reduce){.arc-gestor-window-button[data-gestor-state="update"]{animation:none}}
 /* O botão deve permanecer alinhado aos demais controles do header. */
 .app-header #arc-gestor-form .arc-redes-header-left{width:auto!important;flex:0 0 auto!important;align-items:center!important}
 .app-header #arc-gestor-form .arc-gestor-status-only{margin:0!important;align-self:center!important}
+
+/* Caminho: assets/css/redes.css — faixa dupla equivalente ao shell do WinUI 3.
+   Sem dropdown: abas horizontais superiores, ferramentas contextuais abaixo. */
+.arc-gestor-ribbon{flex:0 0 auto;min-width:0;margin:0;position:relative;z-index:15;background:var(--surface);color:var(--text);border:0;border-radius:0;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif}
+.arc-gestor-ribbon-groups{display:flex;align-items:flex-end;flex-wrap:nowrap;gap:0;min-height:35px;padding:3px 5px 0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;background:#b78570;border-bottom:1px solid #856353}
+.arc-gestor-ribbon-tab{appearance:none;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:5px;height:30px;min-width:0;padding:4px 10px;border:0;border-right:1px solid #8f6d5c;border-radius:7px 7px 0 0;background:transparent;color:#131d27;font:600 11px 'Segoe UI',Arial,sans-serif;cursor:pointer;white-space:nowrap;transition:background .12s ease,color .12s ease}
+.arc-gestor-ribbon-tab .fa{font-size:12px}
+.arc-gestor-ribbon-tab.active{background:#1e2b3a;color:#f0d0be;border-color:#304156}
+.arc-gestor-ribbon-tab:hover:not(.active){background:#c69a83;color:#131d27}
+.arc-gestor-ribbon-viewport{display:block;min-height:57px;padding:2px 5px;background:#1d2939;border-top:1px solid #39475b;border-bottom:1px solid #39475b;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.arc-gestor-ribbon-items{display:flex;align-items:stretch;gap:0;width:max-content;min-width:100%;min-height:53px}
+.arc-gestor-ribbon-items[hidden]{display:none!important}
+.arc-gestor-ribbon-items[data-group="gestao"]{justify-content:flex-end}
+.arc-gestor-ribbon-link{position:relative;display:flex;flex:0 0 auto;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-width:70px;max-width:128px;min-height:52px;padding:3px 9px 2px;border-right:1px solid #3b4a5b;border-radius:5px;text-align:center;text-decoration:none;color:#e5eefb;font-size:11px;line-height:1.15;font-weight:600;transition:background .12s ease,color .12s ease}
+.arc-gestor-ribbon-link .arc-db-icon{display:flex;align-items:center;justify-content:center;width:27px;height:25px;font-size:19px;line-height:1}
+.arc-gestor-ribbon-link .arc-db-icon i{font-size:19px}
+.arc-gestor-ribbon-link:hover,.arc-gestor-ribbon-link.active{background:#162336;color:#e5ae94}
+.arc-gestor-ribbon-tab:focus-visible,.arc-gestor-ribbon-link:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+@media(max-width:680px){.arc-gestor-ribbon-groups{padding-left:3px}.arc-gestor-ribbon-tab{padding:4px 7px;font-size:10px}.arc-gestor-ribbon-viewport{min-height:54px;padding:2px}.arc-gestor-ribbon-items{min-height:50px}.arc-gestor-ribbon-link{min-width:61px;min-height:49px;padding:3px 6px;font-size:10px}.arc-gestor-ribbon-link .arc-db-icon{height:24px;font-size:18px}.arc-gestor-ribbon-link .arc-db-icon i{font-size:18px}}
+
+/* Caminho: assets/css/redes.css — favoritos sincronizados nas faixas do gestor. */
+.arc-favorite-cell{position:relative;display:flex;flex:0 0 auto;min-width:70px;align-items:stretch}
+.arc-favorite-cell>.arc-gestor-ribbon-link{width:100%;padding-right:10px;padding-left:10px}
+.arc-favorite-star{position:absolute;top:1px;right:1px;z-index:2;width:19px;height:19px;display:grid;place-items:center;border:0;background:transparent;color:#f5a623;cursor:pointer;border-radius:50%;font-size:12px;padding:0;opacity:.78}
+.arc-favorite-star:hover,.arc-favorite-star:focus-visible{background:color-mix(in srgb,var(--surface) 80%,transparent);opacity:1;outline:1px solid var(--primary)}
+.arc-favorite-star .fa-star{color:#f5ad27}
+.arc-favorite-cell:hover .arc-favorite-star{opacity:1}
+.arc-gestor-ribbon-tab[hidden]{display:none!important}
+.arc-gestor-ribbon-groups>.arc-gestor-ribbon-tab[data-group="gestao"]{margin-left:auto;border-left:1px solid #8f6d5c}
+@media(max-width:680px){.arc-favorite-cell{min-width:70px}.arc-favorite-star{width:22px;height:22px;font-size:13px}}
+
+/* Caminho: assets/css/redes.css — ações de atualização e acesso remoto da faixa WinUI. */
+.arc-gestor-ribbon{position:relative}
+.arc-ribbon-quick-actions{position:absolute;right:6px;top:4px;display:flex;align-items:center;gap:4px;z-index:3}
+.arc-gestor-ribbon-groups{padding-right:0!important;min-height:35px}
+.arc-ribbon-quick{height:27px;width:34px;border:1px solid #856353;border-radius:7px;background:#b78570;color:#172334;cursor:pointer;display:grid;place-items:center;transition:background .15s,color .15s}
+.arc-ribbon-quick:hover,.arc-ribbon-quick:focus-visible{background:#ba8975;color:white;outline:2px solid transparent}
+.arc-ribbon-code-dialog{position:fixed;inset:0;margin:auto;width:min(410px,calc(100vw - 22px));max-height:90dvh;overflow:auto;box-sizing:border-box;border:1px solid #57738c;border-radius:15px;padding:0 18px 18px;color:#eaf4ff;background:#17283b;box-shadow:0 20px 80px #0009;font:13px/1.5 'Segoe UI',sans-serif}
+.arc-ribbon-code-dialog::backdrop{background:#061323b8;backdrop-filter:blur(5px)}
+.arc-ribbon-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 -18px 15px;padding:12px 15px;background:#a87b68;color:white}
+.arc-ribbon-dialog-head button{background:transparent;color:white;border:0;cursor:pointer;font-size:17px;padding:4px 8px}
+.arc-ribbon-code-dialog p{font-size:12px;color:#d8e6f1;margin:0 0 13px}
+.arc-ribbon-code-dialog label{display:block;font-weight:600;font-size:12px;margin:14px 0 6px}
+.arc-ribbon-code-dialog input{box-sizing:border-box;width:100%;background:#0e2031;border:1px solid #496b86;color:#fff;border-radius:9px;padding:10px;text-align:center;font-size:23px;letter-spacing:8px;font-weight:800;text-transform:uppercase}
+.arc-ribbon-code-actions button,.arc-ribbon-connect{padding:10px 12px;background:#a87b68;border:0;border-radius:8px;color:white;font:600 12px 'Segoe UI';cursor:pointer}
+.arc-ribbon-connect{display:block;width:100%;margin:10px 0}
+.arc-ribbon-code-actions button{width:100%}
+.arc-ribbon-code-dialog button:disabled{opacity:.5;cursor:wait}
+#arc-ribbon-code-status{padding:9px 10px;min-height:18px;border:1px solid #3e5f77;background:#102235;color:#b9ddef;border-radius:8px;font-size:11px}
+@media(max-width:540px){.arc-gestor-ribbon-groups{padding-right:0!important}.arc-ribbon-quick-actions{right:4px}.arc-ribbon-quick{width:32px}}
+/* Caminho: assets/css/redes.css — navegação nativa Atualização / Histórico no modal AGestor. */
+#arc-gestor-update-confirm.arc-gestor-update-confirm{width:min(92vw,380px)!important;max-height:min(92dvh,420px)!important}
+#arc-gestor-update-confirm .arc-gestor-update-card{max-height:min(92dvh,790px)}
+
+/* Caminho: assets/css/redes.css — alinhamento Internet com a coleta circular nativa do AGestor. */
+.arc-redes-page .arc-speed-view{background:#172536;border:0;border-radius:0;min-height:0;}
+.arc-redes-page .arc-speed-launch{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;min-height:0;flex:1 1 auto;width:100%;padding:20px 14px}
+.arc-redes-page .arc-speed-start{width:clamp(170px,24vw,245px);height:clamp(170px,24vw,245px);border-radius:50%;background:#172536;color:#f0f5fd;border:5px solid #394a62;box-shadow:0 0 0 30px #172536,0 0 0 31px #7f584a60;gap:8px;font-family:'Segoe UI',sans-serif;font-size:clamp(22px,2.4vw,28px);font-weight:750;font-style:normal;letter-spacing:0}
+.arc-redes-page .arc-speed-start::before{content:'';position:absolute;inset:-5px;border-radius:50%;border:5px solid transparent;border-top-color:#b98570;border-right-color:#b98570;transform:rotate(-35deg);pointer-events:none}
+.arc-redes-page .arc-speed-start:hover:not(:disabled){box-shadow:0 0 0 30px #172536,0 0 0 31px #b9857080,0 0 24px #b9857030}
+.arc-redes-page .arc-speed-eyebrow{font-size:9px;color:#d69d83;font-weight:700;letter-spacing:2px}
+.arc-redes-page .arc-speed-start small{font-size:9px;letter-spacing:1px;color:#acbfd6;max-width:85%}
+.arc-redes-page .arc-speed-caption{color:#c4d2e4;font-size:12px;line-height:1.6}
+.arc-redes-page .arc-speed-progress{height:5px;width:min(400px,90%)}
+@media(max-height:650px){.arc-redes-page .arc-speed-start{width:160px;height:160px}.arc-redes-page .arc-speed-launch{gap:16px}}
+
+/* Caminho: assets/css/redes.css — barra única Internet padrão Painel. */
+.arc-redes-page:has(.arc-speed-shell) .arc-redes-conteudo{display:flex!important;flex-direction:column!important;min-height:0!important;overflow:hidden!important;padding:0!important}
+.arc-speed-shell{display:flex;flex:1 1 auto;min-height:0;min-width:0;flex-direction:column;background:#172536;color:#e9f1fd;overflow:hidden}
+.arc-speed-toolbar{height:48px;min-height:48px;display:flex;flex:0 0 auto;align-items:center;gap:8px;padding:6px 10px;background:#1e2c3e;border-bottom:1px solid #394658}
+.arc-speed-toolbar>.arc-standard-search-icon{font-size:18px;color:#aec2d7}
+.arc-speed-flags{display:flex;align-items:center;flex:1 1 auto;gap:clamp(7px,1.5vw,17px);min-width:0;overflow-x:auto;scrollbar-width:thin}
+.arc-speed-flags label{display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px;color:#e9f1fd;cursor:pointer}
+.arc-speed-flags input{width:14px;height:14px;accent-color:#b98570}
+.arc-speed-content{display:flex;flex:1 1 auto;min-height:0;min-width:0;position:relative;overflow:hidden}
+.arc-speed-content>.arc-speed-view{flex:1 1 auto;min-width:0;min-height:0;height:100%;border:0;border-radius:0}
+.arc-speed-content .arc-speed-map-pane[hidden],.arc-speed-content .arc-speed-result[hidden]{display:none!important}
+.arc-speed-shell .arc-tool-center-inline{position:static!important;right:auto!important;bottom:auto!important;top:auto!important;z-index:auto!important;flex:0 0 auto;display:flex;align-items:center}
+.arc-speed-shell .arc-tool-center-inline .arc-tool-center-trigger{position:static!important;inset:auto!important;transform:none!important;box-shadow:none!important;background:#182638!important;border:1px solid #394658!important;border-radius:7px!important;width:33px!important;min-width:33px!important;height:32px!important;min-height:32px!important;margin:0!important}
+.arc-speed-shell .arc-tool-center-docked{position:static!important;inset:auto!important;width:270px;flex:0 0 270px;min-width:0;max-height:none!important;border-radius:0;box-shadow:none;overflow:hidden}
+.arc-speed-shell .arc-tool-center-docked[hidden]{display:none!important}
+.arc-speed-shell .arc-tool-center-docked section{flex:1;min-height:0}
+@media(max-width:750px){.arc-speed-flags label{font-size:11px}.arc-speed-shell .arc-tool-center-docked{position:absolute!important;right:0!important;top:0!important;bottom:0!important;width:min(270px,85vw)!important;z-index:50}}
+
+/* Botão do gestor no header: ligado (conectado), desligado (sem conexão) e cinza (não instalado). Sem animação. */
+.arc-gestor-window-button i{display:none;font-size:20px}
+.arc-gestor-window-button[data-gestor-state="online"] .arc-gw-on,
+.arc-gestor-window-button[data-gestor-state="offline"] .arc-gw-off,
+.arc-gestor-window-button[data-gestor-state="none"] .arc-gw-off{display:inline-block}
+.app-header #arc-header-gestor-update.arc-gestor-window-button{animation:none!important}
+.arc-update-notice-item{display:grid;gap:3px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:default}
+.arc-update-notice-item.is-read b::after{content:none}
+.arc-update-notice-item .button{justify-self:start;margin-top:6px;padding:6px 14px}
+/* Modal do gestor: somente Instalar e Atualizar. */
+#arc-gestor-update-confirm .arc-gestor-update-actions{display:grid;gap:8px;padding:14px;margin:0}
+#arc-gestor-update-confirm .arc-gestor-update-actions .button{width:100%;justify-content:center}

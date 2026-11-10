@@ -30,5 +30,5 @@ try {
     if(!$managed)arc_user_audit($pdo,'cloud_connect','Conta de nuvem conectada na rede '.$network);$ok=true;
 } catch (Throwable $e) { arc_log_error('Arcoll cloud OAuth: autorização não concluída ('.get_class($e).').'); }
 $_SESSION['arc_flash']=$ok?'Conta de nuvem conectada. Selecione-a no Backup em Nuvem.':'A conexão de nuvem não foi concluída. Verifique as credenciais do aplicativo e tente novamente.';
-header('Location: '.arc_workspace_base_url().($managed?'admin/configuracoes.php?tab=apis#apis':($network>0?($backupCenter?'redes/backup.php?network='.$network.'&gestor='.$gestorId.'&tab=settings':'redes/clean.php?network='.$network.'&gestor='.$gestorId.'&section=backup'):'pages/painel.php')),true,303);
+header('Location: '.arc_workspace_base_url().($managed?'admin/configuracoes.php?tab=apis#apis':($network>0?'redes/backup.php?network='.$network.'&gestor='.$gestorId.($backupCenter?'&tab=settings':''):'pages/painel.php')),true,303);
 exit;

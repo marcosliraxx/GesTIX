@@ -325,7 +325,7 @@ if ($arcFlashText !== ''): ?>
       <option value="<?= (int)$a['id'] ?>" data-headless="<?= (int)($a['headless_mode']??0)===1?'1':'0' ?>" <?= $selectedGestorId===(int)$a['id']?'selected':'' ?>><?= arc_h((string)($a['machine_name']??'Gestor')) ?></option>
      <?php endforeach; ?>
     </select>
-    <button type="button" class="arc-net-status-badge arc-gestor-window-button arc-header-update-icon" id="arc-header-gestor-update" data-gestor-state="<?= $selectedGestorId ? ($arcGestorOnline?'online':'offline') : 'none' ?>" data-update-available="0" title="Abrir gestores instalados" aria-label="Abrir gestores instalados" aria-haspopup="dialog" aria-controls="arc-gestor-update-confirm"><i class="fa fa-windows" aria-hidden="true"></i></button>
+    <button type="button" class="arc-net-status-badge arc-gestor-window-button arc-header-update-icon" id="arc-header-gestor-update" data-gestor-state="<?= $selectedGestorId ? ($arcGestorOnline?'online':'offline') : 'none' ?>" data-update-available="0" title="<?= $selectedGestorId ? ($arcGestorOnline ? 'Gestor conectado — instalar ou atualizar' : 'Gestor sem conexão — instalar ou atualizar') : 'Gestor não instalado — instalar' ?>" aria-label="Gestor do computador: instalar ou atualizar" aria-haspopup="dialog" aria-controls="arc-gestor-update-confirm"><i class="fa fa-toggle-on arc-gw-on" aria-hidden="true"></i><i class="fa fa-toggle-off arc-gw-off" aria-hidden="true"></i></button>
    </div>
   </div>
 

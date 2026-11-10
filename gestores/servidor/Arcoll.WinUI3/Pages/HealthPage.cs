@@ -96,7 +96,7 @@ public sealed class HealthPage : MaintenancePage
             await LoadSettingsAsync();if(_settingsSignature!=JsonSerializer.Serialize(Settings)){incomplete=true;syncErrors.Add("Configurações alteradas entre etapas; nenhuma outra etapa foi iniciada.");break;}
             var categories=Part(Part(_analysis,key),"categories");var ids=categories.ValueKind==JsonValueKind.Object?categories.EnumerateObject().Select(x=>x.Name).ToArray():Array.Empty<string>();if(ids.Length==0)continue;
             if(!await RunAsync("execute",new(){{"categories",ids},{"age_days",age},{"exclusions",Setting("exclusions")},{"custom_folders",Setting("custom_folders")}})){incomplete=true;break;}
-            reports[key]=Report.Clone();if(SyncNotice.Length>0)syncErrors.Add(key+": "+SyncNotice);completed.Add(key);incomplete|=CleanEngine.HasFailures(Report);if(CancellationRequested){incomplete=true;break;}
+            reports[key]=Report.Clone();if(SyncNotice.Length>0)syncErrors.Add(key+": "+SyncNotice);completed.Add(key);incomplete|=PenteFinoEngine.HasFailures(Report);if(CancellationRequested){incomplete=true;break;}
         }
         }catch(Exception ex){incomplete=true;syncErrors.Add("Etapas restantes interrompidas: "+ex.Message);}
         var after=FreeSpace();_settingsSignature="";Selected.Clear();

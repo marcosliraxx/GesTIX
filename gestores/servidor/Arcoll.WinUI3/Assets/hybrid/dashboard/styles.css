@@ -6,3 +6,30 @@ html,body{height:100%;margin:0;overflow:hidden}body{padding:8px;background:#edf3
 
 /* Mantém o Painel limitado à área de conteúdo da plataforma. */
 .arc-redes-page:has(.np-panel) .arc-redes-conteudo{display:flex;flex-direction:column;min-height:0;overflow:hidden}.arc-redes-conteudo>.np-panel{flex:1;min-height:0}
+
+/* Seletores nativos compartilhados e atividades sob demanda. */
+.np-panel .np-select-wrap{position:relative;display:inline-flex;align-items:center;min-width:0}
+.np-panel .np-select{appearance:auto;display:block;max-width:125px;min-width:94px;height:31px;min-height:31px;padding:3px 6px;border:1px solid var(--np-line);border-radius:8px;background:var(--np-alt);color:var(--np-text);font:600 10px/1.2 'Segoe UI',Arial,sans-serif;cursor:pointer;color-scheme:inherit}
+.np-panel .np-select:focus-visible{outline:2px solid var(--np-accent);outline-offset:2px}
+.np-panel .np-select:hover{border-color:var(--np-accent)}
+.np-panel .np-body{grid-template-columns:minmax(0,1fr)}
+.np-panel.arc-history-open .np-body{grid-template-columns:minmax(0,1fr) 235px}
+.np-panel .np-activity{display:none}
+.np-panel.arc-history-open .np-activity{display:flex}
+@media(max-width:1050px){.np-panel.arc-history-open .np-body{grid-template-columns:minmax(0,1fr) 215px}}
+@media(max-width:720px){.np-panel .np-body,.np-panel.arc-history-open .np-body{display:flex}.np-panel .np-actions{flex-wrap:wrap;justify-content:flex-end}.np-panel .np-select{min-width:86px;max-width:110px}.np-panel .np-search{order:3}}
+@media(max-width:400px){.np-panel .np-select{height:28px;min-height:28px;min-width:80px;max-width:96px;padding:2px 3px;font-size:9px}}
+
+
+/* Abas nativas da central de ferramenta — atividades e preferências. */
+.np-panel .np-activity-tabs{display:flex;gap:4px;padding:5px 10px;border-bottom:1px solid var(--np-line)}
+.np-panel .np-activity-tabs button{flex:1;min-width:0;padding:8px 4px;border:1px solid var(--np-line);border-radius:7px;background:var(--np-surface);color:var(--np-text);font:600 10px 'Segoe UI',sans-serif;cursor:pointer}
+.np-panel .np-activity-tabs button[aria-selected=true]{background:var(--np-accent);color:#fff;border-color:var(--np-accent)}
+.np-panel .np-tab-activities{display:flex;flex-direction:column;min-height:0;flex:1}
+.np-panel .np-tab-settings{padding:14px 12px;overflow-y:auto;flex:1;color:var(--np-text);font:11px/1.5 'Segoe UI',sans-serif}
+.np-panel .np-tab-settings[hidden],.np-panel .np-tab-activities[hidden]{display:none!important}
+.np-panel .np-tab-settings label{display:flex;flex-direction:column;align-items:stretch;gap:7px;margin:0 0 14px}
+.np-panel .np-tab-settings label:has(input[type=checkbox]){flex-direction:row;align-items:center}
+.np-panel .np-tab-settings input[type=checkbox]{width:15px;height:15px;accent-color:var(--np-accent)}
+.np-panel .np-refresh-mode{width:100%;min-width:0;max-width:100%;padding:8px;border:1px solid var(--np-line);border-radius:7px;background:var(--np-surface);color:var(--np-text)}
+.np-panel .np-setting-status{font-size:10px;color:var(--np-muted);line-height:1.5}

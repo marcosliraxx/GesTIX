@@ -650,7 +650,7 @@ def explorer_path(raw, *, directory=False, writable=False):
         raise ValueError('Selecione um caminho absoluto em um disco local.')
     drive=canonical[:3]
     import ctypes
-    if ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(drive))!=3:raise ValueError('Somente discos locais fixos são permitidos.')
+    if ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(drive)) not in (2,3,4,5,6):raise ValueError('Selecione uma unidade montada e acessível nesta sessão Windows.')
     path=Path(canonical)
     for part in (path,*path.parents):
         st=part.lstat()

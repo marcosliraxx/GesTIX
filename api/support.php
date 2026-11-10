@@ -18,6 +18,24 @@ try{
  }
  if(!arc_is_user())arc_json(['ok'=>false,'error'=>'Entre na plataforma.'],401);
  arc_verify_csrf();$user=(int)arc_user_id();
+ if($action==='web-code-connect'){
+  $network=(int)($v['network_id']??0);
+  $code=strtoupper(trim((string)($v['code']??'')));
+  // Limite por sessão autenticada: impede tentativas repetidas de adivinhar códigos curtos.
+  $attemptKey='arc_support_code_attempts_'.$network;
+  $attempts=array_values(array_filter((array)($_SESSION[$attemptKey]??[]),static fn($ts)=>(int)$ts>time()-600));
+  if(count($attempts)>=6)arc_json(['ok'=>false,'error'=>'Limite de tentativas atingido. Aguarde alguns minutos.'],429);
+  $attempts[]=time();$_SESSION[$attemptKey]=$attempts;
+  if(!preg_match('/^[A-HJ-NP-Z2-9]{5}$/D',$code))arc_json(['ok'=>false,'error'=>'Código inválido.'],422);
+  try{$access=arc_support_access($pdo,$network,$user,true);}catch(RuntimeException $e){arc_json(['ok'=>false,'error'=>'Sem acesso à rede.'],403);}
+  if(!in_array($access['role'],['owner','administrator','system_admin'],true))arc_json(['ok'=>false,'error'=>'Permissão administrativa necessária.'],403);
+  // Não divulga o computador correspondente antes de validar rede, conta e código.
+  $q=$pdo->prepare('SELECT g.id,g.gestor_id FROM '.arc_table('support_guest_codes').' g JOIN '.arc_table('network_gestores').' a ON a.id=g.gestor_id WHERE g.code_hash=? AND g.command_id IS NULL AND g.expires_at>NOW() AND a.network_id=? AND a.account_id=? AND a.status=\'approved\' LIMIT 1');
+  $q->execute([hash('sha256',$code),$network,(int)$access['account_id']]);$match=$q->fetch(PDO::FETCH_ASSOC);
+  if(!$match)arc_json(['ok'=>false,'error'=>'Código inválido, utilizado ou expirado para esta rede.'],422);
+  $id=arc_support_request_remote($pdo,$network,(int)$match['gestor_id'],$user,0,(int)$match['id']);
+  arc_json(['ok'=>true,'command_id'=>$id,'gestor_id'=>(int)$match['gestor_id'],'status'=>'pending']);
+ }
  if($action==='windows-update-cancel'){
   $network=(int)($v['network_id']??0);$gestor=(int)($v['gestor_id']??0);$id=(int)($v['command_id']??0);
   $access=arc_network_team_access($pdo,$network,$user);

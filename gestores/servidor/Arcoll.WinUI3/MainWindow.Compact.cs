@@ -122,7 +122,7 @@ public sealed partial class MainWindow
         if(node is UserControl page)
         {
             if(_compactPages.Add(page))page.RegisterPropertyChangedCallback(UserControl.ContentProperty,(_,_)=>CompactScheduleContent());
-            EnsureNativeWorkspace(page);
+            // A própria ferramenta controla a barra e a central; não criar uma moldura adicional.
             if(page.Content is DependencyObject content)CompactContentViews(content);
             return;
         }

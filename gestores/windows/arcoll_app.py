@@ -1308,7 +1308,7 @@ class ArcollApp:
   self.devices_page=self._page('Dispositivos')
   self.map_page=self._page('Mapa')
   self.connection_page=self._page('Conexão')
-  self.clean_page=self._page('Clean')
+  self.pf_page=self._page('Pente-Fino')
   self.program_page=self._page('Programas')
   self._setup_settings_button()
   self._apply_tab_visibility()
@@ -1319,16 +1319,16 @@ class ArcollApp:
   self._build_devices()
   self._build_map()
   self._build_connection()
-  self._build_cleaner()
+  self._build_pentefino()
   self._build_programs()
   self.nb.select(self.server_page)
 
- def _build_cleaner(self):
-  """Interface Clean unificada, inclusive inventário de programas."""
+ def _build_pentefino(self):
+  """Interface Pente-Fino unificada, inclusive inventário de programas."""
   import arcoll_cc_ui
   self.cc_frames=[]
-  for page,sections,start in ((self.clean_page,['health','custom','uninstall','duplicates','cloud','backup','perf','startup','updater','drivers','windows_update'],'health'),):
-   frame=arcoll_cc_ui.CleanerFrame(page,self,sections,start);frame.pack(fill='both',expand=True);self.cc_frames.append(frame)
+  for page,sections,start in ((self.pf_page,['health','custom','uninstall','duplicates','cloud','backup','perf','startup','updater','drivers','windows_update'],'health'),):
+   frame=arcoll_cc_ui.PenteFinoFrame(page,self,sections,start);frame.pack(fill='both',expand=True);self.cc_frames.append(frame)
  def _build_programs(self):
   from arcoll_programs import ProgramsPanel
   self.program_panel=ProgramsPanel(self.program_page,self)
@@ -1356,10 +1356,10 @@ class ArcollApp:
  def _cc_post(self,action,body):
   def work():
    try:request_json(ORIGIN+'/api/api.php?action='+action,dict(body,fingerprint=FINGERPRINT,site_code=SITE_CODE,download_key=DOWNLOAD_KEY),timeout=60)
-   except Exception as exc:self.log('Sincronia Clean/Programas indisponível: '+str(exc)[:120],'WARN')
+   except Exception as exc:self.log('Sincronia Pente-Fino/Programas indisponível: '+str(exc)[:120],'WARN')
   threading.Thread(target=work,daemon=True).start()
- def cc_push_tool(self,tool,report):self._cc_post('gestor-clean-local-result',{'mode':'tool','tool':tool,'report':report})
- def cc_push_clean(self,mode,report):self._cc_post('gestor-clean-local-result',{'mode':mode,'report':report})
+ def cc_push_tool(self,tool,report):self._cc_post('gestor-pentefino-local-result',{'mode':'tool','tool':tool,'report':report})
+ def cc_push_pentefino(self,mode,report):self._cc_post('gestor-pentefino-local-result',{'mode':mode,'report':report})
  def cc_push_programs(self,rows):self._cc_post('gestor-program-local-inventory',{'programs':rows})
  def cc_notify(self,kind,report):
   """Resultado de comando vindo da plataforma: atualiza as telas locais (thread-safe)."""
@@ -1367,7 +1367,7 @@ class ArcollApp:
    try:frame.post(lambda f=frame:f.receive(kind,report))
    except Exception:pass
  def cc_progress_remote(self,text):
-  """Espelha a execução remota na tela Clean do gestor, na thread de interface."""
+  """Espelha a execução remota na tela Pente-Fino do gestor, na thread de interface."""
   if getattr(self,'program_panel',None):self.program_panel.status(str(text) if str(text).startswith('@@ARP@@') else 'Operação remota · '+str(text)[:170])
   for frame in getattr(self,'cc_frames',[]):
    def display(f=frame,t=str(text)):
@@ -1376,7 +1376,7 @@ class ArcollApp:
       if f.section!='windows_update' and not f.busy:f.go('windows_update')
      f.status('Execução remota · '+t[:170])
      f.remote_activity='Execução remota · '+t[:170]
-     try:self.nb.select(self.program_page if 'programa' in t.lower() or 'instala' in t.lower() else self.clean_page)
+     try:self.nb.select(self.program_page if 'programa' in t.lower() or 'instala' in t.lower() else self.pf_page)
      except Exception:pass
      if not f.busy and f.section=='windows_update':f.show()
     except Exception:pass
@@ -1408,9 +1408,9 @@ class ArcollApp:
   """Compacta somente a tipografia das abas em janelas pequenas, sem ocultar páginas."""
   if event.widget is not self.root:return
   compact=event.width<930
-  labels=('Servidor','Monitoramento','Velocidade','Dispositivos','Mapa','Conexão','Clean','Programas')
-  short=('Serv.','Monit.','Veloc.','Dispos.','Mapa','Conex.','Clean','Prog.')
-  for page,label in zip((self.server_page,self.dashboard,self.speed_page,self.devices_page,self.map_page,self.connection_page,self.clean_page,self.program_page),short if compact else labels):
+  labels=('Servidor','Monitoramento','Velocidade','Dispositivos','Mapa','Conexão','Pente-Fino','Programas')
+  short=('Serv.','Monit.','Veloc.','Dispos.','Mapa','Conex.','P-Fino','Prog.')
+  for page,label in zip((self.server_page,self.dashboard,self.speed_page,self.devices_page,self.map_page,self.connection_page,self.pf_page,self.program_page),short if compact else labels):
    try:self.nb.tab(page,text=label)
    except tk.TclError:pass
   ttk.Style(self.root).configure('Compact.TNotebook.Tab',padding=(3,4) if compact else (6,5),font=('Segoe UI',7 if compact else 8,'bold'))
@@ -1454,7 +1454,7 @@ class ArcollApp:
   return [('Servidor',self.server_page),
           ('Velocidade',self.speed_page),('Dispositivos',self.devices_page),
           ('Mapa',self.map_page),('Conexão',self.connection_page),
-          ('Clean',self.clean_page),('Programas',self.program_page)]
+          ('Pente-Fino',self.pf_page),('Programas',self.program_page)]
  def _center_dialog(self, dlg, width, height):
   # Centraliza no monitor que contém a janela principal, mesmo que esteja oculta.
   self.root.update_idletasks()
@@ -2355,10 +2355,10 @@ class ArcollApp:
   first_tab=(self.nb.tabs() or (self.server_page,))[0]
   remote_pages={
    'program_inventory':first_tab,'program_uninstall':first_tab,'program_install':first_tab,
-   'clean_scan':first_tab,'clean_execute':first_tab,'clean_tool':first_tab,
-   'windows_update':self.clean_page,'gestor_update':self.clean_page,
-   'file_browser':self.clean_page,'cloud_folders':self.clean_page,'file_transfer':self.clean_page,
-   'file_bundle':self.clean_page,'file_execute':self.clean_page,'file_operation':self.clean_page,
+   'pentefino_scan':first_tab,'pentefino_execute':first_tab,'pentefino_tool':first_tab,
+   'windows_update':self.pf_page,'gestor_update':self.pf_page,
+   'file_browser':self.pf_page,'cloud_folders':self.pf_page,'file_transfer':self.pf_page,
+   'file_bundle':self.pf_page,'file_execute':self.pf_page,'file_operation':self.pf_page,
    'terminal_diagnostic':self.connection_page,'toolkit':self.connection_page,
    'toolkit_traceroute':self.connection_page,'toolkit_services':self.connection_page,
    'toolkit_health':self.connection_page,'toolkit_troubleshooter':self.connection_page,
@@ -2371,11 +2371,11 @@ class ArcollApp:
     self.nb.select(remote_pages.get(name,self.server_page))
     self.show_window()
    except tk.TclError:pass
-  if name in ('clean_scan','clean_execute','clean_tool','program_uninstall','windows_update'):
+  if name in ('pentefino_scan','pentefino_execute','pentefino_tool','program_uninstall','windows_update'):
    for frame in getattr(self,'cc_frames',[]):
     try:
      section={'program_inventory':'uninstall','program_uninstall':'uninstall','program_install':'updater',
-      'clean_scan':'health','clean_execute':'health','clean_tool':'custom',
+      'pentefino_scan':'health','pentefino_execute':'health','pentefino_tool':'custom',
       'windows_update':'windows_update'}[name]
      if not frame.busy:frame.go(section)
      frame.status('Comando da plataforma recebido: '+name.replace('_',' '))
@@ -2391,7 +2391,7 @@ class ArcollApp:
      self.root.after(0,lambda:self._run_remote_command(verified))
     except Exception as exc:self._ack_remote_command(ident,'failed',str(exc)[:160])
    threading.Thread(target=verify,daemon=True).start();return
-  if name in ('program_inventory','program_uninstall','program_install','clean_scan','clean_execute','clean_tool'):
+  if name in ('program_inventory','program_uninstall','program_install','pentefino_scan','pentefino_execute','pentefino_tool'):
    self._request_program_operation(ident,name,command.get('request_text',''),unattended=unattended);return
   if name in ('power_shutdown','power_restart','power_cancel'):
    self._request_power_action(ident,name,headless=bool(int(command.get('headless_mode') or 0)),role=str(command.get('requester_role') or ''),request_text=command.get('request_text',''));return
@@ -2456,7 +2456,7 @@ class ArcollApp:
    if status=='failed' and name in ('scan_devices','scan_map'):self._remote_scan_command=None
    self._ack_remote_command(ident,status,result)
  def _progress_remote_command(self,ident,text):
-  """Andamento de operações longas (Programas/Clean): o solicitante vê o texto enquanto o comando segue em execução."""
+  """Andamento de operações longas (Programas/Pente-Fino): o solicitante vê o texto enquanto o comando segue em execução."""
   now=time.monotonic()
   if now-getattr(self,'_last_remote_progress',{}).get(ident,0)<3:return
   if not hasattr(self,'_last_remote_progress'):self._last_remote_progress={}
@@ -2494,18 +2494,18 @@ class ArcollApp:
      if name=='program_install':self.root.after(0,lambda t=str(text):self._install_modal_update(t))
      try:self.cc_progress_remote(str(text))
      except Exception:pass
-    if name in ('clean_scan','clean_execute','clean_tool'):
-     import arcoll_clean
-     if name=='clean_tool':result=arcoll_clean.execute_tool(payload,progress=progress)
-     else:result=arcoll_clean.execute_clean(payload.get('categories',[]),execute=name=='clean_execute',age_days=payload.get('age_days',7),progress=progress,exclusions=payload.get('exclusions'),custom_folders=payload.get('custom_folders'))
+    if name in ('pentefino_scan','pentefino_execute','pentefino_tool'):
+     import arcoll_pentefino
+     if name=='pentefino_tool':result=arcoll_pentefino.execute_tool(payload,progress=progress)
+     else:result=arcoll_pentefino.execute_clean(payload.get('categories',[]),execute=name=='pentefino_execute',age_days=payload.get('age_days',7),progress=progress,exclusions=payload.get('exclusions'),custom_folders=payload.get('custom_folders'))
      try:
       import arcoll_cc_ui;arcoll_cc_ui.remember_settings(payload)
-      self.cc_notify('clean' if name!='clean_tool' else str(payload.get('tool')),result)
+      self.cc_notify('clean' if name!='pentefino_tool' else str(payload.get('tool')),result)
      except Exception:pass
-     response=request_json(ORIGIN+'/api/api.php?action=gestor-clean-result',dict(auth,report=result),timeout=60)
+     response=request_json(ORIGIN+'/api/api.php?action=gestor-pentefino-result',dict(auth,report=result),timeout=60)
      if not response.get('ok'):raise RuntimeError('Resultado de limpeza não recebido.')
-     if name=='clean_tool':summary='Ferramenta concluída: '+str(payload.get('tool'))+'.'
-     else:summary=('Limpeza executada' if name=='clean_execute' else 'Análise concluída')+': '+str(result.get('file_count',0))+' itens, '+str(result.get('bytes',0))+' bytes'+((', '+str(result['errors'])+' ignorados (em uso ou sem permissão)') if result.get('errors') else '')+'.'
+     if name=='pentefino_tool':summary='Ferramenta concluída: '+str(payload.get('tool'))+'.'
+     else:summary=('Limpeza executada' if name=='pentefino_execute' else 'Análise concluída')+': '+str(result.get('file_count',0))+' itens, '+str(result.get('bytes',0))+' bytes'+((', '+str(result['errors'])+' ignorados (em uso ou sem permissão)') if result.get('errors') else '')+'.'
     elif name=='program_inventory':
      from arcoll_programs import installed_programs
      progress('Lendo programas instalados...')
@@ -2621,13 +2621,15 @@ class ArcollApp:
      for i in range(26):
       if mask & (1<<i):
        drive=chr(65+i)+':\\'
-       if ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(drive))==3:
+       if ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(drive)) in (2,3,4,5,6):
         try:
          usage=shutil.disk_usage(drive)
          total=int(usage.total);free=int(usage.free)
         except OSError:
          total=0;free=0
-        body['entries'].append({'name':drive,'path':drive,'directory':True,'drive':True,'size':total,'total':total,'free':free,'used':max(0,total-free)})
+        label=ctypes.create_unicode_buffer(261)
+        ctypes.windll.kernel32.GetVolumeInformationW(ctypes.c_wchar_p(drive),label,261,None,None,None,None,0)
+        body['entries'].append({'label':label.value,'drive_type':str(ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(drive))),'name':drive,'path':drive,'directory':True,'drive':True,'size':total,'total':total,'free':free,'used':max(0,total-free)})
     else:
      resolved=folder.resolve(strict=True)
      if not resolved.is_dir():raise ValueError('Diretório inexistente.')
@@ -2674,7 +2676,7 @@ class ArcollApp:
 
  def _request_cloud_folders(self,ident,command):
   """Escolha de pastas do Backup em Nuvem: lista somente NOMES DE PASTAS dos discos locais (nunca arquivos).
-  Funciona sem o modo sem monitor porque só o gestor autenticado com permissão Clean e o gestor vinculado participam."""
+  Funciona sem o modo sem monitor porque só o gestor autenticado com permissão Pente-Fino e o gestor vinculado participam."""
   def work():
    import ctypes
    from pathlib import Path

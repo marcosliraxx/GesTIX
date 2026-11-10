@@ -49,7 +49,7 @@ public sealed class PlatformClient : IDisposable
     /// <summary>POST JSON em api.php?action=... e devolve a resposta já validada (ok=true).</summary>
     public async Task<JsonElement> PostAsync(string action, object body, CancellationToken ct, int timeoutSeconds = 12)
     {
-        using var operation = action is "gestor-device-save" or "gestor-clean-local-settings" ? OperationProgress.Begin(action == "gestor-device-save" ? "Salvar dispositivo" : "Configurações do Clean") : null;
+        using var operation = action is "gestor-device-save" or "gestor-pentefino-local-settings" ? OperationProgress.Begin(action == "gestor-device-save" ? "Salvar dispositivo" : "Configurações do Clean") : null;
         try
         {
         operation?.Report(20, "Enviando solicitação à plataforma");

@@ -19,7 +19,7 @@ declare global {
 // Espelho do catálogo de navegação nativo, somente para renderização sem host.
 const FALLBACK: Group[] = [
   {id:'home',label:'Início',items:[['panel','Painel'],['monitor','Monitoramento'],['server','Servidor'],['speed','Internet'],['health','Saúde']].map(([id,label])=>({id,label}))},
-  {id:'maintenance',label:'Manutenção',items:[['clean','Limpeza'],['registry','Registro'],['startup','Inicialização'],['performance','Desempenho'],['restore','Restauração'],['options','Configurações']].map(([id,label])=>({id,label}))},
+  {id:'maintenance',label:'Manutenção',items:[['registry','Registro'],['startup','Inicialização'],['performance','Desempenho'],['restore','Restauração'],['options','Configurações']].map(([id,label])=>({id,label}))},
   {id:'software',label:'Aplicativos',items:[['programs','Programas'],['uninstall','Desinstalar'],['updater','Atualizações'],['drivers','Drivers'],['windows_update','Windows Update']].map(([id,label])=>({id,label}))},
   {id:'storage',label:'Armazenamento',items:[['disk','Disco'],['duplicates','Duplicados'],['cloud','Sincronizados'],['backup','Backup']].map(([id,label])=>({id,label}))},
   {id:'network',label:'Rede',items:[['devices','Dispositivos'],['map','Mapa'],['files','Arquivos']].map(([id,label])=>({id,label}))},

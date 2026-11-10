@@ -35,7 +35,9 @@ public sealed class WindowsUpdatePage : UserControl, IPageDataSource
 
     private void AddAction(StackPanel bar, string label, string mode, bool enabled = true)
     {
-        var button = new Button { Content = label, IsEnabled = !_working && _runtime.Allowed && enabled };
+        var primary = mode is "scan" or "install";
+        var button = new Button { Content = label, IsEnabled = !_working && _runtime.Allowed && enabled, MinHeight = 38, Padding = new Thickness(14, 6, 14, 6), CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), BorderBrush = primary ? _p.Accent : _p.Line, Background = primary ? _p.Accent : _p.Surface, Foreground = primary ? ThemeService.Brush("#ffffff") : _p.Text };
+        button.Opacity = button.IsEnabled ? 1 : .5;
         button.Click += async (_, _) => await ExecuteAsync(mode);
         if (mode == "install") _installButton = button;
         bar.Children.Add(button);
@@ -46,10 +48,13 @@ public sealed class WindowsUpdatePage : UserControl, IPageDataSource
         _root.Children.Clear();
         var bar = new StackPanel { Orientation = ActualWidth < 720 ? Orientation.Vertical : Orientation.Horizontal, Spacing = 6 };
         var rows = new StackPanel { Spacing = 8 };
-        var title = Ui.Label("WINDOWS UPDATE", _p.Text, 19, true);
+        var title = Ui.Label("Windows Update", _p.Text, 19, true);
         var subtitle = Ui.Label("Atualizações verificadas pelo serviço oficial do Windows, sem reinicialização automática.", _p.Muted, 12, false, true);
-        var header = new StackPanel { Spacing = 6 }; header.Children.Add(title); header.Children.Add(subtitle);
-        _root.Children.Add(Ui.Card(header, _p, 18));
+        var header = new StackPanel { Spacing = 4 }; header.Children.Add(title); header.Children.Add(subtitle);
+        var headerGrid = new Grid { ColumnSpacing = 12 };
+        headerGrid.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); headerGrid.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.Children.Add(new Border { Width = 4, CornerRadius = new CornerRadius(2), Background = _p.Accent }); Grid.SetColumn(header, 1); headerGrid.Children.Add(header);
+        _root.Children.Add(Ui.Card(headerGrid, _p, 14));
 
         AddAction(bar, "Verificar", "scan"); AddAction(bar, "Histórico", "history"); AddAction(bar, "Configurações", "settings");
         AddAction(bar, "Instalar selecionadas (" + _selected.Count + ")", "install", _selected.Count > 0);
@@ -63,11 +68,9 @@ public sealed class WindowsUpdatePage : UserControl, IPageDataSource
             second.Children.Add(button);
         }
         actions.Children.Add(second);
-        var state = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        var progress = new ProgressRing { Width = 28, Height = 28, IsActive = _working, Visibility = _working ? Visibility.Visible : Visibility.Collapsed };
-        state.Children.Add(progress);
-        state.Children.Add(new TextBlock { Text = _statusText, TextWrapping = TextWrapping.Wrap, Foreground = _p.Muted });
-        actions.Children.Add(state);
+        var statusBanner = Ui.Banner(_working ? "Em andamento" : "Situação", _statusText, _working ? _p.Accent : _p.Muted, _p);
+        actions.Children.Add(statusBanner);
+        if (_working) actions.Children.Add(new ProgressBar { IsIndeterminate = true, Foreground = _p.Accent, Height = 3, MinHeight = 3 });
         _root.Children.Add(Ui.Card(actions, _p, 16));
         var list = new StackPanel { Spacing = 12 };
         var metrics = new Grid { ColumnSpacing = 10 };
@@ -77,18 +80,21 @@ public sealed class WindowsUpdatePage : UserControl, IPageDataSource
         var chosen = Ui.Stat("Selecionadas", _p); chosen.Value.Text = _selected.Count.ToString(); _selectedMetric = chosen.Value;
         metrics.Children.Add(found.Card); Grid.SetColumn(chosen.Card, 1); metrics.Children.Add(chosen.Card);
         list.Children.Add(metrics);
-        list.Children.Add(Ui.Label("RESULTADOS", _p.Text, 15, true));
+        list.Children.Add(Ui.Label("Resultados", _p.Text, 15, true));
         foreach (var item in _updates)
         {
             var selected = (item.Id, item.Revision);
-            var checkbox = new CheckBox { Content = item.Title + " · " + Ui.Size(item.Size), IsChecked = _selected.Contains(selected) };
-            checkbox.Checked += (_, _) => { _selected.Add(selected); RefreshSelectionAction(); };
-            checkbox.Unchecked += (_, _) => { _selected.Remove(selected); RefreshSelectionAction(); };
-            rows.Children.Add(checkbox);
+            var checkbox = new CheckBox { Content = item.Title + " · " + Ui.Size(item.Size), IsChecked = _selected.Contains(selected), MinHeight = 44, HorizontalAlignment = HorizontalAlignment.Stretch };
+            var tile = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 4, 8, 4), Child = checkbox };
+            void Paint() { var on = checkbox.IsChecked == true; tile.BorderBrush = on ? _p.Accent : _p.Line; tile.Background = on ? _p.Alt : _p.Surface; tile.BorderThickness = new Thickness(on ? 2 : 1); }
+            Paint();
+            checkbox.Checked += (_, _) => { _selected.Add(selected); Paint(); RefreshSelectionAction(); };
+            checkbox.Unchecked += (_, _) => { _selected.Remove(selected); Paint(); RefreshSelectionAction(); };
+            rows.Children.Add(tile);
         }
         foreach (var history in _history) rows.Children.Add(Ui.Label(history, _p.Text, 12, false, true));
         if (_details.Length > 0) rows.Children.Add(Ui.Label(_details, _p.Muted, 11, false, true));
-        if (rows.Children.Count == 0) rows.Children.Add(Ui.Label("Nenhum registro encontrado.", _p.Muted, 13));
+        if (rows.Children.Count == 0) rows.Children.Add(Ui.Banner("Nenhum registro", "Use Verificar ou Histórico para consultar o Windows Update.", _p.Accent, _p));
         list.Children.Add(rows);
         _root.Children.Add(Ui.Card(list, _p, 16));
     }

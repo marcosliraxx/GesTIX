@@ -25,6 +25,7 @@
     refresh:'M20 8a8 8 0 1 0 0 9 M20 2v6h-6',
     fit:'M3 9V3h6m6 0h6v6M3 15v6h6m6 0h6v-6',
     clock:'M12 3a9 9 0 1 0 .01 0 M12 7v5l3 2',
+    settings:'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6l1.4 1.4m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8',
     search:'M10 3a7 7 0 1 0 0 14a7 7 0 1 0 0-14 M16 16l6 6',
     close:'M5 5l14 14M19 5L5 19',
   };
@@ -42,12 +43,13 @@
   function el(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
   root.innerHTML = `<header class="np-heading"><div><span class="np-eyebrow">PRESENÇA NA REDE</span><h1>Painel de dispositivos</h1><p class="np-network"></p></div><span class="np-live" role="status">Aguardando inventário</span></header>
   <div class="np-toolbar"><div class="np-filters" role="group" aria-label="Situação dos dispositivos"></div><label class="np-search"><span class="np-search-icon"></span><span class="np-sr">Buscar nome, IP, MAC ou grupo</span><input type="search" placeholder="Buscar dispositivo, IP ou MAC…" autocomplete="off" maxlength="160"></label><div class="np-actions" role="group" aria-label="Visualização"></div></div>
-  <div class="np-notice" role="status" hidden></div><div class="np-body"><section class="np-devices" aria-label="Dispositivos"><div class="np-result"></div><div class="np-scroll"><div class="np-grid"></div><p class="np-empty" hidden></p></div></section>
-  <aside class="np-activity"><header><span class="np-activity-icon"></span><div><h2>Entradas e saídas</h2><p>Últimas observações dos gestores</p></div></header><ol class="np-events"></ol><p class="np-history-note">O histórico começa com esta atualização. Horários indicam detecções do gestor.</p></aside></div>
-  <footer class="np-footer"><span class="np-updated">Sem inventário registrado</span><span class="np-polled"></span><span class="np-sync">Consulta automática a cada 15 s</span></footer>
+  <div class="np-notice" role="status" hidden></div><div class="np-body"><section class="np-devices" aria-label="Dispositivos"><div class="np-scroll"><div class="np-grid"></div><p class="np-empty" hidden></p></div></section>
+  <aside class="np-activity" id="np-activity-panel" aria-label="Atividades da rede"><header><span class="np-activity-icon"></span><div><h2>Central do Painel</h2><p>Atividades e preferências da ferramenta</p></div></header><nav class="np-activity-tabs"><button type="button" data-panel-tab="activities" aria-selected="true">Atividades</button><button type="button" data-panel-tab="settings" aria-selected="false">Configurações</button></nav><div class="np-tab-activities"><ol class="np-events"></ol><p class="np-history-note">As atividades são provenientes do inventário observado.</p></div><div class="np-tab-settings" hidden><label>Sincronização com o AGestor<select class="np-refresh-mode"><option value="auto">Automático — a cada mudança</option><option value="continuous">Contínuo (limitado)</option><option value="5">A cada 5 segundos</option><option value="15">A cada 15 segundos</option><option value="30">A cada 30 segundos</option><option value="60">A cada 60 segundos</option></select></label><label><input type="checkbox" class="np-activity-notify" checked> Notificar mudanças</label><label><input type="checkbox" class="np-background-refresh"> Atualizar em segundo plano</label><p class="np-setting-status" role="status"></p></div></aside></div>
+  <footer class="np-footer"><span class="np-updated">Sem inventário registrado</span><span class="np-polled"></span><span class="np-sync">Sincronizando em 15 s</span></footer>
   <dialog class="np-dialog" aria-labelledby="np-detail-title"><header><span class="np-detail-icon"></span><div><h2 id="np-detail-title">Dispositivo</h2><p class="np-detail-state"></p></div><button type="button" class="np-close" aria-label="Fechar detalhes"></button></header><div class="np-detail-content"><dl class="np-detail-rows"></dl><h3>Últimas mudanças deste dispositivo</h3><ol class="np-detail-events"></ol><p class="np-detail-note">As detecções dependem da frequência de coleta e das respostas do dispositivo. A perda do gestor não comprova uma saída.</p></div></dialog>`;
   const find = selector => root.querySelector(selector);
   const grid = find('.np-grid'), notice = find('.np-notice'), search = find('input'), dialog = find('dialog');
+  let refreshMode = '15', notifyChanges = true, backgroundRefresh = false, refreshTimer = null, nextSyncAt = 0;
   let devices = [], events = [], filter = 'all', view = 'grid', sort = 'recent', fit = false;
   let active = !bridge, connected = !bridge, busy = false, controller, timeout, requestId = 0, selected = null;
   let serverNow = Date.now() / 1000, receivedAt = performance.now(), received = false, failed = false, lastFingerprint = '', lastRequest = 0, limited = false, disposed = false;
@@ -61,20 +63,40 @@
   const labels = {all:'Todos',online:'Online',offline:'Offline',unknown:'Sem confirmação'};
   function button(label, glyph, action) { const b = el('button', 'np-button'); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label); if (glyph) b.append(icon(glyph)); b.addEventListener('click', action); return b; }
   const filters = new Map();
-  for (const value of ['all', 'online', 'offline', 'unknown']) {
+  for (const value of ['all', 'online', 'offline']) {
     const b = button(labels[value], value === 'all' ? 'grid' : null, () => { filter = value; render(); });
     b.dataset.filter = value; if (value !== 'all') b.append(el('i', 'np-dot ' + value));
     b.append(el('span', 'np-filter-label', labels[value]), el('strong', '', '0')); filters.set(value, b); find('.np-filters').append(b);
   }
-  const views = new Map();
-  for (const [value, label, glyph] of [['grid', 'Grade', 'grid'], ['type', 'Por tipo', 'list'], ['group', 'Por grupo', 'group']]) {
-    const b = button(label, glyph, () => { view = value; render(); }); b.dataset.view = value; views.set(value, b); find('.np-actions').append(b);
+  function dropdown(label, choices, value, onChange) {
+    const wrapper = el('label', 'np-select-wrap');
+    const select = el('select', 'np-select');
+    select.setAttribute('aria-label', label);
+    select.title = label;
+    for (const [optionValue, optionLabel] of choices) {
+      const option = el('option', '', optionLabel);
+      option.value = optionValue; select.append(option);
+    }
+    select.value = value;
+    select.addEventListener('change', () => onChange(select.value));
+    wrapper.append(select);
+    return wrapper;
   }
-  const sortButton = button('Ordenar por nome', 'list', () => { sort = sort === 'recent' ? 'name' : 'recent'; sortButton.title = sort === 'recent' ? 'Ordenar por nome' : 'Ordenar por mudanças recentes'; sortButton.setAttribute('aria-label', sortButton.title); sortButton.setAttribute('aria-pressed', String(sort === 'name')); render(); });
+  const viewSelect = dropdown('Visualização dos dispositivos', [['grid','Grade'],['type','Por tipo'],['group','Por grupo']], view, value => { view = value; render(); });
+  const sortSelect = dropdown('Ordenação dos dispositivos', [['recent','Por mudança'],['name','Por nome']], sort, value => { sort = value; render(); });
   const fitButton = button('Ajustar dispositivos ao espaço', 'fit', () => { fit = !fit; fitButton.setAttribute('aria-pressed', String(fit)); root.classList.toggle('np-fit', fit); layout(); });
   const refreshButton = button('Atualizar inventário', 'refresh', () => load());
-  find('.np-actions').append(sortButton, fitButton, refreshButton);
-  find('.np-search-icon').append(icon('search')); find('.np-activity-icon').append(icon('clock')); find('.np-close').append(icon('close'));
+  const activityButton = button('Configurações e atividades', 'settings', () => {
+    const open = root.classList.toggle('arc-history-open');
+    activityButton.setAttribute('aria-pressed', String(open));
+    activityButton.setAttribute('aria-expanded', String(open));
+  });
+  activityButton.classList.add('np-history-toggle');
+  activityButton.setAttribute('aria-controls', 'np-activity-panel');
+  activityButton.setAttribute('aria-pressed', 'false');
+  activityButton.setAttribute('aria-expanded', 'false');
+  find('.np-actions').append(viewSelect, sortSelect, fitButton, refreshButton, activityButton);
+  find('.np-search-icon').append(icon('search')); find('.np-activity-icon').append(icon('settings')); find('.np-close').append(icon('close'));
   find('.np-close').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } });
   dialog.addEventListener('close', () => selected = null);
@@ -111,7 +133,8 @@
   function details(d) { selected = key(d); renderDetails(); if (!dialog.open) dialog.showModal(); }
   function render() {
     for (const [value, b] of filters) { b.querySelector('strong').textContent = value === 'all' ? devices.length : devices.filter(d => status(d) === value).length; b.setAttribute('aria-pressed', String(filter === value)); }
-    for (const [value, b] of views) b.setAttribute('aria-pressed', String(view === value));
+    viewSelect.querySelector('select').value = view;
+    sortSelect.querySelector('select').value = sort;
     const term = normalize(search.value.trim());
     const visible = devices.filter(d => (filter === 'all' || status(d) === filter) && normalize([d.n, d.ip, d.m, d.g, typeNames[type(d)]].join(' ')).includes(term));
     visible.sort((a, b) => (sort === 'name' ? String(a.n || '').localeCompare(String(b.n || ''), 'pt-BR', {numeric:true}) : number(b.c || b.s) - number(a.c || a.s)) || key(a).localeCompare(key(b)));
@@ -133,7 +156,6 @@
       }
       section.append(tiles); grid.append(section);
     }
-    find('.np-result').textContent = `${visible.length} de ${devices.length} dispositivos` + (filter !== 'all' ? ' · ' + labels[filter] : '') + (limited ? ' · Inventário parcial' : '');
     const empty = find('.np-empty'); empty.hidden = visible.length > 0; empty.textContent = !received ? 'Aguardando inventário da rede…' : devices.length ? 'Nenhum dispositivo corresponde à busca ou ao filtro.' : 'Nenhum dispositivo registrado. Aguarde a coleta do gestor com o monitoramento habilitado.';
     layout(); renderDetails();
     if (focus) Array.from(grid.querySelectorAll('[data-key]')).find(b => b.dataset.key === focus)?.focus({preventScroll:true});
@@ -172,7 +194,7 @@
   function finish() { clearTimeout(timeout); busy = false; refreshButton.disabled = !connected; refreshButton.classList.remove('np-busy'); }
   function failure(error) { failed = true; live('Falha na atualização', true); showNotice((error?.message || String(error)) + (received ? ' · Último inventário preservado.' : ''), true); finish(); }
   async function load() {
-    if (disposed || busy || !active || !connected || document.hidden) return;
+    if (disposed || busy || !active || !connected || (document.hidden && !backgroundRefresh)) return;
     busy = true; lastRequest = performance.now(); const id = ++requestId; refreshButton.disabled = true; refreshButton.classList.add('np-busy'); live('Atualizando…');
     if (bridge) {
       timeout = setTimeout(() => { if (id === requestId && busy) failure(Error('Tempo limite ao consultar a plataforma.')); }, 22000);
@@ -212,10 +234,62 @@
     });
     bridge.postMessage({type:'network-ready'});
   }
-  const poll = setInterval(() => { if (performance.now() - lastRequest >= 14000) load(); }, 15000);
-  const clock = setInterval(tick, 1000);
+  function updateSyncCountdown() {
+    const remaining = Math.max(0, Math.ceil((nextSyncAt - Date.now()) / 1000));
+    find('.np-sync').textContent = 'Sincronizando em ' + remaining + ' s';
+  }
+  const refreshInterval = () => refreshMode === 'continuous' ? 3000 : refreshMode === 'auto' ? 15000 : Math.max(1000, Number(refreshMode) * 1000);
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    const interval = refreshInterval();
+    nextSyncAt = Date.now() + interval;
+    refreshTimer = setTimeout(() => { if (!disposed) { if (!document.hidden || backgroundRefresh) load(); scheduleRefresh(); } }, interval);
+    updateSyncCountdown();
+    if (bridge) bridge.postMessage({type:'sync-schedule', milliseconds:interval});
+  }
+  const prefKey = 'arc-tool-painel';
+  const endpoint = root.dataset.preferencesUrl || '';
+  const refreshSelect = find('.np-refresh-mode'), notifyCheckbox = find('.np-activity-notify'), backgroundCheckbox = find('.np-background-refresh');
+  const prefStatus = find('.np-setting-status');
+  const validModes = ['auto','continuous','1','2','3','5','10','15','30','60','120'];
+  function applyPreferences(pref) {
+    if (validModes.includes(pref.interval)) refreshMode = pref.interval;
+    notifyChanges = pref.notify !== false;
+    backgroundRefresh = !!pref.background;
+    if (Array.isArray(pref.allowed)) { for (const mode of pref.allowed) if (!Array.from(refreshSelect.options).some(o=>o.value===mode)) refreshSelect.add(new Option(mode+' segundos',mode)); for (const option of refreshSelect.options) option.disabled = !pref.allowed.includes(option.value); }
+    refreshSelect.value = refreshMode;notifyCheckbox.checked = notifyChanges;backgroundCheckbox.checked = backgroundRefresh;
+    scheduleRefresh();
+  }
+  const loadLocal = () => { try { return JSON.parse(localStorage.getItem(prefKey) || '{}'); } catch { return {}; } };
+  async function savePreference() {
+    const prefs = {interval:refreshSelect.value,notify:notifyCheckbox.checked,background:backgroundCheckbox.checked};
+    if (!validModes.includes(prefs.interval) || refreshSelect.selectedOptions[0]?.disabled) return;
+    if (endpoint) {
+      try {
+        const body = new URLSearchParams({tool:'painel',interval:prefs.interval,notify:prefs.notify?'1':'0',background:prefs.background?'1':'0'});
+        const resp = await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':root.dataset.csrf || '', 'Content-Type':'application/x-www-form-urlencoded'},body});
+        const result = await resp.json();if (!resp.ok || !result.ok)throw Error(result.error||'Falha ao salvar');
+        applyPreferences(result);prefStatus.textContent = 'Preferências salvas.';
+      } catch(err) {prefStatus.textContent = err.message || 'Falha ao salvar preferências.';}
+    } else {
+      try { localStorage.setItem(prefKey,JSON.stringify(prefs)); } catch {}
+      applyPreferences(prefs);prefStatus.textContent = 'Preferências salvas neste dispositivo.';
+    }
+  }
+  for (const element of [refreshSelect,notifyCheckbox,backgroundCheckbox]) element.addEventListener('change',savePreference);
+  find('.np-activity-tabs').addEventListener('click',event => {
+    const tab = event.target.closest('[data-panel-tab]');if(!tab)return;
+    const settings = tab.dataset.panelTab === 'settings';
+    find('.np-tab-activities').hidden=settings;find('.np-tab-settings').hidden=!settings;
+    for (const button of find('.np-activity-tabs').querySelectorAll('button')) button.setAttribute('aria-selected',String(button===tab));
+  });
+  if (endpoint) {
+    fetch(endpoint+'?tool=painel',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json()).then(result=>{if(result.ok)applyPreferences(result);else prefStatus.textContent='Preferências indisponíveis.';}).catch(()=>{prefStatus.textContent='Não foi possível consultar as preferências.';});
+  } else applyPreferences(loadLocal());
+
+  const clock = setInterval(() => { tick(); updateSyncCountdown(); }, 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); tick(); } });
-  window.addEventListener('pagehide', event => { controller?.abort(); if (!event.persisted) { disposed = true; clearInterval(poll); clearInterval(clock); clearTimeout(timeout); } });
+  window.addEventListener('pagehide', event => { controller?.abort(); if (!event.persisted) { disposed = true; clearTimeout(refreshTimer); clearInterval(clock); clearTimeout(timeout); } });
   window.addEventListener('pageshow', event => { if (event.persisted) { finish(); load(); } });
   if (typeof ResizeObserver !== 'undefined') { const observer = new ResizeObserver(layout); observer.observe(find('.np-scroll')); } else window.addEventListener('resize', layout);
   render(); renderEvents(); if (!bridge) load();
