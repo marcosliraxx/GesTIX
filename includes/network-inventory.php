@@ -3,6 +3,7 @@
 /** Inventário persistente por gestor e MAC. Não altera as tabelas legadas. */
 declare(strict_types=1);
 require_once __DIR__ . '/error-logging.php';
+require_once __DIR__.'/gestor-presence.php';
 
 
 require_once __DIR__.'/network-identification.php';
@@ -205,17 +206,6 @@ function arc_inventory_overrides(PDO $pdo, int $account, int $network, int $gest
         ];
     }
     return $overrides;
-}
-
-/** Mesmo período para web e gestor: tolera três heartbeats de 15 segundos. */
-function arc_inventory_presence_seconds(): int {
-    static $seconds = null;
-    if ($seconds === null) {
-        $seconds = 45;
-        try { $seconds = max(1, min(1000, (int)arc_platform_setting(arc_db(), 'platform_gestor_presence_seconds', '45'))); }
-        catch (Throwable $e) { arc_log_error('Arcoll presença: ' . $e->getMessage()); }
-    }
-    return $seconds;
 }
 
 /** Agregação testável e independente de PDO. Estado desconhecido não é saída. */

@@ -2,6 +2,7 @@
 /* Caminho: includes/header.php */
 declare(strict_types=1);
 require_once __DIR__ . '/error-logging.php';
+require_once __DIR__.'/gestor-presence.php';
 
 
 

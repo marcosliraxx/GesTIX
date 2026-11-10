@@ -2,6 +2,7 @@
 /* Caminho: includes/support.php */
 declare(strict_types=1);
 require_once __DIR__ . '/error-logging.php';
+require_once __DIR__.'/gestor-presence.php';
 
 function arc_support_access(PDO $pdo,int $network,int $user,bool $write=false): array {
     if (arc_is_admin() && !arc_is_user()) {

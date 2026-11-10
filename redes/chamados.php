@@ -10,7 +10,7 @@ try{arc_support_access($pdo,$networkId,(int)arc_user_id());}catch(RuntimeExcepti
 $arcSectionFile='chamados';require __DIR__.'/_base.php';
 $error='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
- try{arc_verify_csrf();$id=arc_support_ticket_write($pdo,$networkId,(int)arc_user_id(),$_POST);$_SESSION['arc_flash']='Atendimento registrado.';header('Location: '.arc_workspace_base_url().'redes/chamados.php?network='.$networkId.'&ticket='.$id,true,303);exit;}
+ try{arc_verify_csrf();$id=arc_support_ticket_write($pdo,$networkId,(int)arc_user_id(),$_POST);$_SESSION['arc_flash']='Atendimento registrado.';header('Location: '.arc_workspace_base_url().'redes/chamados.php?network='.$networkId.'&gestor='.(int)$selectedGestorId.'&ticket='.$id,true,303);exit;}
  catch(RuntimeException $e){$error=$e instanceof PDOException?'Serviço indisponível. Verifique os registros do servidor.':$e->getMessage();}catch(Throwable $e){arc_log_error('Atendimento: '.$e->getMessage());$error='Não foi possível salvar o chamado.';}
  // The support workflow is already authorized above; _base handles only its own native management actions.
 

@@ -1117,6 +1117,9 @@ try {
         $account=(int)$access['account_id'];
         arc_expire_running_commands($pdo,null,$networkId,$account);
         $sql='SELECT id,gestor_id,command_name,status,result_text,created_at,completed_at FROM '.arc_table('gestor_commands').' WHERE network_id=? AND account_id=?';$params=[$networkId,$account];
+        $requestedCommand=(int)($_GET['command_id']??0);$requestedGestor=(int)($_GET['gestor_id']??0);
+        if($requestedCommand>0){$sql.=' AND id=?';$params[]=$requestedCommand;}
+        if($requestedGestor>0){$sql.=' AND gestor_id=?';$params[]=$requestedGestor;}
         if(!in_array($access['role'],['owner','administrator'],true)){$sql.=" AND command_name='remote_assistance' AND id IN (SELECT command_id FROM ".arc_table('support_remote_sessions').' WHERE technician_id=?)';$params[]=(int)arc_user_id();}
         $q=$pdo->prepare($sql.' ORDER BY id DESC LIMIT 20');$q->execute($params);$commands=$q->fetchAll(PDO::FETCH_ASSOC);
         $gestores=$pdo->prepare('SELECT id,UNIX_TIMESTAMP(last_seen_at) AS last_seen_unix,status FROM '.arc_table('network_gestores').' WHERE network_id=? AND account_id=?');$gestores->execute([$networkId,$account]);

@@ -14,18 +14,67 @@ $manage=in_array((string)$teamRole,['owner','administrator','system_admin'],true
 </section>
 </section>
 <script>
-(()=>{'use strict';const root=document.getElementById('arc-up');if(!root)return;const $=id=>document.getElementById('arc-up-'+id),base=root.dataset.base,network=Number(root.dataset.network),csrf=root.dataset.csrf,manage=root.dataset.manage==='1',historyMode=false,selector={value:root.dataset.gestor};let records=[],filter='all',sort='created',direction=-1,poll=0,pending=0,active=false,currentVersion='',publishedVersion='',focusRow=null;const labels={pending:'Aguardando',running:'Em execução',completed:'Concluída',failed:'Falha',expired:'Expirada',cancelled:'Cancelada'};const statusGroup=s=>s==='completed'?'complete':['failed','expired'].includes(s)?'failed':s==='cancelled'?'cancelled':'other';const setMessage=s=>$('state').textContent=String(s||'');const formDate=x=>x?new Date(String(x).replace(' ','T')).toLocaleString('pt-BR'):'—';const seconds=(a,b)=>{const x=Date.parse(String(a||'').replace(' ','T')),y=Date.parse(String(b||'').replace(' ','T'));return Number.isFinite(x)&&Number.isFinite(y)?Math.max(0,Math.round((y-x)/1000)):null};const duration=r=>{let s=seconds(r.created_at,r.completed_at);return s===null?'—':Math.floor(s/60)+'m '+s%60+'s'};
-async function api(action,opts){const url=base+'api/api.php?action='+encodeURIComponent(action)+'&network_id='+network+(!opts?'&gestor_id='+Number(selector.value):'');const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...opts});const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Não foi possível consultar.');return data;}
-function setBusy(mode,label,percent){root.classList.toggle('arc-up-checking',mode==='checking');root.classList.toggle('arc-up-working',mode==='working');$('phases').hidden=mode!=='working';$('check').disabled=!manage||mode!=='idle';$('percent').textContent=mode==='working'?(Number.isFinite(percent)?String(Math.min(99,Math.max(0,percent)))+'%':'EM ANDAMENTO'):mode==='checking'?'VERIFICANDO':label;$('desc').textContent=mode==='working'?'Atualização por etapas':mode==='checking'?'Consultando a publicação':'Clique para buscar atualização';$('icon').textContent=mode==='working'?'':'↻';$('progress').style.strokeDashoffset=mode==='working'?String(Number.isFinite(percent)?100-Math.min(99,percent):80):mode==='checking'?'0':'80';if(mode==='working'){const n=Number.isFinite(percent)?Math.min(5,Math.floor(Math.max(0,percent)/17)):0;$('phases').querySelectorAll('span').forEach((el,i)=>{el.classList.toggle('active',i===n);el.classList.toggle('done',i<n)});}}
-async function versions(){const data=await api('network-gestor-versions');const g=(data.gestores||[]).find(x=>Number(x.id)===Number(selector.value));currentVersion=String(g?.version||'');publishedVersion=String(data.published_version||'');$('notes').textContent=String(data.release_notes||'');if(!active){const available=!!g?.outdated;setBusy('idle',!g?'SELECIONE':!g.online?'OFFLINE':available?'DISPONÍVEL':'EM DIA',0);$('update').hidden=!manage||!g?.online||!available;$('force').hidden=!manage||!g?.online;setMessage(!g?'Selecione um computador aprovado.':!g.online?'Computador desconectado.':available?'Atualização disponível: '+publishedVersion:'Versão instalada: '+(currentVersion||'não informada')+' · Publicada: '+(publishedVersion||'não informada'));}}
-function details(r,row){focusRow=row;const fields=$('detail-fields');fields.replaceChildren();[['Identificação','#'+r.id],['Data e hora',formDate(r.created_at)],['De',r.from],['Para',r.to],['Operação',r.command_name==='gestor_update_check'?'Verificação':'Atualização'],['Resultado',labels[r.status]||r.status],['Duração',duration(r)],['Finalizado',formDate(r.completed_at)]].forEach(([title,value])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=title;dd.textContent=value;fields.append(dt,dd)});$('detail-message').textContent=r.message||'Sem detalhes retornados pelo agente.';$('details').showModal();}
-async function monitor(id){pending=id;let attempts=0;async function tick(){if(!pending)return;try{const data=await api('network-command-status');const cmd=(data.commands||[]).find(r=>Number(r.id)===id);if(cmd){const st=cmd.status;setMessage((labels[st]||st)+' · '+(cmd.result_text||'Aguardando resposta do computador'));const match=String(cmd.result_text||'').match(/(?:^|\D)(\d{1,3})%/);if(st==='running'&&match){setBusy('working','',Math.min(99,Number(match[1])));}if(['completed','failed','expired','cancelled'].includes(st)){clearInterval(poll);poll=0;pending=0;active=false;setBusy('idle',st==='completed'?'CONCLUÍDO':'VERIFICAR',NaN);await Promise.allSettled([versions()]);return}}if(++attempts>120){clearInterval(poll);poll=0;pending=0;active=false;setBusy('idle','VERIFICAR',0);setMessage('Acompanhamento encerrado. Consulte o Histórico para conferir a execução posterior.')}}catch(e){setMessage(e.message)}}await tick();if(pending)poll=setInterval(tick,2000)}
-async function command(kind){if(active||!manage||!Number(selector.value))return;const confirmation=kind==='force'?'Reinstalar os arquivos do AGestor neste computador?':kind==='update'?'Atualizar o AGestor selecionado?':null;if(confirmation&&!window.confirm(confirmation))return;active=true;$('update').hidden=true;$('force').hidden=true;setBusy(kind==='check'?'checking':'working','',NaN);setMessage(kind==='check'?'Verificando atualização…':'Solicitação de atualização enviada…');try{const payload={network_id:network,gestor_id:Number(selector.value),command:kind==='check'?'gestor_update_check':'gestor_update',_csrf:csrf};if(kind==='force')payload.force_update=true;const result=await api('network-command',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});setBusy(kind==='check'?'checking':'working','',NaN);setMessage('Solicitação registrada. Aguardando recebimento pelo AGestor…');await monitor(Number(result.command_id));}catch(e){active=false;setBusy('idle','TENTAR NOVAMENTE',0);setMessage(e.message)}}
-$('check').addEventListener('click',()=>command('check'));
-$('update').addEventListener('click',()=>command('update'));
-$('force').addEventListener('click',()=>command('force'));
-$('refresh').addEventListener('click',()=>versions().catch(e=>setMessage(e.message)));
-window.addEventListener('pagehide',()=>clearInterval(poll));
-versions().catch(e=>setMessage(e.message));})();
+/* Caminho: redes/atualizacoes.php — controle da publicação e acompanhamento do comando selecionado. */
+(()=>{'use strict';
+ const root=document.getElementById('arc-up');if(!root)return;
+ const $=id=>document.getElementById('arc-up-'+id),base=root.dataset.base,network=Number(root.dataset.network),csrf=root.dataset.csrf;
+ const selector=document.getElementById('arc-gestor-target');
+ const gestorId=()=>Number(selector?.value||root.dataset.gestor||0);
+ let manage=root.dataset.manage==='1',active=false,checking=false,versionBusy=false,monitoring=false,commandId=0,timer=0,generation=0;
+ const message=text=>{$('state').textContent=String(text||'')};
+ const labels={pending:'Aguardando recebimento',running:'Atualizando',completed:'Concluída',failed:'Falha',expired:'Expirada',cancelled:'Cancelada'};
+ async function api(action,body,query={}){
+  const url=new URL(base+'api/api.php',location.href);url.search=new URLSearchParams({action,network_id:network,gestor_id:gestorId(),...query});
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
+  try{const response=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:controller.signal,...(body?{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({...body,network_id:network,gestor_id:gestorId(),_csrf:csrf})}:{})});const data=await response.json().catch(()=>{throw Error('O servidor retornou uma resposta inválida.');});if(!response.ok||!data.ok)throw Error(data.error||'Não foi possível consultar o gestor.');return data;}
+  catch(error){if(error.name==='AbortError')throw Error('Tempo esgotado ao consultar o servidor. Use Recarregar para continuar.');throw error;}
+  finally{clearTimeout(timeout);}
+ }
+ function paint(mode,label,percent){
+  root.classList.toggle('arc-up-checking',mode==='checking');root.classList.toggle('arc-up-working',mode==='working');
+  $('phases').hidden=mode!=='working';$('check').disabled=!manage||active||checking;
+  $('refresh').disabled=checking;
+  $('percent').textContent=mode==='working'?(Number.isFinite(percent)?Math.min(99,Math.max(0,percent))+'%':'EM ANDAMENTO'):label;
+  $('desc').textContent=mode==='working'?'Acompanhando o gestor':mode==='checking'?'Consultando publicação':'Clique para verificar a publicação';
+  $('icon').textContent=mode==='working'?'':'↻';$('progress').style.strokeDashoffset=Number.isFinite(percent)?String(100-Math.min(100,Math.max(0,percent))):'80';
+  if(mode==='working'){$('update').hidden=true;$('force').hidden=true;const phase=Number.isFinite(percent)?Math.min(5,Math.floor(Math.max(0,percent)/17)):0;$('phases').querySelectorAll('span').forEach((node,i)=>{node.classList.toggle('active',i===phase);node.classList.toggle('done',i<phase)});}
+ }
+ async function versions(announce=true){
+  if(versionBusy)return;versionBusy=true;
+  try{const data=await api('network-gestor-versions');manage=data.can_update===true;const gestor=(data.gestores||[]).find(x=>Number(x.id)===gestorId());$('notes').textContent=String(data.release_notes||'');
+   if(!active){const available=!!gestor?.outdated,online=!!gestor?.online;
+    paint('idle',!gestor?'SELECIONE':!online?'OFFLINE':available?'DISPONÍVEL':'EM DIA');
+    $('update').hidden=!manage||!online||!available||!!gestor?.requires_reinstall;$('force').hidden=!manage||!online;
+    if(announce)message(!gestor?'Selecione um computador aprovado.':!online?'O gestor está sem comunicação. Conecte-o antes de atualizar.':gestor.requires_reinstall?'Reinstalação necessária. Use Reinstalar arquivos ou baixe o instalador no ícone power.':available?'Atualização disponível: '+data.published_version:'Instalada: '+(gestor.version||'não informada')+' · Publicada: '+(data.published_version||'não informada'));
+   }
+  }finally{versionBusy=false;}
+ }
+ async function check(){if(active||checking)return;checking=true;paint('checking','VERIFICANDO');message('Consultando a versão publicada…');try{await versions();}catch(error){paint('idle','TENTAR NOVAMENTE');message(error.message);}finally{checking=false;if(!active)$('check').disabled=!manage;$('refresh').disabled=false;}}
+ async function monitor(token){
+  if(!active||token!==generation||monitoring)return;monitoring=true;clearTimeout(timer);
+  try{const data=await api('network-command-status',null,{command_id:commandId});if(token!==generation)return;const row=(data.commands||[]).find(x=>Number(x.id)===commandId&&Number(x.gestor_id)===gestorId());
+   if(!row){message('Aguardando o registro da atualização no servidor…');}
+   else{const status=String(row.status),detail=String(row.result_text||''),percent=detail.match(/(\d{1,3})\s*%/);message((labels[status]||status)+(detail?' · '+detail:''));if(percent)paint('working','',Number(percent[1]));
+    if(['completed','failed','expired','cancelled'].includes(status)){active=false;clearTimeout(timer);paint('idle',status==='completed'?'CONCLUÍDO':'VERIFICAR',status==='completed'?100:undefined);await versions(false);message((labels[status]||status)+(detail?' · '+detail:''));return;}
+   }
+  }catch(error){if(token!==generation)return;message(error.message+' O acompanhamento será retomado automaticamente.');}
+  finally{monitoring=false;}
+  if(active&&token===generation)timer=setTimeout(()=>monitor(token),2000);
+ }
+ async function update(force){
+  if(active||checking||!manage)return;if(!gestorId()){message('Selecione um computador aprovado.');return;}
+  if(!window.confirm(force?'Reinstalar os arquivos do gestor selecionado, preservando sua configuração?':'Atualizar o gestor selecionado?'))return;
+  active=true;const token=++generation;paint('working','');message('Solicitando atualização ao gestor…');
+  try{const data=await api('network-command',{command:'gestor_update',force_update:force});commandId=Number(data.command_id);if(!commandId)throw Error('O servidor não identificou a solicitação.');document.dispatchEvent(new CustomEvent('arc:command-queued',{detail:{command:'gestor_update',command_id:commandId,gestor_id:gestorId()}}));window.dispatchEvent(new Event('arc-queue-refresh'));await monitor(token);}
+  catch(error){active=false;paint('idle','TENTAR NOVAMENTE');await versions(false).catch(()=>{});message(error.message);}
+ }
+ $('check').addEventListener('click',check);$('refresh').addEventListener('click',()=>active?monitor(generation):check());
+ $('update').addEventListener('click',()=>update(false));$('force').addEventListener('click',()=>update(true));
+ window.addEventListener('arc-tool-refresh',event=>{if(event.detail?.tool==='atualizacoes'&&!active&&!checking)versions(false).catch(()=>{});});
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&active){clearTimeout(timer);monitor(generation);}});
+ window.addEventListener('pagehide',()=>{generation++;clearTimeout(timer);});
+ check();
+})();
+
 </script>
 <?php require __DIR__.'/_rodape.php'; ?>
