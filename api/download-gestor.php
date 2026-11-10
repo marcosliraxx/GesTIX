@@ -85,7 +85,7 @@ try {
             'catalog'=>arc_pf_catalog(), 'registry'=>arc_pf_registry_checks(), 'health'=>arc_pf_health_sets(),
             'tabs'=>arc_pf_tabs(), 'ages'=>arc_pf_age_options()
         ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-        foreach (['arcoll_pentefino.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py'] as $engineFile) {
+        foreach (array_merge(['arcoll_pentefino.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py','arcoll_toolkit.py','arcoll_files.py','arcoll_file_thumbnails.py'],array_map('basename',glob(dirname(__DIR__).'/gestores/windows/arcoll_pf_*.py')?:[])) as $engineFile) {
             $enginePath=dirname(__DIR__).'/gestores/windows/'.$engineFile;
             if (!is_file($enginePath)) throw new RuntimeException('Motor do Pente-Fino incompleto: '.$engineFile);
             $zipNative->addFile($enginePath,'Arcoll.WinUI3/Assets/pentefino-engine/'.$engineFile);
@@ -221,7 +221,7 @@ try {
             ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             'Assets/pentefino-engine/VERSION' => $releaseVersion,
         ];
-        foreach (['arcoll_pentefino.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py'] as $engineFile) {
+        foreach (array_merge(['arcoll_pentefino.py','arcoll_programs.py','arcoll_cloud.py','arcoll_release.py','arcoll_toolkit.py','arcoll_files.py','arcoll_file_thumbnails.py'],array_map('basename',glob(dirname(__DIR__).'/gestores/windows/arcoll_pf_*.py')?:[])) as $engineFile) {
             $src = dirname(__DIR__) . '/gestores/windows/' . $engineFile;
             if (!is_file($src)) throw new RuntimeException('Motor do Pente-Fino incompleto: ' . $engineFile);
             $generated['Assets/pentefino-engine/' . $engineFile] = file_get_contents($src);

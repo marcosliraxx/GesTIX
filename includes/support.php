@@ -96,7 +96,7 @@ function arc_support_request_remote(PDO $pdo,int $network,int $gestor,int $user,
     $pdo->beginTransaction();
     try{
         $q=$pdo->prepare("SELECT a.*,n.is_active,n.monitoring_enabled FROM ".arc_table('network_gestores').' a JOIN '.arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' FOR UPDATE");$q->execute([$gestor,$network,$access['account_id']]);$a=$q->fetch();
-        if(!$a||!(int)$a['is_active']||!(int)$a['monitoring_enabled']||strtotime((string)$a['last_seen_at'])<time()-120)throw new RuntimeException('Selecione um computador aprovado e online em uma rede ativa.');
+        if(!$a||!(int)$a['is_active']||!(int)$a['monitoring_enabled']||strtotime((string)$a['last_seen_at'])<time()-arc_inventory_presence_seconds())throw new RuntimeException('Selecione um computador aprovado e online em uma rede ativa.');
         // Team operators must receive local consent even on servers configured as headless.
 
         if($guestCodeId){$q=$pdo->prepare('SELECT id FROM '.arc_table('support_guest_codes').' WHERE id=? AND gestor_id=? AND command_id IS NULL AND expires_at>NOW() FOR UPDATE');$q->execute([$guestCodeId,$gestor]);if(!$q->fetchColumn())throw new RuntimeException('Código inválido, utilizado ou expirado.');}
@@ -204,7 +204,7 @@ function arc_support_file_create(PDO $pdo,int $network,int $gestor,int $user,str
         }
 
         $q=$pdo->prepare("SELECT a.id,a.gestor_version,a.last_seen_at,a.headless_mode FROM ".arc_table('network_gestores')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1 FOR UPDATE");$q->execute([$gestor,$network,$access['account_id']]);$a=$q->fetch();
-        if(!$a||strtotime((string)$a['last_seen_at'])<time()-120)throw new RuntimeException('Selecione um computador aprovado e conectado.');
+        if(!$a||strtotime((string)$a['last_seen_at'])<time()-arc_inventory_presence_seconds())throw new RuntimeException('Selecione um computador aprovado e conectado.');
         if(version_compare((string)$a['gestor_version'],'3.3.0','<'))throw new RuntimeException('Atualize o gestor para usar a transferência de arquivos.');
         if(str_starts_with($name,'__arcoll_folder__')&&version_compare((string)$a['gestor_version'],'3.8.1','<'))throw new RuntimeException('Atualize o gestor para a versão 3.8.1 ou superior para receber pastas.');
         if($destination!==''&&((int)$a['headless_mode']!==1||!in_array($access['role'],['owner','administrator'],true)||version_compare((string)$a['gestor_version'],'3.6.23','<')))throw new RuntimeException('Destino remoto exige administrador, modo sem monitor e gestor atualizado.');
@@ -231,7 +231,7 @@ function arc_support_file_remote_command(PDO $pdo,int $network,int $gestor,int $
         $q=$pdo->prepare('SELECT id FROM '.arc_table('user_accounts').' WHERE id=? FOR UPDATE');$q->execute([$access['account_id']]);
         $q=$pdo->prepare("SELECT a.id,a.gestor_version,a.last_seen_at,a.headless_mode FROM ".arc_table('network_gestores')." a JOIN ".arc_table('managed_networks')." n ON n.id=a.network_id AND n.account_id=a.account_id WHERE a.id=? AND a.network_id=? AND a.account_id=? AND a.status='approved' AND n.is_active=1 AND n.monitoring_enabled=1 FOR UPDATE");
         $q->execute([$gestor,$network,$access['account_id']]);$a=$q->fetch();
-        if(!$a||strtotime((string)$a['last_seen_at'])<time()-120)throw new RuntimeException('Selecione um computador aprovado e conectado.');
+        if(!$a||strtotime((string)$a['last_seen_at'])<time()-arc_inventory_presence_seconds())throw new RuntimeException('Selecione um computador aprovado e conectado.');
         if((int)($a['headless_mode']??0)!==1)throw new RuntimeException('Ative o modo sem monitor no gestor autorizado.');
         if(version_compare((string)$a['gestor_version'],$command==='file_operation'?'3.6.23':'3.6.0','<'))throw new RuntimeException('Atualize o gestor deste computador para usar o explorador avançado.');
         if(($payload['operation']??'')==='thumbnails'&&version_compare((string)$a['gestor_version'],'3.8.6','<'))throw new RuntimeException('Atualize o gestor para 3.8.6 para carregar miniaturas.');

@@ -200,7 +200,8 @@ function toast(message,type='info'){if(activeProgressId||(stickyError&&type!=='e
 function showProgress(label,state='Tudo certo, estou aguardando o computador…',id=0){activeProgressId=Number(id)||0;notice(state,'info',true,null,25)}
 function endProgress(label,ok){activeProgressId=0;notice(label,ok?'success':'error',false,ok?100:0)}
 function setRunning(on){}
-function setOnline(online){const button=document.getElementById('arc-header-gestor-update');if(button){button.dataset.gestorState=online?'online':'offline';button.title=online?'Gestor conectado — abrir gestores':'Gestor sem conexão — abrir gestores';button.setAttribute('aria-label',button.title)}if(status){const wrap=status.closest('.arc-gestor-select-wrap');if(wrap){wrap.classList.toggle('is-online',!!online);wrap.classList.toggle('is-offline',!online)}status.classList.toggle('is-online',!!online);status.classList.toggle('is-offline',!online);status.title=online?'Gestor online':'Gestor offline';status.setAttribute('aria-label',status.title)}}
+function setOnline(online){if(status){const wrap=status.closest('.arc-gestor-select-wrap');if(wrap){wrap.classList.toggle('is-online',!!online);wrap.classList.toggle('is-offline',!online)}status.classList.toggle('is-online',!!online);status.classList.toggle('is-offline',!online);status.title=online?'Gestor online':'Gestor offline';status.setAttribute('aria-label',status.title)}}
+document.addEventListener('arc:gestor-presence',e=>setOnline(e.detail?.state==='online'));
 // Modal, versões e envio de atualização do gestor: assets/js/gestor-update.js (window.arcGestorUpdate).
 target.addEventListener('change',()=>document.getElementById('arc-gestor-form').requestSubmit());
 document.addEventListener('arc:command-queued',e=>{const d=e.detail||{};if(d.command_id&&Number(d.gestor_id)===Number(target.value)&&!activeProgressId)showProgress(labels[d.command]||'Comando remoto','Aguardando o gestor',Number(d.command_id))});
@@ -215,8 +216,7 @@ async function poll(notify=false){
  try{
  const r=await fetch(base+'api/api.php?action=network-command-status&network_id='+networkId,{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error('Não foi possível consultar os comandos');
  const j=await r.json();if(!j.ok)throw Error(j.error||'Erro de sincronização');
- const heartbeat=(j.gestores||[]).find(a=>Number(a.id)===Number(target.value));
- setOnline(!!heartbeat&&heartbeat.status==='approved'&&Number(j.server_time)-Number(heartbeat.last_seen_unix||0)<120);
+ // Presença do cabeçalho é gerenciada exclusivamente por assets/js/gestor-update.js.
  const commands=(j.commands||[]).filter(x=>Number(x.gestor_id)===Number(target.value));
  if(!initialErrorsChecked){
   commands.filter(c=>['failed','expired'].includes(String(c.status).toLowerCase())).forEach(c=>persistSeenError(c.id));

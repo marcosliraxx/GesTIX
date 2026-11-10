@@ -802,10 +802,13 @@ def explorer_thumbnails(paths, resolve=None):
     for value in paths[:24]:
         try:
             target=resolve(value);suffix=target.suffix.lower()
-            if suffix not in _RASTER_IMAGES or not target.is_file():continue
-            body=_image_jpeg(target,320,76);mime='image/jpeg'
+            if not target.is_file():continue
+            body=_image_jpeg(target,320,76) if suffix in _RASTER_IMAGES else None;mime='image/jpeg'
             if body is None:
-                if target.stat().st_size>262144:continue
+                from arcoll_file_thumbnails import shell_thumbnail
+                body=shell_thumbnail(target)
+            if body is None:
+                if suffix not in _RASTER_IMAGES or target.stat().st_size>262144:continue
                 body=target.read_bytes();mime=_RASTER_IMAGES[suffix]
             if total+len(body)>7340032:break
             entries.append({'path':str(value),'type':mime,'size':len(body)});bodies.append(body);total+=len(body)

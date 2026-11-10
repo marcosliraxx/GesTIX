@@ -70,19 +70,20 @@ public static class PenteFinoEngine
     }
     public static async Task<JsonElement> RunAsync(string mode, object payload, GestorConfig config, IProgress<string>? progress, CancellationToken ct)
     {
-        using var operation = OperationProgress.Begin(mode is "backup_run" or "backup_status" ? "Backup em Nuvem" : mode == "scan" ? "Analisar limpeza" : mode == "execute" ? "Limpar arquivos" : "Executar Pente-Fino");
+        var area=mode=="files"?"Arquivos":"Pente-Fino";
+        using var operation = OperationProgress.Begin(mode=="files"?"Arquivos":mode is "backup_run" or "backup_status" ? "Backup em Nuvem" : mode == "scan" ? "Analisar limpeza" : mode == "execute" ? "Limpar arquivos" : "Executar Pente-Fino");
         operation.Report(5, "Preparando comando");
         await Gate.WaitAsync(ct);
         try
         {
-            if (!File.Exists(Worker)) throw new FileNotFoundException("Motor do Pente-Fino ausente. Atualize o gestor pelo pacote completo.");
+            if (!File.Exists(Worker)) throw new FileNotFoundException("Motor local ausente. Atualize o gestor pelo pacote completo.");
             var python = await InterpreterAsync(progress, ct);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromHours(2));
             var start = new ProcessStartInfo(python) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
                 StandardInputEncoding = new UTF8Encoding(false), StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
             start.ArgumentList.Add("-I"); start.ArgumentList.Add(Worker);
             start.Environment["PYTHONIOENCODING"] = "utf-8";
-            using var process = Process.Start(start) ?? throw new InvalidOperationException("Motor do Pente-Fino não iniciou.");
+            using var process = Process.Start(start) ?? throw new InvalidOperationException("Motor local não iniciou.");
             try
             {
                 await process.StandardInput.WriteAsync(JsonSerializer.Serialize(new { mode, payload, config = new { origin = config.Origin, fingerprint = config.Fingerprint, site_code = config.SiteCode, download_key = config.DownloadKey } }));
@@ -91,7 +92,7 @@ public static class PenteFinoEngine
                 JsonElement result = default;
                 while (await process.StandardOutput.ReadLineAsync(deadline.Token) is string line)
                 {
-                    if (line.Length > 8 * 1024 * 1024) throw new InvalidDataException("Relatório do Pente-Fino excede o limite.");
+                    if (line.Length > 8 * 1024 * 1024) throw new InvalidDataException("Relatório do comando local excede o limite.");
                     using var doc = JsonDocument.Parse(line); var item = doc.RootElement;
                     if (item.TryGetProperty("progress", out var message)) { var text = message.GetString() ?? ""; operation.ReportText(text); progress?.Report(text); }
                     if (item.TryGetProperty("error", out var error)) throw new InvalidOperationException(error.GetString());
@@ -99,9 +100,9 @@ public static class PenteFinoEngine
                 }
                 await process.WaitForExitAsync(deadline.Token);
                 var stderr = await errors;
-                if (process.ExitCode != 0 || result.ValueKind == JsonValueKind.Undefined) throw new InvalidOperationException("O Pente-Fino não confirmou a operação. " + (stderr.Length > 500 ? stderr[^500..] : stderr));
+                if (process.ExitCode != 0 || result.ValueKind == JsonValueKind.Undefined) throw new InvalidOperationException(area+" não confirmou a operação. " + (stderr.Length > 500 ? stderr[^500..] : stderr));
                 if (HasFailures(result)) operation.FlagFailure("Operação parcial ou não confirmada; consulte o relatório da ferramenta.");
-                operation.Succeed("Operação do Pente-Fino aplicada");
+                operation.Succeed("Operação de "+area+" concluída");
                 return result;
             }
             finally { if (!process.HasExited) { try { process.Kill(true); } catch (InvalidOperationException) { } } }

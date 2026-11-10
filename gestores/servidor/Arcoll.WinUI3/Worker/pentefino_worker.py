@@ -16,8 +16,12 @@ def emit(**packet):
 
 
 def run(request):
-    if not isinstance(request, dict) or request.get('mode') not in ('scan', 'execute', 'tool', 'backup_status', 'backup_run'):
+    if not isinstance(request, dict) or request.get('mode') not in ('scan', 'execute', 'tool', 'backup_status', 'backup_run', 'files'):
         raise ValueError('Operação local não permitida.')
+    if request['mode']=='files':
+        from arcoll_files import run_command
+        payload=request.get('payload') or {}
+        return run_command(request['config'],int(payload['command_id']),payload['command'],payload.get('request') or {})
     import arcoll_pentefino as engine
     identity = hashlib.sha256(json.dumps(request.get('config', {}), sort_keys=True).encode()).hexdigest()
     engine.DATA_DIR = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'TI-Digital' / 'PenteFino' / 'Engine' / identity

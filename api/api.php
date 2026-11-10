@@ -206,12 +206,12 @@ try {
             $version=(string)($row['gestor_version']??'');
             $online=$row['status']==='approved' && !empty($row['last_seen_at']) && strtotime((string)$row['last_seen_at'])>=time()-arc_inventory_presence_seconds();
             $policy=arc_gestor_upgrade_policy($version,(string)$latest);
-            $gestores[]=['requires_reinstall'=>$policy['requires_reinstall'],'can_remote_update'=>$policy['can_remote_update'],'migrate_native'=>$policy['migrate_native'],'update_message'=>$policy['message'],'id'=>(int)$row['id'],'name'=>(string)$row['machine_name'],'version'=>$version,'online'=>$online,'approved'=>$row['status']==='approved','outdated'=>$latest!==null&&preg_match('/^\d+\.\d+\.\d+$/',(string)$latest)&&($version===''||!preg_match('/^\d+\.\d+\.\d+$/',$version)||version_compare($version,$latest,'<'))];
+            $gestores[]=['requires_reinstall'=>$policy['requires_reinstall'],'can_remote_update'=>$policy['can_remote_update'],'migrate_native'=>$policy['migrate_native'],'update_message'=>$policy['message'],'id'=>(int)$row['id'],'last_seen_unix'=>empty($row['last_seen_at'])?0:(int)strtotime((string)$row['last_seen_at']),'name'=>(string)$row['machine_name'],'version'=>$version,'online'=>$online,'approved'=>$row['status']==='approved','outdated'=>$latest!==null&&preg_match('/^\d+\.\d+\.\d+$/',(string)$latest)&&($version===''||!preg_match('/^\d+\.\d+\.\d+$/',$version)||version_compare($version,$latest,'<'))];
         }
         // Comentário publicado na área administrativa; dados restritos à rede autorizada.
         $notesQuery=$pdo->prepare('SELECT notes FROM '.arc_table('platform_release_history').' WHERE version=? LIMIT 1');
         $notesQuery->execute([$latest]);$releaseNotes=(string)($notesQuery->fetchColumn()?:'');
-        arc_json(['ok'=>true,'published_version'=>$latest,'release_notes'=>$releaseNotes,'can_update'=>in_array($access['role'],['owner','administrator','system_admin'],true),'display_gestor_version'=>$latest,'release_mode'=>(string)($release['mode']??'source'),'platform_version'=>arc_app_version(),'support_version'=>arc_app_version(),'access_version'=>arc_app_version(),'gestores'=>$gestores,'release'=>$release]);
+        arc_json(['ok'=>true,'server_time'=>time(),'presence_timeout_seconds'=>arc_inventory_presence_seconds(),'presence_poll_seconds'=>max(1,min((int)arc_platform_setting($pdo,'platform_gestor_command_poll_seconds','3'),(int)ceil(arc_inventory_presence_seconds()/3))),'published_version'=>$latest,'release_notes'=>$releaseNotes,'can_update'=>in_array($access['role'],['owner','administrator','system_admin'],true),'display_gestor_version'=>$latest,'release_mode'=>(string)($release['mode']??'source'),'platform_version'=>arc_app_version(),'support_version'=>arc_app_version(),'access_version'=>arc_app_version(),'gestores'=>$gestores,'release'=>$release]);
     }
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'health') {
         arc_json(['ok' => true, 'application' => (string)(arc_setting_values($pdo)['site_name'] ?? 'Gestor de Rede'), 'version' => arc_app_version()]);
@@ -243,7 +243,7 @@ try {
         $account=(int)$access['account_id'];
         $q=$pdo->prepare('SELECT id,headless_mode,last_seen_at FROM '.arc_table('network_gestores')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");$q->execute([$gestorId,$network,$account]);$a=$q->fetch(PDO::FETCH_ASSOC);
         if(!$a||(int)$a['headless_mode']!==1)arc_json(['ok'=>false,'error'=>'Ative o modo sem monitor no gestor autorizado'],403);
-        if(!$a['last_seen_at']||strtotime($a['last_seen_at'])<time()-120)arc_json(['ok'=>false,'error'=>'Gestor desconectado'],409);
+        if(!$a['last_seen_at']||strtotime($a['last_seen_at'])<time()-arc_inventory_presence_seconds())arc_json(['ok'=>false,'error'=>'Gestor desconectado'],409);
         
         $count=$pdo->prepare('SELECT COUNT(*) FROM '.arc_table('gestor_commands')." WHERE gestor_id=? AND status IN ('pending','running')");$count->execute([$gestorId]);if((int)$count->fetchColumn()>=3)arc_json(['ok'=>false,'error'=>'Há outros comandos em andamento'],429);
         $pdo->beginTransaction();try{
@@ -283,7 +283,7 @@ try {
         $q=$pdo->prepare('SELECT id,headless_mode,last_seen_at FROM '.arc_table('network_gestores')." WHERE id=? AND network_id=? AND account_id=? AND status='approved'");
         $q->execute([$gestorId,$network,$account]);$machine=$q->fetch(PDO::FETCH_ASSOC);
         if(!$machine)arc_json(['ok'=>false,'error'=>'Gestor não aprovado'],404);
-        $online=!empty($machine['last_seen_at'])&&strtotime((string)$machine['last_seen_at'])>=time()-120;
+        $online=!empty($machine['last_seen_at'])&&strtotime((string)$machine['last_seen_at'])>=time()-arc_inventory_presence_seconds();
         if($action==='network-pentefino-list'){
             $row=arc_pf_report_get($pdo,$gestorId,$network,$account,'clean');
             arc_json(['ok'=>true,'report'=>$row['report']??null,'collected_at'=>$row['collected_at']??null,'online'=>$online,'headless'=>(int)$machine['headless_mode']===1,'history'=>arc_pf_history($pdo,$gestorId,$network,$account),'active'=>arc_network_active_operation($pdo,$gestorId,$network,$account,$names),'settings'=>arc_pf_settings_get($pdo,$gestorId,$network,$account),'index'=>arc_pf_report_index($pdo,$gestorId,$network,$account)]);
@@ -854,7 +854,7 @@ try {
             $lastSeen=$pdo->prepare('SELECT last_seen_at FROM '.arc_table('network_gestores').' WHERE id=? AND network_id=? AND account_id=?');
             $lastSeen->execute([$gestorId,$networkId,$commandAccount]);
             $seen=$lastSeen->fetchColumn();
-            if(!$seen||strtotime((string)$seen)<time()-120)arc_json(['ok'=>false,'error'=>'O gestor precisa estar conectado para abrir a tela no Windows.'],409);
+            if(!$seen||strtotime((string)$seen)<time()-arc_inventory_presence_seconds())arc_json(['ok'=>false,'error'=>'O gestor precisa estar conectado para abrir a tela no Windows.'],409);
             $recent=$pdo->prepare('SELECT id FROM '.arc_table('gestor_commands')." WHERE gestor_id=? AND command_name=? AND status IN ('pending','running') AND created_at>DATE_SUB(NOW(),INTERVAL 45 SECOND) ORDER BY id DESC LIMIT 1");
             $recent->execute([$gestorId,$command]);$existing=$recent->fetchColumn();
             if($existing)arc_json(['ok'=>true,'command_id'=>(int)$existing,'already_queued'=>true]);
@@ -880,7 +880,7 @@ try {
             $v->execute([$gestorId,$networkId,$commandAccount]);
             $updateGestor=$v->fetch(PDO::FETCH_ASSOC);
             $lastSeen=!empty($updateGestor['last_seen_at'])?strtotime((string)$updateGestor['last_seen_at']):false;
-            if(!$lastSeen || $lastSeen<time()-120){
+            if(!$lastSeen || $lastSeen<time()-arc_inventory_presence_seconds()){
                 arc_json(['ok'=>false,'error'=>'O gestor está sem comunicação recente. A atualização remota, inclusive forçada, precisa de um componente de manutenção previamente instalado e ativo. Inicie o gestor ou use o instalador local autorizado.','error_code'=>'gestor_offline','requires_local_action'=>true],409);
             }
             $policy=arc_gestor_upgrade_policy(trim((string)($updateGestor['gestor_version']??'')),arc_gestor_target_version());
@@ -898,7 +898,7 @@ try {
             if (($body['confirmed']??false)!==true) arc_json(['ok'=>false,'error'=>'Confirme a operação no computador selecionado.'],422);
             $q=$pdo->prepare('SELECT gestor_version,last_seen_at FROM '.arc_table('network_gestores').' WHERE id=?');$q->execute([$gestorId]);$powerTarget=$q->fetch();
             if(version_compare((string)$powerTarget['gestor_version'],'3.2.0','<'))arc_json(['ok'=>false,'error'=>'Atualize o gestor deste computador antes de usar o controle de energia.'],409);
-            if(!$powerTarget['last_seen_at']||strtotime($powerTarget['last_seen_at'])<time()-120)arc_json(['ok'=>false,'error'=>'O computador precisa estar conectado.'],409);
+            if(!$powerTarget['last_seen_at']||strtotime($powerTarget['last_seen_at'])<time()-arc_inventory_presence_seconds())arc_json(['ok'=>false,'error'=>'O computador precisa estar conectado.'],409);
         }
         arc_expire_running_commands($pdo, $gestorId);
         if($command==='gestor_update'){

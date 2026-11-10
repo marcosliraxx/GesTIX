@@ -1,0 +1,8 @@
+<?php /* Caminho: redes/pentefino/_options.php */ ?>
+/* ---------- Configurações ---------- */
+VIEWS.options=b=>{const ex=h('textarea',{class:'cc-area',id:'cc-ex','aria-label':'Exclusões',placeholder:'C:\\Users\\Maria\\AppData\\Local\\Temp\\meu-app\n*\\NomeDoArquivo.tmp'});ex.value=settings.exclusions.join('\n');const cu=h('textarea',{class:'cc-area',id:'cc-cu','aria-label':'Pastas personalizadas',placeholder:'D:\\Dados\\Temporarios'});cu.value=settings.custom_folders.join('\n');
+ const lines=el=>el.value.split('\n').map(s=>s.trim()).filter(Boolean);
+ b.append(h('div',{class:'cc-head'},h('h2',{},'Configurações')),h('div',{class:'cc-scroll','data-keep':'opt'},h('h3',{style:'margin:8px 0 4px'},'Excluir (Exclusões)'),h('p',{class:'mut',style:'margin-bottom:8px'},'Um caminho por linha (aceita *). Nada que corresponda será apagado por nenhuma limpeza deste computador.'),ex,
+  h('h3',{style:'margin:18px 0 4px'},'Incluir (Pastas personalizadas)'),h('p',{class:'mut',style:'margin-bottom:8px'},'Um caminho por linha. Habilita o item "Pastas personalizadas" na Limpeza personalizada. Raízes, perfis, Documentos, Desktop, AppData, Windows e Arquivos de Programas são sempre recusados pelo gestor.'),cu,
+  h('p',{class:'mut',style:'margin-top:12px'},'Estas listas são as mesmas usadas pelo Pente-Fino do gestor instalado no Windows.')),
+  h('div',{class:'cc-foot'},h('button',{class:'cc-pill blue',disabled:busy,onclick:async()=>{try{const r=await call('settings-save',{exclusions:lines(ex),custom_folders:lines(cu)});settings=r.settings;status('Configurações salvas');render()}catch(e){status(e.message,true)}}},'Salvar')))};

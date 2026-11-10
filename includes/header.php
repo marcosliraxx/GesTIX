@@ -153,8 +153,8 @@ if ($arcFlashText !== ''): ?>
             $arcNetworkSelectorStmt->execute([(int)arc_user_id(),(int)arc_user_id(),(int)arc_user_id()]);
         }
         $arcHeaderNetworks = $arcNetworkSelectorStmt->fetchAll(PDO::FETCH_ASSOC);
-        /* Mesmo critério de presença do painel: gestor aprovado visto nos últimos 12 segundos. */
-        $arcStatusSql = 'SELECT n.id, COUNT(a.id) AS gestor_total, COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL 12 SECOND) THEN 1 ELSE 0 END),0) AS gestor_online '
+        /* Mesmo critério de presença do painel: gestor aprovado dentro do prazo definido em Admin/Configurações. */
+        $arcStatusSql = 'SELECT n.id, COUNT(a.id) AS gestor_total, COALESCE(SUM(CASE WHEN a.last_seen_at >= DATE_SUB(NOW(),INTERVAL '.arc_inventory_presence_seconds().' SECOND) THEN 1 ELSE 0 END),0) AS gestor_online '
             .'FROM '.arc_table('managed_networks').' n LEFT JOIN '.arc_table('network_gestores').' a ON a.network_id=n.id AND a.account_id=n.account_id AND a.status=\'approved\' '
             .'WHERE n.id IN ('.implode(',', array_fill(0,count($arcHeaderNetworks),'?')).') GROUP BY n.id';
         if ($arcHeaderNetworks) {
@@ -316,7 +316,7 @@ if ($arcFlashText !== ''): ?>
   <div class="arc-redes-header-left">
    <?php
     $arcGestorOnline=false;
-    foreach($networkGestores as $a){if((int)$a['id']===$selectedGestorId){$arcGestorOnline=($a['status']??'')==='approved' && !empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-12;break;}}
+    foreach($networkGestores as $a){if((int)$a['id']===$selectedGestorId){$arcGestorOnline=($a['status']??'')==='approved' && !empty($a['last_seen_at']) && strtotime((string)$a['last_seen_at'])>=time()-arc_inventory_presence_seconds();break;}}
    ?>
    <div class="arc-gestor-selector-group arc-gestor-status-only">
     <select id="arc-gestor-target" name="gestor" class="arc-gestor-target-hidden" aria-hidden="true" tabindex="-1">
@@ -325,7 +325,7 @@ if ($arcFlashText !== ''): ?>
       <option value="<?= (int)$a['id'] ?>" data-headless="<?= (int)($a['headless_mode']??0)===1?'1':'0' ?>" <?= $selectedGestorId===(int)$a['id']?'selected':'' ?>><?= arc_h((string)($a['machine_name']??'Gestor')) ?></option>
      <?php endforeach; ?>
     </select>
-    <button type="button" class="arc-net-status-badge arc-gestor-window-button arc-header-update-icon" id="arc-header-gestor-update" data-gestor-state="<?= $selectedGestorId ? ($arcGestorOnline?'online':'offline') : 'none' ?>" data-update-available="0" title="<?= $selectedGestorId ? ($arcGestorOnline ? 'Gestor conectado — instalar ou atualizar' : 'Gestor sem conexão — instalar ou atualizar') : 'Gestor não instalado — instalar' ?>" aria-label="Gestor do computador: instalar ou atualizar" aria-haspopup="dialog" aria-controls="arc-gestor-update-confirm"><i class="fa fa-toggle-on arc-gw-on" aria-hidden="true"></i><i class="fa fa-toggle-off arc-gw-off" aria-hidden="true"></i></button>
+    <button type="button" class="arc-net-status-badge arc-gestor-window-button arc-header-update-icon" id="arc-header-gestor-update" data-gestor-state="<?= $selectedGestorId ? ($arcGestorOnline?'online':'offline') : 'none' ?>" data-update-available="0" title="<?= $selectedGestorId ? ($arcGestorOnline ? 'Gestor conectado — instalar ou atualizar' : 'Gestor sem conexão — instalar ou atualizar') : 'Gestor não instalado — instalar' ?>" aria-label="Gestor do computador: instalar ou atualizar" aria-haspopup="dialog" aria-controls="arc-gestor-update-confirm"><i class="fa fa-power-off" aria-hidden="true"></i></button>
    </div>
   </div>
 

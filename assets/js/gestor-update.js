@@ -16,13 +16,14 @@
     csrf: String(dialog.dataset.csrf || ''),
     canManage: dialog.dataset.canManage === '1'
   };
-  var POLL_MS = 60000;
+  var pollMs = 3000, pollTimer = null, presence = {server:0, received:0, timeout:45, valid:false};
   var state = { loaded: false, gestor: null, published: '', loading: null };
   var sending = false, notice = '';
   var el = {
     version: dialog.querySelector('[data-update-modal-version]'),
     status: dialog.querySelector('[data-update-status]'),
     cancel: dialog.querySelector('[data-update-cancel]'),
+    reinstall: dialog.querySelector('[data-update-reinstall]'),
     update: dialog.querySelector('[data-update-confirm]')
   };
 
@@ -52,6 +53,17 @@
     }).finally(function () { if (timer) clearTimeout(timer); });
   }
 
+  function paintPresence() {
+    var selected=gestorId()>0, g=state.gestor;
+    var elapsed=Math.max(0,(performance.now()-presence.received)/1000);
+    var fresh=g&&g.approved&&Number(g.last_seen_unix)>0&&presence.server+elapsed-Number(g.last_seen_unix)<presence.timeout;
+    if(g)g.online=presence.valid&&!!fresh;
+    var current=!selected?'none':!presence.valid?'unknown':fresh?'online':'offline';
+    if(header){header.dataset.gestorState=current;header.title=({none:'Nenhum gestor instalado',unknown:'Comunicação com a plataforma não confirmada',online:'Gestor conectado',offline:'Gestor sem comunicação'})[current]+' — baixar, atualizar ou reinstalar';header.setAttribute('aria-label',header.title);}
+    document.dispatchEvent(new CustomEvent('arc:gestor-presence',{detail:{state:current,gestor_id:gestorId(),timeout_seconds:presence.timeout}}));
+    render();
+  }
+  function scheduleRefresh(){clearTimeout(pollTimer);pollTimer=setTimeout(function(){if(document.hidden){scheduleRefresh();return;}refresh();},pollMs);}
   function outdated() { return !!(state.gestor && state.gestor.outdated); }
   function noticeId() { return 'gestor-update-' + gestorId() + '-' + state.published; }
 
@@ -109,8 +121,9 @@
     if (el.version) el.version.textContent = state.published ? 'Versão publicada: ' + state.published : '';
     var text = notice;
     if (el.status) { el.status.textContent = text; el.status.hidden = !text; }
+    if(el.reinstall)el.reinstall.disabled=!cfg.canManage||!selected||sending||!state.gestor?.online;
     if (el.update) {
-      el.update.disabled = !cfg.canManage || !selected || sending;
+      el.update.disabled = !cfg.canManage || !selected || sending || !state.gestor?.online || !!state.gestor?.requires_reinstall;
       el.update.title = !cfg.canManage ? 'Disponível apenas para administradores' : !selected ? 'Nenhum gestor instalado neste computador' : 'Atualizar o gestor remotamente';
     }
   }
@@ -120,14 +133,16 @@
     if (state.loading) return state.loading;
     state.loading = request(cfg.base + 'api/api.php?action=network-gestor-versions&network_id=' + cfg.network, {}, 15000).then(function (r) {
       state.loaded = true;
+      presence={server:Number(r.server_time)||0,received:performance.now(),timeout:Number(r.presence_timeout_seconds)||45,valid:true};
+      pollMs=Math.max(1000,Number(r.presence_poll_seconds||3)*1000);
       cfg.canManage = r.can_update === true;
       state.published = String(r.published_version || '');
       var id = gestorId();
       state.gestor = (r.gestores || []).find(function (a) { return Number(a.id) === id; }) || null;
     }).catch(function () {
-      state.loaded = true; state.gestor = null;
+      state.loaded = true; presence.valid=false;
     }).then(function () {
-      state.loading = null; paintOutside(); render();
+      state.loading = null; paintPresence(); paintOutside(); render(); scheduleRefresh();
     });
     return state.loading;
   }
@@ -141,7 +156,9 @@
   function setStatus(text) { notice = text; render(); }
 
   /* Atualização remota: o servidor valida permissão, gestor online e versão. */
-  function queue() {
+  function queue(force) {
+    force=force===true;
+    if(force&&!window.confirm('Reinstalar os arquivos do gestor selecionado? As configurações e a identidade serão preservadas.'))return Promise.resolve(false);
     if (sending) return Promise.resolve(false);
     var id = gestorId();
     if (!id) { setStatus('Nenhum gestor instalado neste computador. Use Instalar.'); if (!dialog.open) open(); return Promise.resolve(false); }
@@ -149,10 +166,10 @@
     return request(cfg.base + 'api/api.php?action=network-command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': cfg.csrf },
-      body: JSON.stringify({ network_id: cfg.network, gestor_id: id, command: 'gestor_update', force_update: false, _csrf: cfg.csrf })
+      body: JSON.stringify({ network_id: cfg.network, gestor_id: id, command: 'gestor_update', force_update: force, _csrf: cfg.csrf })
     }, 25000).then(function (data) {
       var commandId = Number(data.command_id || 0);
-      document.dispatchEvent(new CustomEvent('arc:gestor-update-queued', { detail: { command_id: commandId, gestor_id: id, mode: 'normal' } }));
+      document.dispatchEvent(new CustomEvent('arc:gestor-update-queued', { detail: { command_id: commandId, gestor_id: id, mode: force?'force':'normal' } }));
       document.dispatchEvent(new CustomEvent('arc:command-queued', { detail: { command: 'gestor_update', command_id: commandId, gestor_id: id } }));
       sending = false;
       if (dialog.open) close();
@@ -163,7 +180,7 @@
       var message = 'Não foi possível solicitar a atualização: ' + e.message;
       if (e.code === 'gestor_reinstall_required') message = 'A versão do gestor não foi identificada. Reinstale pelo botão Instalar.';
       setStatus(message); paintNotification();
-      if (!dialog.open) open();
+      if (!dialog.open&&typeof dialog.showModal==='function')dialog.showModal();render();
       return false;
     });
   }
@@ -171,6 +188,7 @@
   /* Ouvintes únicos. */
   if (header) header.addEventListener('click', function (e) { e.preventDefault(); open(); });
   if (el.cancel) el.cancel.addEventListener('click', function (e) { e.preventDefault(); close(); });
+  if(el.reinstall)el.reinstall.addEventListener('click',function(e){e.preventDefault();queue(true);});
   if (el.update) el.update.addEventListener('click', function (e) { e.preventDefault(); queue(); });
   dialog.addEventListener('click', function (e) { if (e.target === dialog) close(); });
   var installLink = dialog.querySelector('[data-update-install]');
@@ -189,5 +207,8 @@
 
   window.arcGestorUpdate = { open: open, refresh: refresh, queue: queue };
   refresh();
-  setInterval(function () { if (!document.hidden && !sending) refresh(); }, POLL_MS);
+  setInterval(paintPresence,1000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden){paintPresence();refresh();}});
+  window.addEventListener('online',refresh);
+  window.addEventListener('offline',function(){presence.valid=false;paintPresence();});
 })();

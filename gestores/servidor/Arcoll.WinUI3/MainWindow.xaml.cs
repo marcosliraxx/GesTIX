@@ -50,8 +50,9 @@ public sealed partial class MainWindow : Window
     private sealed record MenuGroup(string Key, string Label, Symbol Icon, MenuItem[] Items);
     private static readonly MenuGroup[] Groups = {
         new("home", "Início", Symbol.Home, new[] { new MenuItem("panel", "Painel", Symbol.AllApps) }),
-        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("health", "Pente-Fino", Symbol.Filter), new MenuItem("registry", "Registro", Symbol.Repair), new MenuItem("startup", "Inicialização", Symbol.Play), new MenuItem("performance", "Desempenho", Symbol.View, 1), new MenuItem("restore", "Restauração", Symbol.Undo, 1), new MenuItem("security", "Segurança", Symbol.Important, 1) }),
-        new("software", "Aplicativos", Symbol.Library, new[] { new MenuItem("programs", "Programas", Symbol.Library), new MenuItem("uninstall", "Desinstalar", Symbol.Remove), new MenuItem("updater", "Atualizações", Symbol.Refresh, 1), new MenuItem("drivers", "Drivers", Symbol.AllApps, 1), new MenuItem("windows_update", "Windows Update", Symbol.Download, 1) }),
+        new("maintenance", "Manutenção", Symbol.Repair, new[] { new MenuItem("server", "Servidor", Symbol.Setting), new MenuItem("security", "Segurança", Symbol.Important) }),
+        new("pentefino", "Pente-Fino", Symbol.Filter, new[] { new MenuItem("health", "Análise geral", Symbol.Filter), new MenuItem("registry", "Registros", Symbol.Repair), new MenuItem("startup", "Inicializar", Symbol.Play), new MenuItem("performance", "Desempenho", Symbol.View), new MenuItem("restore", "Restauração", Symbol.Undo), new MenuItem("uninstall", "Desinstalar", Symbol.Remove,1), new MenuItem("updater", "Atualização", Symbol.Refresh,1), new MenuItem("drivers", "Drivers", Symbol.AllApps,1), new MenuItem("windows_update", "Windows Update", Symbol.Download,1), new MenuItem("disk", "Discos", Symbol.Folder,2), new MenuItem("duplicates", "Duplicidades", Symbol.Copy,2), new MenuItem("cloud", "Sincronizados", Symbol.World,2), new MenuItem("options", "Configurações", Symbol.Setting,2) }),
+        new("software", "Aplicativos", Symbol.Library, new[] { new MenuItem("programs", "Programas", Symbol.Library) }),
         new("backup_center", "Backup", Symbol.Save, new[] { new MenuItem("backup", "Visão geral", Symbol.Home), new MenuItem("backup_cloud", "Nuvem", Symbol.World), new MenuItem("backup_local", "Local / NAS", Symbol.Folder), new MenuItem("backup_restore", "Restauração", Symbol.Undo, 1), new MenuItem("backup_history", "Atividade", Symbol.Clock, 1), new MenuItem("backup_settings", "Destinos", Symbol.Setting, 1), new MenuItem("backup_drive", "Disco virtual", Symbol.Save, 1) }),
         new("network", "Rede", Symbol.World, new[] { new MenuItem("speed", "Internet", Symbol.World), new MenuItem("devices", "Dispositivos", Symbol.AllApps), new MenuItem("map", "Mapa", Symbol.Map), new MenuItem("files", "Arquivos", Symbol.Folder, 1) }),
         new("helpdesk", "Helpdesk", Symbol.Help, new[] { new MenuItem("updates", "Atualizações", Symbol.Refresh), new MenuItem("remote", "Acesso remoto", Symbol.View), new MenuItem("support", "Suporte", Symbol.Help), new MenuItem("tickets", "Chamados", Symbol.Message), new MenuItem("agenda", "Agenda", Symbol.Calendar, 1), new MenuItem("history", "Histórico", Symbol.Clock, 1) })
@@ -96,7 +97,7 @@ public sealed partial class MainWindow : Window
         var lastBand = group.Items.Max(i => i.Band);
         var own = group.Items.Where(i => GroupKeyOf(i.Key) == group.Key);
         var incoming = Groups.Where(g => g.Key != group.Key).SelectMany(g => g.Items).Where(i => GroupKeyOf(i.Key) == group.Key).Select(i => i with { Band = lastBand });
-        return own.Concat(incoming).Where(i=>!PenteFinoPage.IntegratedKeys.Contains(i.Key));
+        return own.Concat(incoming);
     }
     // Categoria some quando todos os seus submenus estão favoritados (volta ao desfavoritar algum). Início nunca some.
     private void UpdateCategoryVisibility()
@@ -209,8 +210,6 @@ public sealed partial class MainWindow : Window
         _tools.Add("updater", new SoftwareUpdatesPage(_runtime, ConfirmAsync)); _tools.Add("drivers", new DriversPage(_runtime, ConfirmAsync));
         _tools.Add("disk", new DiskPage(_runtime, ConfirmAsync)); _tools.Add("duplicates", new DuplicatesPage(_runtime, ConfirmAsync));
         _tools.Add("cloud", new CloudCleanupPage(_runtime, ConfirmAsync));
-        _penteFinoPage.ConfigureTools(key=>key=="windows_update"?_windowsUpdatePage:_tools[key]);
-        _penteFinoPage.ToolChanged+=()=>{if(_section=="health"){ApplyTheme(_themes.Current);CompactScheduleContent();FinishPageLoading();}};
         _supportPage = new(_runtime, ShowRemoteCodeAsync, () => SelectSection("tickets")); _ticketsPage = new(_runtime);
         _agendaPage = new(_runtime); _remoteAccessPage = new(_runtime, ShowRemoteCodeAsync);
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "system.ico");
@@ -447,7 +446,6 @@ public sealed partial class MainWindow : Window
     }
     private void SelectSectionCore(string section)
     {
-        if(PenteFinoPage.IntegratedKeys.Contains(section)){var target=section;SelectSectionCore("health");_penteFinoPage.OpenTool(target);return;}
         if(section=="monitor")section="server";
         if(section is "updates" or "history"){ShowGestorUpdateArea(section=="history"?"history":"update");return;}
         if (!Groups.Any(g => g.Items.Any(i => i.Key == section))) section = "panel";

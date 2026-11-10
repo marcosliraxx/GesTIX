@@ -89,6 +89,15 @@ public static class FileBrowserService
         return report;
     }
 
+    public static string ResolveFile(string input)
+    {
+        if (input.Length > 1024 || input.Any(char.IsControl) || !DrivePath.IsMatch(input) || input.IndexOf(':',2)>=0) throw new ArgumentException("Caminho inválido.");
+        var path=Path.GetFullPath(input);var parent=Path.GetDirectoryName(path)??throw new ArgumentException("Pasta inválida.");
+        ResolveDirectory(parent,false);var file=new FileInfo(path);
+        if(!file.Exists||IsSecret(file.Name)||(file.Attributes&FileAttributes.ReparsePoint)!=0)throw new UnauthorizedAccessException("Arquivo protegido, redirecionado ou indisponível.");
+        return file.FullName;
+    }
+
     private static DirectoryInfo ResolveDirectory(string input, bool foldersOnly)
     {
         if (input.Length > 1024 || input.Any(c => char.IsControl(c)) || !DrivePath.IsMatch(input) || input.IndexOf(':', 2) >= 0)

@@ -14,7 +14,7 @@ $approved=array_values(array_filter($networkGestores,static fn(array $g):bool=>(
 <style>
 .arc-files-standalone{background:#18283b;color:#eaf3ff;min-height:0;flex:1 1 auto;display:flex;flex-direction:column;padding:0;gap:0}.arc-files-standalone .arc-files-workspace{flex:1;min-height:0;display:flex;flex-direction:column}.arc-files-standalone .arc-fs-entries{overflow:auto;flex:1;min-height:100px}.arc-files-standalone .arc-explorer-menu,.arc-files-standalone .arc-explorer-preview{color:#eaf3ff;background:#192e46;border:1px solid #45617b;border-radius:10px;max-width:min(650px,95vw);max-height:82vh;overflow:auto}.arc-files-standalone [hidden]{display:none!important}
 </style>
-<div class="arc-files-standalone"><input type="hidden" id="arc-gestor-target" value="<?=(int)$selectedGestorId?>">
+<div class="arc-files-standalone">
 <section class="arc-files-workspace" id="file-transfer" aria-label="Arquivos do computador">
   <header class="arc-files-header">
     <nav class="arc-files-address" id="arc-files-address" aria-label="Endereço do explorador">
@@ -136,12 +136,14 @@ async function fsOpen(path=''){
  }catch(e){fsRows=[];fsLoadState='error';renderEntries();fsState.textContent=e.message;}finally{fsNavigatingHistory=false;fsBusy=false;if(fsPendingRoot){fsPendingRoot=false;fsOpen('');}}
 }
 async function fileApi(action,options={}){return json(base+'api/support.php?action='+action,{headers:{'X-CSRF-Token':csrf},...options});}
-const thumbnailCache=new Map(),thumbnailSlots=new Map(),thumbnailTypes=new Set(['png','jpg','jpeg','webp','gif','bmp']);let thumbnailJob=null,thumbnailTimer=null,thumbnailUnsupported=false;
+const thumbnailVersions=new Map(),thumbnailCache=new Map(),thumbnailSlots=new Map(),thumbnailTypes=new Set(['png','jpg','jpeg','webp','gif','bmp','tif','tiff','heic','mp4','webm','avi','mov','mkv','wmv','pdf','doc','docx','ppt','pptx','xls','xlsx','odt','ods','odp']);let thumbnailJob=null,thumbnailTimer=null,thumbnailUnsupported=false;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function showThumbnail(icon,url,name){if(!icon?.isConnected)return;const el=document.createElement('img');el.className='arc-fs-thumb';el.alt=name;el.src=url;icon.replaceWith(el);}
 function scheduleThumbnail(item,icon){
  if(item.directory||item.drive||!fsCanTransfer||thumbnailUnsupported||!thumbnailTypes.has(extOf(item.name)))return;
- const key=fsGestorId()+':'+item.path,cached=thumbnailCache.get(key);
+ const key=fsGestorId()+':'+item.path,version=String(item.size)+':'+String(item.modified);
+ if(thumbnailVersions.get(key)!==version){const old=thumbnailCache.get(key);if(old)URL.revokeObjectURL(old);thumbnailCache.delete(key);thumbnailVersions.set(key,version);}
+ const cached=thumbnailCache.get(key);
  if(cached){showThumbnail(icon,cached,item.name);return;}
  thumbnailSlots.set(key,{icon,name:item.name});
  if(cached===undefined){clearTimeout(thumbnailTimer);thumbnailTimer=setTimeout(loadThumbnails,200);}
@@ -158,13 +160,15 @@ async function loadThumbnails(){
  try{
   const form=new FormData();form.set('network',network);form.set('gestor',gestor);form.set('operation','thumbnails');form.set('paths',JSON.stringify(wanted.map(key=>key.slice(prefix))));form.set('confirmed','1');
   job.requested=fileApi('file-operation-request',{method:'POST',body:form});job.id=(await job.requested).id;
-  const row=await waitTransfer(job.id,['ready'],job.controller.signal,45000);
+  const row=await waitTransfer(job.id,['ready'],job.controller.signal,120000);
   const response=await fetch(base+'api/support.php?action=file-download&id='+row.id,{credentials:'same-origin',cache:'no-store',signal:job.controller.signal});
   if(!response.ok)throw Error('Miniaturas indisponíveis.');
   const bytes=new Uint8Array(await response.arrayBuffer());
   if(bytes.length<8||String.fromCharCode(...bytes.subarray(0,4))!=='ARCT')throw Error('Miniaturas inválidas.');
-  const size=new DataView(bytes.buffer).getUint32(4),entries=JSON.parse(new TextDecoder().decode(bytes.subarray(8,8+size)));let offset=8+size;
+  const size=new DataView(bytes.buffer).getUint32(4);if(size>bytes.length-8||size>65536)throw Error('Cabeçalho de miniaturas inválido.');const entries=JSON.parse(new TextDecoder().decode(bytes.subarray(8,8+size)));let offset=8+size;
+  if(!Array.isArray(entries)||entries.length>24)throw Error('Miniaturas inválidas.');
   for(const entry of entries){
+   if(!Number.isInteger(entry.size)||entry.size<1||entry.size>262144||offset+entry.size>bytes.length||!wanted.includes(gestor+':'+entry.path))throw Error('Conteúdo de miniaturas inválido.');
    const part=bytes.slice(offset,offset+entry.size);offset+=entry.size;
    if(!/^image\/(jpeg|png|webp|gif|bmp)$/.test(entry.type))continue;
    const key=gestor+':'+entry.path,url=URL.createObjectURL(new Blob([part],{type:entry.type}));thumbnailCache.set(key,url);
@@ -181,7 +185,7 @@ async function loadThumbnails(){
 /* Libera o computador antes de qualquer pedido do usuário. */
 async function abortThumbnails(){const job=thumbnailJob;if(!job)return;thumbnailJob=null;job.controller.abort();const result=await job.requested?.catch(()=>null);await cancelTransfer(result?.id||job.id,job.gestor);}
 window.addEventListener('pagehide',()=>{for(const url of thumbnailCache.values())if(url)URL.revokeObjectURL(url);});
-let activeTransfer=null;const transferDock=document.getElementById('arc-transfer-dock'),transferProgress=document.getElementById('arc-transfer-progress'),transferDetail=document.getElementById('arc-transfer-detail');document.body.append(transferDock);function transferStart(title){transferDock.hidden=false;document.getElementById('arc-transfer-title').textContent=title;transferProgress.removeAttribute('value');transferDetail.textContent='Iniciando…';}function transferUpdate(loaded,total,started,initialLoaded=0){if(total>0){transferProgress.value=Math.min(100,loaded/total*100);const speed=(Math.max(0,loaded-initialLoaded)/Math.max(.25,(Date.now()-started)/1000));const remaining=speed>0?(total-loaded)/speed:0;transferDetail.textContent=Math.round(loaded/total*100)+'% · '+formatBytes(loaded)+' de '+formatBytes(total)+' · '+(speed<=0?'calculando tempo…':remaining<1?'quase concluído':Math.ceil(remaining)+' s restantes');}else transferDetail.textContent=formatBytes(loaded)+' enviados';}function transferFinish(message=''){if(message)transferDetail.textContent=message;setTimeout(()=>{if(!activeTransfer)transferDock.hidden=true;},2500);}document.getElementById('arc-transfer-cancel').addEventListener('click',()=>{if(activeTransfer){activeTransfer.abort();activeTransfer=null;fileBusy=false;transferFinish('Transferência cancelada.');fileMessage.textContent='Transferência cancelada.';}});const uploadUser=<?=json_encode($uid)?>;
+let activeTransfer=null;const transferDock=document.getElementById('arc-transfer-dock'),transferProgress=document.getElementById('arc-transfer-progress'),transferDetail=document.getElementById('arc-transfer-detail');document.body.append(transferDock);function transferStart(title){transferDock.hidden=false;document.getElementById('arc-transfer-title').textContent=title;transferProgress.removeAttribute('value');transferDetail.textContent='Iniciando…';}function transferUpdate(loaded,total,started,initialLoaded=0){if(total>0){transferProgress.value=Math.min(100,loaded/total*100);const speed=(Math.max(0,loaded-initialLoaded)/Math.max(.25,(Date.now()-started)/1000));const remaining=speed>0?(total-loaded)/speed:0;transferDetail.textContent=Math.round(loaded/total*100)+'% · '+formatBytes(loaded)+' de '+formatBytes(total)+' · '+(speed<=0?'calculando tempo…':remaining<1?'quase concluído':Math.ceil(remaining)+' s restantes');}else transferDetail.textContent=formatBytes(loaded)+' enviados';}function transferFinish(message=''){if(message)transferDetail.textContent=message;setTimeout(()=>{if(!activeTransfer)transferDock.hidden=true;},2500);}document.getElementById('arc-transfer-cancel').addEventListener('click',()=>{if(activeTransfer){activeTransfer.abort();activeTransfer=null;fileBusy=false;transferFinish('Transferência cancelada.');fileMessage.textContent='Transferência cancelada.';}});const uploadUser=<?=json_encode((int)arc_user_id())?>;
 window.ArcDirectUpload?.purgeLegacyQueue();
 /* Envio direto: sai do navegador na hora, grava no computador e a lista é atualizada ao terminar. */
 async function sendFiles(files,folder=false){

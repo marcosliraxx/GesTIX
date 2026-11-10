@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../includes/error-logging.php';
 require_once __DIR__ . '/../includes/menu-favorites.php';
+require_once __DIR__.'/../includes/pentefino-modules.php';
 $arcNetworkLinks = arc_navigation_items($pdo, 'header', (int)$networkId);
 $arcAllowedMenu = in_array(($teamRole ?? ''), ['owner', 'system_admin'], true)
     ? null : arc_network_profile_rights($pdo, (int)$networkId, (int)arc_user_id());
@@ -12,6 +13,7 @@ $arcAllowedMenu = in_array(($teamRole ?? ''), ['owner', 'system_admin'], true)
 // (Segoe MDL2 -> Font Awesome) e faixas. Rotas e permissões continuam vindo do menu administrativo.
 $arcWorkspaceGroups = [
     'inicio' => ['label'=>'Início','icon'=>'fa-home'],
+    'pentefino' => ['label'=>'Pente-Fino','icon'=>'fa-filter'],
     'manutencao' => ['label'=>'Manutenção','icon'=>'fa-wrench'],
     'aplicativos' => ['label'=>'Aplicativos','icon'=>'fa-book'],
     'backup' => ['label'=>'Backup','icon'=>'fa-floppy-o'],
@@ -25,7 +27,7 @@ $arcCatalog = [
     'updates'=>['helpdesk','Atualizações','fa-refresh',0,'atualizacoes',''],
     'history'=>['helpdesk','Histórico','fa-history',1,'historico',''],
     'server'=>['manutencao','Servidor','fa-cog',0,'servidor',''],
-    'health'=>['manutencao','Pente-Fino','fa-filter',0,'pentefino','section=health'],
+    
     'programs'=>['aplicativos','Programas','fa-book',0,'programas',''],
     'backup'=>['backup','Visão geral','fa-home',0,'backup','tab=overview'],
     'backup_cloud'=>['backup','Nuvem','fa-globe',0,'backup','tab=cloud'],
@@ -49,14 +51,26 @@ $arcCatalog = [
     'registry_cad'=>['gestao','Cadastros','fa-address-book',1,'cadastros',''],
     'release'=>['gestao','Liberações','fa-unlock-alt',1,'liberacao',''],
 ];
+foreach(arc_pf_modules() as $moduleKey=>$module){
+ $key=$module['native'];$arcCatalog[$key]=['pentefino',$module['label'],$module['icon'],0,$module['file'],''];
+}
 $arcFavoriteKeyMap = [];
 $arcFavAllowed = function_exists('arc_menu_favorites_allowed') ? arc_menu_favorites_allowed() : [];
 $arcAvailable = [];
 foreach ($arcNetworkLinks as $item) {
     $path = (string)parse_url((string)($item['url'] ?? ''), PHP_URL_PATH);
     if (!preg_match('~^redes/([a-z0-9_-]+)\.php$~iD', $path, $m)) continue;
-    if ($arcAllowedMenu !== null && !in_array($m[1], $arcAllowedMenu, true)) continue;
+    if ($arcAllowedMenu !== null && !in_array(str_starts_with($m[1],'pentefino-')?'pentefino':$m[1], $arcAllowedMenu, true)) continue;
     $arcAvailable[$m[1]] = true;
+}
+// Módulos herdam a visibilidade do Pente-Fino enquanto não houver configuração própria no menu administrativo.
+// Uma configuração explícita de módulo conserva seu perfil, grupo e estado habilitado/desabilitado.
+$arcPfConfigured=[];
+$arcPfMenuRows=$pdo->query('SELECT target_url FROM '.arc_table('navigation_items')." WHERE context='network' AND placement='header'")->fetchAll(PDO::FETCH_COLUMN);
+foreach($arcPfMenuRows as $url){$path=(string)parse_url((string)$url,PHP_URL_PATH);$arcPfConfigured[basename($path,'.php')]=true;}
+foreach(arc_pf_modules() as $moduleKey=>$module){
+ if(!isset($arcPfConfigured[$module['file']])&&!empty($arcAvailable['pentefino']))$arcAvailable[$module['file']]=true;
+ if($moduleKey==='uninstall'&&$arcAllowedMenu!==null&&!in_array('programas',$arcAllowedMenu,true))unset($arcAvailable[$module['file']]);
 }
 // As duas faces da central compartilham o acesso já concedido a Servidor.
 // A permissão é novamente validada na própria rota ao abrir a página.
@@ -93,7 +107,7 @@ foreach ($arcGroupedLinks as $groupKey => $entries) {
 $arcCurrentSection = (string)($arcSectionFile ?? '');
 $arcSectionToKey = ['painel'=>'panel','servidor'=>'server','programas'=>'programs','velocidade'=>'speed','dispositivos'=>'devices','mapa'=>'map','arquivos'=>'files','suporte'=>'support','chamados'=>'tickets','remoto'=>'remote','atualizacoes'=>'updates','historico'=>'history','usuarios'=>'users','permissoes'=>'permissions','preferencias'=>'preferences','relatorios'=>'reports','cadastros'=>'registry_cad','liberacao'=>'release','agenda'=>'agenda'];
 if ($arcCurrentSection === 'pentefino') {
-    $arcCurrentSection = 'health'; // Rota legada continua acessível; menu Configurações foi incorporado às ferramentas.
+    $arcCurrentSection = isset($arcPfModule) ? (arc_pf_modules()[$arcPfModule]['native']??'health') : 'health'; // Rota legada continua acessível; menu Configurações foi incorporado às ferramentas.
 } elseif ($arcCurrentSection === 'backup') {
     $arcBackupTabs = ['cloud'=>'backup_cloud','local'=>'backup_local','restore'=>'backup_restore','history'=>'backup_history','settings'=>'backup_settings','drive'=>'backup_drive'];
     $arcCurrentSection = $arcBackupTabs[(string)($_GET['tab'] ?? 'overview')] ?? 'backup';

@@ -52,6 +52,7 @@ function arc_gestor_release_sources(?string $directory=null): array
 {
     $directory=$directory??dirname(__DIR__).'/gestores/windows';
     $required=['arcoll_logsync.py','arcoll_release.py','arcoll_gestor.py','arcoll_app.py','arcoll_programs.py','arcoll_pentefino.py','arcoll_cc_ui.py','arcoll_cloud.py','arcoll_vdrive.py','arcoll_toolkit.py','rt_engine.py','connection_diagnostics.py','arcoll_updater.py','arcoll_remote.py','arcoll_secure_helper.py','Instalar_Arcoll.ps1','Preparar_Instalacao.ps1','Desinstalar_Arcoll.ps1'];
+    $required=array_merge($required,['arcoll_files.py','arcoll_file_thumbnails.py'],array_map(static fn(string $name):string=>'arcoll_pf_'.$name.'.py',['registry','startup','disk','duplicates','restore','updater','health','performance','drivers','cloud']));
     $retired=['Instalar_Arcoll.py','arcoll_session.py','arcoll_clean.py'];$files=[];
     $paths=glob($directory.'/*');
     if($paths===false)throw new RuntimeException('Inventário do gestor indisponível.');

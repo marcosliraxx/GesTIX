@@ -1,6 +1,6 @@
 <?php
 /* Caminho: redes/_gestor_update_dialog.php
- * Modal do Gestor Windows: somente Instalar e Atualizar (o aviso de nova versão chega pelo sino de notificações).
+ * Modal do Gestor Windows: Baixar, Atualizar e Reinstalar (o aviso de nova versão chega pelo sino de notificações).
  * Incluído por _rodape.php e também pelas páginas de rede que usam o cabeçalho sem o rodapé
  * (liberacao.php, relatorios.php): antes, nelas o botão do cabeçalho não abria nada.
  * Exige $networkId. Usa $teamRole e $csrf quando existirem. */
@@ -22,11 +22,12 @@ $arcUpdJs = dirname(__DIR__) . '/assets/js/gestor-update.js';
  <p data-update-status class="arc-update-state" role="status" hidden></p>
  <div class="arc-gestor-update-actions arc-service-actions" role="group" aria-label="Instalação e atualização do gestor">
  <?php if ($arcUpdRole === 'owner'): ?>
- <a class="button secondary" data-update-install rel="noopener" href="<?= arc_h($arcUpdBase . 'api/download-gestor.php?network=' . (int)$networkId) ?>" title="Baixar o instalador Windows para executar no computador de destino"><i class="fa fa-download" aria-hidden="true"></i> Instalar</a>
+ <a class="button secondary" data-update-install rel="noopener" href="<?= arc_h($arcUpdBase . 'api/download-gestor.php?network=' . (int)$networkId) ?>" title="Baixar o instalador Windows para executar no computador de destino"><i class="fa fa-download" aria-hidden="true"></i> Baixar gestor</a>
  <?php else: ?>
- <button type="button" class="button secondary" disabled title="Somente o proprietário da rede pode gerar instaladores"><i class="fa fa-download" aria-hidden="true"></i> Instalar</button>
+ <button type="button" class="button secondary" disabled title="Somente o proprietário da rede pode gerar instaladores"><i class="fa fa-download" aria-hidden="true"></i> Baixar gestor</button>
  <?php endif; ?>
- <button type="button" class="button" data-update-confirm><i class="fa fa-refresh" aria-hidden="true"></i> Atualizar</button>
+ <button type="button" class="button" data-update-confirm><i class="fa fa-refresh" aria-hidden="true"></i> Atualizar gestor</button>
+ <button type="button" class="button secondary" data-update-reinstall><i class="fa fa-repeat" aria-hidden="true"></i> Reinstalar gestor</button>
  </div>
 </div></dialog>
 <script src="<?= arc_h($arcUpdBase) ?>assets/js/gestor-update.js?v=<?= (int)@filemtime($arcUpdJs) ?>" defer></script>

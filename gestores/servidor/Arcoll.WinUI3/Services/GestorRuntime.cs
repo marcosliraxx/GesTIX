@@ -12,11 +12,11 @@ namespace Arcoll.WinUI3.Services;
 /// </summary>
 public sealed class GestorRuntime : IDisposable
 {
-    /// <summary>Comandos implementados diretamente no gestor WinUI 3/C#, sem recorrer ao núcleo Python.</summary>
+    /// <summary>Comandos suportados pelo gestor nativo; manutenção e arquivos reutilizam o worker validado.</summary>
     private static readonly HashSet<string> Native = new() { "monitor_start", "monitor_pause", "remote_assistance", "scan_devices", "scan_map", "speed_test", "program_inventory", "program_install", "pentefino_scan", "pentefino_execute", "pentefino_tool",
         "power_shutdown", "power_restart", "power_cancel", "screen_lock", "terminal_diagnostic", "windows_update",
         "diagnostic", "gestor_update", "gestor_update_check", "support_code_prompt", "toolkit", "toolkit_traceroute", "toolkit_services", "toolkit_health", "toolkit_troubleshooter",
-        "storage_health", "service_health", "restart_readiness", "file_browser", "cloud_folders", "quick_health", "dns_test", "public_ip", "system_snapshot", "flush_dns", "wifi_info" };
+        "storage_health", "service_health", "restart_readiness", "file_browser", "file_operation", "file_bundle", "file_execute", "file_transfer", "cloud_folders", "quick_health", "dns_test", "public_ip", "system_snapshot", "flush_dns", "wifi_info" };
 
     private readonly PlatformClient _platform = new(GestorConfig.Load());
     private readonly AuthorizationService _auth;
@@ -204,10 +204,15 @@ public sealed class GestorRuntime : IDisposable
             "scan_devices" => "devices",
             "scan_map" => "map",
             "pentefino_scan" or "pentefino_execute" or "pentefino_tool" => "health",
-            "file_browser" or "cloud_folders" => "files",
+            "file_browser" or "cloud_folders" or "file_operation" or "file_bundle" or "file_execute" or "file_transfer" => "files",
             "windows_update" => "windows_update",
             _ => null
         };
+        if(name=="pentefino_tool")
+        {
+            try{using var input=JsonDocument.Parse(Str(cmd,"request_text"));var tool=Str(input.RootElement,"tool");if(tool is "registry" or "startup" or "performance" or "restore" or "updater" or "drivers" or "disk" or "duplicates" or "cloud")targetTool=tool;}
+            catch(JsonException){ /* A validação do comando devolve o erro ao solicitante. */ }
+        }
         if (_remoteCommandOpensTool && targetTool is not null && Native.Contains(name)) RemoteToolRequested?.Invoke(targetTool);
         using var operation = name == "gestor_update" ? null : OperationProgress.Begin(OperationProgress.Title(name), "Remoto");
         if (!Native.Contains(name))
@@ -228,6 +233,12 @@ public sealed class GestorRuntime : IDisposable
                 case "program_inventory": await InventoryAsync(id, cmd, ct); break;
                 case "program_install": await InstallProgramsAsync(id, cmd, ct); break;
                 case "pentefino_scan": case "pentefino_execute": case "pentefino_tool": await PenteFinoRemoteAsync(id, name, cmd, ct); break;
+                case "file_operation": case "file_bundle": case "file_execute": case "file_transfer":
+                    var filePayload=Str(cmd,"request_text");
+                    var fileRequest=string.IsNullOrWhiteSpace(filePayload)?JsonSerializer.SerializeToElement(new{}):JsonSerializer.Deserialize<JsonElement>(filePayload);
+                    var fileResult=await PenteFinoEngine.RunAsync("files",new{command_id=id,command=name,request=fileRequest},_platform.Config,null,ct);
+                    await _platform.AckAsync(id,"completed",fileResult.GetProperty("message").GetString()??"Operação de Arquivos concluída.",ct);
+                    break;
                 case "file_browser": case "cloud_folders": await BrowseAsync(id, name, cmd, ct); break;
                 case "power_shutdown": case "power_restart": case "power_cancel": await PowerAsync(id, name, cmd, ct); break;
                 case "screen_lock": await MaintenanceAsync(id, name, cmd, ct); break;

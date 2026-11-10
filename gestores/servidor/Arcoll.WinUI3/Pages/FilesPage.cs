@@ -50,6 +50,21 @@ public sealed class FilesPage : UserControl, IPageDataSource
                     using var doc = JsonDocument.Parse(e.WebMessageAsJson); var root = doc.RootElement;
                     var action = root.TryGetProperty("action", out var a) && a.ValueKind == JsonValueKind.String ? a.GetString() : "";
                     if (action == "ready") { _ready = true; Post(new { type = "machine", name = Environment.MachineName }); await BrowseAsync(_current); return; }
+                    if (action == "thumbnails")
+                    {
+                        if(!_runtime.Allowed)throw new UnauthorizedAccessException("Autorize o gestor na plataforma.");
+                        var requestId=root.TryGetProperty("requestId",out var rid)?rid.GetString()??"":"";
+                        if(!root.TryGetProperty("names",out var names)||names.ValueKind!=JsonValueKind.Array||names.GetArrayLength()>24)return;
+                        var folder=_current;var previews=new List<FileThumbnailService.Preview>();
+                        using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                        foreach(var element in names.EnumerateArray())
+                        {
+                            var name=element.ValueKind==JsonValueKind.String?element.GetString()??"":"";
+                            if(folder.Length==0||!_files.Contains(name)||Path.GetFileName(name)!=name)continue;
+                            try{var preview=await FileThumbnailService.ReadAsync(Path.Combine(folder,name),timeout.Token);if(preview is not null)previews.Add(preview);}catch(OperationCanceledException){break;}catch(Exception ex){RuntimeLog.Write("Miniatura: "+ex.GetType().Name);}
+                        }
+                        Post(new{type="thumbnails",path=folder,requestId,entries=previews});return;
+                    }
                     if (action == "open")
                     {
                         if (!_runtime.Allowed) throw new UnauthorizedAccessException("Autorize o gestor na plataforma.");

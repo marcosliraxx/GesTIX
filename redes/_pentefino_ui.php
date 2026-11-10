@@ -10,7 +10,7 @@ $ccStart = in_array($ccStart ?? 'health', $ccSections, true) ? $ccStart : $ccSec
 $pfConfig = [
     'catalog' => arc_pf_catalog(), 'tabs' => arc_pf_tabs(), 'ages' => arc_pf_age_options(),
     'registry' => arc_pf_registry_checks(), 'health' => arc_pf_health_sets(), 'browsers' => array_values(arc_pf_browsers()),
-    'sections' => array_values($ccSections), 'start' => $ccStart, 'batch' => ARC_PROGRAM_BATCH_MAX,
+    'routes'=>$arcPfRoutes??[], 'sections' => array_values($ccSections), 'start' => $ccStart, 'batch' => ARC_PROGRAM_BATCH_MAX,
 ];
 ?>
 <style>
@@ -188,10 +188,11 @@ $pfConfig = [
 .cc .pf-dl{margin:0 0 12px}.cc .pf-dl>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px}.cc .pf-dl dd{margin:0;font-weight:600}.cc .pf-dl dt{color:var(--mut)}
 .cc .pf-ul{padding-left:17px;font-size:12px;color:var(--mut)}.cc .pf-ul li{margin:6px 0}
 @media(max-width:560px){.cc .pf-set-layout{grid-template-columns:1fr;height:auto}.cc .pf-set-nav{flex-direction:row;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}}
+.cc{grid-template-columns:minmax(0,1fr);height:100%;min-height:450px;max-height:none;border-radius:6px}.cc-side{display:none}.cc-content{min-height:400px}
 </style>
 <section class="cc" id="cc" data-network="<?=(int)$networkId?>" data-gestor="<?=(int)$selectedGestorId?>" data-csrf="<?=arc_h($csrf)?>" data-api="<?=arc_h(arc_workspace_base_url().'api/api.php')?>" data-config="<?=arc_h(json_encode($pfConfig,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT))?>">
  <aside class="cc-side"><button type="button" class="cc-burger" id="cc-burger" aria-label="Recolher ou expandir o menu"><i class="fa fa-bars"></i></button><nav class="cc-nav" id="cc-nav" aria-label="Ferramentas do Pente-Fino"></nav><div class="cc-foot-nav" id="cc-foot-nav"></div><div class="cc-gestor" id="cc-gestor" title="Estado do gestor"><b></b><span>Modo manual</span></div></aside>
- <div class="cc-content"><div class="arc-pente-migration" role="note">Pente-Fino Web · Ferramentas em transição. Os comandos remotos existentes foram preservados; alguns diagnósticos ainda utilizam o motor anterior.</div><div id="cc-banner"></div><div class="cc-view" id="cc-view"></div><div class="cc-status" id="cc-status" role="status" aria-live="polite">Escolha uma ferramenta e clique no botão correspondente para executar a consulta.</div></div>
+ <div class="cc-content"><div id="cc-banner"></div><div class="cc-view" id="cc-view"></div><div class="cc-status" id="cc-status" role="status" aria-live="polite">Escolha uma ferramenta e clique no botão correspondente para executar a consulta.</div></div>
 </section>
 <dialog class="cc-dlg" id="cc-dlg"><h3 id="cc-dlg-title"></h3><div id="cc-dlg-body"></div><div class="cc-err err" id="cc-dlg-err" style="color:#ffa3a3;min-height:18px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button type="button" class="cc-pill" id="cc-dlg-no">Cancelar</button><button type="button" class="cc-pill blue" id="cc-dlg-yes">Confirmar</button></div></dialog>
 <?php require __DIR__.'/_pentefino_ui_js.php'; ?>

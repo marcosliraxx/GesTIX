@@ -2,6 +2,7 @@
 /* Caminho: includes/navigation.php */
 declare(strict_types=1);
 require_once __DIR__ . '/error-logging.php';
+require_once __DIR__.'/pentefino-modules.php';
 
 
 function arc_navigation_schema(PDO $pdo): void {
@@ -111,6 +112,7 @@ function arc_navigation_catalog(): array {
             ];
         }
     }
+    foreach(arc_pf_modules() as $module){$path='redes/'.$module['file'].'.php';if(isset($catalog[$path])){$catalog[$path]['label']='Pente-Fino · '.$module['label'];$catalog[$path]['permission']='tools';}}
     return $catalog;
 }
 

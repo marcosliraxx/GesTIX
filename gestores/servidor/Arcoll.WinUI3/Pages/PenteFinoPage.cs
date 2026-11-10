@@ -15,34 +15,15 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
 {
  private bool _dataBridgeConfigured;
  private readonly PageDataLoad _analysisLoad=new("Abrindo o Pente-Fino",true);
- public PageDataLoad DataLoad=>_activeTool is IPageDataSource source?source.DataLoad:_analysisLoad;
- public Task CollectDataAsync()=>_activeTool is IPageDataSource source?source.CollectDataAsync():InitializeAsync();
- public bool CanCancelCollection=>_activeTool is IPageDataSource source&&source.CanCancelCollection;
- public void CancelCollection(){if(_activeTool is IPageDataSource source)source.CancelCollection();}
- public UserControl? ActiveTool=>_activeTool;
- public string ActiveTitle=>_integrated.Values.FirstOrDefault(t=>ReferenceEquals(t.Page,_activeTool)).Title??"Pente-Fino";
- public bool HasToolOptions=>_activeTool is MaintenancePage;
- private UserControl? _activeTool;private readonly Grid _center=new();private readonly StackPanel _rail=new(){Spacing=2,Padding=new Thickness(8,10,8,10)};private readonly Border _railHost=new(){BorderThickness=new Thickness(0,0,1,0)};private readonly ContentControl _area=new(){HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch};
- private readonly Dictionary<string,(string Title,UserControl Page)> _integrated=[];private readonly Dictionary<string,Button> _railButtons=[];private readonly List<TextBlock> _railHeadings=[];
- public event Action? ToolChanged;
- public static readonly string[] IntegratedKeys=["registry","startup","performance","restore","security","uninstall","updater","drivers","windows_update","disk","duplicates","cloud"];
- public void ConfigureTools(Func<string,UserControl> resolve){Content=null;
-  _center.ColumnDefinitions.Add(new(){Width=new GridLength(184)});_center.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});
-  var railScroll=new ScrollViewer{Content=_rail,VerticalScrollBarVisibility=ScrollBarVisibility.Hidden,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};_railHost.Child=railScroll;_center.Children.Add(_railHost);Grid.SetColumn(_area,1);_center.Children.Add(_area);_area.Content=_web;Content=_center;
-  void Heading(string text){var heading=new TextBlock{Text=text,FontSize=10,FontWeight=Microsoft.UI.Text.FontWeights.SemiBold,Margin=new Thickness(10,14,0,5),CharacterSpacing=100};_railHeadings.Add(heading);_rail.Children.Add(heading);}
-  void Link(string key,string title){
-   var glyph=key switch{"analysis"=>Symbol.Filter,"registry"=>Symbol.Repair,"startup"=>Symbol.Play,"performance"=>Symbol.View,"restore"=>Symbol.Undo,"security"=>Symbol.Important,"uninstall"=>Symbol.Remove,"updater"=>Symbol.Refresh,"drivers"=>Symbol.AllApps,"windows_update"=>Symbol.Download,"disk"=>Symbol.Folder,"duplicates"=>Symbol.Copy,_=>Symbol.World};
-   var label=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};label.Children.Add(new SymbolIcon(glyph){Width=16,Height=16});label.Children.Add(new TextBlock{Text=title,FontSize=12,VerticalAlignment=VerticalAlignment.Center});
-   var b=new Button{Content=label,HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Left,Padding=new Thickness(10,9,6,9),BorderThickness=new Thickness(0),CornerRadius=new CornerRadius(9),MinHeight=38};ToolTipService.SetToolTip(b,title);Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(b,title);b.Click+=(_,_)=>OpenTool(key);_railButtons[key]=b;_rail.Children.Add(b);
-  }
-
-  Heading("PENTE-FINO");Link("analysis","Análise geral");
-  foreach(var group in new[]{("SISTEMA",new[]{("registry","Registro"),("startup","Inicialização"),("performance","Desempenho"),("restore","Restauração"),("security","Segurança")}), ("APLICATIVOS",new[]{("uninstall","Desinstalar"),("updater","Atualizações"),("drivers","Drivers"),("windows_update","Windows Update")}), ("ARMAZENAMENTO",new[]{("disk","Discos"),("duplicates","Duplicados"),("cloud","Sincronizados")})}){Heading(group.Item1);foreach(var item in group.Item2){_integrated[item.Item1]=(item.Item2,resolve(item.Item1));Link(item.Item1,item.Item2);}}
-  SizeChanged+=(_,e)=>_center.ColumnDefinitions[0].Width=new GridLength(e.NewSize.Width<700?148:184);PaintRail();
- }
- public void OpenTool(string key){if(_busy){_notice="Aguarde a operação atual ou interrompa antes de trocar de ferramenta.";Publish();return;}if(key=="analysis"){_activeTool=null;_area.Content=_web;}else if(_integrated.TryGetValue(key,out var tool)){_activeTool=tool.Page;_area.Content=tool.Page;}else return;PaintRail();ToolChanged?.Invoke();}
- private void PaintRail(){_center.Background=_palette.Alt;_railHost.Background=_palette.Surface;_railHost.BorderBrush=_palette.Line;_rail.Background=_palette.Surface;foreach(var heading in _railHeadings)heading.Foreground=_palette.Accent;foreach(var item in _railButtons){var active=item.Key=="analysis"?_activeTool is null:_integrated.TryGetValue(item.Key,out var t)&&ReferenceEquals(t.Page,_activeTool);item.Value.Foreground=active?_palette.Accent:_palette.Text;item.Value.BorderBrush=_palette.Accent;item.Value.BorderThickness=new Thickness(active?3:0,0,0,0);item.Value.Background=active?_palette.Alt:_palette.Surface;if(item.Value.Content is StackPanel row){foreach(var child in row.Children){if(child is TextBlock text){text.FontWeight=active?Microsoft.UI.Text.FontWeights.SemiBold:Microsoft.UI.Text.FontWeights.Normal;text.Foreground=active?_palette.Accent:_palette.Text;}else if(child is SymbolIcon icon)icon.Foreground=active?_palette.Accent:_palette.Muted;}}}}
-
+ public PageDataLoad DataLoad=>_analysisLoad;
+ public Task CollectDataAsync()=>InitializeAsync();
+ public bool CanCancelCollection=>false;
+ public void CancelCollection(){}
+ public UserControl? ActiveTool=>null;
+ public string ActiveTitle=>"Análise geral";
+ public bool HasToolOptions=>false;
+ private static readonly string[] ModuleKeys=["registry","startup","performance","restore","security","uninstall","updater","drivers","windows_update","disk","duplicates","cloud"];
+ public void OpenTool(string key){if(ModuleKeys.Contains(key))_navigate(key);}
 
     private const string Origin="https://pentefino.tidigital.local/";
     private static readonly JsonSerializerOptions Json=new(){PropertyNamingPolicy=JsonNamingPolicy.CamelCase};
@@ -50,7 +31,7 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
     private readonly WebView2 _web=new(){HorizontalAlignment=HorizontalAlignment.Stretch,VerticalAlignment=VerticalAlignment.Stretch};
     private object? _outcome;private bool _auditOk=true;private object[] _backups=[];private ScanReport? _summaryFor;private ReportSummary? _summary;private Palette _palette=new();private ResultsStore? _store;private Settings _settings=Settings.Default;private ScanReport? _report;private FixReport? _fix;private string _settingsHash="",_phase="",_notice="",_requestId="";private bool _busy,_ready,_loading,_historical=true,_cancelRequested;private CancellationTokenSource? _operation;private readonly SemaphoreSlim _messages=new(1,1);
     public PenteFinoPage(GestorRuntime runtime,Func<string,string,string,Task<bool>> confirm,Action<string> navigate){_runtime=runtime;_confirm=confirm;_navigate=navigate;Content=_web;Loaded+=async(_,_)=>await InitializeAsync();}
-    public void ApplyPalette(Palette palette){_palette=palette;PaintRail();Publish();}
+    public void ApplyPalette(Palette palette){_palette=palette;Publish();}
     public void CancelOperations(){_cancelRequested=true;_operation?.Cancel();Publish();}
     private ResultsStore Store(){if(_store is not null)return _store;using var identity=WindowsIdentity.GetCurrent();var scope=ResultsStore.Hash(identity.User?.Value??Environment.UserName)[..24];var root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"TI-Digital","PenteFino",scope);_store=new ResultsStore(root);_settings=_store.LoadSettings() with { Mode="detailed" };if(_settings.Preferences is null){var preferences=GeneralAnalysisEngine.Defaults(PenteFinoEngine.Catalog());_settings=_settings with{Preferences=preferences,Modules=GeneralAnalysisEngine.Modules(preferences)};_store.SaveSettings(_settings);}_report=_store.Last();new FixEngine(_store,new PathPolicy(PathPolicy.WindowsRules(_settings.Mode),_settings.Exclusions)).Expire();RefreshLocalSummary(_store);return _store;}
     private void RefreshLocalSummary(ResultsStore store){_auditOk=store.VerifyAudit();_backups=store.UndoEntries().Where(x=>x.State is "applied" or "prepared").GroupBy(x=>x.Session).Select(g=>new{session=g.Key,at=g.Max(x=>x.At),items=g.Count(),pending=g.Any(x=>x.State=="prepared")}).OrderByDescending(x=>x.at).Take(50).Cast<object>().ToArray();}
@@ -61,7 +42,7 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
         web.WebMessageReceived+=async(_,e)=>{if(!e.Source.StartsWith(Origin,StringComparison.OrdinalIgnoreCase))return;try{using var doc=JsonDocument.Parse(e.WebMessageAsJson);var root=doc.RootElement;var action=Text(root,"action");if(action=="workspace-footer")return;if(action=="stop"){CancelOperations();return;}if(!await _messages.WaitAsync(0))return;try{await HandleAsync(action,root);}finally{_messages.Release();}}catch(Exception error){_notice=error.Message;Publish();}};
         web.NavigationCompleted+=(_,e)=>{if(!e.IsSuccess){_notice="Não foi possível abrir a interface local.";_analysisLoad.Fail(_notice);return;}_ready=true;Publish();};_dataBridgeConfigured=true;_web.Source=new Uri(Origin+"index.html");
     }catch(Exception error){_analysisLoad.Fail("Não foi possível abrir esta área: "+error.Message);_notice="Pente-Fino indisponível: "+error.Message;}finally{_loading=false;}}
-    private async Task HandleAsync(string action,JsonElement body){var requestId=Text(body,"requestId");if(Regex.IsMatch(requestId,"^[a-zA-Z0-9_-]{1,64}$"))_requestId=requestId;if(action=="ready"){_ready=true;Store();Publish();_analysisLoad.Complete();return;}if(!_runtime.Allowed)throw new UnauthorizedAccessException("Autorize o gestor na plataforma.");if(action=="navigate"){var target=Text(body,"target");if(IntegratedKeys.Contains(target))OpenTool(target);return;}var store=Store();if(_busy)return;
+    private async Task HandleAsync(string action,JsonElement body){var requestId=Text(body,"requestId");if(Regex.IsMatch(requestId,"^[a-zA-Z0-9_-]{1,64}$"))_requestId=requestId;if(action=="ready"){_ready=true;Store();Publish();_analysisLoad.Complete();return;}if(!_runtime.Allowed)throw new UnauthorizedAccessException("Autorize o gestor na plataforma.");if(action=="navigate"){var target=Text(body,"target");if(ModuleKeys.Contains(target))OpenTool(target);return;}var store=Store();if(_busy)return;
         if(action=="settings"){
             if(!body.TryGetProperty("preferences",out var input))throw new InvalidDataException("Configurações ausentes.");
             var preferences=GeneralAnalysisEngine.Validate(input.Deserialize<AnalysisPreferences>(new JsonSerializerOptions{PropertyNameCaseInsensitive=true})??throw new InvalidDataException("Configurações inválidas."),PenteFinoEngine.Catalog());
@@ -88,7 +69,6 @@ public sealed class PenteFinoPage:UserControl,IPageDataSource
                 var progress=new Progress<ProgressState>(state=>Post(new{type="progress",requestId=operationRequestId,state}));_report=await new ScanOrchestrator(store,new GeneralAnalysisEngine(_runtime.Platform.Config,_settings.Preferences!,_settings.Exclusions,_settings.CustomFolders).Checkers()).ScanAsync(options,policy,progress,_operation.Token);_historical=_report.Cancelled;_notice=_report.Cancelled?"Análise interrompida; nenhuma correção foi aplicada.":"Análise concluída. Revise e selecione os itens antes de corrigir.";
             }else if(action=="fix"){
                 await SyncAnalysisPathsAsync(true);
-                if(_activeTool is not null)throw new InvalidOperationException("Volte à análise geral antes de corrigir.");
                 if(_report is null||_historical||_report.Cancelled||_settingsHash!=ResultsStore.Hash(JsonSerializer.Serialize(store.LoadSettings())))throw new InvalidOperationException("É necessária uma nova análise com as preferências atuais.");var selectedAreas=Strings(body,"areas",64);var ids=Presentation.CorrectionIds(_report,Text(body,"reportId"),selectedAreas,PenteFinoEngine.Catalog());
                 _fix=null;
                 var selectedQuantity=_report.Modules.SelectMany(m=>m.Items).Where(i=>ids.Contains(i.Id)).Sum(i=>Math.Max(1,i.Quantity));var decision=await ConfirmCorrectionAsync(selectedQuantity);
